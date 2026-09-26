@@ -1,0 +1,81 @@
+﻿code,section,item,要点（中文转述）,本项目计划答案,落点,状态
+E01,Model Identification,Model name,区别于同类模型的具体名称,mobo_toy 2D 冠状面股骨–保颈斜插短柄模型（Dorr A/B/C）,R2 §3,计划
+E02,Model Identification,Model keywords,研究对象与建模方法关键词,股骨；短柄；保颈；压配；初始微动；应力遮挡；平面应力；贝叶斯多目标优化,R2 §3,计划
+E03,Model Identification,Version,所发表模型的版本,config.yaml 与脚本 sha256（每份报告第 2 节自动列出）,全部报告 §2,计划
+E04,Model Identification,Physiological domain,生物学模型描述（运动、变形或承载）,术后即刻股骨–柄承载（无骨长入）,R2 §3,计划
+E05,Model Identification,Mechanical domain,数学表述（线性/非线性、静/动力等）,线弹性；准静态；小变形；接触非线性,R2 §3,计划
+E06,Model Identification,Structure of interest,研究的解剖结构,近端股骨（颈中段截骨）与短柄,R2 §3,计划
+E07,Model Identification,Demographics,所属人群,无个体；理想化成人股骨按 Dorr A/B/C 参数化,R1 §3,计划
+E08,Model Identification,State of represented organism,在体/离体/原位,在体、术后即刻,R2 §3,计划
+E09,Model Identification,Disease state,病理状态,Dorr 分型代表髓腔形态与骨质差异（C 型为宽髓腔、薄皮质）,R1 §3,计划
+E10,Model Identification,Spatial scale,空间尺度（带单位）,器官级 mm；界面单元 0.75 mm,R2 §3,计划
+E11,Model Identification,Time scale,时间尺度与瞬态/稳态,准静态两步（压配、加载），与时间无关,R2 §3,计划
+E12,Model Identification,Primary utility,建模动机与主要用途,检验 FE→GP→qNEHVI 能否在 ≤60 次 FE 内找到正确 Pareto 前沿,R2 §1；R5 §1,计划
+E13,Model Identification,Secondary utility,次要用途,定性比较三型前沿差异,R5 §1,计划
+E14,Model Identification,Primary highlight,主要亮点,零过切构造的圆弧斜插柄族，保证可插入,R1,计划
+E15,Model Identification,Secondary highlight,次要亮点,每阶段可复现报告与参考前沿对照,R7,计划
+E16,Model Identification,Primary limitation,主要局限,2D 平面应力：绝对值不可信，只看排序,全部报告 §6,计划
+E17,Model Identification,Secondary limitation,次要局限,单一工况、无肌力、无实验确认,全部报告 §6,计划
+E18,Model Identification,Reference to publication(s),相关出版物,无（内部方法测试）,—,N/A：未发表
+E19,Model Identification,Pointer to publication,出版物链接,无,—,N/A：未发表
+E20,Model Identification,Related models,相关模型,sandbox/sweep_viz 插入扫掠模型；D:\temp\Job-Stair.inp 3D 模型（材料与载荷来源）,R2 §3,计划
+E21,Model Structure,Loading and boundary conditions,外加约束与载荷总述,头心集中力 + 远端固支 + 压配过盈,R2 §3,计划
+E22,Model Structure,Type,运动学或动力学条件的具体类型,头心参考点经分布耦合施加集中力（动力学）；远端截面全固支（运动学）；压配为接触过盈 SHRINK,R2 §3,待 S2 定稿
+E23,Model Structure,Region,条件施加的区域,头部表面节点耦合到头心；股骨远端截面（小转子下 150 mm）,R2 §3,待 S2 定稿
+E24,Model Structure,Magnitude and direction,大小方向及生理意义,Fx 668 N；Fz −2296 N（上楼峰值投影到冠状面，源自 Job-Stair.inp；丢弃平面外第 2 分量 9.46 N）,R2 §3,计划
+E25,Model Structure,Time history,时间历程及物理意义,Step1 压配无外载；Step2 保持压配并线性加载到峰值（非线性静力的伪时间）,R2 §3,计划
+E26,Model Structure,Primary output variables,主输出,f1 界面切向滑移增量长度加权 P95（µm）；f2 Gruen 7 区 SED 相对完整股骨下降率（%）,R2 §3,计划
+E27,Model Structure,Secondary output variables,次输出,>50 与 >150 µm 界面占比；Gruen 1 区 SED；柄 von Mises P99；接触压力分布,R2 §3,计划
+E28,Model Structure,Source of anatomy,解剖来源,解析参数化轮廓（无影像）,R1 §3,计划
+E29,Model Structure,Modality,成像方式与协议,无影像,—,N/A：解析几何
+E30,Model Structure,Resolution,成像分辨率,无影像；轮廓折线逼近弦高误差 ≤ 0.05 mm,R1 §3,计划
+E31,Model Structure,Reference configuration,参考构形,无初始应力；过盈在 Step1 由接触引入,R2 §3,计划
+E32,Model Structure,Subcomponents (subsidiary models),子部件,皮质骨、松质骨、柄 3 个部件,R2 §3,计划
+E33,Model Structure,Name,子部件名称,cortex / cancellous / stem,R2 §3,计划
+E34,Model Structure,Geometric representation,几何表示,2D 多边形（shapely）；外轮廓三型相同，内轮廓按 Dorr 参数,R1 §3,计划
+E35,Model Structure,Source,几何来源,femur2d.py 与 stem2d.py 解析构造,R1 §3,计划
+E36,Model Structure,Resolution,几何分辨率,边界离散间距 ≤ 0.5 mm,R1 §3,计划
+E37,Model Structure,Segmentation procedure,分割流程,无分割,—,N/A：非影像
+E38,Model Structure,Representative geometry,代表性几何图,R1-F01；R1-F02,R1,计划
+E39,Model Structure,Mesh,网格总述,gmsh 2D 三角网格；骨（皮质与松质共节点）与柄分别划分,R2 §3,计划
+E40,Model Structure,Element name,单元名称,CPS6M,R2 §3,计划
+E41,Model Structure,Element shape,单元形状,三角形,R2 §3,计划
+E42,Model Structure,Element formulation,单元列式,6 节点修正二次平面应力（适用于接触）,R2 §3,计划
+E43,Model Structure,Mesh density,网格密度,界面 0.75 mm、远场 3 mm；三档收敛研究见 R2-F03 与 R2-T02,R2,计划
+E44,Model Structure,Constitutive representation,本构总述,三种材料均为各向同性线弹性,R2 §3,计划
+E45,Model Structure,Formulation,本构列式,各向同性线弹性,R2 §3,计划
+E46,Model Structure,Coefficients,本构参数,皮质 E 16800 MPa ν 0.3；松质 E 400/300/150 MPa（A/B/C）ν 0.3；Ti6Al4V E 110000 MPa ν 0.35,R2 §3,计划
+E47,Model Structure,Source,参数来源,皮质与钛取自 Job-Stair.inp；松质骨源模型为 155 MPa，分型取值为假设并设 300 MPa 对照,R2 §3；R5-F09,计划
+E48,Model Structure,Reference configuration,材料参考构形,无预应力,R2 §3,计划
+E49,Model Structure,Other properties,其他属性,平面应力厚度：骨 30 mm、柄 12 mm,R2 §3,计划
+E50,Model Structure,Interactions,相互作用总述,柄–骨界面；皮质–松质共节点,R2 §3,计划
+E51,Model Structure,Interacting components,相互作用部件,柄外表面对骨腔表面（皮质与松质）,R2 §3,计划
+E52,Model Structure,Interaction type,相互作用类型,_fric：面面摩擦接触；_bond：*TIE ADJUST=NO,R2 §3,计划
+E53,Model Structure,Interaction formulation,相互作用列式,面面离散；骨为从面、柄为主面；罚函数摩擦（slip tolerance 0.005）；硬接触,R2 §3,待 S2 定稿
+E54,Model Structure,Interaction properties,相互作用参数,μ 0.3（符号检查扫 0.5/0.8）；过盈 δ 0.10 mm,R2 §3,计划
+E55,Simulation Structure,Name of simulation software,软件及分析模块,Abaqus/Standard,R0-T01,计划
+E56,Simulation Structure,Version of simulation software,软件版本,Abaqus 2025（D:\SIMULIA\Commands\abq2025.bat；内置 Python 3.10.5）,R0-T01,计划
+E57,Simulation Structure,Solution strategy,求解策略与增量设置,隐式静力；自动增量,R2 §3,待 S2 定稿
+E58,Simulation Structure,Numerical algorithms,数值算法，是否默认,完全牛顿法与直接稀疏求解器（软件默认）,R2 §3,计划
+E59,Simulation Structure,Convergence criteria,收敛准则，是否默认,软件默认残差与位移修正准则,R2 §3,计划
+E60,Simulation Structure,Post-processing,后处理,odb_export.py（Abaqus Python 仅标准库）导 CSV → qoi.py 计算 f1、f2、约束,R2 §3,计划
+E61,Verification,Methods of verification,自做的验证,R0 悬臂梁；R2 Lamé 压配、GCI 网格收敛、符号检查、重跑确定性、噪声底,R0；R2,计划
+E62,Verification,Correctness of formulation,扩展功能（用户子程序）的正确性,不使用用户子程序,—,N/A：无扩展
+E63,Verification,Comparisons with known solutions,与已知解比较,R0-F01 悬臂梁；R2-F02 厚壁圆筒压配,R0；R2,计划
+E64,Verification,Sensitivity to simulation settings,对求解设置的敏感性,R2-F09 噪声底；R2-F04 中 μ 扫描,R2,计划
+E65,Verification,Mesh convergence,网格收敛与所用输出,R2-F03 与 R2-T02；输出为区域量 f1、f2,R2,计划
+E66,Verification,Assessment of repeatability,可重复性,R2-T03 同设计重跑逐位比对,R2,计划
+E67,Validation,Validation procedure,确认流程或其缺失,无直接确认；报告中标注"未确认"，仅做 2D–3D 模型形式比较（R6）,R6；R7-T01,计划
+E68,Validation,Validated output,被确认的输出,无,—,N/A：无实验
+E69,Validation,Overall modeling assumptions,主要建模假设,见通用局限清单,全部报告 §6,计划
+E70,Validation,Physiological relevance of loading and boundary conditions,载荷与边界的生理相关性,上楼峰值载荷；远端固支截面距 Gruen 7 区约 150 mm，柄尖到固支端距离在 R1 报出；无肌力为已知偏差,R2 §6,计划
+E71,Validation,Justification of parameters,参数依据,材料取自既有 3D 模型；Dorr 判据来自文献；分型松质骨模量为假设,R1；R2,计划
+E72,Validation,Data used for model development,建模用数据,无实验数据；参数来自既有模型与文献,R2 §3,计划
+E73,Validation,Data used for model comparison,比较用数据,无,—,N/A：无实验
+E74,Validation,Sensitivity analysis,敏感性分析,R4-F04 设计变量全局敏感性；R5-F09 松质骨模量对照,R4；R5,计划
+E75,Validation,Predictive capacity,预测能力,只主张排序；R6 2D–3D 秩相关界定范围,R6,计划
+E76,Availability,Contact,联系人,项目负责人（UCL Surgery & Interventional Science）,R7,计划
+E77,Availability,Licensing,许可,内部使用，未定,R7,计划
+E78,Availability,Website for downloads,下载地址,本地 G:\projects\Femoral implant generation\sandbox\mobo_toy,R7,计划
+E79,Availability,Website for development,开发地址,无公开仓库,—,N/A：本地
+E80,Availability,"Website for public commentary, responses, and rating",公开评论地址,无,—,N/A：本地

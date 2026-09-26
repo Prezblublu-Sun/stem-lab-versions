@@ -1,0 +1,225 @@
+# mobo_toy 报告登记表（机器可读，唯一真源）
+# report.py 用它检查每份报告的必备图、表、验收项是否齐全，并把清单渲染进 REPORTING_SPEC.md。
+# 改这里 → 运行 `python report.py --render-spec` 同步人读文档。
+version: 1
+project: "mobo_toy：FEA → 代理 → 多目标贝叶斯优化 简单模型测试（Dorr A/B/C × 保颈斜插短柄）"
+language: {text: zh, figures: en}
+
+common_limitations:
+  - "2D 冠状面平面应力，无侧板，前后皮质的连接被忽略；力学量只用于定性比较与排序，不下绝对值结论。"
+  - "无外展肌力，单一上楼工况（3D 模型峰值载荷投影到冠状面）。"
+  - "松质骨模量随 Dorr 分型取 400/300/150 MPa 是假设（源 3D 模型为 155 MPa）；另设三型同为 300 MPa 的对照组。"
+  - "压配量 δ = 0.10 mm 与摩擦系数 μ = 0.3 固定，只在 R2 符号检查中改变。"
+  - "无实验数据，本测试不做 ASME V&V 40 意义上的确认（validation），2D–3D 比较只算模型形式比较。"
+  - "本测试检验代理 + 多目标 BO 能否在少量 FE 内找到正确前沿，不对柄设计下临床结论。"
+
+reports:
+  R0:
+    dir: R0_env_smoke
+    title: "环境与冒烟"
+    stage: S0
+    cou: "确认 Abaqus 2025 批处理链路、单位制与平面应力单元在已知解上数值正确，作为后续全部 FE 结果的前提。"
+    question: "求解器、.inp 模板、odb 导出这条链在最简单的问题上是否给出正确数值，单次作业要多久？"
+    not_answered: "不涉及股骨、柄或接触。"
+    standards: ["Erdemir 2012 Simulation Structure", "Erdemir 2012 Verification", "V&V 40 代码验证"]
+    figures:
+      - {id: R0-F01, what: "悬臂梁端部挠度 FE/解析比随单元尺寸变化（三档网格，CPS6M），画出 ±2% 带", std: "Erdemir 2012 Comparisons with known solutions"}
+      - {id: R0-F02, what: "作业墙钟时间对单元数（双对数）", std: "成本记账（250 问 §C）"}
+    tables:
+      - {id: R0-T01, what: "软件与版本：Abaqus、内置 Python、venv 各包；许可状态；单位制"}
+    acceptance:
+      - {id: R0-A1, criterion: "最细网格端部挠度相对 Euler–Bernoulli 解析解的误差（L/h = 20）", threshold: "< 2%"}
+      - {id: R0-A2, criterion: "同一 .inp 重跑两次，端部挠度逐位相同", threshold: "相同"}
+      - {id: R0-A3, criterion: "odb_export.py 在 Abaqus 内置 Python 下只用标准库运行成功", threshold: "成功"}
+    next_inputs: ["可用的 Abaqus 调用方式、并发数与许可重试参数", "单次 2D 作业耗时基准（用于排程 S4、S5）"]
+
+  R1:
+    dir: R1_geometry
+    title: "几何与设计空间"
+    stage: S1
+    cou: "确认三型 2D 股骨满足 Dorr 判据、柄族可构造插入、几何门判定正确，让设计空间可以复核。"
+    question: "三型股骨的 CFI 与皮质指数是否落在目标区间？设计空间中多大比例能过几何门？圆弧柄插入是否零过切？"
+    not_answered: "不涉及力学响应。"
+    standards: ["Erdemir 2012 Model Structure（几何项）", "Dorr 1993 分型判据"]
+    figures:
+      - {id: R1-F01, what: "三型股骨冠状面轮廓，画出 CFI 与皮质指数的测量线并标注实测值", std: "Erdemir 2012 Representative geometry"}
+      - {id: R1-F02, what: "柄族图册：每型 Sobol 抽 8 根柄置于髓腔内（共 24 根）", std: "设计空间可视化"}
+      - {id: R1-F03, what: "圆弧插入位姿叠图，并给出扫掠并集减柄的过切面积", std: "可插入性证据（sweep_viz 零过切结论）"}
+      - {id: R1-F04, what: "设计变量两两投影散点，按几何门结果（通过 / 各失败原因）着色", std: "可行域形状"}
+      - {id: R1-F05, what: "剩余皮质壁厚直方图（分型），标 1.0 mm 门槛", std: "几何门"}
+    tables:
+      - {id: R1-T01, what: "三型 CFI、皮质指数：预设值、实测值、Dorr 判据区间"}
+      - {id: R1-T02, what: "设计变量定义、范围、归一化方式"}
+      - {id: R1-T03, what: "几何门通过率与失败原因计数（L1/L2 细分）"}
+    acceptance:
+      - {id: R1-A1, criterion: "三型实测 CFI、皮质指数与预设值之差，且落在对应 Dorr 区间", threshold: "≤ 0.05 且在区间内"}
+      - {id: R1-A2, criterion: "单调圆弧柄插入过切面积（离散容差）", threshold: "≤ 0.1% 柄面积"}
+      - {id: R1-A3, criterion: "几何与几何门单元测试", threshold: "pytest 全部通过"}
+      - {id: R1-A4, criterion: "每型几何门通过率（保证 BO 候选池不空）", threshold: "≥ 20%"}
+    next_inputs: ["三型股骨几何与 ROI（Gruen 1、7 区）定义", "几何门函数与候选池"]
+
+  R2:
+    dir: R2_fe_verification
+    title: "FE 模型与验证"
+    stage: S2
+    cou: "确认 2D 压配摩擦模型与粘接模型的数值正确、网格无关、对输入变化方向合理，并量化噪声底，作为代理训练数据的质量证明。"
+    question: "f1（微动）与 f2（近端遮挡）的数值误差多大？网格收敛吗？对 δ、μ、柄尺寸的响应方向对吗？同输入重跑是否一致？"
+    not_answered: "不回答模型是否符合真实股骨（无实验确认）。"
+    standards: ["Erdemir 2012 全部 80 项", "Oefner 2021 报告表（待获取）", "Celik 2008 GCI", "ASTM F2996 应力口径"]
+    figures:
+      - {id: R2-F01, what: "网格全图与界面局部放大（三型基线设计）", std: "Erdemir 2012 Mesh"}
+      - {id: R2-F02, what: "Lamé 厚壁圆筒压配：接触压力 FE 对解析", std: "Erdemir 2012 Comparisons with known solutions"}
+      - {id: R2-F03, what: "f1、f2 随界面单元尺寸的收敛曲线，带 GCI 误差棒", std: "Celik 2008"}
+      - {id: R2-F04, what: "符号检查条形图：δ=0 对 0.1 mm、μ 0.3/0.5/0.8、粘接滑移、柄更长更宽", std: "Erdemir 2012 Sensitivity to simulation settings"}
+      - {id: R2-F05, what: "三型基线设计：骨与柄 von Mises 云图", std: "ASTM F2996 应力口径"}
+      - {id: R2-F06, what: "界面接触压力沿弧长分布（三型）", std: "主输出旁证"}
+      - {id: R2-F07, what: "界面切向滑移增量沿弧长分布，标 50 与 150 µm 线（三型）", std: "主输出 f1"}
+      - {id: R2-F08, what: "Gruen 1、7 区 SED：植入对完整股骨（三型）", std: "主输出 f2"}
+      - {id: R2-F09, what: "数值噪声底：输出变化量对输入扰动量（双对数）", std: "GP 噪声先验来源"}
+    tables:
+      - {id: R2-T01, what: "Erdemir 2012 报告清单 80 项逐项填写（取到 Oefner 2021 后换为其报告表）"}
+      - {id: R2-T02, what: "GCI 表：N1–N3、r21、r32、表观阶数 p、外推值、e_a、e_ext、GCI_fine"}
+      - {id: R2-T03, what: "确定性重跑比对（同设计两次运行的 f1、f2、约束）"}
+    acceptance:
+      - {id: R2-A1, criterion: "V1 Lamé 压配接触压力相对解析解误差", threshold: "< 5%"}
+      - {id: R2-A2, criterion: "V2 最细两档网格 f1、f2 相对变化，并报出 GCI", threshold: "< 5%"}
+      - {id: R2-A3, criterion: "V3 符号检查：δ=0 微动大于 δ=0.1；μ 升高微动下降；粘接滑移为零；柄更长更宽则微动降、遮挡升", threshold: "全部方向正确"}
+      - {id: R2-A4, criterion: "V4 同设计重跑 f1、f2 逐位相同", threshold: "相同"}
+      - {id: R2-A5, criterion: "V5 噪声底已量化并写入 GP 噪声先验", threshold: "给出数值"}
+      - {id: R2-A6, criterion: "Erdemir 2012 清单 80 项全部填写，N/A 须写理由", threshold: "80/80"}
+    next_inputs: ["evaluate(design, dorr) 可批量调用", "GP 噪声先验", "单设计耗时（排程 S4）"]
+
+  R3:
+    dir: R3_optimizer_selftest
+    title: "优化器自检"
+    stage: S3
+    cou: "在前沿已知的解析基准上确认 qNEHVI 实现与超参数设置正确，否则不进入 FE 阶段。"
+    question: "同样 60 次评估，BO 能否逼近已知前沿并稳定优于 Sobol 随机抽样？"
+    not_answered: "不说明在 FE 问题上的表现。"
+    standards: ["Zitzler 2003 性能指标与达成函数", "Daulton 2020 作图惯例"]
+    figures:
+      - {id: R3-F01, what: "BraninCurrin 与 ZDT1（d=5）上 log10 超体积差随评估次数：qNEHVI 对 Sobol，5 种子均值 ± 2 SE", std: "Daulton 2020"}
+      - {id: R3-F02, what: "最终前沿对已知真前沿（各方法中位种子）", std: "Zitzler 2003"}
+      - {id: R3-F03, what: "50% 经验达成面（EAF）", std: "Zitzler 2003"}
+    tables:
+      - {id: R3-T01, what: "各方法最终 HV 比与 IGD（均值 ± SD，5 种子）"}
+    acceptance:
+      - {id: R3-A1, criterion: "60 次评估时 qNEHVI 中位 HV 达到已知前沿 HV 的比例（两个基准）", threshold: "≥ 95%"}
+      - {id: R3-A2, criterion: "60 次评估时每个种子的 qNEHVI HV 高于 Sobol 中位", threshold: "全部种子"}
+    next_inputs: ["mobo.py 的采集设置（参考点规则、q、候选池大小）"]
+
+  R4:
+    dir: R4_reference_sweep
+    title: "参考扫描（真前沿）"
+    stage: S4
+    cou: "用大样本 Sobol FE 扫描给出每型参考前沿，作为 R5 判断 BO 是否找对的标尺，同时刻画设计空间。"
+    question: "每型的参考前沿长什么样、由哪些设计组成？哪些设计变量最影响 f1、f2？失败集中在哪里？"
+    not_answered: "不评价 BO；不外推到 3D。"
+    standards: ["Saltelli 2019（全局敏感性）", "CLAUDE.md §9–10 运行记录与失败分级"]
+    figures:
+      - {id: R4-F01, what: "每型 256 个设计的目标空间散点（按可行性着色），参考前沿高亮", std: "Zitzler 2003"}
+      - {id: R4-F02, what: "前沿设计的平行坐标图（归一化设计变量 + 目标）", std: "设计解释"}
+      - {id: R4-F03, what: "f1、f2 对各设计变量的散点（分型）", std: "Saltelli 2019（先看散点）"}
+      - {id: R4-F04, what: "Sobol 一阶与总效应指数条形图（基于参考数据 GP 代理计算）", std: "Saltelli 2019"}
+      - {id: R4-F05, what: "失败设计在设计空间中的位置（按 L1–L5 着色）", std: "CLAUDE.md §10"}
+      - {id: R4-F06, what: "前沿柄轮廓图册（每型按 f1 排序）", std: "设计解释"}
+    tables:
+      - {id: R4-T01, what: "每型参考前沿设计清单与目标值"}
+      - {id: R4-T02, what: "失败分级计数（L1–L5、OK）"}
+      - {id: R4-T03, what: "运行耗时统计（中位、P95、总机时）"}
+    acceptance:
+      - {id: R4-A1, criterion: "每型参考前沿点数（不足则加到 512）", threshold: "≥ 15"}
+      - {id: R4-A2, criterion: "runs.csv 行数等于尝试设计数，失败全部入账", threshold: "相等"}
+      - {id: R4-A3, criterion: "过几何门设计中 FE 失败（L3–L5）比例", threshold: "≤ 5%"}
+    next_inputs: ["每型参考前沿与 HV_ref", "目标归一化范围与 HV 参考点"]
+
+  R5:
+    dir: R5_bo_results
+    title: "BO 结果与代理诊断"
+    stage: S5
+    cou: "判断 GP 代理 + qNEHVI 在每型 ≤ 60 次 FE 内能否找到参考前沿，以及代理的不确定性是否可信。"
+    question: "BO 用多少次 FE 达到参考前沿 HV 的 90%？是否每个种子都胜过同预算 Sobol？GP 的 90% 区间覆盖率是否名副其实？三型前沿差在哪？"
+    not_answered: "不对 3D 或真实股骨下结论；不做跨分型稳健优化。"
+    standards: ["Zitzler 2003", "Daulton 2020", "Kuleshov 2018 校准", "REFORMS 2024", "Aldieri 2025", "250 问 §C"]
+    figures:
+      - {id: R5-F01, what: "每型 HV 比随 FE 次数：3 种子 BO、Sobol 基线、0.9 参考线", std: "Daulton 2020"}
+      - {id: R5-F02, what: "IGD 随 FE 次数", std: "Zitzler 2003"}
+      - {id: R5-F03, what: "BO 前沿与参考前沿叠图（每型）", std: "Zitzler 2003"}
+      - {id: R5-F04, what: "50% 经验达成面（每型，BO 对 Sobol）", std: "Zitzler 2003"}
+      - {id: R5-F05, what: "提议点在设计空间中的轨迹（按轮次着色）", std: "采集行为诊断"}
+      - {id: R5-F06, what: "GP 预测对 FE 真值散点，带 90% 区间（f1、f2、约束）", std: "REFORMS 指标与不确定性"}
+      - {id: R5-F07, what: "校准曲线：名义覆盖对实际覆盖", std: "Kuleshov 2018"}
+      - {id: R5-F08, what: "三型参考前沿叠图（共用坐标）", std: "分型比较"}
+      - {id: R5-F09, what: "松质骨同为 300 MPa 的对照前沿", std: "分离骨质与髓腔形态效应"}
+      - {id: R5-F10, what: "各型膝点设计的轮廓与场图", std: "设计解释"}
+      - {id: R5-F11, what: "三型前沿设计的设计变量分布（每个变量一列，三型并排），回答最优设计是否随分型改变", std: "分型比较（设计空间），2026-09-26 用户确认新增"}
+      - {id: R5-F12, what: "GP 各变量长度尺度的倒数与 R4 Sobol 总效应指数对照", std: "Saltelli 2019；代理可解释性，2026-09-26 用户确认新增"}
+    tables:
+      - {id: R5-T01, what: "代理指标：R²、Spearman、90% 覆盖率、锐度；训练/测试划分与泄漏检查"}
+      - {id: R5-T02, what: "成本账本：FE 次数、机时、相对参考扫描的节省比"}
+      - {id: R5-T03, what: "可复现包清单：配置、种子、脚本哈希、runs.csv 行范围"}
+    acceptance:
+      - {id: R5-A1, criterion: "每型 ≤ 60 次 FE 时 BO 中位 HV 比（参考前沿 = 该型全部 FE 评估的非支配集）", threshold: "≥ 0.90"}
+      - {id: R5-A2, criterion: "60 次 FE 时三个种子的 HV 比都高于同预算 Sobol 中位", threshold: "3/3（每型）"}
+      - {id: R5-A3, criterion: "最终 GP 在参考 256 点上 90% 区间的实际覆盖率", threshold: "0.80–0.97"}
+      - {id: R5-A4, criterion: "代理测试集与训练集按 design_id 无重叠（泄漏检查）", threshold: "重叠 0"}
+    next_inputs: ["每型 3–5 个前沿设计（含膝点）送 3D 抽检"]
+
+  R6:
+    dir: R6_spot3d
+    title: "3D 抽检"
+    stage: S7
+    cou: "检查 2D 模型给出的设计排序在理想化 3D 模型中是否保持，界定 2D 结论的适用范围。"
+    question: "前沿设计在 3D 中的 f1、f2 排序与 2D 一致吗？"
+    not_answered: "不比较绝对值；不属于实验确认。"
+    standards: ["Erdemir 2012", "V&V 40 模型形式比较"]
+    figures:
+      - {id: R6-F01, what: "三型 3D 股骨与柄渲染和网格", std: "Erdemir 2012 Representative geometry / Mesh"}
+      - {id: R6-F02, what: "抽检设计 2D 对 3D 的 f1、f2 散点及 Spearman", std: "V&V 40 适用性"}
+      - {id: R6-F03, what: "3D 两档网格的 f1、f2 变化", std: "Erdemir 2012 Mesh convergence"}
+    tables:
+      - {id: R6-T01, what: "抽检设计清单与 2D、3D 两套目标值"}
+    acceptance:
+      - {id: R6-A1, criterion: "抽检设计 2D 与 3D 的 f1、f2 Spearman 秩相关", threshold: "≥ 0.7"}
+      - {id: R6-A2, criterion: "3D 两档网格 f1、f2 相对变化", threshold: "< 10%"}
+    next_inputs: ["2D 结论的适用范围说明"]
+
+  R7:
+    dir: R7_summary
+    title: "总结与可信度"
+    stage: close
+    cou: "汇总本测试的结论与可信度，决定这套流程能否迁移到真实股骨（Gate 1）。"
+    question: "流程是否整体通过？可信度各因子达到什么水平？哪些局限必须在真实模型中解决？"
+    not_answered: "不对柄设计下临床结论。"
+    standards: ["ASME V&V 40-2018", "FDA 2023 CM&S 可信度指南", "Erdemir 2020 十条规则"]
+    figures:
+      - {id: R7-F01, what: "一页仪表板：三型 HV 曲线、前沿、校准曲线、2D–3D 秩相关", std: "汇总"}
+    tables:
+      - {id: R7-T01, what: "V&V 40 可信度因子表（13 项，目标等级与达到等级）"}
+      - {id: R7-T02, what: "Erdemir 2020 十条规则合规表"}
+      - {id: R7-T03, what: "局限清单与在真实模型中的处置"}
+      - {id: R7-T04, what: "R0–R6 验收汇总"}
+    acceptance:
+      - {id: R7-A1, criterion: "R0–R6 全部验收项通过，或逐项写明豁免理由", threshold: "全部"}
+    next_inputs: ["Gate 1 迁移清单：只替换几何与网格层"]
+
+  RD:
+    dir: _demo_pipeline
+    title: "报告流水线演示（合成数据）"
+    stage: demo
+    demo: true
+    cou: "只演示报告流水线：图由 CSV 重画、溯源哈希、验收表、PDF 生成。图中数据全部为合成数据。"
+    question: "报告工具链能否按规范生成一份完整报告？"
+    not_answered: "不含任何研究结果。"
+    standards: ["本规范"]
+    figures:
+      - {id: RD-F01, what: "合成：HV 比随 FE 次数（3 种子 + Sobol）", std: "Daulton 2020 作图惯例"}
+      - {id: RD-F02, what: "合成：代理预测对真值，带 90% 区间", std: "REFORMS"}
+      - {id: RD-F03, what: "合成：三型前沿叠图", std: "分型配色演示"}
+    tables:
+      - {id: RD-T01, what: "合成：代理指标表"}
+    acceptance:
+      - {id: RD-A1, criterion: "演示：通过项", threshold: "≥ 0.90"}
+      - {id: RD-A2, criterion: "演示：不通过项", threshold: "0.80–0.97"}
+      - {id: RD-A3, criterion: "演示：未提交结果的项显示为待定", threshold: "—"}
+    next_inputs: ["无"]

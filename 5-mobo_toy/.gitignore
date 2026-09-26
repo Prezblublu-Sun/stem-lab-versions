@@ -1,0 +1,14 @@
+.venv-mobo/
+__pycache__/
+*.pyc
+runs/
+reports/*/history/
+*.odb
+*.lck
+*.res
+*.mdl
+*.stt
+*.prt
+*.sim
+*.com
+scratch/

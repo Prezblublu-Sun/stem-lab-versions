@@ -1,0 +1,1262 @@
+<!doctype html><html><head><meta charset='utf-8'><title>REPORTING_SPEC</title><style>
+@page { size: A4; margin: 16mm 15mm; }
+* { box-sizing: border-box; }
+body { font-family: "Segoe UI","Microsoft YaHei",Arial,sans-serif; font-size: 10pt; line-height: 1.5; color:#111; }
+h1 { font-size: 18pt; border-bottom: 3px solid #333; padding-bottom:5px; margin-bottom:4px; }
+h2 { font-size: 13pt; margin-top: 1.2em; border-bottom:1px solid #bbb; padding-bottom:2px; page-break-after: avoid; }
+h3 { font-size: 11pt; margin-top: 0.9em; page-break-after: avoid; }
+table { border-collapse: collapse; width: 100%; font-size: 8.5pt; margin: 0.5em 0; page-break-inside: auto; }
+tr { page-break-inside: avoid; }
+th,td { border: 1px solid #999; padding: 4px 6px; text-align: left; vertical-align: top; }
+th { background:#f0f0f0; }
+td:first-child { white-space: nowrap; }
+code,pre { font-family: Consolas,monospace; font-size: 8.5pt; background:#f6f6f6; }
+.meta { color:#444; font-size:9pt; margin: 2px 0 10px 0; }
+.banner { padding:6px 10px; margin:6px 0; border-radius:4px; font-weight:600; }
+.banner.syn { background:#FDE8DC; border:1px solid #D55E00; color:#8a3200; }
+.banner.draft { background:#FFF4CC; border:1px solid #E69F00; color:#6b4a00; }
+figure { margin: 0.8em 0; page-break-inside: avoid; border:1px solid #ccc; background:#fafafa; padding:8px; border-radius:4px; }
+figure img { max-width: 100%; display:block; margin: 0 auto; background:#fff; }
+figcaption { font-size: 8.8pt; color:#222; margin-top:6px; }
+figcaption .cap { font-weight:600; }
+figcaption .src { color:#666; font-size: 7.8pt; }
+td.PASS { background:#DDF2EA; color:#00553d; font-weight:600; }
+td.FAIL { background:#FBE0D3; color:#8a3200; font-weight:600; }
+td.PENDING { background:#EEEEEE; color:#555; font-weight:600; }
+td.NA { background:#E8F1F8; color:#0b4a78; font-weight:600; }
+.verdict { font-weight:700; padding:1px 6px; border-radius:3px; }
+.verdict.PASS { background:#DDF2EA; color:#00553d; } .verdict.FAIL { background:#FBE0D3; color:#8a3200; }
+.verdict.INCOMPLETE { background:#FFF4CC; color:#6b4a00; }
+</style></head><body><h1>mobo_toy 报告规范（REPORTING_SPEC）</h1>
+<p>版本 v1.1 · 2026-09-26 · 状态：<strong>已确认</strong>（用户 2026-09-26 回复"可以"，同意新增 R5-F11、R5-F12 并开始实验）</p>
+<p>本规范规定"FEA → 代理 → 多目标贝叶斯优化"简单模型测试中，每个阶段必须交出什么报告、报告长什么样、图表怎么画、数据怎么溯源、什么算通过。它是 <code>reports/spec.yaml</code>（机器可读登记表）的说明文档；第 6 节的报告清单由 <code>python report.py --render-spec</code> 从登记表自动生成，两者不会不一致。</p>
+<hr />
+<h2>1. 规范依据</h2>
+<table>
+<thead>
+<tr>
+<th>规范</th>
+<th>本规范取了什么</th>
+<th>用在哪</th>
+<th>本地状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Erdemir et al. 2012, <em>J Biomech</em> 45:625–633，"Considerations for reporting finite element analysis studies in biomechanics"</td>
+<td>六大类 80 个报告项：模型标识 20、模型结构 34、仿真结构 6、验证 6、确认 9、可获得性 5</td>
+<td>所有 FE 报告第 3 节；R2-T01 逐项填写</td>
+<td>PMC 全文 XML 已存 <code>refs/</code>；80 项已抽成 <code>reports/checklists/erdemir2012_checklist.csv</code>；PDF 自动下载被 Cloudflare 验证页挡住，需浏览器手动下载 https://europepmc.org/articles/PMC3278509</td>
+</tr>
+<tr>
+<td>Oefner et al. 2021, <em>Med Eng Phys</em> 92:25–32，骨科与创伤生物力学 FEA 的 V&amp;V 报告清单（附报告表）</td>
+<td>计划用其报告表替换 R2-T01</td>
+<td>R2</td>
+<td><strong>未取得</strong>，非开放获取，需 UCL 账号从 https://doi.org/10.1016/j.medengphy.2021.03.011 下载；取得前 R2-T01 用 Erdemir 2012 清单</td>
+</tr>
+<tr>
+<td>ASME V&amp;V 40-2018；FDA 2023 "Assessing the Credibility of Computational Modeling and Simulation in Medical Device Submissions"</td>
+<td>使用情境（COU）与问题的写法；模型风险 = 模型影响 × 决策后果；13 个可信度因子</td>
+<td>每份报告第 1 节；R7-T01</td>
+<td>未持有全文；因子名见附录 B</td>
+</tr>
+<tr>
+<td>Erdemir et al. 2020, <em>J Transl Med</em> 18:369，可信建模十条规则</td>
+<td>十条逐条落实方式</td>
+<td>每份报告第 1、2、6 节；R7-T02</td>
+<td>本地 <code>G:\projects\Reports\application\187_2020_…pdf</code>，十条已核对原文</td>
+</tr>
+<tr>
+<td>ASTM F2996 非模块金属髋柄 FEA</td>
+<td>柄应力报告口径（分位数而非单点峰值，报网格敏感性）</td>
+<td>R2-F05、约束</td>
+<td>未持有，按库内引用</td>
+</tr>
+<tr>
+<td>Celik et al. 2008, <em>J Fluids Eng</em> 130:078001（GCI）</td>
+<td>三档网格、细化比 r &gt; 1.3、表观阶数 p、外推值、GCI_fine = 1.25·e_a/(r^p − 1)</td>
+<td>R2-F03、R2-T02</td>
+<td>未持有</td>
+</tr>
+<tr>
+<td>Zitzler et al. 2003, <em>IEEE TEVC</em> 7:117</td>
+<td>超体积、IGD 的用法；经验达成函数（EAF）</td>
+<td>R3、R4、R5</td>
+<td>未持有</td>
+</tr>
+<tr>
+<td>Daulton et al. 2020 qEHVI（NeurIPS）</td>
+<td>log 超体积差随评估次数、多种子均值 ± 2 SE 的作图惯例</td>
+<td>R3-F01、R5-F01</td>
+<td>本地 Reading_folder T5</td>
+</tr>
+<tr>
+<td>Kuleshov et al. 2018（ICML）；Chung et al. 2021 Uncertainty Toolbox</td>
+<td>校准曲线（名义对实际覆盖）、锐度</td>
+<td>R5-F07、R5-T01</td>
+<td>未持有</td>
+</tr>
+<tr>
+<td>Kapoor et al. 2024 REFORMS（<em>Sci Adv</em>）；Kapoor &amp; Narayanan 2023 数据泄漏</td>
+<td>8 个模块 32 项的 ML 报告要求，重点是划分与泄漏</td>
+<td>R5 代理部分，见附录 D</td>
+<td>泄漏一文本地</td>
+</tr>
+<tr>
+<td>Aldieri et al. 2025 ML 预测器可信度共识（12 条陈述）</td>
+<td>误差量化、偏差稳健性、因果知识的陈述方式</td>
+<td>R5 代理可信度段</td>
+<td>本地 <code>Reports\application\080_2025_…pdf</code></td>
+</tr>
+<tr>
+<td>Saltelli et al. 2019, <em>Environ Model Softw</em> 114:29</td>
+<td>用全局敏感性，不只做单因素；先看散点</td>
+<td>R4-F03、R4-F04</td>
+<td>未持有</td>
+</tr>
+<tr>
+<td>本课题 250 问 §C 最小合格报告清单</td>
+<td>成本账本、决策指标、可复现包</td>
+<td>R5-T02、R5-T03</td>
+<td><code>G:\projects\application\FEA代理模型_250问逐条解答.md</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>2. 每份报告的统一结构</h2>
+<p><code>report.py</code> 按下面的固定结构生成报告，内容来源写在右列。</p>
+<table>
+<thead>
+<tr>
+<th>节</th>
+<th>内容</th>
+<th>来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>页眉</td>
+<td>报告号、阶段、生成时间、spec.yaml 哈希、<strong>总判定</strong>（PASS / FAIL / INCOMPLETE）</td>
+<td>自动</td>
+</tr>
+<tr>
+<td>0 结论摘要</td>
+<td>三到五句：本阶段结论、关键数字、是否可进入下一阶段</td>
+<td><code>text/summary.md</code>（必填）</td>
+</tr>
+<tr>
+<td>1 使用情境与问题</td>
+<td>使用情境、要回答的问题、<strong>不回答</strong>的问题、依据规范</td>
+<td>spec.yaml</td>
+</tr>
+<tr>
+<td>2 输入与版本</td>
+<td>config.yaml 与 spec.yaml 哈希；每个生成脚本与作图模块的哈希；软件包版本；Abaqus 版本、runs.csv 行范围、种子等</td>
+<td>自动 + <code>inputs.json</code></td>
+</tr>
+<tr>
+<td>3 方法</td>
+<td>按 Erdemir 2012 对应类目简述；写明与上一阶段相比改了什么</td>
+<td><code>text/methods.md</code>（必填）</td>
+</tr>
+<tr>
+<td>4 结果</td>
+<td>必备图按 spec 顺序排列，未登记的附加图放后面；必备表</td>
+<td><code>figures/</code>、<code>tables/</code></td>
+</tr>
+<tr>
+<td>5 验收</td>
+<td>每个验收项的判据、门槛、实测、状态、原因与处置</td>
+<td>spec.yaml + <code>acceptance.json</code></td>
+</tr>
+<tr>
+<td>6 局限与下一阶段输入</td>
+<td>通用局限 + 本阶段局限 + 交给下一阶段的东西</td>
+<td>spec.yaml + <code>text/limitations.md</code></td>
+</tr>
+<tr>
+<td>附录 A 溯源</td>
+<td>每张图表的数据哈希、作图函数、生成脚本哈希、是否合成、数据来源</td>
+<td>自动</td>
+</tr>
+<tr>
+<td>附录 B 缺项</td>
+<td>规范要求但没交的图、表、验收、文字；数据哈希不符</td>
+<td>自动</td>
+</tr>
+</tbody>
+</table>
+<p><strong>缺项不阻止生成</strong>：报告照样出，但首页标"草稿"，总判定为 INCOMPLETE，<code>report.py</code> 退出码为 2。一个阶段只有在其报告总判定为 PASS（或 FAIL 项都写了处置并经用户同意）后才进入下一阶段。</p>
+<hr />
+<h2>3. 作图与制表规范</h2>
+<p><strong>颜色与标记（<code>plotstyle.py</code> 固定，全项目不改）</strong></p>
+<table>
+<thead>
+<tr>
+<th>对象</th>
+<th>规定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dorr A / B / C</td>
+<td>Okabe–Ito 色盲友好色：A 蓝 <code>#0072B2</code>、B 蓝绿 <code>#009E73</code>、C 朱红 <code>#D55E00</code>；标记 A 圆、B 方、C 三角，灰度打印也能分</td>
+</tr>
+<tr>
+<td>方法</td>
+<td>用线型分：qNEHVI 实线（分型色）、Sobol 虚线灰 <code>#7F7F7F</code>、参考前沿黑实线</td>
+</tr>
+<tr>
+<td>多种子</td>
+<td>单个种子细线半透明，中位或均值粗线；误差带写明是 ± 2 SE 还是四分位</td>
+</tr>
+<tr>
+<td>失败等级</td>
+<td>OK 黑、L1 橙、L2 紫、L3 天蓝、L4 朱红、L5 黄（CLAUDE.md §10）</td>
+</tr>
+<tr>
+<td>门槛线</td>
+<td>黑色点线并标数值，如 50 µm、150 µm、HV 比 0.9、壁厚 1.0 mm</td>
+</tr>
+</tbody>
+</table>
+<p><strong>尺寸与格式</strong>：宽度按 Elsevier 栏宽 90 mm（单栏）、140 mm（1.5 栏）、190 mm（双栏）；印刷尺寸下正文字号 8 pt，最小 6.5 pt。每张图同时存 PNG（300 dpi）与 SVG（文字可编辑）。多面板图左上角标 (a)(b)(c)。</p>
+<p><strong>文字</strong>：图内文字用英文，方便直接进论文和导师汇报；报告正文用中文。轴标签一律带单位，用 <code>plotstyle.LABEL</code> 里的标准写法（例如 <code>Micromotion P95 (µm)</code>、<code>Gruen 7 SED loss (%)</code>、<code>HV / HV_ref (–)</code>）。</p>
+<p><strong>图题与图注</strong>：图题写<strong>结论句</strong>（例如"Dorr B 上 qNEHVI 在 36 次 FE 内达到参考前沿 HV 的 90%"），放在报告图注里，不画进图内；图注说明图里有什么、样本量、误差棒含义、怎么读。</p>
+<p><strong>坐标</strong>：跨分型比较的图共用坐标范围（<code>plotstyle.shared_limits</code>）；跨度超过两个数量级的量用对数轴并在标签里写明。</p>
+<p><strong>表格</strong>：数值统一三位有效数字；单位写在表注或列名里；超过 60 行的表在报告里只显示前 60 行，全表在 CSV。</p>
+<p><strong>合成数据</strong>：演示或占位数据必须 <code>synthetic=True</code>。图上自动加"SYNTHETIC"水印，报告首页加横幅，溯源附录标"是"。合成数据永远不能出现在 R0–R7 的正式判定里。</p>
+<hr />
+<h2>4. 溯源与文件规范</h2>
+<p><strong>目录</strong></p>
+<pre><code>reports/
+  spec.yaml                       报告登记表（唯一真源）
+  checklists/erdemir2012_checklist.csv
+  R2_fe_verification/             每份报告一个目录，名字见 spec.yaml 的 dir
+    figures/R2-F03.{png,svg,csv,json}
+    tables/R2-T02.{csv,json}
+    text/{summary,methods,limitations}.md
+    acceptance.json  inputs.json
+    R2_report.{md,html,pdf}
+    history/R2_report_&lt;yyyymmdd-hhmm&gt;.pdf
+</code></pre>
+<p><strong>编号</strong>：图 <code>Rk-Fnn</code>、表 <code>Rk-Tnn</code>、验收 <code>Rk-An</code>，一经登记不改号；报告内另按出现顺序编"图 1、图 2"，并在括号里给出固定编号。</p>
+<p><strong>图只由数据画出</strong>：生成脚本先把数据写成 CSV，再由一个模块顶层的作图函数 <code>plot_fn(csv_path)</code> 读 CSV 出图（<code>plotstyle.publish_figure</code> 强制这个顺序）。meta JSON 记录：结论句图题、图注、单位、数据来源（runs.csv 行范围、design_id 范围）、CSV 的 sha256、作图函数位置与其模块哈希、生成脚本与其哈希、config.yaml 与 spec.yaml 哈希、生成时间、Python 与 matplotlib 版本、是否合成。<code>python report.py --replot R2-F03</code> 只凭 CSV 重画；CSV 哈希不符时拒绝重画，报告缺项附录也会列出。</p>
+<p><strong>版本</strong>：项目目录目前不是 git 仓库，版本靠文件哈希追踪；每次生成 PDF 自动存一份带时间戳的副本到 <code>history/</code>（Erdemir 2020 规则 5）。</p>
+<p><strong>运行记录</strong>：FE 结果一律来自 <code>results/runs.csv</code>（CLAUDE.md §9，一行一设计、成败都记），报告里的数据来源写 runs.csv 行范围与 design_id 范围。</p>
+<hr />
+<h2>5. 验收表规范</h2>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>含义</th>
+<th>要求</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PASS</td>
+<td>达到门槛</td>
+<td>写实测值</td>
+</tr>
+<tr>
+<td>FAIL</td>
+<td>未达门槛</td>
+<td>必须写原因与处置（改什么、是否重跑、是否需要用户决定）</td>
+</tr>
+<tr>
+<td>NA</td>
+<td>本次不适用</td>
+<td>必须写理由</td>
+</tr>
+<tr>
+<td>PENDING</td>
+<td>还没提交结果</td>
+<td>由 report.py 自动标出</td>
+</tr>
+</tbody>
+</table>
+<p>总判定：全部 PASS（或写明理由的 NA）为 PASS；有 FAIL 为 FAIL；有 PENDING、缺图表或数据哈希不符为 INCOMPLETE。验收门槛写在 spec.yaml，改门槛要在报告第 3 节说明理由。</p>
+<hr />
+<h2>6. 报告清单（R0–R7）</h2>
+<p>每份报告的必备图、表与验收项如下。R1-A4、R3-A2、R4-A3、R5-A4、R6-A2、R0-A2、R0-A3、R2-A6 是本规范在已批准计划之外<strong>新增</strong>的验收项，理由分别是：保证 BO 候选池不空；避免基准上只赢在中位；参考前沿不能建在大量失败之上；防止代理测试集泄漏；3D 抽检本身也要网格可信；冒烟阶段就确认确定性与导出链；强制填完报告清单。</p>
+<!-- BEGIN:REGISTRY (report.py --render-spec 自动生成，勿手改) -->
+
+<h3>R0 环境与冒烟（阶段 S0，目录 <code>reports/R0_env_smoke/</code>）</h3>
+<ul>
+<li><strong>使用情境</strong>：确认 Abaqus 2025 批处理链路、单位制与平面应力单元在已知解上数值正确，作为后续全部 FE 结果的前提。</li>
+<li><strong>要回答</strong>：求解器、.inp 模板、odb 导出这条链在最简单的问题上是否给出正确数值，单次作业要多久？</li>
+<li><strong>不回答</strong>：不涉及股骨、柄或接触。</li>
+<li><strong>依据</strong>：Erdemir 2012 Simulation Structure；Erdemir 2012 Verification；V&amp;V 40 代码验证</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>图号</th>
+<th>必备图</th>
+<th>规范来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R0-F01</td>
+<td>悬臂梁端部挠度 FE/解析比随单元尺寸变化（三档网格，CPS6M），画出 ±2% 带</td>
+<td>Erdemir 2012 Comparisons with known solutions</td>
+</tr>
+<tr>
+<td>R0-F02</td>
+<td>作业墙钟时间对单元数（双对数）</td>
+<td>成本记账（250 问 §C）</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>表号</th>
+<th>必备表</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R0-T01</td>
+<td>软件与版本：Abaqus、内置 Python、venv 各包；许可状态；单位制</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>验收号</th>
+<th>判据</th>
+<th>门槛</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R0-A1</td>
+<td>最细网格端部挠度相对 Euler–Bernoulli 解析解的误差（L/h = 20）</td>
+<td>&lt; 2%</td>
+</tr>
+<tr>
+<td>R0-A2</td>
+<td>同一 .inp 重跑两次，端部挠度逐位相同</td>
+<td>相同</td>
+</tr>
+<tr>
+<td>R0-A3</td>
+<td>odb_export.py 在 Abaqus 内置 Python 下只用标准库运行成功</td>
+<td>成功</td>
+</tr>
+</tbody>
+</table>
+<p>下一阶段输入：可用的 Abaqus 调用方式、并发数与许可重试参数；单次 2D 作业耗时基准（用于排程 S4、S5）</p>
+<h3>R1 几何与设计空间（阶段 S1，目录 <code>reports/R1_geometry/</code>）</h3>
+<ul>
+<li><strong>使用情境</strong>：确认三型 2D 股骨满足 Dorr 判据、柄族可构造插入、几何门判定正确，让设计空间可以复核。</li>
+<li><strong>要回答</strong>：三型股骨的 CFI 与皮质指数是否落在目标区间？设计空间中多大比例能过几何门？圆弧柄插入是否零过切？</li>
+<li><strong>不回答</strong>：不涉及力学响应。</li>
+<li><strong>依据</strong>：Erdemir 2012 Model Structure（几何项）；Dorr 1993 分型判据</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>图号</th>
+<th>必备图</th>
+<th>规范来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R1-F01</td>
+<td>三型股骨冠状面轮廓，画出 CFI 与皮质指数的测量线并标注实测值</td>
+<td>Erdemir 2012 Representative geometry</td>
+</tr>
+<tr>
+<td>R1-F02</td>
+<td>柄族图册：每型 Sobol 抽 8 根柄置于髓腔内（共 24 根）</td>
+<td>设计空间可视化</td>
+</tr>
+<tr>
+<td>R1-F03</td>
+<td>圆弧插入位姿叠图，并给出扫掠并集减柄的过切面积</td>
+<td>可插入性证据（sweep_viz 零过切结论）</td>
+</tr>
+<tr>
+<td>R1-F04</td>
+<td>设计变量两两投影散点，按几何门结果（通过 / 各失败原因）着色</td>
+<td>可行域形状</td>
+</tr>
+<tr>
+<td>R1-F05</td>
+<td>剩余皮质壁厚直方图（分型），标 1.0 mm 门槛</td>
+<td>几何门</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>表号</th>
+<th>必备表</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R1-T01</td>
+<td>三型 CFI、皮质指数：预设值、实测值、Dorr 判据区间</td>
+</tr>
+<tr>
+<td>R1-T02</td>
+<td>设计变量定义、范围、归一化方式</td>
+</tr>
+<tr>
+<td>R1-T03</td>
+<td>几何门通过率与失败原因计数（L1/L2 细分）</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>验收号</th>
+<th>判据</th>
+<th>门槛</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R1-A1</td>
+<td>三型实测 CFI、皮质指数与预设值之差，且落在对应 Dorr 区间</td>
+<td>≤ 0.05 且在区间内</td>
+</tr>
+<tr>
+<td>R1-A2</td>
+<td>单调圆弧柄插入过切面积（离散容差）</td>
+<td>≤ 0.1% 柄面积</td>
+</tr>
+<tr>
+<td>R1-A3</td>
+<td>几何与几何门单元测试</td>
+<td>pytest 全部通过</td>
+</tr>
+<tr>
+<td>R1-A4</td>
+<td>每型几何门通过率（保证 BO 候选池不空）</td>
+<td>≥ 20%</td>
+</tr>
+</tbody>
+</table>
+<p>下一阶段输入：三型股骨几何与 ROI（Gruen 1、7 区）定义；几何门函数与候选池</p>
+<h3>R2 FE 模型与验证（阶段 S2，目录 <code>reports/R2_fe_verification/</code>）</h3>
+<ul>
+<li><strong>使用情境</strong>：确认 2D 压配摩擦模型与粘接模型的数值正确、网格无关、对输入变化方向合理，并量化噪声底，作为代理训练数据的质量证明。</li>
+<li><strong>要回答</strong>：f1（微动）与 f2（近端遮挡）的数值误差多大？网格收敛吗？对 δ、μ、柄尺寸的响应方向对吗？同输入重跑是否一致？</li>
+<li><strong>不回答</strong>：不回答模型是否符合真实股骨（无实验确认）。</li>
+<li><strong>依据</strong>：Erdemir 2012 全部 80 项；Oefner 2021 报告表（待获取）；Celik 2008 GCI；ASTM F2996 应力口径</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>图号</th>
+<th>必备图</th>
+<th>规范来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R2-F01</td>
+<td>网格全图与界面局部放大（三型基线设计）</td>
+<td>Erdemir 2012 Mesh</td>
+</tr>
+<tr>
+<td>R2-F02</td>
+<td>Lamé 厚壁圆筒压配：接触压力 FE 对解析</td>
+<td>Erdemir 2012 Comparisons with known solutions</td>
+</tr>
+<tr>
+<td>R2-F03</td>
+<td>f1、f2 随界面单元尺寸的收敛曲线，带 GCI 误差棒</td>
+<td>Celik 2008</td>
+</tr>
+<tr>
+<td>R2-F04</td>
+<td>符号检查条形图：δ=0 对 0.1 mm、μ 0.3/0.5/0.8、粘接滑移、柄更长更宽</td>
+<td>Erdemir 2012 Sensitivity to simulation settings</td>
+</tr>
+<tr>
+<td>R2-F05</td>
+<td>三型基线设计：骨与柄 von Mises 云图</td>
+<td>ASTM F2996 应力口径</td>
+</tr>
+<tr>
+<td>R2-F06</td>
+<td>界面接触压力沿弧长分布（三型）</td>
+<td>主输出旁证</td>
+</tr>
+<tr>
+<td>R2-F07</td>
+<td>界面切向滑移增量沿弧长分布，标 50 与 150 µm 线（三型）</td>
+<td>主输出 f1</td>
+</tr>
+<tr>
+<td>R2-F08</td>
+<td>Gruen 1、7 区 SED：植入对完整股骨（三型）</td>
+<td>主输出 f2</td>
+</tr>
+<tr>
+<td>R2-F09</td>
+<td>数值噪声底：输出变化量对输入扰动量（双对数）</td>
+<td>GP 噪声先验来源</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>表号</th>
+<th>必备表</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R2-T01</td>
+<td>Erdemir 2012 报告清单 80 项逐项填写（取到 Oefner 2021 后换为其报告表）</td>
+</tr>
+<tr>
+<td>R2-T02</td>
+<td>GCI 表：N1–N3、r21、r32、表观阶数 p、外推值、e_a、e_ext、GCI_fine</td>
+</tr>
+<tr>
+<td>R2-T03</td>
+<td>确定性重跑比对（同设计两次运行的 f1、f2、约束）</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>验收号</th>
+<th>判据</th>
+<th>门槛</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R2-A1</td>
+<td>V1 Lamé 压配接触压力相对解析解误差</td>
+<td>&lt; 5%</td>
+</tr>
+<tr>
+<td>R2-A2</td>
+<td>V2 最细两档网格 f1、f2 相对变化，并报出 GCI</td>
+<td>&lt; 5%</td>
+</tr>
+<tr>
+<td>R2-A3</td>
+<td>V3 符号检查：δ=0 微动大于 δ=0.1；μ 升高微动下降；粘接滑移为零；柄更长更宽则微动降、遮挡升</td>
+<td>全部方向正确</td>
+</tr>
+<tr>
+<td>R2-A4</td>
+<td>V4 同设计重跑 f1、f2 逐位相同</td>
+<td>相同</td>
+</tr>
+<tr>
+<td>R2-A5</td>
+<td>V5 噪声底已量化并写入 GP 噪声先验</td>
+<td>给出数值</td>
+</tr>
+<tr>
+<td>R2-A6</td>
+<td>Erdemir 2012 清单 80 项全部填写，N/A 须写理由</td>
+<td>80/80</td>
+</tr>
+</tbody>
+</table>
+<p>下一阶段输入：evaluate(design, dorr) 可批量调用；GP 噪声先验；单设计耗时（排程 S4）</p>
+<h3>R3 优化器自检（阶段 S3，目录 <code>reports/R3_optimizer_selftest/</code>）</h3>
+<ul>
+<li><strong>使用情境</strong>：在前沿已知的解析基准上确认 qNEHVI 实现与超参数设置正确，否则不进入 FE 阶段。</li>
+<li><strong>要回答</strong>：同样 60 次评估，BO 能否逼近已知前沿并稳定优于 Sobol 随机抽样？</li>
+<li><strong>不回答</strong>：不说明在 FE 问题上的表现。</li>
+<li><strong>依据</strong>：Zitzler 2003 性能指标与达成函数；Daulton 2020 作图惯例</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>图号</th>
+<th>必备图</th>
+<th>规范来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R3-F01</td>
+<td>BraninCurrin 与 ZDT1（d=5）上 log10 超体积差随评估次数：qNEHVI 对 Sobol，5 种子均值 ± 2 SE</td>
+<td>Daulton 2020</td>
+</tr>
+<tr>
+<td>R3-F02</td>
+<td>最终前沿对已知真前沿（各方法中位种子）</td>
+<td>Zitzler 2003</td>
+</tr>
+<tr>
+<td>R3-F03</td>
+<td>50% 经验达成面（EAF）</td>
+<td>Zitzler 2003</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>表号</th>
+<th>必备表</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R3-T01</td>
+<td>各方法最终 HV 比与 IGD（均值 ± SD，5 种子）</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>验收号</th>
+<th>判据</th>
+<th>门槛</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R3-A1</td>
+<td>60 次评估时 qNEHVI 中位 HV 达到已知前沿 HV 的比例（两个基准）</td>
+<td>≥ 95%</td>
+</tr>
+<tr>
+<td>R3-A2</td>
+<td>60 次评估时每个种子的 qNEHVI HV 高于 Sobol 中位</td>
+<td>全部种子</td>
+</tr>
+</tbody>
+</table>
+<p>下一阶段输入：mobo.py 的采集设置（参考点规则、q、候选池大小）</p>
+<h3>R4 参考扫描（真前沿）（阶段 S4，目录 <code>reports/R4_reference_sweep/</code>）</h3>
+<ul>
+<li><strong>使用情境</strong>：用大样本 Sobol FE 扫描给出每型参考前沿，作为 R5 判断 BO 是否找对的标尺，同时刻画设计空间。</li>
+<li><strong>要回答</strong>：每型的参考前沿长什么样、由哪些设计组成？哪些设计变量最影响 f1、f2？失败集中在哪里？</li>
+<li><strong>不回答</strong>：不评价 BO；不外推到 3D。</li>
+<li><strong>依据</strong>：Saltelli 2019（全局敏感性）；CLAUDE.md §9–10 运行记录与失败分级</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>图号</th>
+<th>必备图</th>
+<th>规范来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R4-F01</td>
+<td>每型 256 个设计的目标空间散点（按可行性着色），参考前沿高亮</td>
+<td>Zitzler 2003</td>
+</tr>
+<tr>
+<td>R4-F02</td>
+<td>前沿设计的平行坐标图（归一化设计变量 + 目标）</td>
+<td>设计解释</td>
+</tr>
+<tr>
+<td>R4-F03</td>
+<td>f1、f2 对各设计变量的散点（分型）</td>
+<td>Saltelli 2019（先看散点）</td>
+</tr>
+<tr>
+<td>R4-F04</td>
+<td>Sobol 一阶与总效应指数条形图（基于参考数据 GP 代理计算）</td>
+<td>Saltelli 2019</td>
+</tr>
+<tr>
+<td>R4-F05</td>
+<td>失败设计在设计空间中的位置（按 L1–L5 着色）</td>
+<td>CLAUDE.md §10</td>
+</tr>
+<tr>
+<td>R4-F06</td>
+<td>前沿柄轮廓图册（每型按 f1 排序）</td>
+<td>设计解释</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>表号</th>
+<th>必备表</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R4-T01</td>
+<td>每型参考前沿设计清单与目标值</td>
+</tr>
+<tr>
+<td>R4-T02</td>
+<td>失败分级计数（L1–L5、OK）</td>
+</tr>
+<tr>
+<td>R4-T03</td>
+<td>运行耗时统计（中位、P95、总机时）</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>验收号</th>
+<th>判据</th>
+<th>门槛</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R4-A1</td>
+<td>每型参考前沿点数（不足则加到 512）</td>
+<td>≥ 15</td>
+</tr>
+<tr>
+<td>R4-A2</td>
+<td>runs.csv 行数等于尝试设计数，失败全部入账</td>
+<td>相等</td>
+</tr>
+<tr>
+<td>R4-A3</td>
+<td>过几何门设计中 FE 失败（L3–L5）比例</td>
+<td>≤ 5%</td>
+</tr>
+</tbody>
+</table>
+<p>下一阶段输入：每型参考前沿与 HV_ref；目标归一化范围与 HV 参考点</p>
+<h3>R5 BO 结果与代理诊断（阶段 S5，目录 <code>reports/R5_bo_results/</code>）</h3>
+<ul>
+<li><strong>使用情境</strong>：判断 GP 代理 + qNEHVI 在每型 ≤ 60 次 FE 内能否找到参考前沿，以及代理的不确定性是否可信。</li>
+<li><strong>要回答</strong>：BO 用多少次 FE 达到参考前沿 HV 的 90%？是否每个种子都胜过同预算 Sobol？GP 的 90% 区间覆盖率是否名副其实？三型前沿差在哪？</li>
+<li><strong>不回答</strong>：不对 3D 或真实股骨下结论；不做跨分型稳健优化。</li>
+<li><strong>依据</strong>：Zitzler 2003；Daulton 2020；Kuleshov 2018 校准；REFORMS 2024；Aldieri 2025；250 问 §C</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>图号</th>
+<th>必备图</th>
+<th>规范来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R5-F01</td>
+<td>每型 HV 比随 FE 次数：3 种子 BO、Sobol 基线、0.9 参考线</td>
+<td>Daulton 2020</td>
+</tr>
+<tr>
+<td>R5-F02</td>
+<td>IGD 随 FE 次数</td>
+<td>Zitzler 2003</td>
+</tr>
+<tr>
+<td>R5-F03</td>
+<td>BO 前沿与参考前沿叠图（每型）</td>
+<td>Zitzler 2003</td>
+</tr>
+<tr>
+<td>R5-F04</td>
+<td>50% 经验达成面（每型，BO 对 Sobol）</td>
+<td>Zitzler 2003</td>
+</tr>
+<tr>
+<td>R5-F05</td>
+<td>提议点在设计空间中的轨迹（按轮次着色）</td>
+<td>采集行为诊断</td>
+</tr>
+<tr>
+<td>R5-F06</td>
+<td>GP 预测对 FE 真值散点，带 90% 区间（f1、f2、约束）</td>
+<td>REFORMS 指标与不确定性</td>
+</tr>
+<tr>
+<td>R5-F07</td>
+<td>校准曲线：名义覆盖对实际覆盖</td>
+<td>Kuleshov 2018</td>
+</tr>
+<tr>
+<td>R5-F08</td>
+<td>三型参考前沿叠图（共用坐标）</td>
+<td>分型比较</td>
+</tr>
+<tr>
+<td>R5-F09</td>
+<td>松质骨同为 300 MPa 的对照前沿</td>
+<td>分离骨质与髓腔形态效应</td>
+</tr>
+<tr>
+<td>R5-F10</td>
+<td>各型膝点设计的轮廓与场图</td>
+<td>设计解释</td>
+</tr>
+<tr>
+<td>R5-F11</td>
+<td>三型前沿设计的设计变量分布（每个变量一列，三型并排），回答最优设计是否随分型改变</td>
+<td>分型比较（设计空间），2026-09-26 用户确认新增</td>
+</tr>
+<tr>
+<td>R5-F12</td>
+<td>GP 各变量长度尺度的倒数与 R4 Sobol 总效应指数对照</td>
+<td>Saltelli 2019；代理可解释性，2026-09-26 用户确认新增</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>表号</th>
+<th>必备表</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R5-T01</td>
+<td>代理指标：R²、Spearman、90% 覆盖率、锐度；训练/测试划分与泄漏检查</td>
+</tr>
+<tr>
+<td>R5-T02</td>
+<td>成本账本：FE 次数、机时、相对参考扫描的节省比</td>
+</tr>
+<tr>
+<td>R5-T03</td>
+<td>可复现包清单：配置、种子、脚本哈希、runs.csv 行范围</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>验收号</th>
+<th>判据</th>
+<th>门槛</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R5-A1</td>
+<td>每型 ≤ 60 次 FE 时 BO 中位 HV 比（参考前沿 = 该型全部 FE 评估的非支配集）</td>
+<td>≥ 0.90</td>
+</tr>
+<tr>
+<td>R5-A2</td>
+<td>60 次 FE 时三个种子的 HV 比都高于同预算 Sobol 中位</td>
+<td>3/3（每型）</td>
+</tr>
+<tr>
+<td>R5-A3</td>
+<td>最终 GP 在参考 256 点上 90% 区间的实际覆盖率</td>
+<td>0.80–0.97</td>
+</tr>
+<tr>
+<td>R5-A4</td>
+<td>代理测试集与训练集按 design_id 无重叠（泄漏检查）</td>
+<td>重叠 0</td>
+</tr>
+</tbody>
+</table>
+<p>下一阶段输入：每型 3–5 个前沿设计（含膝点）送 3D 抽检</p>
+<h3>R6 3D 抽检（阶段 S7，目录 <code>reports/R6_spot3d/</code>）</h3>
+<ul>
+<li><strong>使用情境</strong>：检查 2D 模型给出的设计排序在理想化 3D 模型中是否保持，界定 2D 结论的适用范围。</li>
+<li><strong>要回答</strong>：前沿设计在 3D 中的 f1、f2 排序与 2D 一致吗？</li>
+<li><strong>不回答</strong>：不比较绝对值；不属于实验确认。</li>
+<li><strong>依据</strong>：Erdemir 2012；V&amp;V 40 模型形式比较</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>图号</th>
+<th>必备图</th>
+<th>规范来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R6-F01</td>
+<td>三型 3D 股骨与柄渲染和网格</td>
+<td>Erdemir 2012 Representative geometry / Mesh</td>
+</tr>
+<tr>
+<td>R6-F02</td>
+<td>抽检设计 2D 对 3D 的 f1、f2 散点及 Spearman</td>
+<td>V&amp;V 40 适用性</td>
+</tr>
+<tr>
+<td>R6-F03</td>
+<td>3D 两档网格的 f1、f2 变化</td>
+<td>Erdemir 2012 Mesh convergence</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>表号</th>
+<th>必备表</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R6-T01</td>
+<td>抽检设计清单与 2D、3D 两套目标值</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>验收号</th>
+<th>判据</th>
+<th>门槛</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R6-A1</td>
+<td>抽检设计 2D 与 3D 的 f1、f2 Spearman 秩相关</td>
+<td>≥ 0.7</td>
+</tr>
+<tr>
+<td>R6-A2</td>
+<td>3D 两档网格 f1、f2 相对变化</td>
+<td>&lt; 10%</td>
+</tr>
+</tbody>
+</table>
+<p>下一阶段输入：2D 结论的适用范围说明</p>
+<h3>R7 总结与可信度（阶段 close，目录 <code>reports/R7_summary/</code>）</h3>
+<ul>
+<li><strong>使用情境</strong>：汇总本测试的结论与可信度，决定这套流程能否迁移到真实股骨（Gate 1）。</li>
+<li><strong>要回答</strong>：流程是否整体通过？可信度各因子达到什么水平？哪些局限必须在真实模型中解决？</li>
+<li><strong>不回答</strong>：不对柄设计下临床结论。</li>
+<li><strong>依据</strong>：ASME V&amp;V 40-2018；FDA 2023 CM&amp;S 可信度指南；Erdemir 2020 十条规则</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>图号</th>
+<th>必备图</th>
+<th>规范来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R7-F01</td>
+<td>一页仪表板：三型 HV 曲线、前沿、校准曲线、2D–3D 秩相关</td>
+<td>汇总</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>表号</th>
+<th>必备表</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R7-T01</td>
+<td>V&amp;V 40 可信度因子表（13 项，目标等级与达到等级）</td>
+</tr>
+<tr>
+<td>R7-T02</td>
+<td>Erdemir 2020 十条规则合规表</td>
+</tr>
+<tr>
+<td>R7-T03</td>
+<td>局限清单与在真实模型中的处置</td>
+</tr>
+<tr>
+<td>R7-T04</td>
+<td>R0–R6 验收汇总</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>验收号</th>
+<th>判据</th>
+<th>门槛</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R7-A1</td>
+<td>R0–R6 全部验收项通过，或逐项写明豁免理由</td>
+<td>全部</td>
+</tr>
+</tbody>
+</table>
+<p>下一阶段输入：Gate 1 迁移清单：只替换几何与网格层</p>
+<!-- END:REGISTRY -->
+
+<hr />
+<h2>附录 A　Erdemir 2012 报告清单 80 项与本项目落点</h2>
+<p>全表（含每项中文要点、本项目计划答案、落点报告、状态）见 <code>reports/checklists/erdemir2012_checklist.csv</code>，S2 阶段补完后作为 R2-T01 进报告。概况：</p>
+<table>
+<thead>
+<tr>
+<th>类目</th>
+<th>项数</th>
+<th>本项目主要落点</th>
+<th>N/A（理由）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>模型标识 Model Identification</td>
+<td>20</td>
+<td>R2 第 3 节；主要用途写进 R2、R5 第 1 节</td>
+<td>2（未发表）</td>
+</tr>
+<tr>
+<td>模型结构 Model Structure</td>
+<td>34</td>
+<td>R1（几何）、R2（网格、材料、界面、载荷、输出）</td>
+<td>2（解析几何无影像与分割）</td>
+</tr>
+<tr>
+<td>仿真结构 Simulation Structure</td>
+<td>6</td>
+<td>R0-T01（软件版本）、R2 第 3 节（求解策略、后处理）</td>
+<td>0</td>
+</tr>
+<tr>
+<td>验证 Verification</td>
+<td>6</td>
+<td>R0、R2</td>
+<td>1（无用户子程序）</td>
+</tr>
+<tr>
+<td>确认 Validation</td>
+<td>9</td>
+<td>R6（2D–3D 模型形式比较）、R7-T01</td>
+<td>2（无实验数据）</td>
+</tr>
+<tr>
+<td>可获得性 Availability</td>
+<td>5</td>
+<td>R7</td>
+<td>2（本地项目）</td>
+</tr>
+</tbody>
+</table>
+<p>需要在 S2 定稿的 4 项：载荷类型与耦合方式、施加区域、接触列式、求解增量设置。</p>
+<h2>附录 B　ASME V&amp;V 40 可信度因子与本测试的目标等级</h2>
+<p>模型风险判断：模型影响高（本测试里 FE 是选设计的唯一证据），决策后果低（只是方法测试，不做产品或临床决定），所以总体目标为<strong>低到中等可信度</strong>。R7-T01 按下表填"达到等级"。</p>
+<table>
+<thead>
+<tr>
+<th>类</th>
+<th>因子</th>
+<th>本测试的活动</th>
+<th>目标等级</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>代码验证</td>
+<td>软件质量保证</td>
+<td>使用商业软件 Abaqus 2025 的厂商质保；自写脚本有单元测试</td>
+<td>低</td>
+</tr>
+<tr>
+<td>代码验证</td>
+<td>数值代码验证</td>
+<td>R0 悬臂梁对解析解；R2 Lamé 压配对解析解</td>
+<td>中</td>
+</tr>
+<tr>
+<td>计算验证</td>
+<td>离散误差</td>
+<td>R2 三档网格 GCI；R6 3D 两档网格</td>
+<td>中</td>
+</tr>
+<tr>
+<td>计算验证</td>
+<td>数值求解误差</td>
+<td>R2 噪声底、收敛容差说明</td>
+<td>中</td>
+</tr>
+<tr>
+<td>计算验证</td>
+<td>使用错误</td>
+<td>重跑确定性；.inp 由模板生成，两条 .inp 规则有单元测试</td>
+<td>中</td>
+</tr>
+<tr>
+<td>确认</td>
+<td>模型形式</td>
+<td>2D 平面应力为已知简化；R6 与 3D 比较排序</td>
+<td>低</td>
+</tr>
+<tr>
+<td>确认</td>
+<td>模型输入</td>
+<td>材料取自既有 3D 模型；松质骨分型取值为假设并做对照</td>
+<td>低</td>
+</tr>
+<tr>
+<td>确认</td>
+<td>比较对象：试样</td>
+<td>无实验</td>
+<td>不适用</td>
+</tr>
+<tr>
+<td>确认</td>
+<td>比较对象：试验条件</td>
+<td>无实验</td>
+<td>不适用</td>
+</tr>
+<tr>
+<td>确认</td>
+<td>评估：输入参数等效性</td>
+<td>无实验</td>
+<td>不适用</td>
+</tr>
+<tr>
+<td>确认</td>
+<td>评估：输出比较</td>
+<td>无实验；只做 2D–3D 秩相关</td>
+<td>不适用</td>
+</tr>
+<tr>
+<td>适用性</td>
+<td>关注量的相关性</td>
+<td>f1、f2 与课题主问题（初始稳定、近端遮挡）一致</td>
+<td>中</td>
+</tr>
+<tr>
+<td>适用性</td>
+<td>确认活动与使用情境的相关性</td>
+<td>无确认活动；在 R7 明写</td>
+<td>低</td>
+</tr>
+</tbody>
+</table>
+<h2>附录 C　Erdemir 2020 十条规则的落实方式</h2>
+<table>
+<thead>
+<tr>
+<th>规则</th>
+<th>落实</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 明确定义使用情境</td>
+<td>每份报告第 1 节：使用情境、要回答、不回答</td>
+</tr>
+<tr>
+<td>2 使用与情境相符的数据</td>
+<td>材料与载荷来源写进 Erdemir 清单 E46–E47、E24；假设值单列并做对照</td>
+</tr>
+<tr>
+<td>3 在情境内评估</td>
+<td>验收门槛按本测试的问题定（HV 比、覆盖率、秩相关），不拿 2D 绝对值作结论</td>
+</tr>
+<tr>
+<td>4 明列局限</td>
+<td>每份报告第 6 节通用局限 + 本阶段局限</td>
+</tr>
+<tr>
+<td>5 使用版本控制</td>
+<td>文件哈希 + history 副本；是否对 mobo_toy 启用 git 待用户决定</td>
+</tr>
+<tr>
+<td>6 恰当记录</td>
+<td>本规范 + 每份报告第 3 节 + Erdemir 80 项清单</td>
+</tr>
+<tr>
+<td>7 广泛传播</td>
+<td>本测试不公开；R7 写明可获得性</td>
+</tr>
+<tr>
+<td>8 获得独立评审</td>
+<td>报告交导师审阅；R7 记录评审意见</td>
+</tr>
+<tr>
+<td>9 测试竞争实现</td>
+<td>BO 对 Sobol 基线；2D 对 3D；R3 用两个解析基准</td>
+</tr>
+<tr>
+<td>10 遵从标准</td>
+<td>本规范第 1 节所列标准</td>
+</tr>
+</tbody>
+</table>
+<h2>附录 D　REFORMS 8 个模块在 R5 的落点</h2>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>R5 落点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>研究目标</td>
+<td>R5 第 1 节使用情境与问题</td>
+</tr>
+<tr>
+<td>计算可复现性</td>
+<td>R5-T03 可复现包（配置、种子、脚本哈希、runs.csv 行范围）</td>
+</tr>
+<tr>
+<td>数据质量</td>
+<td>数据全部来自 runs.csv 中 status = OK 的设计；失败设计单列（R4-T02）</td>
+</tr>
+<tr>
+<td>数据预处理</td>
+<td>f1 取 log、输入归一化、输出标准化，写入第 3 节</td>
+</tr>
+<tr>
+<td>建模</td>
+<td>GP 核、超参数拟合方式、噪声先验（来自 R2 噪声底）</td>
+</tr>
+<tr>
+<td>数据泄漏</td>
+<td>测试集（参考扫描 256 点）与 BO 训练集按 design_id 去重，R5-A4</td>
+</tr>
+<tr>
+<td>指标与不确定性</td>
+<td>R²、Spearman、90% 覆盖率、锐度（R5-T01）；校准曲线（R5-F07）</td>
+</tr>
+<tr>
+<td>泛化与局限</td>
+<td>只对本 2D 模型与设计空间成立；R6 界定 2D→3D 的排序迁移</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>7. 确认记录（2026-09-26）</h2>
+<p>用户回复"可以"，按下列默认执行；如需改动，改 spec.yaml 后重跑 <code>report.py --render-spec</code>。</p>
+<ol>
+<li><strong>报告清单</strong>：保留，并新增 R5-F11（三型前沿设计的变量分布）与 R5-F12（GP 长度尺度对照 Sobol 指数），共 41 张必备图、19 张必备表、25 个验收项。</li>
+<li><strong>新增验收项</strong>：8 项全部保留。</li>
+<li><strong>图内语言</strong>：图内英文、正文中文。</li>
+<li><strong>松质骨模量</strong>：按已批准计划取 A/B/C 400/300/150 MPa，另设三型同为 300 MPa 的对照组；源 3D 模型的 155 MPa 写进局限。</li>
+<li><strong>版本控制</strong>：对 <code>mobo_toy</code> 启用本地 git，只在本地，不推送；每个阶段报告完成时提交一次。</li>
+<li><strong>缺失规范原文</strong>：Oefner 2021 与 Erdemir 2012 PDF 待用户手动下载，不阻塞实验。</li>
+</ol></body></html>

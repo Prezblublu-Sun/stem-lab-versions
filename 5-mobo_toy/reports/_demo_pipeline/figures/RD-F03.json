@@ -1,0 +1,28 @@
+{
+  "id": "RD-F03",
+  "report": "RD",
+  "kind": "figure",
+  "title": "[Synthetic] Fronts shift towards higher micromotion from Dorr A to C",
+  "caption": "浅色点为全部设计，阶梯线与实心标记为非支配前沿；共用坐标。数据为合成。",
+  "synthetic": true,
+  "units": {
+    "f1": "µm",
+    "f2": "%"
+  },
+  "sources": {
+    "generator": "demo_report.make"
+  },
+  "csv": "reports/_demo_pipeline/figures/RD-F03.csv",
+  "csv_sha256": "055cca70fd1acec9e6f6d8273bfabdfd90a86a5e10b18760fd71f6e70cf2bdb7",
+  "png": "reports/_demo_pipeline/figures/RD-F03.png",
+  "svg": "reports/_demo_pipeline/figures/RD-F03.svg",
+  "plot_fn": "demo_report.py:plot_fronts",
+  "plot_module_sha256": "f25d677584f45d28c22ac4f8ee7ffa9d697d69ce5cbea5fcf40251f5a7f541d4",
+  "producer": "demo_report.py",
+  "producer_sha256": "f25d677584f45d28c22ac4f8ee7ffa9d697d69ce5cbea5fcf40251f5a7f541d4",
+  "config_sha256": null,
+  "spec_sha256": "7e9773c7b433dd62dc05ba5ffd09ab23d15e8ba0ab56c27b60f2fbc02f932b79",
+  "created": "2026-09-26T16:36:27",
+  "python": "3.12.10",
+  "matplotlib": "3.10.9"
+}

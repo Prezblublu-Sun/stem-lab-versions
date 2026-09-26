@@ -1,0 +1,1 @@
+合成数据由 `demo_report.make()` 用固定随机种子生成。作图遵守 `plotstyle.py`：Dorr A/B/C 固定色，方法用线型区分，门槛用点线，图内英文、正文中文，PNG 300 dpi + SVG。
