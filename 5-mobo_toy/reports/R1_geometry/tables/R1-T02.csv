@@ -1,0 +1,9 @@
+variable,lower,upper,unit,definition,normalisation
+tip_depth,15.0,65.0,mm,tip depth below the lesser-trochanter mid-level,"(v − lower) / (upper − lower) ∈ [0, 1]"
+tip_lat,0.1,0.9,-,"tip position across the canal at the tip level (0 = medial wall, 1 = lateral wall)","(v − lower) / (upper − lower) ∈ [0, 1]"
+w_prox,0.7,1.0,-,proximal half-width / canal half-width at the cut,"(v − lower) / (upper − lower) ∈ [0, 1]"
+taper,0.3,0.8,-,tip half-width / proximal half-width,"(v − lower) / (upper − lower) ∈ [0, 1]"
+theta_in,-10.0,10.0,deg,entry angle vs neck axis (+ = towards distal),"(v − lower) / (upper − lower) ∈ [0, 1]"
+"derived κ, L (Dorr A, passing)",8.5 1/m; 64 mm,21.2 1/m; 108 mm,,arc through the cut centre tangent to the entry direction and ending at the tip point,not a design variable
+"derived κ, L (Dorr B, passing)",8.6 1/m; 65 mm,20.9 1/m; 108 mm,,arc through the cut centre tangent to the entry direction and ending at the tip point,not a design variable
+"derived κ, L (Dorr C, passing)",9.1 1/m; 65 mm,20.3 1/m; 102 mm,,arc through the cut centre tangent to the entry direction and ending at the tip point,not a design variable

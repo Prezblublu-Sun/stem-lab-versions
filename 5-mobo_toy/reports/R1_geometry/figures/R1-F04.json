@@ -1,0 +1,29 @@
+{
+  "id": "R1-F04",
+  "report": "R1",
+  "kind": "figure",
+  "title": "Gate pass rate falls from 42% (A) to 16% (C); failures are tips wider than the canal and stems that cut cortex",
+  "caption": "每型 1,024 个 Sobol 设计在四组变量对上的投影。彩色点通过几何门；橙色为尖端半宽超过该高度髓腔半宽（L1），紫色为柄体切入皮质超过 0.5 mm²（L2）。同一组 Sobol 点用于三型，差异只来自髓腔形态。",
+  "synthetic": false,
+  "units": {
+    "tip_depth": "mm",
+    "theta_in": "deg"
+  },
+  "sources": {
+    "generator": "femur2d.build / stem2d.gate",
+    "sobol": "scrambled Sobol, seed 1, n = 1024 per type"
+  },
+  "csv": "reports/R1_geometry/figures/R1-F04.csv",
+  "csv_sha256": "2a71946c17d8b4dbef995f71fc029bc82f85120250785237f64082b06f16de10",
+  "png": "reports/R1_geometry/figures/R1-F04.png",
+  "svg": "reports/R1_geometry/figures/R1-F04.svg",
+  "plot_fn": "stage_s1.py:plot_r1_f04",
+  "plot_module_sha256": "d0ff68c53691d09d1b440fff8133174ff828d9fb0d37a792f8983841db1ea28a",
+  "producer": "stage_s1.py",
+  "producer_sha256": "d0ff68c53691d09d1b440fff8133174ff828d9fb0d37a792f8983841db1ea28a",
+  "config_sha256": "93dca8e4c34d257b895dc24f0b6d16f28d4d95346b9a297ebf68711150901667",
+  "spec_sha256": "46732ae7f89ad014758b23fcbd2e744e44214e283af4085c47fb848979a60b10",
+  "created": "2026-09-26T23:51:56",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

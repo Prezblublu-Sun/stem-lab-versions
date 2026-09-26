@@ -115,7 +115,7 @@ def new_figure(width: str = "single", height_mm: float = 65, nrows: int = 1, nco
 
 def panel_labels(axes, start: str = "a") -> None:
     """多面板图左上角加 (a)(b)(c)…。"""
-    flat = list(getattr(axes, "flat", [axes]))
+    flat = list(axes) if isinstance(axes, (list, tuple)) else list(getattr(axes, "flat", [axes]))
     for i, ax in enumerate(flat):
         ax.text(-0.02, 1.02, f"({chr(ord(start) + i)})", transform=ax.transAxes,
                 ha="right", va="bottom", fontsize=8, fontweight="bold")

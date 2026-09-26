@@ -1,0 +1,5 @@
+level,reason,Dorr_A,Dorr_B,Dorr_C
+L1,tip wider than canal,347,285,356
+L2,cuts cortex,247,358,500
+OK,PASS,430,381,168
+,pass rate,42.0%,37.2%,16.4%

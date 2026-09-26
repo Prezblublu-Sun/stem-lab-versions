@@ -1,0 +1,16 @@
+{
+  "id": "R1-T02",
+  "report": "R1",
+  "kind": "table",
+  "title": "设计变量定义、范围与归一化（含导出的曲率与弧长范围）",
+  "caption": "固定参数：过盈 δ = 0.10 mm、μ = 0.3、截骨线距头心 25 mm、假体颈半宽 7 mm。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "reports/R1_geometry/tables/R1-T02.csv",
+  "csv_sha256": "1e18dec2087ed20642eed09a1813c1c72eb84b6a7ae1a5b451769c1bbcde305a",
+  "producer": "stage_s1.py",
+  "producer_sha256": "d0ff68c53691d09d1b440fff8133174ff828d9fb0d37a792f8983841db1ea28a",
+  "config_sha256": "93dca8e4c34d257b895dc24f0b6d16f28d4d95346b9a297ebf68711150901667",
+  "created": "2026-09-26T23:52:01"
+}

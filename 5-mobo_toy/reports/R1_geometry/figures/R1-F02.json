@@ -1,0 +1,25 @@
+{
+  "id": "R1-F02",
+  "report": "R1",
+  "kind": "figure",
+  "title": "The same eight normalised designs produce different stems and gate outcomes in each Dorr type",
+  "caption": "每列是同一个归一化设计向量在三型中的实例；实心为通过几何门，红色空心为未通过（注明原因）。图中柄包括截骨线以上的假体颈与头。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "sobol": "scrambled Sobol, seed 2, first 8 points"
+  },
+  "csv": "reports/R1_geometry/figures/R1-F02.csv",
+  "csv_sha256": "94c5ac157121e9b5a9481dad5613486b77c2d26e0d47bf03a0c01e18a14a9e8a",
+  "png": "reports/R1_geometry/figures/R1-F02.png",
+  "svg": "reports/R1_geometry/figures/R1-F02.svg",
+  "plot_fn": "stage_s1.py:plot_r1_f02",
+  "plot_module_sha256": "d0ff68c53691d09d1b440fff8133174ff828d9fb0d37a792f8983841db1ea28a",
+  "producer": "stage_s1.py",
+  "producer_sha256": "d0ff68c53691d09d1b440fff8133174ff828d9fb0d37a792f8983841db1ea28a",
+  "config_sha256": "93dca8e4c34d257b895dc24f0b6d16f28d4d95346b9a297ebf68711150901667",
+  "spec_sha256": "46732ae7f89ad014758b23fcbd2e744e44214e283af4085c47fb848979a60b10",
+  "created": "2026-09-26T23:51:58",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

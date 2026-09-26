@@ -1,0 +1,16 @@
+{
+  "id": "R1-T03",
+  "report": "R1",
+  "kind": "table",
+  "title": "几何门结果计数（每型 1,024 个 Sobol 设计）",
+  "caption": "L1 为参数层拒绝（含尖端比髓腔宽），L2 为几何层拒绝。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "reports/R1_geometry/tables/R1-T03.csv",
+  "csv_sha256": "7284b0928d493b98243da27c88bfb0dd17f2f2c6baff971eb90b26cf80f8b3db",
+  "producer": "stage_s1.py",
+  "producer_sha256": "d0ff68c53691d09d1b440fff8133174ff828d9fb0d37a792f8983841db1ea28a",
+  "config_sha256": "93dca8e4c34d257b895dc24f0b6d16f28d4d95346b9a297ebf68711150901667",
+  "created": "2026-09-26T23:52:01"
+}
