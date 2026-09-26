@@ -1,0 +1,29 @@
+{
+  "id": "R0-F01",
+  "report": "R0",
+  "kind": "figure",
+  "title": "CPS6M cantilever tip deflection is within 0.05 % of Euler–Bernoulli at the finest mesh",
+  "caption": "悬臂梁 L = 100 mm、h = 5 mm（L/h = 20）、平面应力厚 1 mm、E = 110000 MPa、ν = 0.35、端部经分布耦合加 10 N。纵轴为 FE 端部挠度与解析解之比；灰带为 ±2 % 验收带。Timoshenko 解含剪切变形，本长细比下比 Euler–Bernoulli 大约 0.2 %。",
+  "synthetic": false,
+  "units": {
+    "h_mm": "mm",
+    "tip_mm": "mm"
+  },
+  "sources": {
+    "runs": "runs/S0/",
+    "analytic": "Euler–Bernoulli PL³/3EI; Timoshenko + PL/(κGA), κ = 5/6"
+  },
+  "csv": "reports/R0_env_smoke/figures/R0-F01.csv",
+  "csv_sha256": "3b2f591521f34c68004c7d3da73831a7dfeb0da22b30c8f25537152d6384cad4",
+  "png": "reports/R0_env_smoke/figures/R0-F01.png",
+  "svg": "reports/R0_env_smoke/figures/R0-F01.svg",
+  "plot_fn": "stage_s0.py:plot_r0_f01",
+  "plot_module_sha256": "30271c5216dcb2b248366e0dcd443e6d3812c969f6f9d2733bb4c3145bb53e5b",
+  "producer": "stage_s0.py",
+  "producer_sha256": "30271c5216dcb2b248366e0dcd443e6d3812c969f6f9d2733bb4c3145bb53e5b",
+  "config_sha256": "48035220877dee9dbaf929f331355a82468e04818b64a402d289222f69d692b8",
+  "spec_sha256": "46732ae7f89ad014758b23fcbd2e744e44214e283af4085c47fb848979a60b10",
+  "created": "2026-09-26T23:41:15",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

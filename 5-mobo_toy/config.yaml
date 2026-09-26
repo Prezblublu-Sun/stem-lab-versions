@@ -1,0 +1,93 @@
+# mobo_toy 配置（单位：长度 mm、力 N、应力/模量 MPa，见上级 CLAUDE.md §7）
+# 改动任何值都会改变 config.yaml 的 sha256，报告第 2 节会显示新哈希。
+
+abaqus:
+  launcher: 'D:\SIMULIA\Commands\abq2025.bat'   # C:\SIMULIA\Commands\abaqus.bat 指向不存在的 abq2022，已坏
+  cpus_per_job: 1
+  max_concurrent: 4          # 8 物理核；S0 实测并发后再定
+  timeout_s: 900             # 超时判 L4
+  license_retry: {max_tries: 30, wait_s: 20}
+
+# 坐标系：冠状面，x 指向内侧（股骨头一侧）为正，z 向上为正；原点在股骨干轴线上、小转子中点高度。
+femur:
+  shaft_outer_halfwidth: 13.5          # mm，干部外径 27 mm
+  distal_z: -150.0                     # mm，远端截面（小转子下 150 mm），全固支
+  head_center: [42.0, 60.0]            # mm，偏距 42 mm
+  head_radius: 23.0                    # mm
+  neck_shaft_angle_deg: 130.0
+  shell_thickness: 2.0                 # mm，颈部/大转子/头部的皮质壳厚
+  canal_top_z: 40.0                    # mm，分型髓腔曲线向上延伸到此，与颈部松质区合并
+  cfi_level_z: 20.0                    # mm，CFI 分子测量高度（小转子上 20 mm）
+  ci_level_z: -100.0                   # mm，皮质指数测量高度（小转子下 100 mm），同时作峡部
+  isthmus_top_z: -90.0                 # mm，此处以下髓腔等宽
+  medial_wall_fraction: 0.55           # 在 CFI 高度，内侧（股骨距）皮质占两侧总壁厚的比例
+  flare_exponent: 2.2                  # 髓腔半宽从峡部到 CFI 高度的增长指数
+  min_cortex: 1.0                      # mm，任何位置皮质不薄于此
+  neck_cut_from_head: 30.0             # mm，颈中段截骨：截骨线中心距头心的距离，截骨线垂直颈轴
+
+dorr:                                  # 预设值（已批准计划）；判据 CFI A≥4.7、B 3.0–4.7、C<3.0；CI A≥0.58、B 0.49–0.58、C<0.49
+  A: {cfi: 5.0, ci: 0.62, E_cancellous: 400.0}
+  B: {cfi: 3.8, ci: 0.53, E_cancellous: 300.0}
+  C: {cfi: 2.6, ci: 0.44, E_cancellous: 150.0}
+control_E_cancellous: 300.0            # 对照组：三型松质骨同为 300 MPa
+
+materials:
+  cortical: {E: 16800.0, nu: 0.3}      # 源：D:\temp\Job-Stair.inp
+  cancellous_nu: 0.3
+  titanium: {E: 110000.0, nu: 0.35}    # Ti6Al4V，源：Job-Stair.inp
+
+plane_stress_thickness: {bone: 30.0, stem: 12.0}   # mm
+contact_thickness: 12.0                # mm，*SURFACE INTERACTION 的面外厚度取柄厚
+
+load:                                  # 上楼峰值（Job-Stair.inp 的 CLOAD 投影到冠状面，丢弃面外 9.46 N）
+  Fx: 668.0                            # N，+x = 内侧（与源模型同号；源模型头心在 +x 侧）
+  Fz: -2296.2                          # N
+  head_coupling_radius: 14.0           # mm，假体头：以头心为圆心的圆盘，分布耦合到其全部节点
+
+interface:
+  mu: 0.3
+  mu_sweep: [0.3, 0.5, 0.8]
+  delta: 0.10                          # mm，径向过盈
+  slip_tolerance: 0.005
+  tie_position_tolerance: 0.3          # mm，粘接模型 TIE 的位置容差（覆盖 0.1 mm 过盈）
+
+stem:
+  neck_halfwidth: 7.0                  # mm，假体颈
+  head_radius: 14.0                    # mm，假体头（仅用于传载，不与骨接触）
+
+design_space:                          # 5 个设计变量，名称、下界、上界、单位
+  L:        {lo: 70.0,  hi: 120.0, unit: mm,    desc: "arc length from resection centre to tip"}
+  kappa:    {lo: 0.0,   hi: 0.0125, unit: 1/mm, desc: "arc curvature (0 = straight)"}
+  w_prox:   {lo: 0.70,  hi: 1.00,  unit: "-",   desc: "proximal half-width / canal half-width at the cut"}
+  taper:    {lo: 0.30,  hi: 0.80,  unit: "-",   desc: "tip half-width / proximal half-width"}
+  theta_in: {lo: -10.0, hi: 10.0,  unit: deg,   desc: "entry angle vs neck axis (+ = towards distal)"}
+
+gate:
+  max_cortex_overlap: 0.5              # mm²，插入扫掠与皮质相交面积上限
+  min_wall: 1.0                        # mm，柄到骨外轮廓最小距离
+  neck_length: [25.0, 45.0]            # mm，截骨中心到头心
+
+mesh:
+  h_interface: 0.75                    # mm
+  h_far_bone: 3.0                      # mm
+  h_far_stem: 1.5                      # mm
+  ramp: 12.0                           # mm，从界面尺寸过渡到远场尺寸的距离
+  sliver: 0.25                         # mm，薄于此的松质骨细条并入皮质
+
+qoi:
+  micromotion_percentile: 95
+  micromotion_thresholds_um: [50, 150]
+  stem_vm_percentile: 99
+  stem_vm_limit: 440.0                 # MPa，2D 名义值
+  zone7: {x_min: 0.0, z_min: -10.0}    # Gruen 7：截骨线以下、x ≥ 0、z ≥ -10 的骨
+  zone1: {x_max: 0.0, z_min: -10.0}    # Gruen 1：x < 0、z ≥ -10 的骨
+
+bo:
+  n_init: 12
+  n_rounds: 12
+  q: 4
+  n_candidates: 20000
+  seeds: [0, 1, 2]
+  reference_n: 256
+  reference_n_max: 512
+  min_front_points: 15
