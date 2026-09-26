@@ -56,7 +56,7 @@ def outer_contour() -> Polygon:
     cz = CubicSpline(s, P[:, 1], bc_type=((1, 1.0), (1, -1.0)))
     ss = np.linspace(0, s[-1], int(s[-1] / 0.3))
     prox = np.c_[cx(ss), cz(ss)]
-    ring = np.vstack([[W, zd], prox, [-W, zd]])
+    ring = np.vstack([[W, zd - 20.0], prox, [-W, zd - 20.0]])   # 先延长再精确截断，远端截面严格在 zd
     poly = Polygon(ring).buffer(0)
     head = Point(FC["head_center"]).buffer(FC["head_radius"], quad_segs=64)
     shape = unary_union([poly, head]).buffer(2.0, quad_segs=16).buffer(-2.0, quad_segs=16)

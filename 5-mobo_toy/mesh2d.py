@@ -151,6 +151,15 @@ def mesh_partition(regions: dict[str, object], size_fn: SizeFn, *, node_offset: 
         rp = f.representative_point()
         owner = [k for k, g in region_union.items() if g.buffer(1e-6).contains(rp)]
         face_region.append(owner[0] if owner else None)
+    # 每个区域重建后的面积须与原区域相差 < 1 %（弦近似损失在 0.5 % 以内；缺面会差出整块）
+    bad = []
+    for k, v in polys.items():
+        tgt = sum(p.area for p in v)
+        got = sum(f.area for f, r in zip(faces, face_region) if r == k)
+        if tgt > 0 and abs(got - tgt) > 0.01 * tgt + 0.05:
+            bad.append(f"{k}: {got:.2f} of {tgt:.2f} mm²")
+    if bad:
+        raise RuntimeError("partition rebuild failed: " + "; ".join(bad))
 
     gmsh.initialize()
     try:

@@ -212,6 +212,8 @@ def write_csv(path: pathlib.Path, rows: Sequence[Mapping], columns: Sequence[str
 
 
 def _fmt_cell(v):
+    if hasattr(v, "item") and not isinstance(v, (str, bytes)) and getattr(v, "ndim", 1) == 0:
+        v = v.item()              # numpy 标量 → Python 类型（numpy 2 的 repr 是 np.float64(...)）
     if isinstance(v, float):
         return repr(v)            # 全精度，保证重画逐位一致
     return "" if v is None else v

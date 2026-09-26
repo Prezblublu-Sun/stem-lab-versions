@@ -37,12 +37,18 @@ materials:
   titanium: {E: 110000.0, nu: 0.35}    # Ti6Al4V，源：Job-Stair.inp
 
 plane_stress_thickness: {bone: 30.0, stem: 12.0}   # mm
+side_plate:                            # 2026-09-27 新增：前后皮质"侧板"（Huiskes/Weinans 2D 柄模型的做法）
+  thickness: 3.0                       # mm，前后皮质壁厚之和（近端干骺端每侧约 1–2 mm）；R2 做 0/3/6/12 mm 敏感性
+  sweep: [0.0, 3.0, 6.0, 12.0]
+  # 无侧板时 2D 冠状面骨在截骨面处是开口的 U 形，楔形柄的过盈被两侧骨臂弯曲张开吸收，
+  # 压配后 88 % 界面张开（R2 附录记录）。侧板覆盖保留骨 + 锉刀腔，与骨共节点，跨过柄连接内外侧壁，提供环向刚度；
+  # 侧板与柄之间不定义接触。
 contact_thickness: 12.0                # mm，*SURFACE INTERACTION 的面外厚度取柄厚
 
 load:                                  # 上楼峰值（Job-Stair.inp 的 CLOAD 投影到冠状面，丢弃面外 9.46 N）
   Fx: 668.0                            # N，+x = 内侧（与源模型同号；源模型头心在 +x 侧）
   Fz: -2296.2                          # N
-  head_coupling_radius: 14.0           # mm，假体头：以头心为圆心的圆盘，分布耦合到其全部节点
+  head_coupling_radius: 14.0           # mm，以头心为圆心的圆盘内全部节点均分载荷（等价 UNIFORM 分布耦合）
 
 interface:
   mu: 0.3
@@ -72,7 +78,7 @@ gate:
 mesh:
   h_interface: 0.75                    # mm
   h_far_bone: 3.0                      # mm
-  h_far_stem: 1.5                      # mm
+  h_far_stem: 3.0                      # mm（柄内部与假体颈/头；界面处仍为 h_interface）
   ramp: 12.0                           # mm，从界面尺寸过渡到远场尺寸的距离
   sliver: 0.25                         # mm，薄于此的松质骨细条并入皮质
 
