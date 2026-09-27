@@ -28,6 +28,8 @@ import run_abaqus as RA  # noqa: E402
 
 SLOTS = 2
 CPUS = 4
+TIMEOUT = 6 * 3600       # s/单元。v1 默认 900 s 太短：1.0 mm 网格的摩擦模型要 40–60 min；且 Windows 上
+                         # subprocess 超时要等孙进程结束才返回，会把实际已算完的作业误判 L4
 LOCAL = HERE / "runs" / "q"
 LOG = HERE / "runs" / "worker.log"
 STOP_LOCAL = HERE / "runs" / "worker.STOP"
@@ -113,7 +115,7 @@ def stop_requested() -> bool:
 
 
 def main():
-    log(f"worker start: SLOTS={SLOTS} CPUS={CPUS}")
+    log(f"worker start: SLOTS={SLOTS} CPUS={CPUS} TIMEOUT={TIMEOUT}")
     pending_units: list[tuple[str, pathlib.Path]] = []
     jobs: dict[str, dict] = {}                          # jid -> {"left": n, "results": {}}
     running = {}
@@ -145,7 +147,7 @@ def main():
                 continue
             while pending_units and len(running) < SLOTS:
                 jid, inp = pending_units.pop(0)
-                running[ex.submit(RA.run_and_export, inp, cpus=CPUS)] = (jid, inp)
+                running[ex.submit(RA.run_and_export, inp, cpus=CPUS, timeout=TIMEOUT)] = (jid, inp)
             if not running:
                 time.sleep(15)
                 continue

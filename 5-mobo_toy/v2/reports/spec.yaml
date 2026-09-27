@@ -1,0 +1,61 @@
+# V2A 报告登记表（机器可读，唯一真源）：真实股骨（Dorr A）× 直轴短柄，本机只做求解。
+# 结构与 v1 的 reports/spec.yaml 相同，由 report.py 经 v2/psv2.py 覆盖路径后读取；v1 文件不动。
+version: 1
+project: "mobo_toy V2A：FEA → 代理 → 多目标贝叶斯优化（真实股骨 × 直轴短柄：长度、截面积降低曲线、不对称截面、插入角）"
+language: {text: zh, figures: en}
+
+common_limitations:
+  - "单一标本：G:\\hip\\260429 test 2bones 的一根右股骨（按皮质指数 Dorr A）；结论只对这根股骨成立，不代表 Dorr 型之间的差别。"
+  - "材料均匀、线弹性：皮质 16.8 GPa、松质 400 MPa（假设），不模拟松质骨压碎与致密化。"
+  - "单一上楼工况，方向取 Bergmann 2016 AVER75 的方向角，大小沿用 v1 的 2391 N；无肌力。"
+  - "压配量 δ = 0.10 mm、摩擦系数 μ = 0.3 固定，只在符号检查中改变。"
+  - "模板化规则（最大号、皮质穿透 ≤ 0.25 mm、肩部不小于假体颈截面）是简化的术中决策；插入角只在颈平面内变化，前倾方向固定。"
+  - "无实验数据，不做 ASME V&V 40 意义上的确认（validation）；本测试检验代理 + 多目标 BO 能否在少量 FE 内找到好的前沿，不对柄设计下临床结论。"
+
+reports:
+  V2A:
+    dir: V2A_real_femur
+    title: "真实股骨单型试跑：直轴短柄的 FE → GP → 多目标 BO"
+    stage: "S1′–S5′"
+    cou: "在一根真实股骨（STEP 几何）上，用 3D 摩擦接触 FE 评价 11 维直轴短柄设计的初期微动与近端应力遮挡，检验多目标 BO 能否用少量 FE 找到接近最优的前沿。"
+    question: "①真实股骨几何与模板化是否可靠；② 3D FE 模型数值上是否可信（符号、重跑、网格）；③ 哪组设计变量主导两个目标；④ BO 是否在 64 次 FE 内达到已知最佳前沿超体积的 90%，并优于同预算 Sobol。"
+    not_answered: "不比较 Dorr 型之间的差别；不做实验确认；不对柄设计下临床结论。"
+    standards: ["Erdemir 2012（FE 报告项）", "ASME V&V 40 / FDA 2023（可信度因子）", "Celik 2008（GCI）", "Zitzler 2003、Daulton 2020（HV、IGD）", "Kuleshov 2018（校准）", "Saltelli 2019（全局敏感性）", "Bergmann 2016（载荷方向）"]
+    figures:
+      - {id: V2A-F01, what: "真实股骨：颈平面切面（头心、颈轴、干轴、截骨线、LT 等高度）与 8 个横断面", std: "Erdemir 2012 Representative geometry"}
+      - {id: V2A-F02, what: "髓腔与外径的内外侧宽度沿干轴的剖面（全宽与过干轴弦两种量法），标 LT+20、峡部、LT−100", std: "Dorr 1993 分型判据"}
+      - {id: V2A-F03, what: "截面形状 7 个变量的图册（低/中/高），叠前后镜像以显示不对称", std: "设计空间可视化"}
+      - {id: V2A-F04, what: "截面积降低曲线族（q 与 ρ_tip）", std: "设计空间可视化"}
+      - {id: V2A-F05, what: "设计空间可行性：可行率对插入角、对长度；肩部面积分布（8192 点池）", std: "可行域形状"}
+      - {id: V2A-F06, what: "三根示例柄在真实股骨中的模板化：颈平面与三个垂直于柄轴的截面", std: "可插入性证据"}
+      - {id: V2A-F07, what: "符号检查：基准、去扭转、δ = 0、μ = 0.8 的 f1、f2、柄应力对比", std: "V&V 40 代码验证（行为检查）"}
+      - {id: V2A-F08, what: "网格收敛：2 个设计的 f1、f2、柄应力随界面单元尺寸（2.0/1.4/1.0 mm）", std: "Celik 2008 GCI"}
+      - {id: V2A-F09, what: "排序保持：12 个设计在 2.0 与 1.4 mm 下的 f1、f2 对照与 Spearman", std: "计算验证（排序用途）"}
+      - {id: V2A-F10, what: "64 点参考集的目标空间散点，按约束着色，高亮非支配前沿", std: "Zitzler 2003"}
+      - {id: V2A-F11, what: "全局敏感性：GP 代理上的 Sobol 总效应指数，逐变量与按四组汇总", std: "Saltelli 2019"}
+      - {id: V2A-F12, what: "超体积比对 FE 次数：3 个 BO 种子与同预算 Sobol 基线（重抽中位与区间），画 0.9 线", std: "Daulton 2020"}
+      - {id: V2A-F13, what: "各种子 BO 前沿与已知最佳前沿叠图", std: "Zitzler 2003"}
+      - {id: V2A-F14, what: "GP 校准：64 点测试集上名义覆盖对实际覆盖，及预测对 FE 值", std: "Kuleshov 2018"}
+      - {id: V2A-F15, what: "前沿设计图册：截面形状、面积曲线与插入角", std: "结果可解释性"}
+    tables:
+      - {id: V2A-T01, what: "股骨模型：源文件与哈希、距离场与 OCC 体积复核、解剖量与 straight3d 对照、Dorr 指标两种量法"}
+      - {id: V2A-T02, what: "设计变量：定义、范围、分组"}
+      - {id: V2A-T03, what: "FE 模型报告项（Erdemir 2012）：网格、材料、界面、载荷向量、边界、求解器、单次耗时"}
+      - {id: V2A-T04, what: "符号检查与重跑一致性"}
+      - {id: V2A-T05, what: "网格收敛与 GCI"}
+      - {id: V2A-T06, what: "BO 结果：各种子超体积比、IGD、FE 次数、机时；Sobol 基线"}
+      - {id: V2A-T07, what: "前沿设计清单：设计变量、肩部面积、f1、f2、柄应力"}
+    acceptance:
+      - {id: V2A-A1, criterion: "解剖量（头半径、颈干角、前倾）与 straight3d 在同一股骨上的实测之差", threshold: "< 1 mm、< 1°"}
+      - {id: V2A-A2, criterion: "距离场所围体积与 OCC 体积之差（髓腔、外形，盒内）", threshold: "< 0.5%"}
+      - {id: V2A-A3, criterion: "零过切数值复核：柄沿插入路径的采样点落在最终柄体外的个数", threshold: "0"}
+      - {id: V2A-A4, criterion: "CAD 中柄体 ∩ 皮质 体积 / 柄体积（20 个参考设计的最大值）", threshold: "≤ 0.5%"}
+      - {id: V2A-A5, criterion: "符号检查：去扭转 f1 降、δ = 0 f1 升、μ = 0.8 f1 降", threshold: "全部方向正确"}
+      - {id: V2A-A6, criterion: "同一设计重建网格重跑，f1、f2、柄应力逐位相同", threshold: "相同"}
+      - {id: V2A-A7, criterion: "生产网格（2.0 mm）：对 1.0 mm 的 f1、f2 相对变化，或 12 设计 2.0 对 1.4 的 Spearman", threshold: "< 10%，或 ≥ 0.9"}
+      - {id: V2A-A8, criterion: "设计空间可行率（8192 点池，模板化 + 肩部不小于假体颈）", threshold: "≥ 30%"}
+      - {id: V2A-A9, criterion: "可行设计的 FE 失败率（L3–L5）", threshold: "≤ 5%"}
+      - {id: V2A-A10, criterion: "BO 中位超体积比（分母为全部评估点的已知最佳前沿）", threshold: "≥ 0.90"}
+      - {id: V2A-A11, criterion: "3 个种子都高于同预算 Sobol 基线中位", threshold: "3/3"}
+      - {id: V2A-A12, criterion: "GP 90% 预测区间在 64 点测试集上的实际覆盖率", threshold: "0.80–0.97"}
+    next_inputs: ["是否把同一流程扩到更多真实股骨或理想化 B/C 型（由用户决定）", "生产网格与噪声底"]

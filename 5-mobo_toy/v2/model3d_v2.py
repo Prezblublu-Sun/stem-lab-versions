@@ -32,6 +32,11 @@ from spot3d.model3d import FACES, GMSH2ABQ, check_volumes  # noqa: E402
 MESH_OPTS = (("Mesh.MeshSizeFromPoints", 0), ("Mesh.MeshSizeFromCurvature", 0), ("Mesh.MeshSizeExtendFromBoundary", 0),
              ("Mesh.Algorithm", 6), ("Mesh.Optimize", 1), ("Mesh.OptimizeNetgen", 0),
              ("Mesh.ElementOrder", 2), ("Mesh.SecondOrderLinear", 1))
+# 退化单元判据：体积 < SLIVER_REL_TOL × 中位体积 才拒绝（L3）。允许贴皮质时，锉腔以很小的角度切过内膜面，
+# 会留下极薄的楔形骨片，网格里出现少量扁四面体（体积约为中位的 1e−4）；Netgen 优化与换算法都去不掉。
+# 直边 C3D10 的雅可比为常数，体积为正即可求解（2026-09-28 用 conv_r10 在 Abaqus 中实测）。
+# v1 的 1e−4 门槛仍作为网格质量指标记录（n_sliver_1e-4），进报告。
+SLIVER_REL_TOL = 1e-7
 
 
 class BuildError(RuntimeError):
@@ -70,7 +75,7 @@ def _keep(occ, fm: FR.RealFemur, cut: bool = True):
     return K
 
 
-def _extract(gmsh, groups: dict) -> tuple[dict, dict]:
+def _extract(gmsh, groups: dict) -> tuple[dict, dict, dict]:
     ntag, ncoord, _ = gmsh.model.mesh.getNodes()
     xyz = ncoord.reshape(-1, 3)
     lut = {int(t): i for i, t in enumerate(ntag)}
@@ -95,10 +100,12 @@ def _extract(gmsh, groups: dict) -> tuple[dict, dict]:
         neg = vol < 0
         if neg.any():
             c[neg] = c[neg][:, [0, 2, 1, 3, 6, 5, 4, 7, 9, 8]]
-    vq = check_volumes(elems, coords)
+    vq = check_volumes(elems, coords, rel_tol=SLIVER_REL_TOL)
     if any(q["n_tiny"] for q in vq.values()):
-        raise BuildError("L3", f"near-zero-volume tetrahedra: {vq}")
-    return elems, coords
+        raise BuildError("L3", f"degenerate tetrahedra: {vq}")
+    q4 = check_volumes(elems, coords, rel_tol=1e-4)
+    quality = {"n_sliver_1e-4": {k: v["n_tiny"] for k, v in q4.items()}, "min_vol": {k: v["min_vol"] for k, v in q4.items()}}
+    return elems, coords, quality
 
 
 def _boundary_faces(elems, regions):
@@ -193,7 +200,7 @@ def _build(st, fm, pl, outdir, name, *, h_int, h_far, delta, mu, torque, algo) -
             gmsh.option.setNumber(k, v)
         gmsh.option.setNumber("Mesh.Algorithm3D", algo)
         gmsh.model.mesh.generate(3)
-        elems, coords = _extract(gmsh, {"cortex": cort_vols, "cancellous": canc_vols, "stem": stem_vols})
+        elems, coords, quality = _extract(gmsh, {"cortex": cort_vols, "cancellous": canc_vols, "stem": stem_vols})
     finally:
         gmsh.finalize()
     used_bone = np.unique(np.r_[elems["cortex"].ravel(), elems["cancellous"].ravel()])
@@ -309,7 +316,7 @@ FIXED, 1, 3
     return {"name": name, "n_tet": {k: int(len(v)) for k, v in elems.items()}, "n_nodes": len(coords),
             "n_slave_faces": len(slave), "n_master_faces": len(master), "n_head": len(head), "n_fixed": len(fixed),
             "slave": [[int(elab[r][i]), fc] for r, i, fc in slave], "h_int": h_int, "h_far": h_far, "delta": delta,
-            "mu": mu, "torque": torque, "load_N": F.tolist(), "stem_volume_mm3": v_stem, "A0": A0}
+            "mu": mu, "torque": torque, "load_N": F.tolist(), "stem_volume_mm3": v_stem, "A0": A0, "mesh_quality": quality}
 
 
 def build_intact(fm: FR.RealFemur, outdir: pathlib.Path, name: str, *, h_roi: float = 2.0, h_far: float = 6.0) -> dict:
@@ -339,7 +346,7 @@ def build_intact(fm: FR.RealFemur, outdir: pathlib.Path, name: str, *, h_roi: fl
             gmsh.option.setNumber(k, v)
         gmsh.option.setNumber("Mesh.Algorithm3D", 1)
         gmsh.model.mesh.generate(3)
-        elems, coords = _extract(gmsh, {"cortex": cort_vols, "cancellous": canc_vols})
+        elems, coords, quality = _extract(gmsh, {"cortex": cort_vols, "cancellous": canc_vols})
     finally:
         gmsh.finalize()
     offs = {"cortex": 0, "cancellous": len(elems["cortex"])}
@@ -375,7 +382,7 @@ HEADN, 3, {_f(F[2] / len(head))}
                         **{f"{k}_elab": v for k, v in elab.items()},
                         node_labels=np.array(sorted(coords)), nodes=np.array([coords[n] for n in sorted(coords)]))
     info = {"name": name, "n_tet": {k: int(len(v)) for k, v in elems.items()}, "n_head": len(head), "n_fixed": len(fixed),
-            "h_roi": h_roi, "h_far": h_far, "load_N": F.tolist()}
+            "h_roi": h_roi, "h_far": h_far, "load_N": F.tolist(), "mesh_quality": quality}
     (outdir / "model3d.json").write_text(json.dumps(info))
     return info
 
