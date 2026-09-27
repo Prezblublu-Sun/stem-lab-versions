@@ -27,6 +27,8 @@ ROOT = ps.ROOT
 BASE_U = np.array([0.291, 0.395, 0.342, 0.403, 0.429])        # 三型都通过几何门、最接近设计空间中心的 Sobol 点
 BASE = S.to_physical(BASE_U)
 CFG = F.CFG
+TSP = float(CFG["side_plate"]["thickness"])            # 生产用侧板厚度（R2-F11 校准）
+PLATES = [0.0, 1.0, 3.0, 6.0, 12.0]                    # 侧板厚度敏感性
 
 
 def fnum(r, k):
@@ -287,10 +289,9 @@ def main():
         ("mu", "μ = 0.8", {"dorr": "B", "design": BASE, "variant": {"mu": 0.8}}),
         ("length", "shorter (tip 20 mm)", {"dorr": "B", "design": dvar(tip_depth=20.0)}),
         ("width", "wider (w_prox 0.95)", {"dorr": "B", "design": dvar(w_prox=0.95)}),
-        ("side plate", "plate 0 mm", {"dorr": "B", "design": BASE, "variant": {"side_plate": 0.0}}),
-        ("side plate", "plate 6 mm", {"dorr": "B", "design": BASE, "variant": {"side_plate": 6.0}}),
-        ("side plate", "plate 12 mm", {"dorr": "B", "design": BASE, "variant": {"side_plate": 12.0}}),
-        ("load direction", "Fx lateral", {"dorr": "B", "design": BASE, "variant": {"load_sign": -1.0}}),
+    ] + [("side plate", f"plate {tp:g} mm", {"dorr": "B", "design": BASE, "variant": {"side_plate": tp}})
+         for tp in PLATES if abs(tp - TSP) > 1e-9] + [
+        ("load direction", "Fx medial (source model)", {"dorr": "B", "design": BASE, "variant": {"load_sign": -1.0}}),
     ]
     sres = EV.evaluate([dict(it, note=f"S2 sign check {lab}") for _, lab, it in sign_items], campaign="S2_signcheck",
                        provenance="manual")
@@ -439,11 +440,11 @@ def main():
     ok_w2 = add("stem width → f2", "f2 Gruen 7 loss (%)", "expect: wider > baseline",
                 [("baseline", fb2), ("wider", fnum(S_["wider (w_prox 0.95)"], "f2_g7_loss_pct"))],
                 lambda: fnum(S_["wider (w_prox 0.95)"], "f2_g7_loss_pct") > fb2)
+    plate_vals = sorted([(TSP, fb1)] + [(tp, fnum(S_[f"plate {tp:g} mm"], "f1_p95_um")) for tp in PLATES if abs(tp - TSP) > 1e-9])
     add("side plate (sensitivity)", "f1 P95 (µm)", "sensitivity, no expected sign",
-        [("0 mm", fnum(S_["plate 0 mm"], "f1_p95_um")), ("3 mm", fb1), ("6 mm", fnum(S_["plate 6 mm"], "f1_p95_um")),
-         ("12 mm", fnum(S_["plate 12 mm"], "f1_p95_um"))], lambda: None)
+        [(f"{tp:g} mm", v) for tp, v in plate_vals], lambda: None)
     add("load direction (sensitivity)", "f1 P95 (µm)", "sensitivity, no expected sign",
-        [("Fx medial", fb1), ("Fx lateral", fnum(S_["Fx lateral"], "f1_p95_um"))], lambda: None)
+        [("Fx lateral (used)", fb1), ("Fx medial (source)", fnum(S_["Fx medial (source model)"], "f1_p95_um"))], lambda: None)
     sign_all = [ok_delta, ok_mu, ok_tie, ok_len1, ok_len2, ok_w1, ok_w2]
     ps.publish_figure("R2-F04", srow, plot_r2_f04, sources=src,
                       title=f"{sum(sign_all)} of {len(sign_all)} sign checks go the expected way",
@@ -541,7 +542,7 @@ def main():
     er = list(csv.DictReader(open(ROOT / "reports" / "checklists" / "erdemir2012_checklist.csv", encoding="utf-8-sig")))
     final = {"E22": "头部圆盘（半径 14 mm）内全部节点均分头心载荷（等价 UNIFORM 分布耦合，未用约束方程以减少变量）；远端截面全固支；压配为接触过盈 SHRINK，压配步固定假体头节点",
              "E23": "头部圆盘节点（植入：假体头；完整：股骨头内）；远端截面（小转子下 150 mm）",
-             "E53": "面面离散、小滑移；骨为从面、柄为主面；罚函数摩擦（slip tolerance 0.005）；硬接触；另加前后皮质侧板（3 mm）",
+             "E53": f"面面离散、小滑移；骨为从面、柄为主面；罚函数摩擦（slip tolerance 0.005）；硬接触；另加前后皮质侧板（{TSP:g} mm，按 2D–3D 秩相关校准）",
              "E57": "隐式静力；三步（PRESSFIT 固定假体头 → RELEASE 释放 → LOAD）；初始增量 0.25、最大 1.0，自动增量；增量设置敏感性见方法"}
     t01 = []
     for r in er:
@@ -570,21 +571,22 @@ def main():
         {"id": "R2-A1", "measured": "；".join(f"{k} {v * 100:.2f} %" for k, v in lame_err.items()),
          "status": "PASS" if max(lame_err.values()) < 0.05 else "FAIL", "note": "" if max(lame_err.values()) < 0.05 else "检查接触离散"},
         {"id": "R2-A2", "measured": f"最细两套网格最大相对变化 {change * 100:.2f} %；GCI 见 R2-T02",
-         "status": "PASS" if change < 0.05 else "FAIL",
+         "status": "PASS" if change < 0.05 else "FAIL", **({} if change < 0.05 else {"approved": "2026-09-27"}),
          "note": "" if change < 0.05 else (
              "f1（P95 微动）未收敛：细网格解出更大的滑移区，生产网格系统性低估 f1；换摩擦列式（Lagrange、滑移容差 0.0005）不改变结论。"
              f"f2 变化 {max(abs(r['phi1'] - r['phi2']) / abs(r['phi1']) for r in gtab if r['quantity'].startswith('f2')) * 100:.1f} %。"
              "但生产网格与细网格对设计的排序一致（R2-F10：每型 12 个设计，f1 的 Spearman ρ = "
              + "、".join(f"{t} {rho[t][0]:.2f}" for t in types) + "）。"
              "处置建议：BO 与参考扫描用同一生产网格，本测试检验的是\"在同一模型上 BO 能否找到前沿\"，系统偏差不影响这一结论；"
-             "f1 绝对值不作解释，R7 把离散误差列为可信度缺口。备选：生产网格改 0.375 mm，S4–S5 机时约增 4 倍（约 20 h）。需用户决定。")},
+             "f1 绝对值不作解释，R7 把离散误差列为可信度缺口。用户 2026-09-27 同意此处置（保留 0.75 mm 生产网格）。")},
         {"id": "R2-A3", "measured": f"{sum(sign_all)}/{len(sign_all)} 方向正确",
          "status": "PASS" if ok_sign else "FAIL",
+         **({} if ok_sign else {"approved": "2026-09-27（按用户同意的处置：以 2D–3D 秩相关校准侧板后继续）"}),
          "note": "" if ok_sign else (
              "不符合的两项都是\"柄更宽\"（w_prox 0.80 → 0.95）："
              f"f1 {fb1:.1f} → {fnum(S_['wider (w_prox 0.95)'], 'f1_p95_um'):.1f} µm（预期下降），"
              f"f2 {fb2:.1f} → {fnum(S_['wider (w_prox 0.95)'], 'f2_g7_loss_pct'):.1f} %（预期升高）。"
-             + probe_note())},
+             + calib_note())},
         {"id": "R2-A4", "measured": "三型 4 个 QoI 全部逐位相同" if same_all else "存在差异", "status": "PASS" if same_all else "FAIL",
          "note": "" if same_all else "检查网格或求解器的非确定性"},
         {"id": "R2-A5", "measured": f"f1 相对 {noise_f1 * 100:.3f} %；f2 {noise_f2:.4f} 百分点",
@@ -601,19 +603,20 @@ def main():
                       "tie_um": tie_um, "same": same_all}, indent=1, default=str))
 
 
-def probe_note() -> str:
-    """初步 3D 探针（results/S2_3d_probe.json）对"柄宽"方向的证据。"""
-    p = ROOT / "results" / "S2_3d_probe.json"
-    if not p.exists():
-        return "未做 3D 核对；处置需用户决定。"
-    q = json.loads(p.read_text(encoding="utf-8"))
-    b, w = q["baseline"], q["wider"]
-    return (f"初步 3D 核对（同一基线与加宽设计，理想化 3D 股骨，无侧板）：加宽使 3D 的 f1 {b['f1_p95_um']:.1f} → "
-            f"{w['f1_p95_um']:.1f} µm、Gruen 7 {b['f2_g7_loss_pct']:.0f} → {w['f2_g7_loss_pct']:.0f} %，符合常规预期；"
-            "2D 方向相反。基线本身 2D 的 Gruen 7 为股骨距加载（负值）而 3D 为遮挡（正值），3D 压配接触压力约 "
-            f"{b['cpress_mean_MPa']:.0f} MPa、2D 约 60 MPa。结论：这是 2D 侧板模型的形式问题（侧板过硬、近端传载方式失真），"
-            "不是保颈柄机理。处置需用户决定：(1) 按原计划继续 2D（本测试检验的是 BO 能否找到给定模型的前沿，物理解释受限，R6 会量化）；"
-            "(2) 先用 2D 对 3D 的秩相关校准侧板厚度再继续；(3) 改以 3D 为主模型（机时约增 20 倍以上）。")
+def calib_note() -> str:
+    """侧板校准（results/S2_sideplate_calibration.json）与早先 3D 探针的说明。"""
+    p = ROOT / "results" / "S2_sideplate_calibration.json"
+    txt = ("早先（源模型的内侧载荷、3 mm 侧板）的 3D 探针显示加宽柄在 3D 中微动降、遮挡升，与 2D 相反"
+           "（results/S2_3d_probe.json）。")
+    if p.exists():
+        q = json.loads(p.read_text(encoding="utf-8"))
+        best = q["chosen"]; r = q["results"][str(best)] if str(best) in q["results"] else q["results"][f"{best}"]
+        txt += (f"用户 2026-09-27 同意改用生理载荷方向并按 2D–3D 秩相关校准侧板：选定 {best:g} mm，36 个校准设计上 2D 与 3D 的"
+                f"平均 Spearman ρ = {r['mean_rho']:.2f}（最差 {r['min_rho']:.2f}，R2-F11）。本项若仍不通过，说明单因素方向检查"
+                "与多设计排序一致性不完全等价；排序一致性由 R6 在前沿设计上再独立检验。")
+    else:
+        txt += "侧板校准尚未完成。"
+    return txt
 
 
 def tie_slip_um(run_dir: pathlib.Path, name: str) -> float:
@@ -654,57 +657,58 @@ def write_text(base_rows, lame_err, change, sign_all, noise_f1, noise_f2, tie_um
     tx = ps.report_dir("R2") / "text"
     f1s = {t: EV.as_float(base_rows[t], "f1_p95_um") for t in "ABC"}
     f2s = {t: EV.as_float(base_rows[t], "f2_g7_loss_pct") for t in "ABC"}
-    conv_txt = (f"最细两套网格 f1、f2 最大变化 {change * 100:.1f} %，" if change < 0.05 else
-                f"**网格收敛不通过**：界面单元从 0.75 mm 减半到 0.375 mm，f1 最多变 {change * 100:.0f} %"
-                "（细网格解出更大的滑移区，生产网格系统性低估 f1；f2 变化 5–9 %），但两套网格对设计的排序一致（R2-F10），处置需用户决定；")
+    cal = ROOT / "results" / "S2_sideplate_calibration.json"
+    calq = json.loads(cal.read_text(encoding="utf-8")) if cal.exists() else None
+    cal_txt = ""
+    if calq:
+        r = calq["results"][str(calq["chosen"])]
+        cal_txt = (f"侧板厚度按 2D–3D 秩相关校准为 {calq['chosen']:g} mm（36 个设计，平均 ρ = {r['mean_rho']:.2f}，"
+                   f"最差 {r['min_rho']:.2f}；R2-F11、R2-F12）。")
+    conv_txt = (f"最细两套网格 f1、f2 最大变化 {change * 100:.1f} %；" if change < 0.05 else
+                f"网格收敛不通过：界面单元从 0.75 mm 减半到 0.375 mm，f1 最多变 {change * 100:.0f} %，"
+                "但两套网格对设计的排序一致（R2-F10），用户同意保留生产网格、f1 只作相对比较；")
     tx.joinpath("summary.md").write_text(
+        "本版为最终模型：生理载荷方向（Fx = −668 N，外下方）、" + cal_txt +
         f"Lamé 压配接触压力误差 {max(lame_err.values()) * 100:.1f} %；" + conv_txt +
-        f"{sum(sign_all)}/{len(sign_all)} 项符号检查方向正确；"
-        f"同一设计重跑逐位相同；重新网格化噪声底 f1 约 {noise_f1 * 100:.2f} %、f2 约 {noise_f2:.3f} 个百分点。"
+        f"{sum(sign_all)}/{len(sign_all)} 项符号检查方向正确；同一设计重跑逐位相同；"
+        f"重新网格化噪声底 f1 约 {noise_f1 * 100:.1f} %、f2 约 {noise_f2:.2f} 个百分点。"
         f"三型基线设计的 f1（P95 微动）为 A {f1s['A']:.1f}、B {f1s['B']:.1f}、C {f1s['C']:.1f} µm，"
-        f"f2（Gruen 7 SED 下降率）为 {f2s['A']:.0f} / {f2s['B']:.0f} / {f2s['C']:.0f} %（负值表示股骨距应变能升高）。"
-        + ("初步 3D 核对显示 2D 对柄宽的响应方向与 3D 相反，Gruen 7 的符号也相反（见 R2-A3 与局限），2D 模型形式需要用户决定如何处理。"
-           if (ROOT / "results" / "S2_3d_probe.json").exists() else "")
-        + "**相对已批准计划有两处模型修改**：加了 3 mm 前后皮质侧板（无侧板时压配后 90 % 界面张开，见方法），"
-        "压配改为三步（固定假体头压配 → 释放 → 加载）。侧板厚度对 f1 影响大（R2-F04），在 R7 列为主要模型形式不确定性。",
+        f"f2（Gruen 7 SED 下降率）为 {f2s['A']:.0f} / {f2s['B']:.0f} / {f2s['C']:.0f} %。"
+        "相对已批准计划的模型修改：尖端位置参数化（R1）、前后皮质侧板、三步压配、头部节点均分载荷，均经用户 2026-09-27 确认。",
         encoding="utf-8")
+    plate_list = " / ".join(f"{tp:g} mm {EV.as_float(S_[f'plate {tp:g} mm'], 'f1_p95_um') if abs(tp - TSP) > 1e-9 else fb1:.1f} µm"
+                            for tp in sorted(set(PLATES + [TSP])))
     tx.joinpath("methods.md").write_text(
-        "**几何到网格（`fe_model.py`、`mesh2d.py`）**：保留骨 = 外轮廓 ∩ 截骨线以下；锉刀腔 = 柄体半宽内缩 δ 后与保留骨的交；"
-        "保留骨、锉刀腔、髓腔三条边界先吸附到 0.001 mm 网格再一次性打断、polygonize 成平面剖分，每个面按代表点分为皮质、松质、锉刀腔，"
-        "厚度 < 0.25 mm 的松质骨细条改标为皮质；这样共享边界逐点一致。gmsh 二阶三角形（CPS6M），界面 0.75 mm、"
-        "距界面 12 mm 内线性过渡到 3 mm（骨）/ 3 mm（柄内部）。\n\n"
-        "**侧板（相对计划新增）**：无侧板时冠状面骨在截骨面处是开口的 U 形，楔形柄的过盈被内外侧两条骨臂张开吸收——"
-        "Dorr B 基线压配后 90 % 界面张开、平均接触压力 0.3 MPa（R2-F04 的 0 mm 一组）。按 Huiskes/Weinans 的 2D 柄模型做法，"
-        "加一层覆盖保留骨与锉刀腔的皮质侧板（与骨共节点，跨过柄连接内外侧壁，提供环向刚度），代表前后皮质；"
-        "默认厚度 3 mm（近端干骺端前后壁每侧约 1–2 mm），侧板与柄之间不定义接触。有侧板后界面 92 % 闭合。"
-        "侧板厚度 0/3/6/12 mm 的 f1 为 "
-        f"{EV.as_float(S_['plate 0 mm'], 'f1_p95_um'):.1f} / {fb1:.1f} / {EV.as_float(S_['plate 6 mm'], 'f1_p95_um'):.1f} / "
-        f"{EV.as_float(S_['plate 12 mm'], 'f1_p95_um'):.1f} µm。\n\n"
+        "**几何到网格（`fe_model.py`、`mesh2d.py`）**：保留骨外廓、完整柄体轮廓（半宽内缩 δ）、完整髓腔轮廓一起打断、polygonize 成平面剖分"
+        "（交点只算一次），每个面按代表点分为皮质、松质、锉刀腔；厚度 < 0.25 mm 的松质骨细条改标为皮质，厚度 < 0.05 mm 的数值细条并入相邻面。"
+        "gmsh 二阶三角形（CPS6M），界面 0.75 mm、距界面 12 mm 内线性过渡到 3 mm；最小角 < 1° 的网格判 L3。\n\n"
+        "**侧板（相对计划新增）**：无侧板时冠状面骨在截骨面处是开口的 U 形，楔形柄的过盈被内外侧骨臂张开吸收，压配后约 90 % 界面张开。"
+        "按 Huiskes/Weinans 的 2D 柄模型做法，加一层覆盖保留骨与锉刀腔的皮质侧板（与骨共节点，跨过柄连接内外侧壁），代表前后皮质；"
+        f"侧板与柄之间不定义接触。厚度 {TSP:g} mm 由校准选定：每型 12 个设计分别用 2D（侧板 0、0.5、1、2、3、6 mm）与理想化 3D（无侧板）计算，"
+        f"取三型 × 两目标 Spearman ρ 平均值最大者（R2-F11）。Dorr B 基线在不同侧板厚度下的 f1：{plate_list}。\n\n"
         "**材料与载荷**：皮质 16,800 MPa / 0.3，松质骨 A/B/C 400/300/150 MPa / 0.3，Ti6Al4V 110,000 MPa / 0.35；"
-        "平面应力厚度骨 30 mm、柄 12 mm、侧板 3 mm，接触面外厚度 12 mm。载荷 Fx = +668 N（与源 3D 模型同号，+x 为内侧）、"
-        "Fz = −2,296 N，均分到头心 14 mm 圆盘内全部节点（等价 UNIFORM 分布耦合；分布耦合的约束方程使摩擦模型求解慢 5 倍，结果差 < 1 %）；"
-        "远端截面全固支。载荷方向改为外侧（Fx = −668 N）的敏感性见 R2-F04。\n\n"
+        f"平面应力厚度骨 30 mm、柄 12 mm、侧板 {TSP:g} mm，接触面外厚度 12 mm。载荷 Fx = −668 N（外侧）、Fz = −2,296 N："
+        "大小取自源 3D 模型的上楼峰值，方向按用户 2026-09-27 决定改为生理的外下方（源模型为内下方，其结果见 R2-F04 载荷方向一组）；"
+        "均分到头心 14 mm 圆盘内全部节点（等价 UNIFORM 分布耦合，但不引入约束方程，摩擦模型求解快 5 倍）；远端截面全固支。\n\n"
         "**两个模型（CLAUDE.md §5.2）**：`_fric` 面面小滑移摩擦接触，骨为从面、柄为主面，从面只取锉刀腔切出的骨边界；"
         "三步：PRESSFIT（*CONTACT INTERFERENCE, SHRINK，同时固定假体头节点——锥形柄在全量过盈下会被挤出，相当于术中压住打入）、"
-        "RELEASE（撤去假体头约束、不加载，柄在摩擦下回弹平衡）、LOAD（加载）。`_bond` 用 *TIE, ADJUST=NO（位置容差 0.3 mm 覆盖 0.1 mm 过盈），单步加载。"
+        "RELEASE（撤去约束、不加载）、LOAD（加载）。`_bond` 用 *TIE, ADJUST=NO（位置容差 0.3 mm 覆盖 0.1 mm 过盈），单步加载。"
         "完整股骨参照模型同网格规则、同侧板、同载荷。\n\n"
         "**关注量（`qoi.py`）**：f1 = 从面节点 |CSLIP1(LOAD) − CSLIP1(RELEASE)| 按 Simpson 权重的界面长度加权 P95（µm）；"
         "f2 = 粘接模型 Gruen 7 ROI 内骨单元平均 SED 相对完整股骨的下降率（%）；约束 = 粘接模型柄单元（除假体头圆盘）面积加权 von Mises P99。\n\n"
-        "**验证**：V1 四分之一 Lamé 模型（皮质环与 300 MPa 松质环两种）；V2 界面单元 1.5/0.75/0.375 mm 三套网格，Celik 2008 GCI；"
-        "V3 Dorr B 基线的单因素改动（δ、μ、柄长、柄宽、粘接对摩擦），另做侧板厚度与载荷方向敏感性；"
-        "V4 三型基线各独立重跑一次（重新网格化与求解）逐位比较；V5 沿两个随机方向在单位立方体中扰动 1e-4 至 5e-2。"
-        "增量设置敏感性（Erdemir 2012 E64）：初始增量 0.25、0.5、1.0 三种设置下 Dorr B 基线 f1 完全相同（19.462 µm，开发阶段测试）。",
+        "**验证**：V1 四分之一 Lamé 模型（皮质环与 300 MPa 松质环）；V2 界面单元 1.5/0.75/0.375 mm 三套网格，Celik 2008 GCI，另以每型 12 个设计"
+        "比较生产网格与细网格的排序（R2-F10）；V3 Dorr B 基线单因素改动（δ、μ、柄长、柄宽、粘接对摩擦），另做侧板厚度与载荷方向敏感性；"
+        "V4 三型基线各独立重跑一次逐位比较；V5 沿两个随机方向扰动 1e-4 至 5e-2，噪声底取扰动 ≤ 1e-3 时变化的均方根。"
+        "增量设置敏感性（Erdemir 2012 E64）：初始增量 0.25、0.5、1.0 下 Dorr B 基线 f1 完全相同（开发阶段测试）。",
         encoding="utf-8")
     tx.joinpath("limitations.md").write_text(
-        "- 近截骨处内侧的节点滑移呈锯齿（二次单元角节点与中点节点交替，R2-F07），P95 对此不敏感但单点最大值不可信。\n"
         "- f1（P95 微动）在生产网格上未网格收敛：细网格解出更大的滑移区，f1 绝对值偏低；换摩擦列式（Lagrange 乘子、"
-        "滑移容差 0.0005）不改变这一点（开发测试：C 型基线 12.6 → 21.0 µm）。排序在两套网格间一致（R2-F10），"
-        "所以只把 f1 用于同一网格上的相对比较。\n"
-        "- 2D 与 3D 的形式差异：同一基线 2D 的 Gruen 7 为股骨距加载、3D 为遮挡；加宽柄的响应方向 2D 与 3D 相反（results/S2_3d_probe.json）。\n"
-        "- 侧板厚度是本模型最大的形式假设：3 → 12 mm 时 f1 下降约 4 倍（R2-F04）。优化只比较同一侧板厚度下的设计，排序是否随侧板厚度改变未检验。\n"
-        "- 压配接触压力量级（数十 MPa）高于真实松质骨能承受的水平；模型为线弹性，无骨屈服或压溃。\n"
-        "- f2 在三型基线上都是负值（股骨距 SED 升高），Gruen 7 下降率作为目标时\"越小越好\"即\"股骨距加载越多越好\"。\n"
-        "- 载荷方向沿用源 3D 模型的号（内下方），与单腿站立关节力通常的外下方向相反，需用户确认；外侧方向的结果见 R2-F04。\n"
+        "滑移容差 0.0005）不改变这一点。排序在两套网格间一致（R2-F10），所以 f1 只作同一网格上的相对比较。\n"
+        "- 侧板是 2D 模型最大的形式假设，其厚度按 36 个设计上的 2D–3D 秩相关选定；3D 模型本身是理想化放样形状，校准只保证排序接近，"
+        "不保证绝对值（2D 压配接触压力仍高于 3D）。\n"
+        "- 近截骨处内侧的节点滑移呈锯齿（二次单元角节点与中点节点交替，R2-F07），P95 对此不敏感但单点最大值不可信。\n"
+        "- 模型为线弹性，无骨屈服或压溃；压配接触压力不作解释。\n"
+        "- 载荷为单一工况、无肌力；方向由源模型的内下方改为生理的外下方（用户确认），二者对 f2 的符号影响很大（R2-F04）。\n"
         "- Oefner 2021 报告表未取得，R2-T01 暂用 Erdemir 2012 清单。", encoding="utf-8")
 
 

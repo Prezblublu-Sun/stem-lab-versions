@@ -10,7 +10,7 @@
   "csv": "reports/R1_geometry/tables/R1-T02.csv",
   "csv_sha256": "1e18dec2087ed20642eed09a1813c1c72eb84b6a7ae1a5b451769c1bbcde305a",
   "producer": "stage_s1.py",
-  "producer_sha256": "d0ff68c53691d09d1b440fff8133174ff828d9fb0d37a792f8983841db1ea28a",
-  "config_sha256": "151b9cb38c8f381389240b24feb9004eb415b6787cff5e89367efd3e469cef40",
-  "created": "2026-09-27T01:16:34"
+  "producer_sha256": "a0ad3b72762bdbde7c896fb1adc212fb62e595d485560a27689577eb3e219da4",
+  "config_sha256": "c151ff6fb5baa355a547a390cff1dc4aa489e83f8328274fbdcd2e3cf926f9c9",
+  "created": "2026-09-27T09:00:09"
 }

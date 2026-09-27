@@ -50,7 +50,7 @@ def run_campaign(types: str, smoke: bool = False):
     out = json.loads(OUTF.read_text()) if OUTF.exists() and not smoke else {}
     nr = 1 if smoke else CFG["bo"]["n_rounds"]
     for t in types:
-        pools = {s: MF.gated_pool(t, CFG["bo"]["n_candidates"], s) for s in SEEDS}
+        pools = {s: MF.gated_pool(t, CFG["bo"]["n_candidates"][t], s) for s in SEEDS}
         ref = ref_point_for(t, pools)
         out.setdefault(t, {"ref_point": ref.tolist(), "pool_sizes": {str(s): len(p) for s, p in pools.items()}, "runs": {}})
         out[t]["ref_point"] = ref.tolist()
@@ -528,7 +528,7 @@ def publish(out):
         encoding="utf-8")
     tx.joinpath("methods.md").write_text(
         "**问题**：每型独立的双目标最小化，y1 = log10(P95 微动 µm)，y2 = Gruen 7 SED 下降率（%），约束 vm P99 ≤ 440 MPa。"
-        "设计变量 5 个（R1-T02），候选池为每个种子一个打乱 Sobol 20,000 点中过几何门者（保持序列顺序）。\n\n"
+        "设计变量 5 个（R1-T02），候选池为每个种子一个打乱 Sobol 序列（A、B 型 20,000 点，C 型 40,000 点，按 R1-A4 处置）中过几何门者（保持序列顺序）。\n\n"
         "**BO**：`mobo.run`，初始设计 = 池的前 12 点；每轮为两个目标与约束各拟合一个 SingleTaskGP（ARD Matérn 5/2，"
         "Gamma(3, 6) 长度尺度先验，输入归一化、输出标准化，观测噪声下界来自 R2 噪声底），qLogNEHVI（128 个 QMC 样本，"
         "参考点每型固定）在未评估候选点上序贯贪心选 4 个；共 12 轮。Sobol 基线取池的前 60 点（与 BO 共享前 12 点）。\n\n"

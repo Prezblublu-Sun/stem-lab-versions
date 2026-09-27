@@ -1,0 +1,25 @@
+{
+  "id": "R2-F12",
+  "report": "R2",
+  "kind": "figure",
+  "title": "With a 2 mm side plate, 2D and 3D values for the calibration designs",
+  "caption": "选定侧板厚度下 36 个校准设计的 2D 与 3D 目标值（f1 对数轴）。只看排序，不看绝对值。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "runs_csv": "campaign S2_sideplate_cal"
+  },
+  "csv": "reports/R2_fe_verification/figures/R2-F12.csv",
+  "csv_sha256": "45a05357a520c64638824df0c9748162c6b4799c90f39b07a2fb782380377f92",
+  "png": "reports/R2_fe_verification/figures/R2-F12.png",
+  "svg": "reports/R2_fe_verification/figures/R2-F12.svg",
+  "plot_fn": "stage_s2cal.py:plot_r2_f12",
+  "plot_module_sha256": "fe8e67e79188fbe3a43dd0967de96cfa4d73a5f118601e1caa1f3a709e8b3e1b",
+  "producer": "stage_s2cal.py",
+  "producer_sha256": "fe8e67e79188fbe3a43dd0967de96cfa4d73a5f118601e1caa1f3a709e8b3e1b",
+  "config_sha256": "c151ff6fb5baa355a547a390cff1dc4aa489e83f8328274fbdcd2e3cf926f9c9",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T11:24:05",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

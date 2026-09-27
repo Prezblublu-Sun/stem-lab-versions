@@ -72,6 +72,7 @@ td.NA { background:#E8F1F8; color:#0b4a78; font-weight:600; }
 .verdict { font-weight:700; padding:1px 6px; border-radius:3px; }
 .verdict.PASS { background:#DDF2EA; color:#00553d; } .verdict.FAIL { background:#FBE0D3; color:#8a3200; }
 .verdict.INCOMPLETE { background:#FFF4CC; color:#6b4a00; }
+.verdict.FAIL-APPROVED { background:#E8F1F8; color:#0b4a78; }
 """
 
 
@@ -157,8 +158,11 @@ def verdict(c: dict) -> str:
     items = [c["acc"].get(a["id"], {"status": "PENDING"}) for a in c["rep"].get("acceptance", [])]
     if c["missing"] or c["tampered"] or any(i["status"] == "PENDING" for i in items):
         return "INCOMPLETE"
-    if any(i["status"] == "FAIL" for i in items):
+    fails = [i for i in items if i["status"] == "FAIL"]
+    if any(not i.get("approved") for i in fails):
         return "FAIL"
+    if fails:
+        return "FAIL-APPROVED"                             # 不通过项的处置均已获用户同意，可进入下一阶段
     return "PASS"
 
 
@@ -230,10 +234,11 @@ def build_markdown(rid: str, spec: dict, c: dict) -> str:
     out += ["## 5 验收", "| ID | 判据 | 门槛 | 实测 | 状态 | 原因与处置 |", "|---|---|---|---|---|---|"]
     for a in rep.get("acceptance", []):
         r = c["acc"].get(a["id"], {"measured": "", "status": "PENDING", "note": "尚未提交结果"})
+        st = r["status"] + (f"（处置已获同意 {r['approved']}）" if r.get("approved") else "")
         out.append(f"| {a['id']} | {_md_escape(a['criterion'])} | {_md_escape(a['threshold'])} | "
-                   f"{_md_escape(r.get('measured', ''))} | {r['status']} | {_md_escape(r.get('note', ''))} |")
+                   f"{_md_escape(r.get('measured', ''))} | {st} | {_md_escape(r.get('note', ''))} |")
     out.append(f"\n总判定：<span class=\"verdict {v}\">{v}</span>（全部 PASS 或写明理由的 NA 才算通过；"
-               "有 PENDING 或缺项为 INCOMPLETE）。")
+               "不通过项的处置全部获用户同意时为 FAIL-APPROVED，可进入下一阶段；有 PENDING 或缺项为 INCOMPLETE）。")
 
     out += ["## 6 局限与下一阶段输入", "**通用局限**"]
     out += [f"- {x}" for x in spec.get("common_limitations", [])]
@@ -296,6 +301,7 @@ def html_for_pdf(md: str, c: dict, title: str) -> str:
                 f'</figcaption></figure>')
     body = ANCHOR.sub(rep, body)
     body = re.sub(r"<td>(PASS|FAIL|PENDING|NA)</td>", r'<td class="\1">\1</td>', body)
+    body = re.sub(r"<td>FAIL（处置已获同意([^<]*)）</td>", r'<td class="NA">FAIL（处置已获同意\1）</td>', body)
     return (f"<!doctype html><html><head><meta charset='utf-8'><title>{_html.escape(title)}</title>"
             f"<style>{CSS}</style></head><body>{body}</body></html>")
 

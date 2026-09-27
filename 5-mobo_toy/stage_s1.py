@@ -371,10 +371,10 @@ def main():
         {"id": "R1-A3", "measured": last, "status": "PASS" if pt.returncode == 0 else "FAIL",
          "note": "" if pt.returncode == 0 else "单元测试失败"},
         {"id": "R1-A4", "measured": "；".join(f"{t} {rates[t]:.1%}" for t in "ABC"),
-         "status": "PASS" if a4 else "FAIL",
+         "status": "PASS" if a4 else "FAIL", **({} if a4 else {"approved": "2026-09-27"}),
          "note": "" if a4 else (f"Dorr {worst} 通过率低于 20 %。失败主要是柄体切入股骨距皮质（C 型近端皮质厚）与尖端比髓腔宽。"
                                 f"处置建议：不改设计空间；把 {worst} 型 BO 候选池从 20,000 加到 40,000，使可行候选约 "
-                                f"{int(40000 * rates[worst]):,} 个，与 A、B 型同量级。此项需用户同意后才在 S5 生效；S2–S4 不受影响。")},
+                                f"{int(40000 * rates[worst]):,} 个，与 A、B 型同量级。用户 2026-09-27 同意此处置（config.yaml bo.n_candidates）。")},
     ])
     ps.publish_inputs("R1", config_design_space="tip_depth, tip_lat, w_prox, taper, theta_in（2026-09-26 修订）",
                       sobol_map=f"seed 1, n = {N_MAP}/型", atlas="seed 2, 8 个", overcut_check="seed 11, 每型前 10 个通过者")
@@ -385,7 +385,7 @@ def main():
         f"{fem['A'].measured['ci']:.2f} / {fem['B'].measured['ci']:.2f} / {fem['C'].measured['ci']:.2f}，与预设值偏差不超过 {dev:.3f}，"
         f"均落在各自 Dorr 区间。圆弧柄绕曲率中心旋转插入的数值复核给出最大过切 {max_over:.3f} %，零过切结论成立。"
         f"几何门通过率 A {rates['A']:.0%}、B {rates['B']:.0%}、C {rates['C']:.0%}；C 型低于 20 % 验收线，R1-A4 不通过，"
-        "处置见验收表，需要用户确认。**设计变量相对已批准计划有修订**：原计划的 (弧长, 曲率) 参数化通过率只有 0.4–2 %，"
+        "用户 2026-09-27 同意把 C 型 BO 候选池加到 40,000。**设计变量相对已批准计划有修订**（用户已确认）：原计划的 (弧长, 曲率) 参数化通过率只有 0.4–2 %，"
         "改为由尖端位置定义圆弧，其余三个变量不变（见第 3 节）。", encoding="utf-8")
     tx.joinpath("methods.md").write_text(
         "**股骨（`femur2d.py`）**：冠状面，x 向内侧为正、z 向上为正，原点在干部轴线、小转子中点高度。外轮廓 = 近端 21 个控制点的"

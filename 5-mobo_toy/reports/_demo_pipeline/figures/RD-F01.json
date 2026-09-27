@@ -20,9 +20,9 @@
   "plot_module_sha256": "f25d677584f45d28c22ac4f8ee7ffa9d697d69ce5cbea5fcf40251f5a7f541d4",
   "producer": "demo_report.py",
   "producer_sha256": "f25d677584f45d28c22ac4f8ee7ffa9d697d69ce5cbea5fcf40251f5a7f541d4",
-  "config_sha256": null,
-  "spec_sha256": "7e9773c7b433dd62dc05ba5ffd09ab23d15e8ba0ab56c27b60f2fbc02f932b79",
-  "created": "2026-09-26T16:36:27",
+  "config_sha256": "c151ff6fb5baa355a547a390cff1dc4aa489e83f8328274fbdcd2e3cf926f9c9",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T09:01:46",
   "python": "3.12.10",
-  "matplotlib": "3.10.9"
+  "matplotlib": "3.11.2"
 }

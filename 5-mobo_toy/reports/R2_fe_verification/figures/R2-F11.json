@@ -1,0 +1,26 @@
+{
+  "id": "R2-F11",
+  "report": "R2",
+  "kind": "figure",
+  "title": "A 2 mm side plate gives the best 2D–3D rank agreement (mean ρ 0.78, worst 0.60)",
+  "caption": "每型 12 个过几何门的 Sobol 设计（与 R2-F10 相同）分别用 2D（侧板 0–6 mm）与理想化 3D（界面 2 mm，无侧板）计算，纵轴为 2D 与 3D 同一目标的 Spearman 秩相关。点线为选定厚度（三型 × 两目标 6 个 ρ 的平均最大）。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "runs_csv": "campaign S2_sideplate_cal",
+    "runs3d": "results/runs3d.jsonl (tag S2cal)"
+  },
+  "csv": "reports/R2_fe_verification/figures/R2-F11.csv",
+  "csv_sha256": "0cfeb1a30611eeb21b6eb91ce9716bde5d65b7fb916faf0a235a5aac2f329c3a",
+  "png": "reports/R2_fe_verification/figures/R2-F11.png",
+  "svg": "reports/R2_fe_verification/figures/R2-F11.svg",
+  "plot_fn": "stage_s2cal.py:plot_r2_f11",
+  "plot_module_sha256": "fe8e67e79188fbe3a43dd0967de96cfa4d73a5f118601e1caa1f3a709e8b3e1b",
+  "producer": "stage_s2cal.py",
+  "producer_sha256": "fe8e67e79188fbe3a43dd0967de96cfa4d73a5f118601e1caa1f3a709e8b3e1b",
+  "config_sha256": "c151ff6fb5baa355a547a390cff1dc4aa489e83f8328274fbdcd2e3cf926f9c9",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T11:24:05",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

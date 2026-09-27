@@ -148,6 +148,22 @@ def stem_neck(occ, st: S.Stem2D):
 
 def build(st: S.Stem2D, outdir: pathlib.Path, name: str, *, h_int: float = 1.5, h_far: float = 5.0,
           delta: float | None = None, mu: float | None = None) -> dict:
+    """先用默认设置建网格；失败（细长四面体、PLC 相交等）时依次改用 HXT 算法、界面尺寸 × 0.9 重试。"""
+    attempts = [(1, h_int), (10, h_int), (1, 0.9 * h_int), (10, 0.9 * h_int)]
+    errors = []
+    for algo, h in attempts:
+        try:
+            info = _build(st, outdir, name, h_int=h, h_far=h_far, delta=delta, mu=mu, algo=algo)
+            info["mesh_attempt"] = {"algorithm3d": algo, "h_int": h, "previous_errors": errors}
+            (outdir / "model3d.json").write_text(json.dumps(info))
+            return info
+        except Exception as e:                                              # noqa: BLE001
+            errors.append(f"algo {algo}, h {h:g}: {type(e).__name__}: {e}"[:200])
+    raise RuntimeError("3D meshing failed after retries: " + " | ".join(errors))
+
+
+def _build(st: S.Stem2D, outdir: pathlib.Path, name: str, *, h_int: float, h_far: float,
+           delta: float | None, mu: float | None, algo: int) -> dict:
     import gmsh
     ic = CFG["interface"]
     delta = ic["delta"] if delta is None else delta
@@ -190,6 +206,7 @@ def build(st: S.Stem2D, outdir: pathlib.Path, name: str, *, h_int: float = 1.5, 
         gmsh.model.mesh.field.setAsBackgroundMesh(ft)
         for k, v in MESH_OPTS:
             gmsh.option.setNumber(k, v)
+        gmsh.option.setNumber("Mesh.Algorithm3D", algo)
         chk_tags = [t for d, t in chk]
         gmsh.model.mesh.generate(3)
         ntag, ncoord, _ = gmsh.model.mesh.getNodes()

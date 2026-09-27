@@ -332,8 +332,12 @@ def publish_acceptance(report_id: str, results: Sequence[Mapping], synthetic: bo
             raise ValueError(f"{r['id']}: status 必须是 {VALID_STATUS}")
         if r["status"] in ("FAIL", "NA") and not r.get("note"):
             raise ValueError(f"{r['id']}: {r['status']} 必须写 note（原因与处置）")
-        out.append({"id": r["id"], "measured": r.get("measured", ""), "status": r["status"],
-                    "note": r.get("note", "")})
+        item = {"id": r["id"], "measured": r.get("measured", ""), "status": r["status"], "note": r.get("note", "")}
+        if r.get("approved"):
+            if r["status"] != "FAIL":
+                raise ValueError(f"{r['id']}: approved 只用于 FAIL 项")
+            item["approved"] = r["approved"]                # 用户同意处置的日期
+        out.append(item)
     p = report_dir(report_id) / "acceptance.json"
     p.write_text(json.dumps({"report": report_id, "synthetic": synthetic, "created": _now(),
                              "producer": rel(_caller_script()), "items": out},

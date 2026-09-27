@@ -18,12 +18,12 @@
   "png": "reports/R1_geometry/figures/R1-F01.png",
   "svg": "reports/R1_geometry/figures/R1-F01.svg",
   "plot_fn": "stage_s1.py:plot_r1_f01",
-  "plot_module_sha256": "d0ff68c53691d09d1b440fff8133174ff828d9fb0d37a792f8983841db1ea28a",
+  "plot_module_sha256": "a0ad3b72762bdbde7c896fb1adc212fb62e595d485560a27689577eb3e219da4",
   "producer": "stage_s1.py",
-  "producer_sha256": "d0ff68c53691d09d1b440fff8133174ff828d9fb0d37a792f8983841db1ea28a",
-  "config_sha256": "151b9cb38c8f381389240b24feb9004eb415b6787cff5e89367efd3e469cef40",
-  "spec_sha256": "46732ae7f89ad014758b23fcbd2e744e44214e283af4085c47fb848979a60b10",
-  "created": "2026-09-27T01:16:17",
+  "producer_sha256": "a0ad3b72762bdbde7c896fb1adc212fb62e595d485560a27689577eb3e219da4",
+  "config_sha256": "c151ff6fb5baa355a547a390cff1dc4aa489e83f8328274fbdcd2e3cf926f9c9",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T08:59:55",
   "python": "3.12.10",
   "matplotlib": "3.11.2"
 }

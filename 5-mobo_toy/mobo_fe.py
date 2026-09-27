@@ -1,7 +1,7 @@
 """把 FE 流水线包装成 mobo.run 可用的 Problem（S5）。
 
 目标（最小化）：y1 = log10(P95 微动 µm)，y2 = Gruen 7 SED 下降率（%）；约束 c = vm_p99 − 440 MPa ≤ 0。
-候选池：按种子打乱的 Sobol 20,000 点，只保留过几何门者（保持 Sobol 顺序）。
+候选池：按种子打乱的 Sobol 序列（点数见 config.yaml bo.n_candidates，C 型 40,000），只保留过几何门者（保持 Sobol 顺序）。
 FE 失败（L3–L5）记为 ok = False，不进 GP，也不再被选。
 """
 from __future__ import annotations
