@@ -16,6 +16,39 @@ femur:
   # 一致性复核：straight3d/realfemur.py 在同一根股骨（Job-1 体素）上的实测值
   reference_landmarks: {head_r: 24.6, neck_shaft_deg: 136.6, anteversion_deg: 5.9}
 
+load:
+  # 方向：Bergmann et al. 2016（PLoS One 11:e0155612，Table 5）上楼 AVER75 峰值时的方向角 α_front 20°、α_sagit 18°
+  # （α_trans 42° 与 atan(tan18/tan20) = 41.8° 自洽）⇒ |Fx| = tan20·|Fz|，|Fy| = tan18·|Fz|。
+  # Bergmann 坐标（右股骨）+x 外侧、+y 前方、+z 向上，力作用在头上：Fz 向下、Fx 向外、Fy 向后（上楼时头被向后推，
+  # 使柄后倾扭转；符号在 S2′ 扭矩检查中复核）。本模型 +x 内侧、+y 后方 ⇒ Fx_m = −Fx_B，Fy_m = −Fy_B。
+  # 大小沿用 v1 的合力 2391 N（介于 AVER75 2232 N 与 HIGH100 3606 N 之间）。绕柄扭矩按 HIGH100 Mts 47.0 N·m
+  # 等比缩放约 31 N·m；本载荷按 40 mm 偏距估约 28 N·m。
+  resultant_N: 2391.0
+  alpha_front_deg: 20.0
+  alpha_sagit_deg: 18.0
+  head_coupling_radius_mm: 14.0
+
+materials:
+  cortical: {E: 16800.0, nu: 0.3}
+  cancellous_nu: 0.3
+  titanium: {E: 110000.0, nu: 0.3}
+
+interface:
+  delta_mm: 0.10
+  mu: 0.3
+  slip_tolerance: 0.005
+  tie_position_tolerance_mm: 0.3
+
+prosthesis:
+  neck_radius_mm: 7.0
+  head_radius_mm: 14.0
+
+mesh:
+  h_int_mm: 2.0                   # 生产网格由 S2′ 收敛研究定
+  h_far_mm: 6.0
+  dist_min_mm: 0.5
+  dist_max_mm: 15.0
+
 templating:
   tol_mm: 0.25                    # 允许的皮质穿透（允许贴皮质，用户 2026-09-27 选定）
   offsets_mm: [-8.0, -6.0, -4.0, -2.0, 0.0, 2.0, 4.0, 6.0, 8.0]

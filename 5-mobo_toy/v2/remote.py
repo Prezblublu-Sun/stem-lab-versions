@@ -20,7 +20,7 @@ KEY = str(pathlib.Path.home() / ".ssh" / "id_ed25519_lrlbackup")
 HOST = "linux-user@<linux-ip>"
 RBASE = "mobo_toy_v2"                                        # 相对 Linux 家目录
 SYNC = [                                                     # 需要在 Linux 上的代码（相对 ROOT）
-    "config.yaml", "plotstyle.py", "femur2d.py", "inp_writer.py", "qoi.py", "mobo.py",
+    "config.yaml", "plotstyle.py", "femur2d.py", "stem2d.py", "inp_writer.py", "qoi.py", "mobo.py",
     "spot3d/__init__.py", "spot3d/model3d.py", "spot3d/qoi3d.py",
     "v2/__init__.py", "v2/*.py", "v2/config_v2a.yaml",
 ]
