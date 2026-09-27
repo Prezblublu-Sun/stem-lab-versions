@@ -1,0 +1,84 @@
+{
+ "v1 (current)": {
+  "A": {
+   "cfi": 5.0,
+   "ci": 0.62,
+   "canal20_mm": 51.304,
+   "canal_isthmus_mm": 10.261,
+   "outer_isthmus_mm": 27.002,
+   "outer20_mm": 57.233,
+   "wall20_medial_mm": 3.291,
+   "wall20_lateral_mm": 2.638,
+   "min_cortex_mm": 1.968,
+   "canal_halfwidth_at_cut_mm": 15.35,
+   "bands": "AA"
+  },
+  "B": {
+   "cfi": 3.801,
+   "ci": 0.53,
+   "canal20_mm": 48.241,
+   "canal_isthmus_mm": 12.692,
+   "outer_isthmus_mm": 27.002,
+   "outer20_mm": 57.233,
+   "wall20_medial_mm": 4.983,
+   "wall20_lateral_mm": 4.009,
+   "min_cortex_mm": 1.964,
+   "canal_halfwidth_at_cut_mm": 14.991,
+   "bands": "BB"
+  },
+  "C": {
+   "cfi": 2.602,
+   "ci": 0.44,
+   "canal20_mm": 39.325,
+   "canal_isthmus_mm": 15.111,
+   "outer_isthmus_mm": 27.002,
+   "outer20_mm": 57.233,
+   "wall20_medial_mm": 9.91,
+   "wall20_lateral_mm": 7.999,
+   "min_cortex_mm": 1.964,
+   "canal_halfwidth_at_cut_mm": 14.168,
+   "bands": "CC"
+  }
+ },
+ "v2 proposal": {
+  "A": {
+   "cfi": 4.871,
+   "ci": 0.65,
+   "canal20_mm": 46.038,
+   "canal_isthmus_mm": 9.452,
+   "outer_isthmus_mm": 27.002,
+   "outer20_mm": 57.233,
+   "wall20_medial_mm": 6.203,
+   "wall20_lateral_mm": 4.992,
+   "min_cortex_mm": 1.968,
+   "canal_halfwidth_at_cut_mm": 14.762,
+   "bands": "AA"
+  },
+  "B": {
+   "cfi": 3.78,
+   "ci": 0.53,
+   "canal20_mm": 47.977,
+   "canal_isthmus_mm": 12.692,
+   "outer_isthmus_mm": 27.002,
+   "outer20_mm": 57.233,
+   "wall20_medial_mm": 5.127,
+   "wall20_lateral_mm": 4.129,
+   "min_cortex_mm": 1.964,
+   "canal_halfwidth_at_cut_mm": 14.963,
+   "bands": "BB"
+  },
+  "C": {
+   "cfi": 2.89,
+   "ci": 0.36,
+   "canal20_mm": 49.948,
+   "canal_isthmus_mm": 17.286,
+   "outer_isthmus_mm": 27.002,
+   "outer20_mm": 57.233,
+   "wall20_medial_mm": 4.044,
+   "wall20_lateral_mm": 3.241,
+   "min_cortex_mm": 1.964,
+   "canal_halfwidth_at_cut_mm": 15.186,
+   "bands": "CC"
+  }
+ }
+}

@@ -1,0 +1,41 @@
+{
+ "dorr": "B",
+ "design": {
+  "L": 65.0,
+  "rho_tip": 0.30000000000000004,
+  "q": 1.75,
+  "lam": 1.6,
+  "g_ml": 0.5,
+  "g_ap": 0.5,
+  "n": 4.0,
+  "tau": 0.0
+ },
+ "template": {
+  "alpha": 25.0,
+  "e": -2.0,
+  "A0": 372.1397707913072,
+  "contact": 0.02046531667384748,
+  "s_bind": 8.478260869565217
+ },
+ "cad": {
+  "stem_volume_in_bone_mm3": 13010.525159324703,
+  "stem_cortex_overlap_mm3": 28.098647412013474,
+  "overlap_fraction": 0.0021596858749298865,
+  "t_geometry_s": 5.641344785690308
+ },
+ "mesh": {
+  "h_int": 2.0,
+  "n_tet": {
+   "cortex": 6706,
+   "cancellous": 12892,
+   "stem": 6524
+  },
+  "t_mesh_s": 632.9421761035919,
+  "n_volumes": {
+   "cortex": 1,
+   "cancellous": 1,
+   "stem": 1
+  }
+ },
+ "t_total_s": 647.0202996730804
+}

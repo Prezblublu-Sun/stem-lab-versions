@@ -12,3 +12,4 @@ reports/*/history/
 *.sim
 *.com
 scratch/
+*.msh
