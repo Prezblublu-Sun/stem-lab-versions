@@ -1,22 +1,24 @@
 check,quantity,variant,value,expected,ok
-interference δ,f1 P95 (µm),δ = 0.1,19.56598883107216,expect: δ = 0 > δ = 0.1,1
-interference δ,f1 P95 (µm),δ = 0,68.16798387405888,expect: δ = 0 > δ = 0.1,1
-friction μ,f1 P95 (µm),μ = 0.3,19.56598883107216,expect: decreasing with μ,1
-friction μ,f1 P95 (µm),μ = 0.5,3.024574448112407,expect: decreasing with μ,1
-friction μ,f1 P95 (µm),μ = 0.8,0.9645852520641006,expect: decreasing with μ,1
-bonded interface,slip P95 (µm),friction,19.56598883107216,expect: bonded ≈ 0 ≪ friction,1
-bonded interface,slip P95 (µm),bonded,0.030190089818707626,expect: bonded ≈ 0 ≪ friction,1
-stem length → f1,f1 P95 (µm),baseline,19.56598883107216,expect: shorter > baseline,1
-stem length → f1,f1 P95 (µm),shorter,23.49215760892087,expect: shorter > baseline,1
-stem length → f2,f2 Gruen 7 loss (%),baseline,-30.75056452523681,expect: shorter < baseline,1
-stem length → f2,f2 Gruen 7 loss (%),shorter,-35.143051791286425,expect: shorter < baseline,1
-stem width → f1,f1 P95 (µm),baseline,19.56598883107216,expect: wider < baseline,0
-stem width → f1,f1 P95 (µm),wider,38.759994350059635,expect: wider < baseline,0
-stem width → f2,f2 Gruen 7 loss (%),baseline,-30.75056452523681,expect: wider > baseline,0
-stem width → f2,f2 Gruen 7 loss (%),wider,-42.846954841305006,expect: wider > baseline,0
-side plate (sensitivity),f1 P95 (µm),0 mm,40.154816627737034,"sensitivity, no expected sign",-1
-side plate (sensitivity),f1 P95 (µm),3 mm,19.56598883107216,"sensitivity, no expected sign",-1
-side plate (sensitivity),f1 P95 (µm),6 mm,8.002240319400421,"sensitivity, no expected sign",-1
-side plate (sensitivity),f1 P95 (µm),12 mm,4.907292765325124,"sensitivity, no expected sign",-1
-load direction (sensitivity),f1 P95 (µm),Fx medial,19.56598883107216,"sensitivity, no expected sign",-1
-load direction (sensitivity),f1 P95 (µm),Fx lateral,4.123994769241111,"sensitivity, no expected sign",-1
+interference δ,f1 P95 (µm),δ = 0.1,6.029405922117614,expect: δ = 0 > δ = 0.1,1
+interference δ,f1 P95 (µm),δ = 0,12.405456916269097,expect: δ = 0 > δ = 0.1,1
+friction μ,f1 P95 (µm),μ = 0.3,6.029405922117614,expect: decreasing with μ,1
+friction μ,f1 P95 (µm),μ = 0.5,1.2295215521906315,expect: decreasing with μ,1
+friction μ,f1 P95 (µm),μ = 0.8,0.5787701710339727,expect: decreasing with μ,1
+bonded interface,slip P95 (µm),friction,6.029405922117614,expect: bonded ≈ 0 ≪ friction,1
+bonded interface,slip P95 (µm),bonded,0.013935359328288578,expect: bonded ≈ 0 ≪ friction,1
+stem length → f1,f1 P95 (µm),baseline,6.029405922117614,expect: shorter > baseline,1
+stem length → f1,f1 P95 (µm),shorter,8.547285441098927,expect: shorter > baseline,1
+stem length → f2,f2 Gruen 7 loss (%),baseline,21.326686886524783,expect: shorter < baseline,1
+stem length → f2,f2 Gruen 7 loss (%),shorter,13.146347754568499,expect: shorter < baseline,1
+stem width → f1,f1 P95 (µm),baseline,6.029405922117614,expect: wider < baseline,0
+stem width → f1,f1 P95 (µm),wider,6.611401910710808,expect: wider < baseline,0
+stem width → f2,f2 Gruen 7 loss (%),baseline,21.326686886524783,expect: wider > baseline,0
+stem width → f2,f2 Gruen 7 loss (%),wider,14.146132437431437,expect: wider > baseline,0
+side plate (sensitivity),f1 P95 (µm),0 mm,1103.765554154041,"sensitivity, no expected sign",-1
+side plate (sensitivity),f1 P95 (µm),1 mm,10.860984426040458,"sensitivity, no expected sign",-1
+side plate (sensitivity),f1 P95 (µm),2 mm,6.029405922117614,"sensitivity, no expected sign",-1
+side plate (sensitivity),f1 P95 (µm),3 mm,4.123994769241111,"sensitivity, no expected sign",-1
+side plate (sensitivity),f1 P95 (µm),6 mm,2.0345315183594246,"sensitivity, no expected sign",-1
+side plate (sensitivity),f1 P95 (µm),12 mm,0.982330430103834,"sensitivity, no expected sign",-1
+load direction (sensitivity),f1 P95 (µm),Fx lateral (used),6.029405922117614,"sensitivity, no expected sign",-1
+load direction (sensitivity),f1 P95 (µm),Fx medial (source),39.78139847740183,"sensitivity, no expected sign",-1

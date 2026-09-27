@@ -2,7 +2,7 @@
   "id": "R2-F05",
   "report": "R2",
   "kind": "figure",
-  "title": "Stem stresses peak in the prosthetic neck; bone stress concentrates in the calcar and lateral cortex",
+  "title": "Stem von Mises P99 is 51 / 51 / 52 MPa (A / B / C), well below the 440 MPa limit",
   "caption": "摩擦模型加载步末的单元形心 von Mises 应力（对数色标，0.3–300 MPa 截断），只画小转子下 85 mm 以上。骨为冠状面切片（侧板单元未画）。",
   "synthetic": false,
   "units": {
@@ -19,16 +19,16 @@
     ]
   },
   "csv": "reports/R2_fe_verification/figures/R2-F05.csv",
-  "csv_sha256": "c550e96d26b47c5fc78efc5d466220a26ccba6402dd5c324307c730d93bf5b4a",
+  "csv_sha256": "99b18ccac526b5d74735dfd261576b2189999132cb6b6a874e9031be18f71c29",
   "png": "reports/R2_fe_verification/figures/R2-F05.png",
   "svg": "reports/R2_fe_verification/figures/R2-F05.svg",
   "plot_fn": "stage_s2.py:plot_r2_f05",
-  "plot_module_sha256": "1eb90304416876cbe2b99ef8ff0cb03d97289409b922e98f4c528d48be33bf3d",
+  "plot_module_sha256": "ff5007a0ae64d7f310bb82c8c89e9a90f88835c901714be974d7c9607e7f47ad",
   "producer": "stage_s2.py",
-  "producer_sha256": "1eb90304416876cbe2b99ef8ff0cb03d97289409b922e98f4c528d48be33bf3d",
-  "config_sha256": "151b9cb38c8f381389240b24feb9004eb415b6787cff5e89367efd3e469cef40",
-  "spec_sha256": "46732ae7f89ad014758b23fcbd2e744e44214e283af4085c47fb848979a60b10",
-  "created": "2026-09-27T02:17:11",
+  "producer_sha256": "ff5007a0ae64d7f310bb82c8c89e9a90f88835c901714be974d7c9607e7f47ad",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T16:09:15",
   "python": "3.12.10",
   "matplotlib": "3.11.2"
 }

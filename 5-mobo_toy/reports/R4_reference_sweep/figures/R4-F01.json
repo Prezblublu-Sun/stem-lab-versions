@@ -1,0 +1,26 @@
+{
+  "id": "R4-F01",
+  "report": "R4",
+  "kind": "figure",
+  "title": "Reference fronts hold 9, 16, 12 feasible non-dominated designs (Dorr A, B, C)",
+  "caption": "每型全部 FE 成功设计的目标空间（横轴对数）。彩色阶梯线与黑边标记为参考前沿（可行设计的非支配集），灰叉为柄应力约束（vm P99 ≤ 440 MPa）不满足者；微动超过 40 µm 时画出 50 µm 点线。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "runs_csv": "campaign S4_ref / S4_control",
+    "sweep_seed": 4242
+  },
+  "csv": "reports/R4_reference_sweep/figures/R4-F01.csv",
+  "csv_sha256": "dde56f7a206713716980922123ac2bd7cec53cc9f90d2e4c076a9e7c74286cee",
+  "png": "reports/R4_reference_sweep/figures/R4-F01.png",
+  "svg": "reports/R4_reference_sweep/figures/R4-F01.svg",
+  "plot_fn": "stage_s4.py:plot_r4_f01",
+  "plot_module_sha256": "6d25b6499e0b61ee86804ce4bbf2e709fe35ca8feb256e9d20ebcf8f53eedb6d",
+  "producer": "stage_s4.py",
+  "producer_sha256": "6d25b6499e0b61ee86804ce4bbf2e709fe35ca8feb256e9d20ebcf8f53eedb6d",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T16:05:25",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

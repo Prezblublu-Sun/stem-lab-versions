@@ -223,7 +223,8 @@ def evaluate(items: list[dict], *, campaign: str, provenance: str = "sampled", m
     max_workers = max_workers or ra.CFG["abaqus"]["max_concurrent"]
     existing = {}
     for r in read_runs():
-        if r["status"] == "OK" and r.get("cache_key"):
+        # 成功行与几何门失败行（L1/L2，确定性结果）都可复用；L3–L5 可能是偶发故障，重新计算
+        if r["status"] in ("OK", "L1", "L2") and r.get("cache_key"):
             existing.setdefault(r["cache_key"], r)
     seq = next_seq()
     tasks, out = [], [None] * len(items)

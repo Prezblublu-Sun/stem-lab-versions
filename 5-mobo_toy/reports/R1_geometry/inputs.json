@@ -3,5 +3,5 @@
   "sobol_map": "seed 1, n = 1024/型",
   "atlas": "seed 2, 8 个",
   "overcut_check": "seed 11, 每型前 10 个通过者",
-  "updated": "2026-09-27T09:00:17"
+  "updated": "2026-09-27T16:08:01"
 }

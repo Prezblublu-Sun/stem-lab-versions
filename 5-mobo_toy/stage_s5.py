@@ -436,45 +436,111 @@ def publish(out):
         f9_rows.append(dict(dorr="B", group="own", f1=10 ** y[0], f2=y[1]))
 
     med = {t: float(np.median(summary[t]["bo_final"])) for t in "ABC"}
+    # ---- 标题所需的数据驱动量
+    EN = ps.VAR_EN
+    igd_fin = {}
+    for t in "ABC":
+        for m in ("qNEHVI", "Sobol"):
+            v = [r["igd"] for r in igd_rows if r["dorr"] == t and r["method"] == m
+                 and r["n_fe"] == max(x["n_fe"] for x in igd_rows if x["dorr"] == t and x["method"] == m)]
+            igd_fin[(t, m)] = float(np.median(v))
+    on_front = []
+    for t in "ABC":
+        rf = ref_fronts[t]
+        for r in front_rows:
+            if r["dorr"] == t and r["kind"].startswith("bo_"):
+                y = np.array([np.log10(r["f1"]), r["f2"]])
+                on_front.append(bool(np.any(np.all(np.abs(rf - y) < 1e-9, axis=1))))
+    frac_on = float(np.mean(on_front)) if on_front else float("nan")
+    eaf_dom = {}
+    for t in "ABC":
+        eb = sorted([(r["f1"], r["f2"]) for r in eaf_rows if r["dorr"] == t and r["kind"] == "eaf_qNEHVI"])
+        es = sorted([(r["f1"], r["f2"]) for r in eaf_rows if r["dorr"] == t and r["kind"] == "eaf_Sobol"])
+        if eb and es:
+            xs = np.array([a for a, _ in es]); ys_ = np.array([b for _, b in es])
+            vals = []
+            for a, b in eb:
+                j = np.searchsorted(xs, a, side="right") - 1
+                if j >= 0:
+                    vals.append(b <= ys_[j] + 1e-9)
+            eaf_dom[t] = float(np.mean(vals)) if vals else float("nan")
+    def _u(r):
+        return S.to_unit({v: r[v] for v in VARS})
+    dist_first, dist_last = [], []
+    for t in "ABC":
+        refd = np.array([_u(r) for r in prop_rows if r["dorr"] == t and r["kind"] == "reference_front"])
+        if not len(refd):
+            continue
+        for r in prop_rows:
+            if r["dorr"] == t and r["kind"] == "proposal":
+                dmin = float(np.min(np.linalg.norm(refd - _u(r), axis=1)))
+                if r["round"] == 0:
+                    dist_first.append(dmin)
+                elif r["round"] >= CFG["bo"]["n_rounds"] - 2:
+                    dist_last.append(dmin)
+    r2 = {o: float(np.mean([r["R2"] for r in t01 if r["output"] == o and r["seed"] == SEEDS[0]])) for o in dict.fromkeys(r["output"] for r in t01)}
+    cov_all = [r["coverage90"] for r in t01 if r["output"] != "vm P99 (MPa)"]
+    fmin = {t: (min(r["f1"] for r in f8_rows if r["dorr"] == t), min(r["f2"] for r in f8_rows if r["dorr"] == t)) for t in "ABC"}
+    ctrl = {}
+    for t in "AC":
+        for grp in ("own", "ctrl"):
+            v = [r["f1"] for r in f9_rows if r["dorr"] == t and r["group"] == grp]
+            ctrl[(t, grp)] = min(v) if v else float("nan")
+    kn = {t: next(((r["f1"], r["f2"]) for r in sil_f10 if r["dorr"] == t), (float("nan"), float("nan"))) for t in "ABC"}
+    spread = {}
+    for v in VARS:
+        meds = [np.median([S.to_unit({k: r[k] for k in VARS})[VARS.index(v)] for r in f11_rows if r["dorr"] == t] or [np.nan]) for t in "ABC"]
+        spread[v] = (np.nanmax(meds) - np.nanmin(meds), meds)
+    vmax = max(spread, key=lambda v: spread[v][0])
+    from scipy.stats import spearmanr as _sp
+    rho12 = float(_sp([r["ST"] for r in f12_rows], [r["inv_ls_norm"] for r in f12_rows])[0]) if len(f12_rows) > 3 else float("nan")
     ps.publish_figure("R5-F01", hv_rows, plot_r5_f01, sources=src,
                       title=("BO reaches a median HV ratio of " + " / ".join(f"{med[t]:.2f}" for t in "ABC") +
                              " (A / B / C) within 60 FE runs"),
                       caption=("HV 比 = 已评估可行设计的超体积 / 参考前沿超体积（参考前沿 = R4 扫描 + R5 全部评估的可行非支配集），"
                                "目标空间 (log10 f1, f2)，参考点每型固定。细线为单个 BO 种子，粗实线为 BO 中位，虚线为同预算 Sobol 中位。"))
     ps.publish_figure("R5-F02", igd_rows, plot_r5_f02, sources=src,
-                      title="BO's distance to the reference front shrinks faster than Sobol's",
+                      title=("Median final IGD: BO " + " / ".join(f"{igd_fin[(t, 'qNEHVI')]:.3f}" for t in "ABC")
+                             + " vs Sobol " + " / ".join(f"{igd_fin[(t, 'Sobol')]:.3f}" for t in "ABC") + " (A / B / C)"),
                       caption="IGD：参考前沿每点到已评估可行非支配集最近点的平均距离（按参考前沿范围归一化），三个种子的中位。")
     ps.publish_figure("R5-F03", front_rows, plot_r5_f03, sources=src,
-                      title="Final BO fronts from all three seeds sit on the reference front",
+                      title=f"{frac_on:.0%} of the final BO non-dominated points are members of the reference front",
                       caption="黑线为参考前沿；彩色标记为各 BO 种子 60 次评估后的可行非支配点。")
     ps.publish_figure("R5-F04", eaf_rows, plot_r5_f04, sources=src,
-                      title="BO's 50 % attainment surface dominates Sobol's in every Dorr type",
+                      title=("BO's 50 % attainment surface is at or below Sobol's on "
+                             + " / ".join(f"{eaf_dom.get(t, float('nan')):.0%}" for t in "ABC") + " of the grid (A / B / C)"),
                       caption="经验达成函数 50 % 等值线（三个种子中至少两个达到的区域边界）。")
     ps.publish_figure("R5-F05", prop_rows, plot_r5_f05, sources=src,
-                      title="BO proposals migrate from the space-filling start towards the reference-front designs",
+                      title=(f"Mean distance from BO designs to the nearest reference-front design: {np.mean(dist_first):.2f} "
+                             f"in the initial design, {np.mean(dist_last):.2f} in the last three rounds (unit cube, seed 0)"),
                       caption="种子 0 的全部评估点在 (尖端深度, 近端半宽) 平面上的位置，颜色为轮次；黑星为参考前沿设计。")
     ps.publish_figure("R5-F06", par_rows, plot_r5_f06, sources=src,
-                      title="GPs trained on 60 BO points predict the held-out reference designs with calibrated 90 % intervals",
+                      title=("Held-out R² of the seed-0 GPs: " + ", ".join(f"{o.split(' (')[0]} {v:.2f}" for o, v in r2.items())),
                       caption="种子 0 最终 GP（60 个 BO 设计训练）在 R4 参考扫描设计上的预测（含观测噪声的 90 % 区间）对 FE 真值。测试集与训练集按 cache_key 不重叠。")
     ps.publish_figure("R5-F07", cal_rows, plot_r5_f07, sources=src,
-                      title="Nominal and empirical coverage agree within the acceptance band",
+                      title=(f"Empirical 90 % coverage ranges {min(cov_all):.2f}–{max(cov_all):.2f} across types, seeds and objectives "
+                             "(acceptance 0.80–0.97)"),
                       caption="校准曲线（Kuleshov 2018）：名义中心区间覆盖率对实际覆盖率；灰色小带为 90 % 名义处的 0.80–0.97 验收带。")
     ps.publish_figure("R5-F08", f8_rows, plot_r5_f08, sources=src,
-                      title="The three Dorr types have distinct reference fronts on shared axes",
+                      title=("Lowest micromotion " + " / ".join(f"{fmin[t][0]:.1f}" for t in "ABC") + " µm and lowest shielding "
+                             + " / ".join(f"{fmin[t][1]:.0f}" for t in "ABC") + " % on the reference fronts (A / B / C)"),
                       caption="各型参考前沿（R4 + R5 可行非支配集），共用坐标。")
     ps.publish_figure("R5-F09", f9_rows, plot_r5_f09, sources=src,
-                      title="Setting all cancellous moduli to 300 MPa shows how much of the type difference is bone quality",
+                      title=(f"With cancellous bone at 300 MPa the lowest micromotion changes from {ctrl[('A', 'own')]:.1f} to "
+                             f"{ctrl[('A', 'ctrl')]:.1f} µm in Dorr A and from {ctrl[('C', 'own')]:.1f} to {ctrl[('C', 'ctrl')]:.1f} µm in Dorr C"),
                       caption="实线为本型松质骨模量（A 400 / C 150 MPa），虚线为 300 MPa 对照（同一尝试序列的 R4 扫描），B 型（300 MPa）为参照。")
     if sil_f10:
         ps.publish_figure("R5-F10", sil_f10, plot_r5_f10, sources=src,
-                          title="Knee-point designs load the calcar while keeping micromotion low",
+                          title=("Knee-point designs: f1 " + " / ".join(f"{kn[t][0]:.1f}" for t in "ABC") + " µm, f2 "
+                                 + " / ".join(f"{kn[t][1]:.0f}" for t in "ABC") + " % (A / B / C)"),
                           caption="各型参考前沿的膝点（归一化后离理想点最近）设计：摩擦模型加载步 von Mises 应力（对数色标）。")
     ps.publish_figure("R5-F11", f11_rows, plot_r5_f11, sources=src,
-                      title="Front designs shift in tip depth and proximal width between Dorr types",
+                      title=(f"Front designs differ most between Dorr types in {EN[vmax]} (normalised medians "
+                             + " / ".join(f"{x:.2f}" for x in spread[vmax][1]) + ", A / B / C)"),
                       caption="各型参考前沿设计的五个设计变量取值（抖动散点），黑线为中位；纵轴为各变量的完整范围。")
     if f12_rows:
         ps.publish_figure("R5-F12", f12_rows, plot_r5_f12, sources=src,
-                          title="Variables the GP finds relevant are the ones the global sensitivity analysis ranks high",
+                          title=f"GP relevance and R4 total Sobol indices agree with Spearman ρ = {rho12:.2f}",
                           caption="种子 0 最终 GP 的 ARD 长度尺度倒数（归一化到最大值）对 R4 的总效应 Sobol 指数。")
     ps.publish_table("R5-T01", t01, title="代理指标（每型、每种子、每个输出）与泄漏检查",
                      caption="训练集 = 该种子 BO 的 60 个设计；测试集 = R4 参考扫描的 FE 成功设计。锐度 = 平均 90 % 区间宽度 / 测试集标准差。")

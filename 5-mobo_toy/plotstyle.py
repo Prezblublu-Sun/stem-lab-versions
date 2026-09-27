@@ -143,6 +143,21 @@ def threshold_line(ax, value: float, axis: str = "y", label: str | None = None) 
                         textcoords="offset points", ha="left", va="top", fontsize=6.5, rotation=90)
 
 
+def plain_log(ax, axis: str = "x") -> None:
+    """对数轴用普通数字刻度（1、2、5、10…），不显示次刻度标签。"""
+    from matplotlib.ticker import LogLocator, NullFormatter, ScalarFormatter
+    a = ax.xaxis if axis == "x" else ax.yaxis
+    a.set_major_locator(LogLocator(base=10, subs=(1.0, 2.0, 5.0)))
+    fmt = ScalarFormatter()
+    fmt.set_scientific(False)
+    a.set_major_formatter(fmt)
+    a.set_minor_formatter(NullFormatter())
+
+
+VAR_EN = {"tip_depth": "tip depth", "tip_lat": "lateral tip position", "w_prox": "proximal width",
+          "taper": "tip-to-proximal width ratio", "theta_in": "entry angle"}
+
+
 def mark_synthetic(fig) -> None:
     fig.text(0.5, 0.5, "SYNTHETIC — pipeline demo, not a result", ha="center", va="center",
              rotation=25, fontsize=14, color="#D55E00", alpha=0.28, fontweight="bold",

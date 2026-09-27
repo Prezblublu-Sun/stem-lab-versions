@@ -1,0 +1,242 @@
+[
+ {
+  "dorr": "A",
+  "objective": "log f1",
+  "variable": "tip_depth",
+  "S1": 0.5828326472856606,
+  "ST": 0.6251039882965692,
+  "lengthscale": 0.6109270366257705
+ },
+ {
+  "dorr": "A",
+  "objective": "log f1",
+  "variable": "tip_lat",
+  "S1": 0.014557634077243458,
+  "ST": 0.01404164490121052,
+  "lengthscale": 1.5540745026260911
+ },
+ {
+  "dorr": "A",
+  "objective": "log f1",
+  "variable": "w_prox",
+  "S1": 0.0036916309658618484,
+  "ST": 0.01614143785895545,
+  "lengthscale": 1.099584971336035
+ },
+ {
+  "dorr": "A",
+  "objective": "log f1",
+  "variable": "taper",
+  "S1": 0.08324057884817651,
+  "ST": 0.11189158372947669,
+  "lengthscale": 1.250747830390972
+ },
+ {
+  "dorr": "A",
+  "objective": "log f1",
+  "variable": "theta_in",
+  "S1": 0.17544879901494642,
+  "ST": 0.278676002385677,
+  "lengthscale": 1.049240737155812
+ },
+ {
+  "dorr": "A",
+  "objective": "f2",
+  "variable": "tip_depth",
+  "S1": 0.20442768443197112,
+  "ST": 0.2567998549249689,
+  "lengthscale": 1.0514932416984646
+ },
+ {
+  "dorr": "A",
+  "objective": "f2",
+  "variable": "tip_lat",
+  "S1": 0.03967142850199481,
+  "ST": 0.06944190877072827,
+  "lengthscale": 1.8099860041461437
+ },
+ {
+  "dorr": "A",
+  "objective": "f2",
+  "variable": "w_prox",
+  "S1": 0.030101416084964097,
+  "ST": 0.040835576667443856,
+  "lengthscale": 1.732654118956348
+ },
+ {
+  "dorr": "A",
+  "objective": "f2",
+  "variable": "taper",
+  "S1": 0.6503313002873082,
+  "ST": 0.6434956167366847,
+  "lengthscale": 1.7186178140356279
+ },
+ {
+  "dorr": "A",
+  "objective": "f2",
+  "variable": "theta_in",
+  "S1": 0.06664882021575547,
+  "ST": 0.09780240805945573,
+  "lengthscale": 2.090915392926475
+ },
+ {
+  "dorr": "B",
+  "objective": "log f1",
+  "variable": "tip_depth",
+  "S1": 0.640793542930407,
+  "ST": 0.6393853340570759,
+  "lengthscale": 0.7137389292801902
+ },
+ {
+  "dorr": "B",
+  "objective": "log f1",
+  "variable": "tip_lat",
+  "S1": 0.017618191658005173,
+  "ST": 0.013460501517470833,
+  "lengthscale": 1.6652242766015
+ },
+ {
+  "dorr": "B",
+  "objective": "log f1",
+  "variable": "w_prox",
+  "S1": 0.002274925313648814,
+  "ST": 0.007804362074506824,
+  "lengthscale": 1.2297161526689444
+ },
+ {
+  "dorr": "B",
+  "objective": "log f1",
+  "variable": "taper",
+  "S1": 0.0664478369149453,
+  "ST": 0.09131709477625405,
+  "lengthscale": 1.2026173802035964
+ },
+ {
+  "dorr": "B",
+  "objective": "log f1",
+  "variable": "theta_in",
+  "S1": 0.17988628378615557,
+  "ST": 0.27770488120012643,
+  "lengthscale": 1.168037084787496
+ },
+ {
+  "dorr": "B",
+  "objective": "f2",
+  "variable": "tip_depth",
+  "S1": 0.23300243942581184,
+  "ST": 0.28149525009363335,
+  "lengthscale": 1.093550935247529
+ },
+ {
+  "dorr": "B",
+  "objective": "f2",
+  "variable": "tip_lat",
+  "S1": 0.030100316138520496,
+  "ST": 0.0536592562100964,
+  "lengthscale": 1.7870716146499086
+ },
+ {
+  "dorr": "B",
+  "objective": "f2",
+  "variable": "w_prox",
+  "S1": 0.032249158896495336,
+  "ST": 0.06250737180127701,
+  "lengthscale": 1.5531695223144228
+ },
+ {
+  "dorr": "B",
+  "objective": "f2",
+  "variable": "taper",
+  "S1": 0.6306297267580978,
+  "ST": 0.6220600535388137,
+  "lengthscale": 1.8859281089268922
+ },
+ {
+  "dorr": "B",
+  "objective": "f2",
+  "variable": "theta_in",
+  "S1": 0.04294288117772655,
+  "ST": 0.06516786667521203,
+  "lengthscale": 2.202538360909265
+ },
+ {
+  "dorr": "C",
+  "objective": "log f1",
+  "variable": "tip_depth",
+  "S1": 0.49847332671989847,
+  "ST": 0.5669343549380299,
+  "lengthscale": 0.7686502673368127
+ },
+ {
+  "dorr": "C",
+  "objective": "log f1",
+  "variable": "tip_lat",
+  "S1": 0.019129588611823463,
+  "ST": 0.010369735966541884,
+  "lengthscale": 1.8999529764742724
+ },
+ {
+  "dorr": "C",
+  "objective": "log f1",
+  "variable": "w_prox",
+  "S1": 0.22719926550804578,
+  "ST": 0.20082850927425835,
+  "lengthscale": 0.9126008368683788
+ },
+ {
+  "dorr": "C",
+  "objective": "log f1",
+  "variable": "taper",
+  "S1": 0.032745582688145834,
+  "ST": 0.07015823687287498,
+  "lengthscale": 0.6393727325588219
+ },
+ {
+  "dorr": "C",
+  "objective": "log f1",
+  "variable": "theta_in",
+  "S1": 0.1435743187731945,
+  "ST": 0.3079304905299189,
+  "lengthscale": 1.028957261554785
+ },
+ {
+  "dorr": "C",
+  "objective": "f2",
+  "variable": "tip_depth",
+  "S1": 0.11069035489828909,
+  "ST": 0.13267974359865242,
+  "lengthscale": 1.3566075318643471
+ },
+ {
+  "dorr": "C",
+  "objective": "f2",
+  "variable": "tip_lat",
+  "S1": 0.0010603003072188347,
+  "ST": 0.004673574065959267,
+  "lengthscale": 2.28507735536853
+ },
+ {
+  "dorr": "C",
+  "objective": "f2",
+  "variable": "w_prox",
+  "S1": 0.657189881213424,
+  "ST": 0.6635091345442846,
+  "lengthscale": 1.2339137931870838
+ },
+ {
+  "dorr": "C",
+  "objective": "f2",
+  "variable": "taper",
+  "S1": 0.2006684214527831,
+  "ST": 0.19822809562586616,
+  "lengthscale": 1.3815100885715947
+ },
+ {
+  "dorr": "C",
+  "objective": "f2",
+  "variable": "theta_in",
+  "S1": 0.006799796748622892,
+  "ST": 0.014081964164807871,
+  "lengthscale": 1.2237267195440678
+ }
+]

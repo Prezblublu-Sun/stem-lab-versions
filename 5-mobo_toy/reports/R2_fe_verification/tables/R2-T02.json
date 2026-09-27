@@ -10,9 +10,9 @@
   },
   "sources": {},
   "csv": "reports/R2_fe_verification/tables/R2-T02.csv",
-  "csv_sha256": "2b8d4d93ad73246b244bb2dfd2b368a1d0cb742a389aa713772c93542569fb85",
+  "csv_sha256": "bb54f6075350e9479b230e7fcb65c05116a3c0d835a72235d3e88d16a90a92fb",
   "producer": "stage_s2.py",
-  "producer_sha256": "1eb90304416876cbe2b99ef8ff0cb03d97289409b922e98f4c528d48be33bf3d",
-  "config_sha256": "151b9cb38c8f381389240b24feb9004eb415b6787cff5e89367efd3e469cef40",
-  "created": "2026-09-27T02:17:09"
+  "producer_sha256": "ff5007a0ae64d7f310bb82c8c89e9a90f88835c901714be974d7c9607e7f47ad",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "created": "2026-09-27T16:09:13"
 }

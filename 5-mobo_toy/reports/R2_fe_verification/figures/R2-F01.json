@@ -21,12 +21,12 @@
   "png": "reports/R2_fe_verification/figures/R2-F01.png",
   "svg": "reports/R2_fe_verification/figures/R2-F01.svg",
   "plot_fn": "stage_s2.py:plot_r2_f01",
-  "plot_module_sha256": "1eb90304416876cbe2b99ef8ff0cb03d97289409b922e98f4c528d48be33bf3d",
+  "plot_module_sha256": "ff5007a0ae64d7f310bb82c8c89e9a90f88835c901714be974d7c9607e7f47ad",
   "producer": "stage_s2.py",
-  "producer_sha256": "1eb90304416876cbe2b99ef8ff0cb03d97289409b922e98f4c528d48be33bf3d",
-  "config_sha256": "151b9cb38c8f381389240b24feb9004eb415b6787cff5e89367efd3e469cef40",
-  "spec_sha256": "46732ae7f89ad014758b23fcbd2e744e44214e283af4085c47fb848979a60b10",
-  "created": "2026-09-27T02:17:08",
+  "producer_sha256": "ff5007a0ae64d7f310bb82c8c89e9a90f88835c901714be974d7c9607e7f47ad",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T16:09:13",
   "python": "3.12.10",
   "matplotlib": "3.11.2"
 }

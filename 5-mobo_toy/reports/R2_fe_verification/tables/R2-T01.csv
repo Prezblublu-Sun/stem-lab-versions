@@ -51,7 +51,7 @@ E49,Model Structure,Other properties,平面应力厚度：骨 30 mm、柄 12 mm,
 E50,Model Structure,Interactions,柄–骨界面；皮质–松质共节点,R2 §3,已填写
 E51,Model Structure,Interacting components,柄外表面对骨腔表面（皮质与松质）,R2 §3,已填写
 E52,Model Structure,Interaction type,_fric：面面摩擦接触；_bond：*TIE ADJUST=NO,R2 §3,已填写
-E53,Model Structure,Interaction formulation,面面离散、小滑移；骨为从面、柄为主面；罚函数摩擦（slip tolerance 0.005）；硬接触；另加前后皮质侧板（3 mm）,R2 §3,已定稿（S2）
+E53,Model Structure,Interaction formulation,面面离散、小滑移；骨为从面、柄为主面；罚函数摩擦（slip tolerance 0.005）；硬接触；另加前后皮质侧板（2 mm，按 2D–3D 秩相关校准）,R2 §3,已定稿（S2）
 E54,Model Structure,Interaction properties,μ 0.3（符号检查扫 0.5/0.8）；过盈 δ 0.10 mm,R2 §3,已填写
 E55,Simulation Structure,Name of simulation software,Abaqus/Standard,R0-T01,已填写
 E56,Simulation Structure,Version of simulation software,Abaqus 2025（D:\SIMULIA\Commands\abq2025.bat；内置 Python 3.10.5）,R0-T01,已填写

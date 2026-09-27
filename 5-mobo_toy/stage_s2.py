@@ -467,7 +467,8 @@ def main():
             frow.append(dict(dorr=t, part=reg, elem=el, x1=tri[0, 0], z1=tri[0, 1], x2=tri[1, 0], z2=tri[1, 1],
                              x3=tri[2, 0], z3=tri[2, 1], mises=mis[el]))
     ps.publish_figure("R2-F05", frow, plot_r2_f05, sources=src,
-                      title="Stem stresses peak in the prosthetic neck; bone stress concentrates in the calcar and lateral cortex",
+                      title=("Stem von Mises P99 is " + " / ".join(f"{fnum(base_rows[t], 'vm_p99'):.0f}" for t in types)
+                             + " MPa (A / B / C), well below the 440 MPa limit"),
                       caption=("摩擦模型加载步末的单元形心 von Mises 应力（对数色标，0.3–300 MPa 截断），只画小转子下 85 mm 以上。"
                                "骨为冠状面切片（侧板单元未画）。"),
                       units={"mises": "MPa"})
@@ -485,12 +486,24 @@ def main():
             prow.append(dict(dorr=t, node=int(pr["node"][i]), s_arc=float(min(s_arc[i], L + 5)), side=side,
                              cpress_load=float(pr["cpress"][i]), cpress_release=float(pr["cpress_pf"][i]),
                              slip_um=float(pr["slip_um"][i]), status=float(pr["status"][i])))
+    def side_mean(t, side, key):
+        v = [(r[key], 1.0) for r in prow if r["dorr"] == t and r["side"] == side]
+        return float(np.mean([a for a, _ in v])) if v else float("nan")
+    hi_side = {t: ("medial" if side_mean(t, "medial", "cpress_load") > side_mean(t, "lateral", "cpress_load") else "lateral")
+               for t in types}
+    same_side = len(set(hi_side.values())) == 1
+    max_slip = max(r["slip_um"] for r in prow)
+    frac50 = {t: np.mean([r["slip_um"] > 50 for r in prow if r["dorr"] == t]) for t in types}
     ps.publish_figure("R2-F06", prow, plot_r2_f06, sources=src,
-                      title="Under load the medial flank carries the contact pressure near the resection and the lateral flank near the tip",
+                      title=(f"Under load the {hi_side['A']} flank carries the higher mean contact pressure in all three types"
+                             if same_side else "Mean contact pressure under load: " +
+                             "; ".join(f"{t} higher on the {hi_side[t]} flank" for t in types)),
                       caption="加载步末骨从面节点的接触压力，按节点在柄中轴上的弧长位置排列；实线内侧、虚线外侧、点线尖端帽。",
                       units={"s_arc": "mm", "cpress_load": "MPa"})
     ps.publish_figure("R2-F07", prow, plot_r2_f07, sources=src,
-                      title="Micromotion stays below 50 µm along the whole interface for all three baselines",
+                      title=(f"Micromotion stays below 50 µm along the whole interface for all three baselines (max {max_slip:.0f} µm)"
+                             if max_slip < 50 else "Slip exceeds 50 µm on " +
+                             ", ".join(f"{frac50[t]:.0%} of nodes in {t}" for t in types)),
                       caption=("加载步相对释放步的切向滑移增量（µm，对称对数轴）。点线为 50 与 150 µm 骨长入阈值。"),
                       units={"s_arc": "mm", "slip_um": "µm"})
     # F08 SED
@@ -501,7 +514,10 @@ def main():
             sed_rows.append(dict(dorr=t, zone=z, state="intact", sed_kPa=1000 * ref[z]))
             sed_rows.append(dict(dorr=t, zone=z, state="implanted", sed_kPa=1000 * fnum(base_rows[t], key)))
     ps.publish_figure("R2-F08", sed_rows, plot_r2_f08, sources=src,
-                      title="The neck-preserving stem raises calcar (Gruen 7) strain energy and shields the greater-trochanter region (Gruen 1)",
+                      title=("Relative to the intact femur, Gruen 7 SED changes by "
+                             + " / ".join(f"{-fnum(base_rows[t], 'f2_g7_loss_pct'):+.0f} %" for t in types)
+                             + " and Gruen 1 SED by " + " / ".join(f"{-fnum(base_rows[t], 'f2_g1_loss_pct'):+.0f} %" for t in types)
+                             + " (A / B / C)"),
                       caption="粘接模型与完整股骨在同一 ROI 内的平均应变能密度（kPa = kJ/m³）。f2 = 1 − 植入/完整（Gruen 7）。",
                       units={"sed_kPa": "kPa"})
     # F09 噪声底

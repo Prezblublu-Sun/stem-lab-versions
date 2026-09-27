@@ -79,7 +79,9 @@ def plot_r4_f01(csv_path):
         ax.scatter([d["f1"][i] for i in fr], [d["f2"][i] for i in fr], s=14, color=ps.DORR[t], marker=ps.DORR_MARKER[t],
                    edgecolors="black", linewidths=0.4, zorder=3, label=f"reference front (n = {len(fr)})")
         ax.set_xscale("log"); ax.set_title(g.replace("_", " ")); ax.set_xlabel(ps.LABEL["f1"])
-        ps.threshold_line(ax, 50, "x", "50 µm")
+        ps.plain_log(ax, "x")
+        if max(d["f1"][i] for i in jj) > 40:
+            ps.threshold_line(ax, 50, "x", "50 µm")
         ax.legend(loc="upper right", fontsize=6)
     axes[0].set_ylabel(ps.LABEL["f2"])
     ps.panel_labels(list(axes))
@@ -123,7 +125,7 @@ def plot_r4_f03(csv_path):
                 ax.scatter([d[v][i] for i in jj], [d[q][i] for i in jj], s=3, color=ps.DORR[t], alpha=0.5,
                            edgecolors="none", label=f"Dorr {t}")
             if q == "f1":
-                ax.set_yscale("log")
+                ax.set_yscale("log"); ps.plain_log(ax, "y")
             if r == 1:
                 ax.set_xlabel(v, fontsize=7)
             if c == 0:
@@ -235,19 +237,41 @@ def publish(results, attempts_n):
                 var_rows.append(dict(dorr=t, **{v: EV.as_float(r, v) for v in VARS}, f1=EV.as_float(r, "f1_p95_um"),
                                      f2=EV.as_float(r, "f2_g7_loss_pct")))
     main_groups = [g for g in results if "ctrl" not in g]
+    from scipy.stats import spearmanr
+    EN = ps.VAR_EN
+
+    def top_corr(rows_by_type, target, n=2):
+        """每型内 Spearman ρ（变量对 target）的三型平均，按 |ρ| 取前 n 个。"""
+        acc = {v: [] for v in VARS}
+        for rows in rows_by_type.values():
+            if len(rows) < 4:
+                continue
+            for v in VARS:
+                r_ = spearmanr([x[v] for x in rows], [x[target] for x in rows])[0]
+                if r_ == r_:
+                    acc[v].append(r_)
+        mean = {v: float(np.mean(a)) for v, a in acc.items() if a}
+        return sorted(mean.items(), key=lambda kv: -abs(kv[1]))[:n]
+    nf = {g: len(fronts[g][0]) for g in main_groups}
     ps.publish_figure("R4-F01", [r for r in obj_rows if r["group"] in main_groups], plot_r4_f01, sources=src,
-                      title="Each Dorr type has a clear micromotion–shielding trade-off front",
+                      title=("Reference fronts hold " + ", ".join(str(nf[g]) for g in main_groups)
+                             + " feasible non-dominated designs (Dorr " + ", ".join(g[0] for g in main_groups) + ")"),
                       caption=("每型全部 FE 成功设计的目标空间（横轴对数）。彩色阶梯线与黑边标记为参考前沿（可行设计的非支配集），"
-                               "灰叉为柄应力约束（vm P99 ≤ 440 MPa）不满足者。点线为 50 µm。"))
+                               "灰叉为柄应力约束（vm P99 ≤ 440 MPa）不满足者；微动超过 40 µm 时画出 50 µm 点线。"))
     pc = []
     for g in main_groups:
         for y, r in zip(*fronts[g]):
             pc.append(dict(dorr=g[0], **{v: EV.as_float(r, v) for v in VARS}, log_f1=y[0], f2=y[1], design_id=r["design_id"]))
+    tc = top_corr({t: [r for r in pc if r["dorr"] == t] for t in "ABC"}, "log_f1")
     ps.publish_figure("R4-F02", pc, plot_r4_f02, sources=src,
-                      title="Front designs differ mainly in tip depth and proximal width",
+                      title=("Along the fronts, lower micromotion comes with "
+                             + " and ".join(f"{'larger' if rho < 0 else 'smaller'} {EN[v]} (mean ρ {rho:+.2f})" for v, rho in tc)),
                       caption="各型参考前沿设计的平行坐标图：设计变量按其范围归一化，目标按前沿内范围归一化；颜色按 f1 从小（紫）到大（黄）。")
+    by_t = {t: [r for r in var_rows if r["dorr"] == t] for t in "ABC"}
+    c1, c2 = top_corr(by_t, "f1", 1)[0], top_corr(by_t, "f2", 1)[0]
     ps.publish_figure("R4-F03", var_rows, plot_r4_f03, sources=src,
-                      title="Micromotion falls and shielding rises with stem depth and width",
+                      title=(f"Micromotion {'falls' if c1[1] < 0 else 'rises'} most with {EN[c1[0]]} (mean ρ {c1[1]:+.2f}); "
+                             f"shielding {'rises' if c2[1] > 0 else 'falls'} most with {EN[c2[0]]} (mean ρ {c2[1]:+.2f})"),
                       caption="参考扫描全部 FE 成功设计的目标对单个设计变量的散点（Saltelli 2019：先看散点再看指数）。")
     si_rows = []
     for g in main_groups:
@@ -260,13 +284,26 @@ def publish(results, attempts_n):
             S1, ST, ls = sobol_indices_gp(X, y)
             for v, a, b, l in zip(VARS, S1, ST, ls):
                 si_rows.append(dict(dorr=t, objective=q, variable=v, S1=a, ST=b, lengthscale=l))
+    def top_st(q):
+        m = {v: np.mean([r["ST"] for r in si_rows if r["objective"] == q and r["variable"] == v]) for v in VARS}
+        return sorted(m, key=lambda v: -m[v])[:2]
+    typ_f2 = {t: max(VARS, key=lambda v: next(r["ST"] for r in si_rows if r["dorr"] == t and r["objective"] == "f2" and r["variable"] == v))
+              for t in {r["dorr"] for r in si_rows}}
+    odd = [t for t, v in typ_f2.items() if v not in top_st("f2")]
     ps.publish_figure("R4-F04", si_rows, plot_r4_f04, sources=src,
-                      title="Tip depth and proximal width dominate both objectives in every Dorr type",
+                      title=(f"Micromotion is driven by {EN[top_st('log f1')[0]]} and {EN[top_st('log f1')[1]]}; shielding by "
+                             f"{EN[top_st('f2')[0]]} and {EN[top_st('f2')[1]]}"
+                             + (f" (Dorr {', '.join(sorted(odd))}: {EN[typ_f2[sorted(odd)[0]]]})" if odd else "")),
                       caption=("由参考数据拟合 GP（ARD Matérn 5/2），在其后验均值上用 Saltelli/Jansen 估计量（每组 4,096 基样本）计算"
                                "一阶（实心）与总效应（浅色）Sobol 指数。输入在整个单位立方体上均匀分布，含几何门不可行区（GP 外推），见局限。"))
     json.dump(si_rows, open(ROOT / "results" / "S4_sobol_indices.json", "w"), indent=1, default=float)
-    ps.publish_figure("R4-F05", [r for r in fail_rows if r["group"] in main_groups], plot_r4_f05, sources=src,
-                      title="Geometric rejections cluster at deep, wide, laterally placed tips; FE failures are rare",
+    fr_main = [r for r in fail_rows if r["group"] in main_groups]
+    n_gate = sum(r["status"] in ("L1", "L2") for r in fr_main)
+    n_fe = sum(r["status"] in ("OK", "L3", "L4", "L5") for r in fr_main)
+    n_fefail = sum(r["status"] in ("L3", "L4", "L5") for r in fr_main)
+    ps.publish_figure("R4-F05", fr_main, plot_r4_f05, sources=src,
+                      title=(f"{n_gate / len(fr_main):.0%} of attempts fail the geometry gate; "
+                             f"{n_fefail / max(n_fe, 1):.1%} of gate-passing designs fail in meshing or solving"),
                       caption="全部尝试设计按失败等级着色（L1/L2 几何门，L3 网格，L4 求解，L5 导出/QoI）。")
     sil = []
     for g in main_groups:
@@ -282,7 +319,7 @@ def publish(results, attempts_n):
             st = S.make(t, {v: EV.as_float(r, v) for v in VARS})
             sil += poly_rows(st.full(), dorr=t, part="stem", rank=k, f1=10 ** ys[i, 0], f2=ys[i, 1])
     ps.publish_figure("R4-F06", sil, plot_r4_f06, sources=src,
-                      title="Along each front, stems get deeper and wider as micromotion falls",
+                      title="Front stems of each Dorr type, ordered from lowest to highest micromotion",
                       caption="每型参考前沿按 f1 由小到大等距取至多 8 个设计的柄轮廓（含截骨线以上的假体颈与头）。")
     # 表
     for g in main_groups:
@@ -314,7 +351,10 @@ def publish(results, attempts_n):
     ps.publish_acceptance("R4", [
         {"id": "R4-A1", "measured": "；".join(f"{g} {k}" for g, k in nf.items()),
          "status": "PASS" if min(nf.values()) >= CFG["bo"]["min_front_points"] else "FAIL",
-         "note": "" if min(nf.values()) >= CFG["bo"]["min_front_points"] else "已扩到 512 仍不足，见局限"},
+         "note": "" if min(nf.values()) >= CFG["bo"]["min_front_points"] else (
+             "按计划把不足 15 点的组扩到 512 个设计后仍不足：数百个可行设计里只有个位数非支配点，说明两个目标在本设计空间里"
+             "强相关、权衡面短，而不是采样不足。影响：R5 的 HV 比与 IGD 以 R4 + R5 全部可行评估的非支配集为参考，点数会多于此处；"
+             "处置建议：接受稀疏前沿，不再加样；该处置尚待用户同意（S5 已按此假设运行）。")},
         {"id": "R4-A2", "measured": "每组 runs.csv 行数 = 尝试数（含几何门失败行）" if rows_ok else "不一致",
          "status": "PASS" if rows_ok else "FAIL", "note": ""},
         {"id": "R4-A3", "measured": f"最大 {fe_fail:.1f} %", "status": "PASS" if fe_fail <= 5 else "FAIL",
@@ -333,8 +373,21 @@ def publish(results, attempts_n):
         "全局敏感性：对每型每个目标拟合 GP，在后验均值上用 Saltelli 2010 一阶与 Jansen 1999 总效应估计量。", encoding="utf-8")
     tx.joinpath("limitations.md").write_text(
         "- Sobol 指数假设输入在整个单位立方体上独立均匀，而几何门可行域不是长方体；不可行区上的值是 GP 外推，指数只作定性排序。\n"
-        "- 参考前沿本身是 256 个样本的非支配集，不是真前沿；R5 用 R4 + R5 全部评估的并集作参考。", encoding="utf-8")
+        "- 参考前沿本身是有限样本的非支配集，不是真前沿；R5 用 R4 + R5 全部评估的并集作参考。\n"
+        "- 扩到 512 个设计时，前一轮中几何门失败的尝试在 runs.csv 里被重复记录（设计相同、design_id 不同）；"
+        "本报告的计数以本阶段返回的尝试序列为准，不受重复行影响。之后的阶段已改为复用几何门结果。", encoding="utf-8")
+
+
+def publish_only():
+    """由 results/S4_groups.json 与 runs.csv 重建 R4（不调用 FE、不重算几何门）。"""
+    groups = json.loads((ROOT / "results" / "S4_groups.json").read_text())
+    by = {r["design_id"]: r for r in EV.read_runs()}
+    results = {g: [by[d] for d in ids if d in by] for g, ids in groups.items()}
+    publish(results, {g: len(ids) for g, ids in groups.items()})
 
 
 if __name__ == "__main__":
-    main()
+    if "--publish" in sys.argv:
+        publish_only()
+    else:
+        main()

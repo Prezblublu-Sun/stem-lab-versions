@@ -183,8 +183,19 @@ def publish(res):
     ps.publish_figure("R3-F02", front_rows, plot_r3_f02, sources=src,
                       title="BO reaches the true front on BraninCurrin; on ZDT1 the discrete candidate pool keeps both methods above it",
                       caption="各方法取最终超体积为中位数的那个种子的非支配点；黑线为真前沿（BraninCurrin 为 2^18 个 Sobol 点的非支配集，ZDT1 为解析解）。")
+    dom = {}
+    for name in res:
+        tf = bs[name].true_front()
+        fr = {m: [] for m in ("qNEHVI", "Sobol")}
+        for key, run in res[name]["runs"].items():
+            Y = np.array(run["Y"]); fr["qNEHVI" if key.startswith("qnehvi") else "Sobol"].append(Y[mobo.pareto_mask(Y)])
+        grid = np.linspace(tf[:, 0].min(), max(F_[:, 0].max() for m in fr for F_ in fr[m]), 400)
+        e_b, e_s = mobo.attainment_surface(fr["qNEHVI"], grid, 0.5), mobo.attainment_surface(fr["Sobol"], grid, 0.5)
+        ok = np.isfinite(e_b) & np.isfinite(e_s)
+        dom[name] = float(np.mean(e_b[ok] <= e_s[ok] + 1e-12)) if ok.any() else float("nan")
     ps.publish_figure("R3-F03", eaf_rows, plot_r3_f03, sources=src,
-                      title="The 50 % attainment surface of qLogNEHVI dominates that of Sobol",
+                      title=("qLogNEHVI's 50 % attainment surface is at or below Sobol's on "
+                             + " and ".join(f"{v:.0%} of the {n.split(' (')[0]} grid" for n, v in dom.items())),
                       caption="经验达成函数的 50 % 等值线（Zitzler 2003）：5 个种子中至少 3 个达到的目标区域边界。")
     ps.publish_table("R3-T01", t01, title="60 次评估时的超体积比与 IGD（5 个种子）",
                      caption=("HV 比 = 最终超体积 / 已知最大超体积；IGD 以真前沿范围归一化。pool_oracle 为整个 20,000 点候选池非支配集的"

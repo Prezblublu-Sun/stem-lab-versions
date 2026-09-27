@@ -1,0 +1,26 @@
+{
+  "id": "R4-F02",
+  "report": "R4",
+  "kind": "figure",
+  "title": "Along the fronts, lower micromotion comes with smaller proximal width (mean ρ +0.85) and larger tip depth (mean ρ -0.69)",
+  "caption": "各型参考前沿设计的平行坐标图：设计变量按其范围归一化，目标按前沿内范围归一化；颜色按 f1 从小（紫）到大（黄）。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "runs_csv": "campaign S4_ref / S4_control",
+    "sweep_seed": 4242
+  },
+  "csv": "reports/R4_reference_sweep/figures/R4-F02.csv",
+  "csv_sha256": "ff49fc8ae18d2e3a0679d3d84d945434b5280f5822f1aa30320087931ebad2f9",
+  "png": "reports/R4_reference_sweep/figures/R4-F02.png",
+  "svg": "reports/R4_reference_sweep/figures/R4-F02.svg",
+  "plot_fn": "stage_s4.py:plot_r4_f02",
+  "plot_module_sha256": "6d25b6499e0b61ee86804ce4bbf2e709fe35ca8feb256e9d20ebcf8f53eedb6d",
+  "producer": "stage_s4.py",
+  "producer_sha256": "6d25b6499e0b61ee86804ce4bbf2e709fe35ca8feb256e9d20ebcf8f53eedb6d",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T16:05:25",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

@@ -22,12 +22,12 @@
   "png": "reports/R3_optimizer_selftest/figures/R3-F02.png",
   "svg": "reports/R3_optimizer_selftest/figures/R3-F02.svg",
   "plot_fn": "stage_s3.py:plot_r3_f02",
-  "plot_module_sha256": "512dd3a0c6b25fff2c6adfe58a1b2c87c227407dedd6dc1825014d5f11258436",
+  "plot_module_sha256": "0cf2576e717a934665968972577a09e5bf34e8ff6f9427807057d71d704637e9",
   "producer": "stage_s3.py",
-  "producer_sha256": "512dd3a0c6b25fff2c6adfe58a1b2c87c227407dedd6dc1825014d5f11258436",
-  "config_sha256": "151b9cb38c8f381389240b24feb9004eb415b6787cff5e89367efd3e469cef40",
-  "spec_sha256": "46732ae7f89ad014758b23fcbd2e744e44214e283af4085c47fb848979a60b10",
-  "created": "2026-09-27T01:39:48",
+  "producer_sha256": "0cf2576e717a934665968972577a09e5bf34e8ff6f9427807057d71d704637e9",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T16:07:32",
   "python": "3.12.10",
   "matplotlib": "3.11.2"
 }

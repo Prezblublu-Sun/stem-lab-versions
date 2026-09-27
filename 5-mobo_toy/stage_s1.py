@@ -238,7 +238,7 @@ def main():
             cnt[(g["level"], reason)] += 1
             map_rows.append(dict(dorr=t, **{k: dsg[k] for k in S.VARS}, kappa=st.kappa, L=st.L, reason=reason))
             if "wall" in g:
-                wall_rows.append(dict(dorr=t, wall=g["wall"], passed=int(g["pass"])))
+                wall_rows.append(dict(dorr=t, wall=g["wall"], passed=int(g["pass"]), reason=g["reason"] or "PASS"))
             if g["pass"]:
                 ks.append(st.kappa); Ls.append(st.L)
         gate_counts[t] = cnt
@@ -253,7 +253,13 @@ def main():
         units={"tip_depth": "mm", "theta_in": "deg"})
     ps.publish_figure(
         "R1-F05", wall_rows, plot_r1_f05, sources=src,
-        title="No gate-evaluated design leaves less than 1 mm of cortex without also cutting it",
+        title=(lambda thin, alone, pmin: (
+            f"No design fails on wall thickness alone: all {thin} designs with a wall below 1 mm also cut cortex; "
+            f"passing designs keep at least {pmin:.1f} mm" if alone == 0 else
+            f"{alone} designs fail on wall thickness alone; passing designs keep at least {pmin:.1f} mm"))(
+            sum(1 for r in wall_rows if r["wall"] < 1.0),
+            sum(1 for r in wall_rows if r["reason"] == "wall too thin"),
+            min(r["wall"] for r in wall_rows if r["passed"])),
         caption=("进入 L2 判定的设计（L1 被拒的不算）的剩余皮质壁厚：骨内柄体到外轮廓（截骨面以下 0.5 mm 起算）的最小距离。"
                  "点线为 1.0 mm 门槛。"),
         units={"wall": "mm"})
@@ -270,9 +276,14 @@ def main():
             g = S.gate(st)
             atlas += poly_rows(st.full().intersection(F.box(-200, -200, 200, 200)), dorr=t, part="stem",
                                design=c, status=g["reason"] or "PASS")
+    stat = {}
+    for r in atlas:
+        if r.get("part") == "stem":
+            stat.setdefault(r["design"], {})[r["dorr"]] = r["status"]
+    n_diff = sum(1 for v in stat.values() if len(set(v.values())) > 1)
     ps.publish_figure(
         "R1-F02", atlas, plot_r1_f02, sources={"sobol": "scrambled Sobol, seed 2, first 8 points"},
-        title="The same eight normalised designs produce different stems and gate outcomes in each Dorr type",
+        title=f"The same eight normalised designs give different stems in each Dorr type; {n_diff} of 8 change gate outcome",
         caption=("每列是同一个归一化设计向量在三型中的实例；实心为通过几何门，红色空心为未通过（注明原因）。"
                  "图中柄包括截骨线以上的假体颈与头。"))
 

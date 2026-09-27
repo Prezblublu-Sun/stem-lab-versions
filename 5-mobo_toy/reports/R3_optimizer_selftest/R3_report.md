@@ -1,6 +1,6 @@
 # R3 优化器自检
 
-<div class="meta">阶段 S3 · 生成 2026-09-27 01:39 · 规范 reports/spec.yaml (sha 46732ae7) · 总判定 <span class="verdict PASS">PASS</span></div>
+<div class="meta">阶段 S3 · 生成 2026-09-27 16:07 · 规范 reports/spec.yaml (sha 724e892d) · 总判定 <span class="verdict PASS">PASS</span></div>
 
 ## 0 结论摘要
 
@@ -19,8 +19,8 @@
 
 | 项 | 值 |
 |---|---|
-| config.yaml | sha 151b9cb3 |
-| spec.yaml | sha 46732ae7 |
+| config.yaml | sha 5bee68dc |
+| spec.yaml | sha 724e892d |
 | seeds | [0, 1, 2, 3, 4] |
 | candidate_pool | 20000 |
 | q | 4 |
@@ -29,8 +29,8 @@
 | acquisition | qLogNoisyExpectedHypervolumeImprovement（BoTorch 0.18.1），128 个 Sobol QMC 样本 |
 | gp | SingleTaskGP，ARD Matérn 5/2，Gamma(3, 6) 长度尺度先验，输入归一化、输出标准化 |
 | acq_time_median_s | 29.2 |
-| updated | 2026-09-27T01:39:48 |
-| 脚本 `stage_s3.py` | sha 512dd3a0 |
+| updated | 2026-09-27T16:07:34 |
+| 脚本 `stage_s3.py` | sha 0cf2576e |
 | 软件包 | Python 3.12.10；numpy 2.5.3；scipy 1.18.1；matplotlib 3.11.2；shapely 2.1.2；PyYAML 6.0.3；markdown 3.11；torch 2.14.0+cpu；botorch 0.18.1；gpytorch 1.15.2；gmsh 4.15.2；meshio 5.3.5；scikit-learn 1.9.1；pymoo 0.6.2 |
 
 ## 3 方法
@@ -49,19 +49,19 @@
 
 **图 1（R3-F01）qLogNEHVI closes the hypervolume gap faster than Sobol on both benchmarks (median final HV ratio 0.964–0.969)**　纵轴为已知最大超体积与当前超体积之差的常用对数（Daulton 2020 作图惯例），5 个种子的均值 ± 2 标准误；点线处为 12 个初始点结束。参考点用 BoTorch 标准值：BraninCurrin [18, 6]，ZDT1 [11, 11]。
 
-<span class='src'>数据 reports/R3_optimizer_selftest/figures/R3-F01.csv（sha 0e1c4297）· 作图 stage_s3.py:plot_r3_f01 · 生成脚本 stage_s3.py（sha 512dd3a0）</span>
+<span class='src'>数据 reports/R3_optimizer_selftest/figures/R3-F01.csv（sha 0e1c4297）· 作图 stage_s3.py:plot_r3_f01 · 生成脚本 stage_s3.py（sha 0cf2576e）</span>
 
 ![R3-F02](figures/R3-F02.png)
 
 **图 2（R3-F02）BO reaches the true front on BraninCurrin; on ZDT1 the discrete candidate pool keeps both methods above it**　各方法取最终超体积为中位数的那个种子的非支配点；黑线为真前沿（BraninCurrin 为 2^18 个 Sobol 点的非支配集，ZDT1 为解析解）。
 
-<span class='src'>数据 reports/R3_optimizer_selftest/figures/R3-F02.csv（sha 80c0f7e4）· 作图 stage_s3.py:plot_r3_f02 · 生成脚本 stage_s3.py（sha 512dd3a0）</span>
+<span class='src'>数据 reports/R3_optimizer_selftest/figures/R3-F02.csv（sha 80c0f7e4）· 作图 stage_s3.py:plot_r3_f02 · 生成脚本 stage_s3.py（sha 0cf2576e）</span>
 
 ![R3-F03](figures/R3-F03.png)
 
-**图 3（R3-F03）The 50 % attainment surface of qLogNEHVI dominates that of Sobol**　经验达成函数的 50 % 等值线（Zitzler 2003）：5 个种子中至少 3 个达到的目标区域边界。
+**图 3（R3-F03）qLogNEHVI's 50 % attainment surface is at or below Sobol's on 100% of the BraninCurrin grid and 100% of the ZDT1 grid**　经验达成函数的 50 % 等值线（Zitzler 2003）：5 个种子中至少 3 个达到的目标区域边界。
 
-<span class='src'>数据 reports/R3_optimizer_selftest/figures/R3-F03.csv（sha 8eb48b7d）· 作图 stage_s3.py:plot_r3_f03 · 生成脚本 stage_s3.py（sha 512dd3a0）</span>
+<span class='src'>数据 reports/R3_optimizer_selftest/figures/R3-F03.csv（sha 8eb48b7d）· 作图 stage_s3.py:plot_r3_f03 · 生成脚本 stage_s3.py（sha 0cf2576e）</span>
 
 ### 4.2 表
 
@@ -84,7 +84,7 @@
 | R3-A2 | 60 次评估时每个种子的 qNEHVI HV 高于 Sobol 中位 | 全部种子 | BraninCurrin (d = 2): 全部高于 Sobol 中位；ZDT1 (d = 5): 全部高于 Sobol 中位 | PASS |  |
 
 
-总判定：<span class="verdict PASS">PASS</span>（全部 PASS 或写明理由的 NA 才算通过；有 PENDING 或缺项为 INCOMPLETE）。
+总判定：<span class="verdict PASS">PASS</span>（全部 PASS 或写明理由的 NA 才算通过；不通过项的处置全部获用户同意时为 FAIL-APPROVED，可进入下一阶段；有 PENDING 或缺项为 INCOMPLETE）。
 
 ## 6 局限与下一阶段输入
 
@@ -115,7 +115,7 @@
 
 | 图/表 | 数据 sha | 作图函数 | 生成脚本 sha | 合成 | 来源 |
 |---|---|---|---|---|---|
-| R3-F01 | 0e1c4297 | `stage_s3.py:plot_r3_f01` | 512dd3a0 | 否 | results=results/S3_selftest.json；seeds=[0, 1, 2, 3, 4]；pool=scrambled Sobol n = 20000 |
-| R3-F02 | 80c0f7e4 | `stage_s3.py:plot_r3_f02` | 512dd3a0 | 否 | results=results/S3_selftest.json；seeds=[0, 1, 2, 3, 4]；pool=scrambled Sobol n = 20000 |
-| R3-F03 | 8eb48b7d | `stage_s3.py:plot_r3_f03` | 512dd3a0 | 否 | results=results/S3_selftest.json；seeds=[0, 1, 2, 3, 4]；pool=scrambled Sobol n = 20000 |
-| R3-T01 | 743bed28 | `—` | 512dd3a0 | 否 |  |
+| R3-F01 | 0e1c4297 | `stage_s3.py:plot_r3_f01` | 0cf2576e | 否 | results=results/S3_selftest.json；seeds=[0, 1, 2, 3, 4]；pool=scrambled Sobol n = 20000 |
+| R3-F02 | 80c0f7e4 | `stage_s3.py:plot_r3_f02` | 0cf2576e | 否 | results=results/S3_selftest.json；seeds=[0, 1, 2, 3, 4]；pool=scrambled Sobol n = 20000 |
+| R3-F03 | 8eb48b7d | `stage_s3.py:plot_r3_f03` | 0cf2576e | 否 | results=results/S3_selftest.json；seeds=[0, 1, 2, 3, 4]；pool=scrambled Sobol n = 20000 |
+| R3-T01 | 743bed28 | `—` | 0cf2576e | 否 |  |

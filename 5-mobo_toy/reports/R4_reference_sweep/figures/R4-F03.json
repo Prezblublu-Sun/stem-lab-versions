@@ -1,0 +1,26 @@
+{
+  "id": "R4-F03",
+  "report": "R4",
+  "kind": "figure",
+  "title": "Micromotion falls most with tip depth (mean ρ -0.54); shielding rises most with tip-to-proximal width ratio (mean ρ +0.64)",
+  "caption": "参考扫描全部 FE 成功设计的目标对单个设计变量的散点（Saltelli 2019：先看散点再看指数）。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "runs_csv": "campaign S4_ref / S4_control",
+    "sweep_seed": 4242
+  },
+  "csv": "reports/R4_reference_sweep/figures/R4-F03.csv",
+  "csv_sha256": "6e4eea01c43830564287a68cdd8556ac98872b1b87e8b3870a46ef2b82e26c97",
+  "png": "reports/R4_reference_sweep/figures/R4-F03.png",
+  "svg": "reports/R4_reference_sweep/figures/R4-F03.svg",
+  "plot_fn": "stage_s4.py:plot_r4_f03",
+  "plot_module_sha256": "6d25b6499e0b61ee86804ce4bbf2e709fe35ca8feb256e9d20ebcf8f53eedb6d",
+  "producer": "stage_s4.py",
+  "producer_sha256": "6d25b6499e0b61ee86804ce4bbf2e709fe35ca8feb256e9d20ebcf8f53eedb6d",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T16:05:26",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}
