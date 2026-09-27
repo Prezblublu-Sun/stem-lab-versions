@@ -1,0 +1,28 @@
+{
+  "id": "R2-F02",
+  "report": "R2",
+  "kind": "figure",
+  "title": "Press-fit contact pressure matches the Lamé solution within 3.6 %",
+  "caption": "四分之一模型：钛合金实心圆盘（半径 10 mm）压入外径 25 mm 的圆环，径向过盈 0.1 mm，*CONTACT INTERFERENCE, SHRINK、小滑移面面接触、μ = 0.3，平面应力厚度 1 mm。纵轴为各接触节点 CPRESS 与平面应力 Lamé 解之比。",
+  "synthetic": false,
+  "units": {
+    "cpress": "MPa",
+    "angle_deg": "deg"
+  },
+  "sources": {
+    "runs": "runs/S2_lame/"
+  },
+  "csv": "reports/R2_fe_verification/figures/R2-F02.csv",
+  "csv_sha256": "83c38e35c45512a73b3b916b78b8cea26edb0aa5366cb56545107819f57cc531",
+  "png": "reports/R2_fe_verification/figures/R2-F02.png",
+  "svg": "reports/R2_fe_verification/figures/R2-F02.svg",
+  "plot_fn": "stage_s2.py:plot_r2_f02",
+  "plot_module_sha256": "4f0a85b23673efbfe71d84cc6582402ce36a3514a3fdf53caab5ce7830b84a8a",
+  "producer": "stage_s2.py",
+  "producer_sha256": "4f0a85b23673efbfe71d84cc6582402ce36a3514a3fdf53caab5ce7830b84a8a",
+  "config_sha256": "151b9cb38c8f381389240b24feb9004eb415b6787cff5e89367efd3e469cef40",
+  "spec_sha256": "46732ae7f89ad014758b23fcbd2e744e44214e283af4085c47fb848979a60b10",
+  "created": "2026-09-27T01:51:22",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

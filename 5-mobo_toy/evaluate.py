@@ -2,7 +2,8 @@
 
 * 每个设计一行，成败都记；design_id = d{序号:06d}_{哈希前 4 位}。
 * 失败分级：L1 参数层、L2 几何层（几何门）、L3 网格、L4 求解、L5 导出/QoI。
-* 缓存：同一 cache_key（分型、松质骨模量、设计变量、μ、δ、载荷方向、网格倍率、侧板厚度、config 相关段落）
+* 缓存：同一 cache_key（分型、松质骨模量、设计变量、μ、δ、载荷方向、网格倍率、侧板厚度、config 相关段落、
+  以及几何/网格/建模/QoI/运行器源码的哈希——代码一改，旧结果不再命中）
   已有 status = OK 的行时直接复用，不重算（返回行标 cached = 1）。
 * 并行：进程池，每个进程串行跑一个设计的两个作业，所以并发作业数 = 进程数（gmsh 非线程安全，故用进程）。
 * 磁盘：成功设计删除 .odb 等大文件、只保留 QoI 与作图所需 CSV（gzip）、.inp（gzip）、日志、网格；
@@ -49,7 +50,10 @@ def _cfg_hash() -> str:
     cfg = yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8"))
     rel = {k: cfg[k] for k in ("femur", "dorr", "materials", "plane_stress_thickness", "contact_thickness", "load",
                                "interface", "stem", "design_space", "mesh", "qoi", "side_plate")}
-    return hashlib.sha1(json.dumps(rel, sort_keys=True).encode()).hexdigest()[:10]
+    code = {m: hashlib.sha1((ROOT / m).read_bytes()).hexdigest()
+            for m in ("femur2d.py", "stem2d.py", "mesh2d.py", "fe_model.py", "inp_writer.py", "qoi.py",
+                      "run_abaqus.py", "abaqus/odb_export.py")}
+    return hashlib.sha1(json.dumps({"cfg": rel, "code": code}, sort_keys=True).encode()).hexdigest()[:10]
 
 
 def default_variant(**kw) -> dict:

@@ -1,0 +1,20 @@
+{
+  "report": "R3",
+  "synthetic": false,
+  "created": "2026-09-27T01:39:48",
+  "producer": "stage_s3.py",
+  "items": [
+    {
+      "id": "R3-A1",
+      "measured": "BraninCurrin (d = 2): 0.9687；ZDT1 (d = 5): 0.9644",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "id": "R3-A2",
+      "measured": "BraninCurrin (d = 2): 全部高于 Sobol 中位；ZDT1 (d = 5): 全部高于 Sobol 中位",
+      "status": "PASS",
+      "note": ""
+    }
+  ]
+}

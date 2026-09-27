@@ -1,0 +1,35 @@
+{
+  "id": "R2-F07",
+  "report": "R2",
+  "kind": "figure",
+  "title": "Micromotion stays below 50 µm along the whole interface for all three baselines",
+  "caption": "加载步相对释放步的切向滑移增量（µm，对称对数轴）。点线为 50 与 150 µm 骨长入阈值。",
+  "synthetic": false,
+  "units": {
+    "s_arc": "mm",
+    "slip_um": "µm"
+  },
+  "sources": {
+    "runs_csv": "results/runs.csv campaign S2_*",
+    "baseline_u": [
+      0.291,
+      0.395,
+      0.342,
+      0.403,
+      0.429
+    ]
+  },
+  "csv": "reports/R2_fe_verification/figures/R2-F07.csv",
+  "csv_sha256": "d8eef5f38ee4b066e5822ee39c9b0313d33a669561757ab11f3047413e03429c",
+  "png": "reports/R2_fe_verification/figures/R2-F07.png",
+  "svg": "reports/R2_fe_verification/figures/R2-F07.svg",
+  "plot_fn": "stage_s2.py:plot_r2_f07",
+  "plot_module_sha256": "4f0a85b23673efbfe71d84cc6582402ce36a3514a3fdf53caab5ce7830b84a8a",
+  "producer": "stage_s2.py",
+  "producer_sha256": "4f0a85b23673efbfe71d84cc6582402ce36a3514a3fdf53caab5ce7830b84a8a",
+  "config_sha256": "151b9cb38c8f381389240b24feb9004eb415b6787cff5e89367efd3e469cef40",
+  "spec_sha256": "46732ae7f89ad014758b23fcbd2e744e44214e283af4085c47fb848979a60b10",
+  "created": "2026-09-27T01:51:25",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

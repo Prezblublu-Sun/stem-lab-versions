@@ -1,0 +1,18 @@
+{
+  "id": "R2-T02",
+  "report": "R2",
+  "kind": "table",
+  "title": "网格收敛指数（Celik 2008）",
+  "caption": "φ1 最细、φ3 最粗；p 为表观阶数；e_a21 为最细两套网格的相对差；GCI_fine 为最细网格的离散不确定度。",
+  "synthetic": false,
+  "units": {
+    "phi1": "µm 或 %"
+  },
+  "sources": {},
+  "csv": "reports/R2_fe_verification/tables/R2-T02.csv",
+  "csv_sha256": "2b8d4d93ad73246b244bb2dfd2b368a1d0cb742a389aa713772c93542569fb85",
+  "producer": "stage_s2.py",
+  "producer_sha256": "4f0a85b23673efbfe71d84cc6582402ce36a3514a3fdf53caab5ce7830b84a8a",
+  "config_sha256": "151b9cb38c8f381389240b24feb9004eb415b6787cff5e89367efd3e469cef40",
+  "created": "2026-09-27T01:51:23"
+}

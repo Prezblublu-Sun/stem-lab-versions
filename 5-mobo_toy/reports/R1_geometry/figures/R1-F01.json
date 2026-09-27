@@ -14,16 +14,16 @@
     "sobol": "scrambled Sobol, seed 1, n = 1024 per type"
   },
   "csv": "reports/R1_geometry/figures/R1-F01.csv",
-  "csv_sha256": "fa237e63eceeffdfb0ab212928db5297366bca557c55387083084c9db761530f",
+  "csv_sha256": "00e42ccbe6c873113eebb36d0204aa1fd09b8c46b186c6dcdee5b7810fd3d72d",
   "png": "reports/R1_geometry/figures/R1-F01.png",
   "svg": "reports/R1_geometry/figures/R1-F01.svg",
   "plot_fn": "stage_s1.py:plot_r1_f01",
   "plot_module_sha256": "d0ff68c53691d09d1b440fff8133174ff828d9fb0d37a792f8983841db1ea28a",
   "producer": "stage_s1.py",
   "producer_sha256": "d0ff68c53691d09d1b440fff8133174ff828d9fb0d37a792f8983841db1ea28a",
-  "config_sha256": "93dca8e4c34d257b895dc24f0b6d16f28d4d95346b9a297ebf68711150901667",
+  "config_sha256": "151b9cb38c8f381389240b24feb9004eb415b6787cff5e89367efd3e469cef40",
   "spec_sha256": "46732ae7f89ad014758b23fcbd2e744e44214e283af4085c47fb848979a60b10",
-  "created": "2026-09-26T23:51:51",
+  "created": "2026-09-27T01:16:17",
   "python": "3.12.10",
   "matplotlib": "3.11.2"
 }

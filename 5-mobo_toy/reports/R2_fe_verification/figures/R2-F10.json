@@ -1,0 +1,32 @@
+{
+  "id": "R2-F10",
+  "report": "R2",
+  "kind": "figure",
+  "title": "The 0.75 mm mesh underestimates micromotion but ranks designs like the 0.375 mm mesh (Spearman ρ for f1 ≥ 0.96, f2 ≥ 0.95)",
+  "caption": "附加验证（为 R2-A2 的处置提供证据）：每型 12 个通过几何门的 Sobol 设计分别用生产网格（界面 0.75 mm）与细网格（0.375 mm）计算。黑线为 y = x；ρ 为 Spearman 秩相关。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "runs_csv": "results/runs.csv campaign S2_*",
+    "baseline_u": [
+      0.291,
+      0.395,
+      0.342,
+      0.403,
+      0.429
+    ]
+  },
+  "csv": "reports/R2_fe_verification/figures/R2-F10.csv",
+  "csv_sha256": "2d2c7e50c10bbc9422a6f73b5822a6d301de7dd87cf3e480f8d74061fc5d1dd3",
+  "png": "reports/R2_fe_verification/figures/R2-F10.png",
+  "svg": "reports/R2_fe_verification/figures/R2-F10.svg",
+  "plot_fn": "stage_s2.py:plot_r2_f10",
+  "plot_module_sha256": "4f0a85b23673efbfe71d84cc6582402ce36a3514a3fdf53caab5ce7830b84a8a",
+  "producer": "stage_s2.py",
+  "producer_sha256": "4f0a85b23673efbfe71d84cc6582402ce36a3514a3fdf53caab5ce7830b84a8a",
+  "config_sha256": "151b9cb38c8f381389240b24feb9004eb415b6787cff5e89367efd3e469cef40",
+  "spec_sha256": "46732ae7f89ad014758b23fcbd2e744e44214e283af4085c47fb848979a60b10",
+  "created": "2026-09-27T01:51:26",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

@@ -1,0 +1,81 @@
+code,section,item,answer,where,status
+E01,Model Identification,Model name,mobo_toy 2D 冠状面股骨–保颈斜插短柄模型（Dorr A/B/C）,R2 §3,已填写
+E02,Model Identification,Model keywords,股骨；短柄；保颈；压配；初始微动；应力遮挡；平面应力；贝叶斯多目标优化,R2 §3,已填写
+E03,Model Identification,Version,config.yaml 与脚本 sha256（每份报告第 2 节自动列出）,全部报告 §2,已填写
+E04,Model Identification,Physiological domain,术后即刻股骨–柄承载（无骨长入）,R2 §3,已填写
+E05,Model Identification,Mechanical domain,线弹性；准静态；小变形；接触非线性,R2 §3,已填写
+E06,Model Identification,Structure of interest,近端股骨（颈中段截骨）与短柄,R2 §3,已填写
+E07,Model Identification,Demographics,无个体；理想化成人股骨按 Dorr A/B/C 参数化,R1 §3,已填写
+E08,Model Identification,State of represented organism,在体、术后即刻,R2 §3,已填写
+E09,Model Identification,Disease state,Dorr 分型代表髓腔形态与骨质差异（C 型为宽髓腔、薄皮质）,R1 §3,已填写
+E10,Model Identification,Spatial scale,器官级 mm；界面单元 0.75 mm,R2 §3,已填写
+E11,Model Identification,Time scale,准静态两步（压配、加载），与时间无关,R2 §3,已填写
+E12,Model Identification,Primary utility,检验 FE→GP→qNEHVI 能否在 ≤60 次 FE 内找到正确 Pareto 前沿,R2 §1；R5 §1,已填写
+E13,Model Identification,Secondary utility,定性比较三型前沿差异,R5 §1,已填写
+E14,Model Identification,Primary highlight,零过切构造的圆弧斜插柄族，保证可插入,R1,已填写
+E15,Model Identification,Secondary highlight,每阶段可复现报告与参考前沿对照,R7,已填写
+E16,Model Identification,Primary limitation,2D 平面应力：绝对值不可信，只看排序,全部报告 §6,已填写
+E17,Model Identification,Secondary limitation,单一工况、无肌力、无实验确认,全部报告 §6,已填写
+E18,Model Identification,Reference to publication(s),无（内部方法测试）,—,N/A：未发表
+E19,Model Identification,Pointer to publication,无,—,N/A：未发表
+E20,Model Identification,Related models,sandbox/sweep_viz 插入扫掠模型；D:\temp\Job-Stair.inp 3D 模型（材料与载荷来源）,R2 §3,已填写
+E21,Model Structure,Loading and boundary conditions,头心集中力 + 远端固支 + 压配过盈,R2 §3,已填写
+E22,Model Structure,Type,头部圆盘（半径 14 mm）内全部节点均分头心载荷（等价 UNIFORM 分布耦合，未用约束方程以减少变量）；远端截面全固支；压配为接触过盈 SHRINK，压配步固定假体头节点,R2 §3,已定稿（S2）
+E23,Model Structure,Region,头部圆盘节点（植入：假体头；完整：股骨头内）；远端截面（小转子下 150 mm）,R2 §3,已定稿（S2）
+E24,Model Structure,Magnitude and direction,Fx 668 N；Fz −2296 N（上楼峰值投影到冠状面，源自 Job-Stair.inp；丢弃平面外第 2 分量 9.46 N）,R2 §3,已填写
+E25,Model Structure,Time history,Step1 压配无外载；Step2 保持压配并线性加载到峰值（非线性静力的伪时间）,R2 §3,已填写
+E26,Model Structure,Primary output variables,f1 界面切向滑移增量长度加权 P95（µm）；f2 Gruen 7 区 SED 相对完整股骨下降率（%）,R2 §3,已填写
+E27,Model Structure,Secondary output variables,>50 与 >150 µm 界面占比；Gruen 1 区 SED；柄 von Mises P99；接触压力分布,R2 §3,已填写
+E28,Model Structure,Source of anatomy,解析参数化轮廓（无影像）,R1 §3,已填写
+E29,Model Structure,Modality,无影像,—,N/A：解析几何
+E30,Model Structure,Resolution,无影像；轮廓折线逼近弦高误差 ≤ 0.05 mm,R1 §3,已填写
+E31,Model Structure,Reference configuration,无初始应力；过盈在 Step1 由接触引入,R2 §3,已填写
+E32,Model Structure,Subcomponents (subsidiary models),皮质骨、松质骨、柄 3 个部件,R2 §3,已填写
+E33,Model Structure,Name,cortex / cancellous / stem,R2 §3,已填写
+E34,Model Structure,Geometric representation,2D 多边形（shapely）；外轮廓三型相同，内轮廓按 Dorr 参数,R1 §3,已填写
+E35,Model Structure,Source,femur2d.py 与 stem2d.py 解析构造,R1 §3,已填写
+E36,Model Structure,Resolution,边界离散间距 ≤ 0.5 mm,R1 §3,已填写
+E37,Model Structure,Segmentation procedure,无分割,—,N/A：非影像
+E38,Model Structure,Representative geometry,R1-F01；R1-F02,R1,已填写
+E39,Model Structure,Mesh,gmsh 2D 三角网格；骨（皮质与松质共节点）与柄分别划分,R2 §3,已填写
+E40,Model Structure,Element name,CPS6M,R2 §3,已填写
+E41,Model Structure,Element shape,三角形,R2 §3,已填写
+E42,Model Structure,Element formulation,6 节点修正二次平面应力（适用于接触）,R2 §3,已填写
+E43,Model Structure,Mesh density,界面 0.75 mm、远场 3 mm；三档收敛研究见 R2-F03 与 R2-T02,R2,已填写
+E44,Model Structure,Constitutive representation,三种材料均为各向同性线弹性,R2 §3,已填写
+E45,Model Structure,Formulation,各向同性线弹性,R2 §3,已填写
+E46,Model Structure,Coefficients,皮质 E 16800 MPa ν 0.3；松质 E 400/300/150 MPa（A/B/C）ν 0.3；Ti6Al4V E 110000 MPa ν 0.35,R2 §3,已填写
+E47,Model Structure,Source,皮质与钛取自 Job-Stair.inp；松质骨源模型为 155 MPa，分型取值为假设并设 300 MPa 对照,R2 §3；R5-F09,已填写
+E48,Model Structure,Reference configuration,无预应力,R2 §3,已填写
+E49,Model Structure,Other properties,平面应力厚度：骨 30 mm、柄 12 mm,R2 §3,已填写
+E50,Model Structure,Interactions,柄–骨界面；皮质–松质共节点,R2 §3,已填写
+E51,Model Structure,Interacting components,柄外表面对骨腔表面（皮质与松质）,R2 §3,已填写
+E52,Model Structure,Interaction type,_fric：面面摩擦接触；_bond：*TIE ADJUST=NO,R2 §3,已填写
+E53,Model Structure,Interaction formulation,面面离散、小滑移；骨为从面、柄为主面；罚函数摩擦（slip tolerance 0.005）；硬接触；另加前后皮质侧板（3 mm）,R2 §3,已定稿（S2）
+E54,Model Structure,Interaction properties,μ 0.3（符号检查扫 0.5/0.8）；过盈 δ 0.10 mm,R2 §3,已填写
+E55,Simulation Structure,Name of simulation software,Abaqus/Standard,R0-T01,已填写
+E56,Simulation Structure,Version of simulation software,Abaqus 2025（D:\SIMULIA\Commands\abq2025.bat；内置 Python 3.10.5）,R0-T01,已填写
+E57,Simulation Structure,Solution strategy,隐式静力；三步（PRESSFIT 固定假体头 → RELEASE 释放 → LOAD）；初始增量 0.25、最大 1.0，自动增量；增量设置敏感性见方法,R2 §3,已定稿（S2）
+E58,Simulation Structure,Numerical algorithms,完全牛顿法与直接稀疏求解器（软件默认）,R2 §3,已填写
+E59,Simulation Structure,Convergence criteria,软件默认残差与位移修正准则,R2 §3,已填写
+E60,Simulation Structure,Post-processing,odb_export.py（Abaqus Python 仅标准库）导 CSV → qoi.py 计算 f1、f2、约束,R2 §3,已填写
+E61,Verification,Methods of verification,R0 悬臂梁；R2 Lamé 压配、GCI 网格收敛、符号检查、重跑确定性、噪声底,R0；R2,已填写
+E62,Verification,Correctness of formulation,不使用用户子程序,—,N/A：无扩展
+E63,Verification,Comparisons with known solutions,R0-F01 悬臂梁；R2-F02 厚壁圆筒压配,R0；R2,已填写
+E64,Verification,Sensitivity to simulation settings,R2-F09 噪声底；R2-F04 中 μ 扫描,R2,已填写
+E65,Verification,Mesh convergence,R2-F03 与 R2-T02；输出为区域量 f1、f2,R2,已填写
+E66,Verification,Assessment of repeatability,R2-T03 同设计重跑逐位比对,R2,已填写
+E67,Validation,Validation procedure,"无直接确认；报告中标注""未确认""，仅做 2D–3D 模型形式比较（R6）",R6；R7-T01,已填写
+E68,Validation,Validated output,无,—,N/A：无实验
+E69,Validation,Overall modeling assumptions,见通用局限清单,全部报告 §6,已填写
+E70,Validation,Physiological relevance of loading and boundary conditions,上楼峰值载荷；远端固支截面距 Gruen 7 区约 150 mm，柄尖到固支端距离在 R1 报出；无肌力为已知偏差,R2 §6,已填写
+E71,Validation,Justification of parameters,材料取自既有 3D 模型；Dorr 判据来自文献；分型松质骨模量为假设,R1；R2,已填写
+E72,Validation,Data used for model development,无实验数据；参数来自既有模型与文献,R2 §3,已填写
+E73,Validation,Data used for model comparison,无,—,N/A：无实验
+E74,Validation,Sensitivity analysis,R4-F04 设计变量全局敏感性；R5-F09 松质骨模量对照,R4；R5,已填写
+E75,Validation,Predictive capacity,只主张排序；R6 2D–3D 秩相关界定范围,R6,已填写
+E76,Availability,Contact,项目负责人（UCL Surgery & Interventional Science）,R7,已填写
+E77,Availability,Licensing,内部使用，未定,R7,已填写
+E78,Availability,Website for downloads,本地 G:\projects\Femoral implant generation\sandbox\mobo_toy,R7,已填写
+E79,Availability,Website for development,无公开仓库,—,N/A：本地
+E80,Availability,"Website for public commentary, responses, and rating",无,—,N/A：本地

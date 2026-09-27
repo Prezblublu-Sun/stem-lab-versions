@@ -1,12 +1,12 @@
 {
   "report": "R1",
   "synthetic": false,
-  "created": "2026-09-26T23:52:07",
+  "created": "2026-09-27T01:16:45",
   "producer": "stage_s1.py",
   "items": [
     {
       "id": "R1-A1",
-      "measured": "最大偏差 0.003；三型实测均落在对应 Dorr 区间",
+      "measured": "最大偏差 0.002；三型实测均落在对应 Dorr 区间",
       "status": "PASS",
       "note": ""
     },
@@ -18,7 +18,7 @@
     },
     {
       "id": "R1-A3",
-      "measured": "14 passed in 5.78s",
+      "measured": "14 passed in 10.16s",
       "status": "PASS",
       "note": ""
     },

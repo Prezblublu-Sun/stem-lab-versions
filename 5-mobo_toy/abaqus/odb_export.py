@@ -18,7 +18,7 @@ import sys
 from abaqusConstants import CENTROID
 from odbAccess import openOdb
 
-CONTACT_PREFIX = ("CPRESS", "CSLIP1", "CSTATUS", "COPEN", "CSHEAR1")
+CONTACT_PREFIX = ("CPRESS", "CSLIP1", "CSLIP2", "CSTATUS", "COPEN", "CSHEAR1", "CSHEAR2")
 
 
 def _write(path, header, rows):
@@ -44,8 +44,9 @@ def main(odb_path, out_dir):
             info = {"name": sname, "n_frames": len(step.frames), "last_frame_value": fr.frameValue,
                     "time_period": step.timePeriod, "fields": sorted(fo.keys())}
             if "U" in fo.keys():
-                _write(os.path.join(out_dir, sname + "_U.csv"), ["node", "u1", "u2"],
-                       [(v.nodeLabel, repr(float(v.data[0])), repr(float(v.data[1]))) for v in fo["U"].values])
+                _write(os.path.join(out_dir, sname + "_U.csv"), ["node", "u1", "u2", "u3"],
+                       [(v.nodeLabel, repr(float(v.data[0])), repr(float(v.data[1])),
+                         repr(float(v.data[2])) if len(v.data) > 2 else "0.0") for v in fo["U"].values])
             if "S" in fo.keys():
                 sc = fo["S"].getSubset(position=CENTROID)
                 _write(os.path.join(out_dir, sname + "_S.csv"), ["elem", "mises", "s11", "s22", "s12"],

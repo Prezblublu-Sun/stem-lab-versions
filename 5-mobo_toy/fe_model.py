@@ -35,6 +35,8 @@ def _opening(g, r):
 
 GRID = 1e-3          # mm，所有边界先吸附到此网格再统一打断，共享边界逐点一致
 MIN_PART = 0.01      # mm²
+THIN = 0.05          # mm，比这更薄的面视为布尔运算的数值细条
+MIN_ANGLE = 1.0      # 度，网格最小角低于此判 L3（柄体掠过内骨膜时会出现 1.3–2° 的薄条单元，可接受；< 1° 为退化）
 
 
 def _rings(g):
@@ -55,25 +57,42 @@ def planar_regions(boundaries: list, classify, sliver: float) -> dict:
         lines += _rings(shapely.set_precision(g, GRID))
     noded = unary_union(lines)
     faces = [f for f in polygonize(noded) if f.area > 1e-9]
-    labs: dict[str, list] = {}
+    lab = []
     for f in faces:
-        lab = classify(f.representative_point())
-        if lab is None:
-            continue
+        lb = classify(f.representative_point())
         thickness = 2.0 * f.area / max(f.length, 1e-12)
-        if lab == "cancellous" and (thickness < sliver or f.area < MIN_PART):
-            lab = "cortex"
-        labs.setdefault(lab, []).append(f)
+        if lb == "cancellous" and (thickness < sliver or f.area < MIN_PART):
+            lb = "cortex"
+        lab.append(lb)
+    # 数值细条（厚度 < THIN）并入与之共享边界最长的非细条邻面：只改标签，几何不变，union 后细条消失
+    thin = [2.0 * f.area / max(f.length, 1e-12) < THIN for f in faces]
+    for i, f in enumerate(faces):
+        if not thin[i] or lab[i] is None:
+            continue
+        best, blen = None, 0.0
+        for j, g in enumerate(faces):
+            if j == i or thin[j] or lab[j] is None or not f.intersects(g):
+                continue
+            ln = f.boundary.intersection(g.boundary).length
+            if ln > blen:
+                best, blen = lab[j], ln
+        if best is not None:
+            lab[i] = best
+    labs: dict[str, list] = {}
+    for f, lb in zip(faces, lab):
+        if lb is not None:
+            labs.setdefault(lb, []).append(f)
     return {k: unary_union(v) for k, v in labs.items()}
 
 
 def implanted_regions(stem: S.Stem2D, delta: float, sliver: float):
     """返回 ({cortex, cancellous, cavity}, cavity)。cavity = 柄体按 δ 内缩后与保留骨的交。"""
     f = stem.femur
-    kept = shapely.set_precision(f.outer.intersection(f.kept_halfplane()), GRID)
-    cav = shapely.set_precision(stem.body(delta).intersection(kept), GRID)
-    inner = shapely.set_precision(f.inner.intersection(kept), GRID)
-    kp, cp, ip = shapely.prepared.prep(kept.buffer(1e-6)), shapely.prepared.prep(cav), shapely.prepared.prep(inner)
+    # 不预先求交：保留骨外廓、完整柄体轮廓、完整髓腔轮廓一起打断，交点只算一次（避免近共线重复边造成的尖刺）
+    kept = f.outer.intersection(f.kept_halfplane())
+    body = stem.body(delta)
+    kp = shapely.prepared.prep(kept.buffer(1e-6))
+    cp, ip = shapely.prepared.prep(body), shapely.prepared.prep(f.inner)
 
     def classify(pt):
         if not kp.contains(pt):
@@ -81,7 +100,7 @@ def implanted_regions(stem: S.Stem2D, delta: float, sliver: float):
         if cp.contains(pt):
             return "cavity"
         return "cancellous" if ip.contains(pt) else "cortex"
-    reg = planar_regions([kept, cav, inner], classify, sliver)
+    reg = planar_regions([kept, body, f.inner], classify, sliver)
     cavity = reg.pop("cavity")
     return reg, cavity
 
@@ -161,6 +180,8 @@ def build_implanted(stem: S.Stem2D, outdir: pathlib.Path, name: str, *, mu: floa
     if side_plate > 0:
         part["cavity"] = cavity                        # 侧板在锉刀腔处的部分（与骨共形）
     bm = mesh2d.mesh_partition(part, mesh2d.graded_size(cav_ring, h_i, h_b, mc["ramp"]), name=f"{name}_bone")
+    if bm.quality["min_angle_deg"] < MIN_ANGLE:
+        raise RuntimeError(f"degenerate bone mesh: min angle {bm.quality['min_angle_deg']:.4f} deg")
     stem_poly = stem.full()
     body_ring = stem.body().exterior
     sm = mesh2d.mesh_partition({"stem": stem_poly}, mesh2d.graded_size(body_ring, h_i, h_s, mc["ramp"] / 2),

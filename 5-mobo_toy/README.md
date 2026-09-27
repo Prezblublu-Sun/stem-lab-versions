@@ -1,32 +1,38 @@
 # mobo_toy — FEA → 代理 → 多目标贝叶斯优化 简单模型测试
 
-场景：Dorr A/B/C 三型 2D 冠状面股骨 × 保颈斜插（圆弧中轴）短柄；双目标为初始微动与近端遮挡。
-计划全文：`C:\Users\sun\.claude\plans\fea-dorr-adaptive-crab.md`。探针实验，不进正式 nTop 流水线；
-沿用上级 `CLAUDE.md` 的单位、.inp 双模型、runs.csv 与失败分级规定。
+场景：Dorr A/B/C 三型 2D 冠状面股骨 × 保颈斜插（圆弧中轴）短柄；双目标为初始微动（P95）与近端遮挡（Gruen 7 SED 下降率）。
+计划：`C:\Users\sun\.claude\plans\fea-dorr-adaptive-crab.md`；报告规范：`REPORTING_SPEC.md`（用户 2026-09-26 确认）。
+探针实验，不进正式 nTop 流水线；沿用上级 `CLAUDE.md` 的单位、.inp 双模型、runs.csv 与失败分级规定。
 
-## 当前阶段
+## 阶段与报告
 
-**S-1 报告规范**：`REPORTING_SPEC.md` 待用户确认，确认后进入 S0。
+| 阶段 | 脚本 | 报告 | 状态 |
+|---|---|---|---|
+| S-1 | `report.py`, `plotstyle.py` | `REPORTING_SPEC.md` | 已确认 |
+| S0 | `stage_s0.py` | R0 环境与冒烟 | PASS |
+| S1 | `stage_s1.py` | R1 几何与设计空间 | R1-A4 不通过（C 型几何门通过率 16 %），待用户决定 |
+| S2 | `stage_s2.py` | R2 FE 模型与验证 | 见报告；R2-A2（f1 网格收敛）不通过，待用户决定 |
+| S3 | `stage_s3.py` | R3 优化器自检 | 运行/已完成 |
+| S4 | `stage_s4.py`, `reference_sweep.py` | R4 参考扫描 | 代码就绪，等 R1/R2 的处置确认 |
+| S5 | `stage_s5.py`, `mobo.py`, `mobo_fe.py` | R5 BO 结果与代理诊断 | 代码就绪，同上 |
+| S7 | `stage_s7.py`, `spot3d/` | R6 3D 抽检 | 3D 几何与网格已通，等 S5 |
+| 收尾 | `stage_r7.py` | R7 总结与可信度 | 代码就绪 |
 
-## 报告工具
+## 模型要点（相对已批准计划的修改，均写进对应报告）
+
+1. 设计变量改为由尖端位置定义圆弧（`tip_depth`, `tip_lat`, `w_prox`, `taper`, `theta_in`）；原 (L, κ) 空间 98 % 不可行。
+2. 加 3 mm 前后皮质侧板：无侧板时 2D 骨在截骨面处开口，压配后 90 % 界面张开。
+3. 压配三步：固定假体头压配 → 释放 → 加载；微动 = 加载相对释放的滑移增量。
+4. 头心载荷均分到 14 mm 圆盘内节点（替代分布耦合，求解快 5 倍）。
+
+## 常用命令
 
 ```bash
-python report.py --render-spec     # spec.yaml → REPORTING_SPEC.md 第 6 节
-python report.py --demo            # 合成数据演示整条报告流水线
-python report.py --stage S2        # 生成某阶段报告（md + html + pdf）
-python report.py --check R2        # 查缺项
-python report.py --replot R2-F03   # 只凭 CSV 重画
-python -m pytest tests
+.venv-mobo/Scripts/python.exe stage_s2.py          # 各阶段脚本同理
+.venv-mobo/Scripts/python.exe report.py --stage S2  # 重建某阶段报告
+.venv-mobo/Scripts/python.exe report.py --replot R2-F03
+.venv-mobo/Scripts/python.exe -m pytest tests
 ```
 
-| 文件 | 作用 |
-|---|---|
-| `REPORTING_SPEC.md` | 报告规范（人读） |
-| `reports/spec.yaml` | 报告登记表：每份报告的必备图、表、验收项（唯一真源） |
-| `reports/checklists/erdemir2012_checklist.csv` | Erdemir 2012 FEA 报告清单 80 项与本项目落点 |
-| `plotstyle.py` | 配色、尺寸、轴标签；`publish_figure/table/acceptance/inputs`；`replot` |
-| `report.py` | 组装报告、缺项检查、PDF |
-| `demo_report.py` | 合成数据演示 |
-| `refs/` | 规范原文（Erdemir 2012 PMC 全文 XML） |
-
-S-1 用系统 Python 3.12 即可（matplotlib、markdown、PyYAML、shapely 已装）；S0 起建 `.venv-mobo`。
+运行记录：`results/runs.csv`（一行一设计，含几何门失败）；设计目录 `runs/<design_id>/`（成功设计只留 gzip 的 inp、所需 CSV、日志与网格）。
+缓存键含配置与建模源码哈希，代码一改旧结果不再命中。

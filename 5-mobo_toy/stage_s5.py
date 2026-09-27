@@ -516,6 +516,38 @@ def publish(out):
     ps.publish_inputs("R5", ref_points={t: out[t]["ref_point"] for t in "ABC"}, pool_sizes={t: out[t]["pool_sizes"] for t in "ABC"},
                       noise_sd=MF.noise_sd())
     json.dump(summary, open(ROOT / "results" / "S5_summary.json", "w"), indent=1, default=float)
+    tx = ps.report_dir("R5") / "text"
+    save = {r["dorr"]: r["fe_saving_vs_sweep_pct"] for r in t02 if r["method"] == "qnehvi"}
+    tx.joinpath("summary.md").write_text(
+        "BO（GP + qLogNEHVI，q = 4，12 + 12×4 = 60 次 FE）在三型上的最终 HV 比中位为 "
+        + "、".join(f"{t} {med[t]:.3f}" for t in "ABC") + "（参考前沿 = R4 + R5 全部可行评估的非支配集），同预算 Sobol 中位为 "
+        + "、".join(f"{t} {summary[t]['sobol_median']:.3f}" for t in "ABC") + "。"
+        + f"验收：HV 比 ≥ 0.90 {'全部通过' if a1 else '未全部通过'}；三个种子都胜过 Sobol {'是' if a2 else '否'}；"
+        + f"GP 90 % 区间覆盖率 {'在' if cov_ok else '不在'} 0.80–0.97 内；训练与测试集重叠 {ov}。"
+        + "单个种子相对 256 点参考扫描节省 FE 机时 " + "、".join(f"{t} {v:.0f} %" for t, v in save.items()) + "。",
+        encoding="utf-8")
+    tx.joinpath("methods.md").write_text(
+        "**问题**：每型独立的双目标最小化，y1 = log10(P95 微动 µm)，y2 = Gruen 7 SED 下降率（%），约束 vm P99 ≤ 440 MPa。"
+        "设计变量 5 个（R1-T02），候选池为每个种子一个打乱 Sobol 20,000 点中过几何门者（保持序列顺序）。
+
+"
+        "**BO**：`mobo.run`，初始设计 = 池的前 12 点；每轮为两个目标与约束各拟合一个 SingleTaskGP（ARD Matérn 5/2，"
+        "Gamma(3, 6) 长度尺度先验，输入归一化、输出标准化，观测噪声下界来自 R2 噪声底），qLogNEHVI（128 个 QMC 样本，"
+        "参考点每型固定）在未评估候选点上序贯贪心选 4 个；共 12 轮。Sobol 基线取池的前 60 点（与 BO 共享前 12 点）。
+
+"
+        "**参考点**：三个种子的初始 12 点合并，可行者各目标最大值 + 10 % 极差。**参考前沿**：该型 R4 扫描 + R5 全部 FE 评估的可行非支配集。"
+        "**代理诊断**：每个 BO 种子最终 60 点训练的 GP 在 R4 扫描设计（测试集，与训练集按 cache_key 无重叠）上预测，"
+        "含观测噪声的预测区间；R²、Spearman、90 % 覆盖率、锐度（平均区间宽 / 测试集标准差），校准曲线按 Kuleshov 2018。",
+        encoding="utf-8")
+    tx.joinpath("limitations.md").write_text(
+        "- 所有结论只对本 2D 模型（含侧板假设与生产网格）成立；f1 绝对值因网格未收敛而偏低（R2），排序一致。
+"
+        "- 参考前沿由有限样本得到，不是真前沿；HV 比可能略高估。
+"
+        "- 每型只 3 个种子，中位与\"全部胜过\"判定的统计力有限。
+"
+        "- 未做跨分型稳健优化（按用户选择）。", encoding="utf-8")
     print(json.dumps({t: {"median": med[t], "sobol": summary[t]["sobol_median"]} for t in "ABC"}, indent=1))
 
 

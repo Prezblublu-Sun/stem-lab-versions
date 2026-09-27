@@ -1,0 +1,33 @@
+{
+  "id": "R3-F03",
+  "report": "R3",
+  "kind": "figure",
+  "title": "The 50 % attainment surface of qLogNEHVI dominates that of Sobol",
+  "caption": "经验达成函数的 50 % 等值线（Zitzler 2003）：5 个种子中至少 3 个达到的目标区域边界。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "results": "results/S3_selftest.json",
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "pool": "scrambled Sobol n = 20000"
+  },
+  "csv": "reports/R3_optimizer_selftest/figures/R3-F03.csv",
+  "csv_sha256": "8eb48b7d7012af144663b67251e36150498b16846b9c0e25d9a00a33e8a30531",
+  "png": "reports/R3_optimizer_selftest/figures/R3-F03.png",
+  "svg": "reports/R3_optimizer_selftest/figures/R3-F03.svg",
+  "plot_fn": "stage_s3.py:plot_r3_f03",
+  "plot_module_sha256": "512dd3a0c6b25fff2c6adfe58a1b2c87c227407dedd6dc1825014d5f11258436",
+  "producer": "stage_s3.py",
+  "producer_sha256": "512dd3a0c6b25fff2c6adfe58a1b2c87c227407dedd6dc1825014d5f11258436",
+  "config_sha256": "151b9cb38c8f381389240b24feb9004eb415b6787cff5e89367efd3e469cef40",
+  "spec_sha256": "46732ae7f89ad014758b23fcbd2e744e44214e283af4085c47fb848979a60b10",
+  "created": "2026-09-27T01:39:48",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

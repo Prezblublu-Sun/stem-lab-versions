@@ -1,0 +1,16 @@
+{
+  "id": "R2-T01",
+  "report": "R2",
+  "kind": "table",
+  "title": "Erdemir 2012 FEA 报告清单 80 项（取得 Oefner 2021 后换为其报告表）",
+  "caption": "N/A 项注明理由。全表 80 行，报告内只显示前 60 行，完整见 CSV。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "reports/R2_fe_verification/tables/R2-T01.csv",
+  "csv_sha256": "ca56e00eac66cbe4df9045d995cccde62251af5ebdab5a2026e7b1fd2c86c40c",
+  "producer": "stage_s2.py",
+  "producer_sha256": "4f0a85b23673efbfe71d84cc6582402ce36a3514a3fdf53caab5ce7830b84a8a",
+  "config_sha256": "151b9cb38c8f381389240b24feb9004eb415b6787cff5e89367efd3e469cef40",
+  "created": "2026-09-27T01:51:26"
+}

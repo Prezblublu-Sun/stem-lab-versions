@@ -1,0 +1,16 @@
+{
+  "id": "R2-T03",
+  "report": "R2",
+  "kind": "table",
+  "title": "确定性：同一设计两次独立运行（重新网格化与求解）",
+  "caption": "两次运行各自从几何重新生成网格与 .inp；比较 QoI 的完整双精度值。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "reports/R2_fe_verification/tables/R2-T03.csv",
+  "csv_sha256": "f64042fb5e5237b671bd8e481bbfe2ebb09bcdcda59aa48d785dee002e0933e7",
+  "producer": "stage_s2.py",
+  "producer_sha256": "4f0a85b23673efbfe71d84cc6582402ce36a3514a3fdf53caab5ce7830b84a8a",
+  "config_sha256": "151b9cb38c8f381389240b24feb9004eb415b6787cff5e89367efd3e469cef40",
+  "created": "2026-09-27T01:51:26"
+}

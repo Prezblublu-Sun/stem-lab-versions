@@ -8,9 +8,9 @@
   "units": {},
   "sources": {},
   "csv": "reports/R1_geometry/tables/R1-T03.csv",
-  "csv_sha256": "7284b0928d493b98243da27c88bfb0dd17f2f2c6baff971eb90b26cf80f8b3db",
+  "csv_sha256": "bb2d3881c35a1381315d70cdec82b7925cc69ec31733359fc3e073ed25603ab2",
   "producer": "stage_s1.py",
   "producer_sha256": "d0ff68c53691d09d1b440fff8133174ff828d9fb0d37a792f8983841db1ea28a",
-  "config_sha256": "93dca8e4c34d257b895dc24f0b6d16f28d4d95346b9a297ebf68711150901667",
-  "created": "2026-09-26T23:52:01"
+  "config_sha256": "151b9cb38c8f381389240b24feb9004eb415b6787cff5e89367efd3e469cef40",
+  "created": "2026-09-27T01:16:34"
 }

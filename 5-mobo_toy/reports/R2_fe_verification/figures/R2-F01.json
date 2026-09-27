@@ -1,0 +1,32 @@
+{
+  "id": "R2-F01",
+  "report": "R2",
+  "kind": "figure",
+  "title": "Meshes use 0.75 mm elements at the interface and 3 mm far away (6,157 bone + 2,055 stem elements for Dorr B)",
+  "caption": "上排为全模型，下排为柄尖附近放大（上排红框）。灰色为皮质、浅黄为松质、白色半透明为锉刀腔处的侧板单元、蓝色为柄。骨与柄网格独立（接触或 TIE 连接），皮质、松质与侧板共节点。单元均为 CPS6M。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "runs_csv": "results/runs.csv campaign S2_*",
+    "baseline_u": [
+      0.291,
+      0.395,
+      0.342,
+      0.403,
+      0.429
+    ]
+  },
+  "csv": "reports/R2_fe_verification/figures/R2-F01.csv",
+  "csv_sha256": "f267b4ae8bf5a34a0b8817cf666d0b67c689dfde2b8c2d959f61ba64180e81f0",
+  "png": "reports/R2_fe_verification/figures/R2-F01.png",
+  "svg": "reports/R2_fe_verification/figures/R2-F01.svg",
+  "plot_fn": "stage_s2.py:plot_r2_f01",
+  "plot_module_sha256": "4f0a85b23673efbfe71d84cc6582402ce36a3514a3fdf53caab5ce7830b84a8a",
+  "producer": "stage_s2.py",
+  "producer_sha256": "4f0a85b23673efbfe71d84cc6582402ce36a3514a3fdf53caab5ce7830b84a8a",
+  "config_sha256": "151b9cb38c8f381389240b24feb9004eb415b6787cff5e89367efd3e469cef40",
+  "spec_sha256": "46732ae7f89ad014758b23fcbd2e744e44214e283af4085c47fb848979a60b10",
+  "created": "2026-09-27T01:51:22",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

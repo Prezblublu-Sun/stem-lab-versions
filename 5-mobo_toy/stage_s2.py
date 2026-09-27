@@ -511,13 +511,15 @@ def main():
         nrow.append(dict(direction=it["_k"], eps=it["_e"], f1=fnum(r, "f1_p95_um"), f2=fnum(r, "f2_g7_loss_pct"),
                          rel_df1=abs(fnum(r, "f1_p95_um") - fb1) / fb1, abs_df2=abs(fnum(r, "f2_g7_loss_pct") - fb2)))
     small = [r for r in nrow if r["eps"] <= 1e-3]
-    noise_f1 = float(np.median([r["rel_df1"] for r in small])) if small else float("nan")
-    noise_f2 = float(np.median([r["abs_df2"] for r in small])) if small else float("nan")
+    # 噪声底取扰动 ≤ 1e-3 时输出变化的均方根（中位数会掩盖重新网格化偶发的大跳变）
+    noise_f1 = float(np.sqrt(np.mean([r["rel_df1"] ** 2 for r in small]))) if small else float("nan")
+    noise_f2 = float(np.sqrt(np.mean([r["abs_df2"] ** 2 for r in small]))) if small else float("nan")
     ps.publish_figure("R2-F09", nrow, plot_r2_f09, sources=src,
-                      title=(f"Re-meshing noise is about {noise_f1 * 100:.2f} % in f1 and {noise_f2:.3f} points in f2 "
-                             "for perturbations below 1e-3"),
+                      title=(f"Re-meshing noise (RMS for perturbations ≤ 1e-3) is {noise_f1 * 100:.1f} % in f1 "
+                             f"and {noise_f2:.2f} points in f2"),
                       caption=("Dorr B 基线沿两个随机方向扰动（单位立方体坐标），每个扰动都重新生成网格。"
-                               "扰动很小时输出变化来自重新网格化的数值噪声，其量级即噪声底，作为 GP 观测噪声的先验下限。"),
+                               "扰动很小时输出变化来自重新网格化的数值噪声；噪声底取扰动 ≤ 1e-3 各点变化的均方根，"
+                               "作为 GP 观测噪声的先验下限。个别小扰动出现数个百分点的跳变，说明网格拓扑变化会带来偶发噪声。"),
                       units={"eps": "–"})
     # F10 网格排序一致性（附加图）
     rk_rows, rho = [], {}
@@ -578,7 +580,13 @@ def main():
              "f1 绝对值不作解释，R7 把离散误差列为可信度缺口。备选：生产网格改 0.375 mm，S4–S5 机时约增 4 倍（约 20 h）。需用户决定。")},
         {"id": "R2-A3", "measured": f"{sum(sign_all)}/{len(sign_all)} 方向正确",
          "status": "PASS" if ok_sign else "FAIL",
-         "note": "" if ok_sign else "不符合的项见 R2-F04（红色），需判断是物理原因还是模型错误"},
+         "note": "" if ok_sign else (
+             "不符合的两项都是\"柄更宽\"（w_prox 0.80 → 0.95）："
+             f"f1 {fb1:.1f} → {fnum(S_['wider (w_prox 0.95)'], 'f1_p95_um'):.1f} µm（预期下降），"
+             f"f2 {fb2:.1f} → {fnum(S_['wider (w_prox 0.95)'], 'f2_g7_loss_pct'):.1f} %（预期升高）。"
+             "预期来自常规柄\"越大越硬越遮挡\"的经验；保颈柄近端加宽后贴住保留颈环与股骨距，载荷更多经股骨距传递（f2 更负），"
+             "与颈环接触形成支点也可能加大远端滑移。δ、μ、柄长与粘接四组方向全部正确，模型错误的可能性较小，"
+             "但该解释未经独立验证。处置建议：保留模型，把\"宽度\"的预期方向改为\"不预设\"，由 R6 的 3D 抽检核对；需用户决定。")},
         {"id": "R2-A4", "measured": "三型 4 个 QoI 全部逐位相同" if same_all else "存在差异", "status": "PASS" if same_all else "FAIL",
          "note": "" if same_all else "检查网格或求解器的非确定性"},
         {"id": "R2-A5", "measured": f"f1 相对 {noise_f1 * 100:.3f} %；f2 {noise_f2:.4f} 百分点",
@@ -596,28 +604,50 @@ def main():
 
 
 def tie_slip_um(run_dir: pathlib.Path, name: str) -> float:
-    """粘接模型：从面节点与最近柄节点的相对位移 P95（µm）。"""
+    """粘接模型：从面节点位移与柄在同一位置的位移（柄三角形内按角节点线性插值）之差的 P95（µm）。
+    未被 TIE 绑定的从面节点（.dat 里 WILL NOT BE TIED）单独计数，写入 results/tie_check.json。"""
+    import re
+    import matplotlib.tri as mtri
     m = dict(np.load(run_dir / "mesh.npz"))
     model = json.loads((run_dir / "model.json").read_text())
     lab, xy, w = qoi.interface_nodes(m, model)
     U = qoi._csv(run_dir / f"{name}_bond_csv" / "LOAD_U.csv")
     u = dict(zip(U["node"].astype(int), np.c_[U["u1"], U["u2"]]))
-    sn, sx = m["stem_labels"], m["stem_nodes"]
-    from scipy.spatial import cKDTree
-    tree = cKDTree(sx)
-    _, j = tree.query(xy)
-    rel = np.array([np.linalg.norm(u[int(a)] - u[int(sn[k])]) for a, k in zip(lab, j)]) * 1000
-    return qoi.wquantile(rel, w, 0.95)
+    sl, sx = m["stem_labels"], m["stem_nodes"]
+    lut = np.full(int(sl.max()) + 1, -1); lut[sl] = np.arange(len(sl))
+    tri = lut[m["stem_stem_conn"][:, :3]]
+    T = mtri.Triangulation(sx[:, 0], sx[:, 1], tri)
+    finder = T.get_trifinder()
+    us = np.array([u[int(n)] for n in sl])
+    rel = []
+    for p, n in zip(xy, lab):
+        k = finder(p[0], p[1])
+        if k < 0:
+            j = int(np.argmin(np.linalg.norm(sx - p, axis=1))); ui = us[j]
+        else:
+            a, b, c = sx[tri[k]]
+            M = np.array([[b[0] - a[0], c[0] - a[0]], [b[1] - a[1], c[1] - a[1]]])
+            l1, l2 = np.linalg.solve(M, p - a)
+            ui = (1 - l1 - l2) * us[tri[k][0]] + l1 * us[tri[k][1]] + l2 * us[tri[k][2]]
+        rel.append(np.linalg.norm(u[int(n)] - ui) * 1000)
+    dat = (run_dir / f"{name}_bond.dat").read_text(errors="ignore")
+    untied = len(re.findall(r"SECONDARY NODE\s+\d+\s+WILL NOT BE TIED", dat))
+    json.dump({"design": name, "untied_slave_nodes": untied, "n_slave_nodes": int(len(lab))},
+              open(ROOT / "results" / "tie_check.json", "w"))
+    return qoi.wquantile(np.array(rel), w, 0.95)
 
 
 def write_text(base_rows, lame_err, change, sign_all, noise_f1, noise_f2, tie_um, S_, fb1, fb2):
     tx = ps.report_dir("R2") / "text"
     f1s = {t: EV.as_float(base_rows[t], "f1_p95_um") for t in "ABC"}
     f2s = {t: EV.as_float(base_rows[t], "f2_g7_loss_pct") for t in "ABC"}
+    conv_txt = (f"最细两套网格 f1、f2 最大变化 {change * 100:.1f} %，" if change < 0.05 else
+                f"**网格收敛不通过**：界面单元从 0.75 mm 减半到 0.375 mm，f1 最多变 {change * 100:.0f} %"
+                "（细网格解出更大的滑移区，生产网格系统性低估 f1；f2 变化 5–9 %），但两套网格对设计的排序一致（R2-F10），处置需用户决定；")
     tx.joinpath("summary.md").write_text(
-        f"2D 压配摩擦模型与粘接模型通过验证：Lamé 压配接触压力误差 {max(lame_err.values()) * 100:.1f} %，"
-        f"最细两套网格 f1、f2 最大变化 {change * 100:.1f} %，{sum(sign_all)}/{len(sign_all)} 项符号检查方向正确，"
-        f"同一设计重跑逐位相同，重新网格化噪声底 f1 约 {noise_f1 * 100:.2f} %、f2 约 {noise_f2:.3f} 个百分点。"
+        f"Lamé 压配接触压力误差 {max(lame_err.values()) * 100:.1f} %；" + conv_txt +
+        f"{sum(sign_all)}/{len(sign_all)} 项符号检查方向正确；"
+        f"同一设计重跑逐位相同；重新网格化噪声底 f1 约 {noise_f1 * 100:.2f} %、f2 约 {noise_f2:.3f} 个百分点。"
         f"三型基线设计的 f1（P95 微动）为 A {f1s['A']:.1f}、B {f1s['B']:.1f}、C {f1s['C']:.1f} µm，"
         f"f2（Gruen 7 SED 下降率）为 {f2s['A']:.0f} / {f2s['B']:.0f} / {f2s['C']:.0f} %（负值表示股骨距应变能升高）。"
         "**相对已批准计划有两处模型修改**：加了 3 mm 前后皮质侧板（无侧板时压配后 90 % 界面张开，见方法），"
@@ -651,6 +681,10 @@ def write_text(base_rows, lame_err, change, sign_all, noise_f1, noise_f2, tie_um
         "增量设置敏感性（Erdemir 2012 E64）：初始增量 0.25、0.5、1.0 三种设置下 Dorr B 基线 f1 完全相同（19.462 µm，开发阶段测试）。",
         encoding="utf-8")
     tx.joinpath("limitations.md").write_text(
+        "- 近截骨处内侧的节点滑移呈锯齿（二次单元角节点与中点节点交替，R2-F07），P95 对此不敏感但单点最大值不可信。\n"
+        "- f1（P95 微动）在生产网格上未网格收敛：细网格解出更大的滑移区，f1 绝对值偏低；换摩擦列式（Lagrange 乘子、"
+        "滑移容差 0.0005）不改变这一点（开发测试：C 型基线 12.6 → 21.0 µm）。排序在两套网格间一致（R2-F10），"
+        "所以只把 f1 用于同一网格上的相对比较。\n"
         "- 侧板厚度是本模型最大的形式假设：3 → 12 mm 时 f1 下降约 4 倍（R2-F04）。优化只比较同一侧板厚度下的设计，排序是否随侧板厚度改变未检验。\n"
         "- 压配接触压力量级（数十 MPa）高于真实松质骨能承受的水平；模型为线弹性，无骨屈服或压溃。\n"
         "- f2 在三型基线上都是负值（股骨距 SED 升高），Gruen 7 下降率作为目标时\"越小越好\"即\"股骨距加载越多越好\"。\n"

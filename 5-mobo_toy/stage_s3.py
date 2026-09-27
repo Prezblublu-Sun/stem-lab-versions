@@ -181,7 +181,7 @@ def publish(res):
                       caption=("纵轴为已知最大超体积与当前超体积之差的常用对数（Daulton 2020 作图惯例），5 个种子的均值 ± 2 标准误；"
                                "点线处为 12 个初始点结束。参考点用 BoTorch 标准值：BraninCurrin [18, 6]，ZDT1 [11, 11]。"))
     ps.publish_figure("R3-F02", front_rows, plot_r3_f02, sources=src,
-                      title="After 60 evaluations the BO front lies on or near the true front; Sobol leaves gaps",
+                      title="BO reaches the true front on BraninCurrin; on ZDT1 the discrete candidate pool keeps both methods above it",
                       caption="各方法取最终超体积为中位数的那个种子的非支配点；黑线为真前沿（BraninCurrin 为 2^18 个 Sobol 点的非支配集，ZDT1 为解析解）。")
     ps.publish_figure("R3-F03", eaf_rows, plot_r3_f03, sources=src,
                       title="The 50 % attainment surface of qLogNEHVI dominates that of Sobol",

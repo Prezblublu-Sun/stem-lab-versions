@@ -1,0 +1,13 @@
+{
+  "runs_csv_campaigns": "S2_baseline, S2_rerun, S2_convergence, S2_signcheck, S2_noise, S2_meshrank",
+  "baseline_design": {
+    "tip_depth": 29.55,
+    "tip_lat": 0.416,
+    "w_prox": 0.803,
+    "taper": 0.502,
+    "theta_in": -1.42
+  },
+  "side_plate_mm": 3.0,
+  "Abaqus": "2025",
+  "updated": "2026-09-27T01:51:26"
+}
