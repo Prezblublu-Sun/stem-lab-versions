@@ -3,13 +3,16 @@
 柄（局部坐标：s 沿中轴向远端，s = 0 为肩部；x 内侧 +，y 前方 +）
     截面积     A(s) = A0 · r(s),  r(s) = ρ_tip + (1 − ρ_tip)(1 − s/L)^q   （s ∈ [0, L]；s < 0 为等截面棱柱，被截骨面裁掉）
                ρ_tip = 尖端/肩部面积比（降低幅度）；q = 降低曲线形状（q > 1 近端先快速收小，q < 1 保持粗壮到远端才收）
-    截面形状   单位面积的"四象限超椭圆 + 楔形"：内/外侧半宽 a_m, a_l，前/后半厚 b_a, b_p，指数 n，
-               前后厚度随内外侧线性变化 (1 + τ·x̂)；由 5 个无量纲量给出：
-               λ = (a_m + a_l)/(b_a + b_p) 宽厚比，γ_ml = a_m/(a_m + a_l)，γ_ap = b_a/(b_a + b_p)，n，τ
+    截面形状   单位面积的"四象限超椭圆 + 楔形"：内/外侧半宽 a_m, a_l，前/后半厚 b_a, b_p；
+               前半与后半各有自己的超椭圆指数（n_a, n_p）与楔形斜度（τ_a, τ_p：该半的厚度随内外侧线性变化 1 + τ·x̂），
+               所以截面既不关于内外侧中线对称，也不关于前后侧中线（y = 0）对称（只有 γ_ap = 0.5、n_a = n_p、τ_a = τ_p 的
+               特例才前后镜像）。7 个无量纲量：λ = (a_m + a_l)/(b_a + b_p)，γ_ml = a_m/(a_m + a_l)，γ_ap = b_a/(b_a + b_p)，
+               n_a, n_p, τ_a, τ_p
     截面形状沿长度不变、只按 √r(s) 缩放 ⇒ 各截面嵌套 ⇒ 沿中轴直线平移插入的扫掠体 = 柄本身（零过切）。
     尖端：截面沿半椭球收拢，帽长 = 0.5·√A_tip。
-尺寸 A0 与位姿不是设计变量，由模板化给出（"能放进去的最大号"）：肩部中心在截骨面上、偏离截骨中心 e，
-中轴在冠状面内与干轴成 α；对每个 (α, e) 二分求皮质穿透 ≤ TOL 的最大 A0，取 A0 最大的位姿。
+插入角 α（冠状面内柄轴与股骨干轴的夹角，+ = 远端偏外侧）是设计变量；头心复位时它等价于假体颈干角 130° + α。
+尺寸 A0 与入口偏移 e 由模板化给出（"能放进去的最大号"）：肩部中心在截骨面上、偏离截骨中心 e；
+对每个 e 二分求皮质穿透 ≤ TOL 的最大 A0，取 A0 最大者。
 
 股骨：外形与髓腔都是沿"干—颈中心线"（干轴 → R 50 mm 圆弧 → 颈轴）放样的管，截面垂直于中心线，内外侧边界取 2D 轮廓
 （v1 的"水平截面 + 颈部圆柱"拼接在截骨处有台阶，v2 改掉）；v2 新增干骺端前后不对称（后半深、前半浅，皮质厚度不变，
@@ -29,20 +32,27 @@ sys.path.insert(0, str(HERE.parent))
 import femur2d as F  # noqa: E402
 
 CFG = F.CFG
-DESIGN = {                      # 8 个设计变量
+ALPHA_LO, ALPHA_HI = 5.0, 40.0     # °，插入角范围：固定角扫描中 0–5° 几乎放不进（C 型 0%），> 40° 接近颈轴方向
+DESIGN = {                      # 11 个设计变量
     "L": (40.0, 90.0),          # mm，肩部到尖端
     "rho_tip": (0.10, 0.50),    # 尖端/肩部截面积比
     "q": (0.5, 3.0),            # 面积降低曲线指数
     "lam": (1.0, 2.2),          # 截面宽厚比（内外侧宽 / 前后厚）
     "g_ml": (0.35, 0.65),       # 内侧占内外侧宽的比例
     "g_ap": (0.35, 0.65),       # 前方占前后厚的比例
-    "n": (2.0, 6.0),            # 超椭圆指数（2 圆润 → 6 方正）
-    "tau": (-0.30, 0.30),       # 楔形：前后厚度随内外侧变化，+ = 内侧厚
+    "n_a": (2.0, 6.0),          # 前半超椭圆指数（2 圆润 → 6 方正）
+    "n_p": (2.0, 6.0),          # 后半超椭圆指数
+    "tau_a": (-0.30, 0.30),     # 前半楔形：前半厚度随内外侧变化，+ = 内侧厚
+    "tau_p": (-0.30, 0.30),     # 后半楔形
+    "alpha": (ALPHA_LO, ALPHA_HI),  # °，插入角（冠状面内与干轴夹角）
 }
 VARS = list(DESIGN)
+SHAPE_VARS = ["lam", "g_ml", "g_ap", "n_a", "n_p", "tau_a", "tau_p"]
+GROUPS = {"length": ["L"], "area curve": ["rho_tip", "q"], "section shape": SHAPE_VARS, "insertion angle": ["alpha"]}
 LABEL = {"L": "length L (mm)", "rho_tip": "tip/shoulder area ρ_tip", "q": "area-curve exponent q",
          "lam": "aspect ML/AP λ", "g_ml": "medial share γ_ml", "g_ap": "anterior share γ_ap",
-         "n": "squareness n", "tau": "keystone τ"}
+         "n_a": "anterior squareness n_a", "n_p": "posterior squareness n_p",
+         "tau_a": "anterior keystone τ_a", "tau_p": "posterior keystone τ_p", "alpha": "insertion angle α (°)"}
 TOL = 0.25                      # mm，允许的皮质穿透（模板化；压配另由 δ 给）
 A_BOUNDS = (20.0, 900.0)        # mm²，肩部面积二分区间
 S_TOP = -60.0                   # mm，肩部以上等截面棱柱的长度（只在截骨面以下的部分算数）
@@ -65,16 +75,19 @@ def _smoothstep(t):
 # ----------------------------------------------------------------------------------------------- 柄
 def unit_section(d: dict, m: int = 96) -> np.ndarray:
     """单位面积截面边界点 (m, 2)：列 0 = x（+ 内侧），列 1 = y（+ 前方），逆时针，不闭合。"""
-    lam, gm, ga, n, tau = d["lam"], d["g_ml"], d["g_ap"], d["n"], d["tau"]
+    lam, gm, ga = d["lam"], d["g_ml"], d["g_ap"]
     a_m, a_l = lam * gm, lam * (1 - gm)
     b_a, b_p = ga, 1 - ga
     t = np.linspace(0, 2 * np.pi, m, endpoint=False)
     c, s = np.cos(t), np.sin(t)
-    u = np.sign(c) * np.abs(c) ** (2 / n)
+    ant = s >= 0                                         # 前半（y ≥ 0）与后半各用自己的指数与楔形
+    n = np.where(ant, d["n_a"], d["n_p"])
+    tau = np.where(ant, d["tau_a"], d["tau_p"])
+    u = np.sign(c) * np.abs(c) ** (2 / n)                # 在 y = 0 处两半都取 u = ±1，边界连续
     v = np.sign(s) * np.abs(s) ** (2 / n)
     x = np.where(u >= 0, u * a_m, u * a_l)
     xh = u                                               # x̂ ∈ [−1, 1]：外侧 −1 → 内侧 +1
-    y = np.where(v >= 0, v * b_a, v * b_p) * (1 + tau * xh)
+    y = np.where(ant, v * b_a, v * b_p) * (1 + tau * xh)
     xy = np.c_[x, y]
     area = 0.5 * abs(np.dot(xy[:, 0], np.roll(xy[:, 1], -1)) - np.dot(xy[:, 1], np.roll(xy[:, 0], -1)))
     return xy / math.sqrt(area)
@@ -88,8 +101,11 @@ class Stem3D:
     lam: float
     g_ml: float
     g_ap: float
-    n: float
-    tau: float
+    n_a: float
+    n_p: float
+    tau_a: float
+    tau_p: float
+    alpha: float = 20.0
 
     @property
     def d(self) -> dict:
@@ -308,9 +324,11 @@ def binding_s(stem: Stem3D, fem: Femur3D, A0: float, pose) -> float:
     return float(loc[keep][int(np.argmax(ex)), 0])
 
 
-def template(stem: Stem3D, fem: Femur3D, alphas=np.arange(0.0, 45.1, 2.5), offsets=np.arange(-8.0, 8.1, 2.0),
+def template(stem: Stem3D, fem: Femur3D, alphas=None, offsets=np.arange(-8.0, 8.1, 2.0),
              iters: int = 14) -> dict:
-    """模板化：对每个 (α, e) 二分求最大 A0；返回最佳（A0 最大，平手取 |e| 小）或失败原因。"""
+    """模板化：α 默认取设计变量 stem.alpha；对每个 (α, e) 二分求最大 A0；返回最佳（A0 最大，平手取 |e| 小）或失败原因。
+    传入 alphas 网格时同时搜索 α（只用于"若 α 由模板化决定会选多少"的对照）。"""
+    alphas = [stem.alpha] if alphas is None else alphas
     best = None
     lo0, hi0 = A_BOUNDS
     for a in alphas:
@@ -329,7 +347,7 @@ def template(stem: Stem3D, fem: Femur3D, alphas=np.arange(0.0, 45.1, 2.5), offse
             if best is None or lo > best["A0"] * 1.005 or (abs(lo - best["A0"]) <= best["A0"] * 0.005 and abs(e) < abs(best["e"])):
                 best = cand
     if best is None:
-        return {"fit": False, "reason": "blocked (smallest size hits cortex at every pose)"}
+        return {"fit": False, "reason": "blocked (smallest size hits cortex at every offset)"}
     if best["A0"] >= hi0 - 1e-6:
         return {"fit": False, "reason": "canal larger than largest size", **best}
     if best["A0"] * stem.rho_tip < MIN_TIP_AREA:
