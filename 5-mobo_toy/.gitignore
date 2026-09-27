@@ -13,3 +13,6 @@ reports/*/history/
 *.com
 scratch/
 *.msh
+v2/cache/
+v2/data/**/*.STEP
+v2/out/fe3d_smoke/*.msh

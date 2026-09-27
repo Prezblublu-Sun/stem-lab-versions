@@ -1,0 +1,21 @@
+# V2A：真实股骨（G:\hip\260429 test 2bones 的两个 STEP 件，右股骨，按皮质指数 Dorr A）× 直轴短柄
+# 计划：C:\Users\sun\.claude\plans\fea-dorr-adaptive-crab.md（V2A 节）。单位 mm / N / MPa。
+# 本文件的哈希进缓存键；改任何值都会使缓存失效。
+
+femur:
+  step_cortical: "cortical femur 2-zoned-4-sorted.STEP"      # 中空皮质实体（外膜壳 + 内膜空腔），287 cm³
+  step_cancellous: "cancellous femur 2-zoned-4.STEP"          # 松质骨实体，197 cm³
+  sha256_cortical: 1f8a33caac3aa0acd9559fad8194420e0215a3d257e018b5001b138487aa16d1
+  sha256_cancellous: 3c0e10bd02e1c7b235bae8be3f376003171b62dc3a4f35f6b4e56fb1202786dc
+  cut_from_head_mm: 25.0          # 颈中段截骨：垂直颈轴，距头心
+  z_trunc_mm: -150.0              # 模型坐标：小转子下 150 mm 截断并固支
+  voxel_mm: 0.5                   # 距离场体素
+  box_mm: [[-45.0, 75.0], [-45.0, 45.0], [-160.0, 110.0]]   # 距离场范围（模型坐标）
+  tess_mm: 0.8                    # STEP 三角化尺寸（标志点与距离场用）
+  E_cancellous: 400.0             # MPa，A 型
+  # 一致性复核：straight3d/realfemur.py 在同一根股骨（Job-1 体素）上的实测值
+  reference_landmarks: {head_r: 24.6, neck_shaft_deg: 136.6, anteversion_deg: 5.9}
+
+templating:
+  tol_mm: 0.25                    # 允许的皮质穿透（允许贴皮质，用户 2026-09-27 选定）
+  offsets_mm: [-8.0, -6.0, -4.0, -2.0, 0.0, 2.0, 4.0, 6.0, 8.0]
