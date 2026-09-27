@@ -49,6 +49,17 @@ def py(args: str, timeout: float = 3600) -> str:
     return sh(f"cd ~/{RBASE}/code && ~/{RBASE}/run.sh {args}", timeout=timeout)
 
 
+def launch(name: str, args: str) -> str:
+    """在 Linux 上以 nohup 常驻方式启动 `run.sh <args>`，日志 ~/mobo_toy_v2/logs/<name>.log，pid 写 <name>.pid；
+    已在运行则不重复启动。`&` 只作用于 nohup 本身，ssh 立即返回。"""
+    L = f"~/{RBASE}/logs"
+    cmd = (f"mkdir -p {L}; cd ~/{RBASE}/code; P={L}/{name}.pid; "
+           f"if [ -f $P ] && kill -0 $(cat $P) 2>/dev/null; then echo \"{name} already running pid $(cat $P)\"; "
+           f"else nohup ~/{RBASE}/run.sh {args} > {L}/{name}.log 2>&1 < /dev/null & echo $! > $P; "
+           f"echo \"{name} started pid $(cat $P)\"; fi")
+    return sh(cmd, timeout=60).strip()
+
+
 def _files() -> list[pathlib.Path]:
     out = []
     for pat in SYNC:
