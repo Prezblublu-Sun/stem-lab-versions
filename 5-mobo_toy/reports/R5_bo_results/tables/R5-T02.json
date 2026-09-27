@@ -1,0 +1,16 @@
+{
+  "id": "R5-T02",
+  "report": "R5",
+  "kind": "table",
+  "title": "成本账本",
+  "caption": "机时为单设计墙钟之和（4 个设计并行）；节省比按单个种子（60 次）对参考扫描计算。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "reports/R5_bo_results/tables/R5-T02.csv",
+  "csv_sha256": "8b6c0d8d2d5a4d2102d53fe00c00f9a19935fdcd4cdb078fdf0c67417a15f72c",
+  "producer": "stage_s5.py",
+  "producer_sha256": "3358aa7d657b1a9e755719856d34fc6379363d376a80613b6a2fba74d033bf59",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "created": "2026-09-27T18:32:41"
+}

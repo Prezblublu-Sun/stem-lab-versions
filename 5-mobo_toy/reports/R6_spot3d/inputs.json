@@ -1,0 +1,10 @@
+{
+  "source": "front",
+  "n_per_type": 5,
+  "h_int": [
+    2.0,
+    1.4
+  ],
+  "side_plate_2d_mm": 2.0,
+  "updated": "2026-09-27T20:11:03"
+}

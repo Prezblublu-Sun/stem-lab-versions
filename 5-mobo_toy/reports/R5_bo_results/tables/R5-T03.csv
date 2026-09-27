@@ -1,0 +1,8 @@
+item,value
+config.yaml sha256,5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4
+seeds,"[0, 1, 2]"
+candidate pools,results/pools/*.npy
+BO records,results/S5_runs.json
+runs.csv campaigns,"S5_init, S5_qnehvi, S5_sobol, S4_ref, S4_control"
+noise floor,results/noise_floor.json
+scripts,mobo.py: ad13a7dc; mobo_fe.py: 62c284e5; evaluate.py: c8795675; fe_model.py: f9ce9fd5; qoi.py: 105a72dc; stage_s5.py: 3358aa7d

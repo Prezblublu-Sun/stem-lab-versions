@@ -1,0 +1,20 @@
+{
+  "report": "R6",
+  "synthetic": false,
+  "created": "2026-09-27T20:11:03",
+  "producer": "stage_s7.py",
+  "items": [
+    {
+      "id": "R6-A1",
+      "measured": "f1 ρ = 0.35，f2 ρ = 0.76（n = 13，三型合并）",
+      "status": "FAIL",
+      "note": "2D 排序在 3D 中不完全保持：2D 的前沿与分型结论只限 2D 模型，迁移到真实股骨前需用 3D 或真实模型复核"
+    },
+    {
+      "id": "R6-A2",
+      "measured": "A 17.7 %；B 4.7 %；C 33.6 %",
+      "status": "FAIL",
+      "note": "3D 网格在 2 mm 时未收敛，3D 绝对值不作结论；排序比较仍可参考"
+    }
+  ]
+}

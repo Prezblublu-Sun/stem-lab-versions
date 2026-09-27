@@ -1,0 +1,16 @@
+{
+  "id": "R7-T01",
+  "report": "R7",
+  "kind": "table",
+  "title": "ASME V&V 40 可信度因子：目标与达到等级",
+  "caption": "模型风险：模型影响高、决策后果低（方法测试），目标为低到中等可信度。达到等级由 R0–R6 验收结果自动判定。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "reports/R7_summary/tables/R7-T01.csv",
+  "csv_sha256": "ec43bb0e0728c6197e86c760bb44dc4b8f0565baf9cc3148246059523c6409c3",
+  "producer": "stage_r7.py",
+  "producer_sha256": "de2cf626768de20eee83e38047eda77539693b2823bd537cad0b05d79e5bdbf3",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "created": "2026-09-27T20:11:08"
+}

@@ -1,0 +1,16 @@
+{
+  "id": "R7-T02",
+  "report": "R7",
+  "kind": "table",
+  "title": "Erdemir 2020 十条规则合规表",
+  "caption": "",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "reports/R7_summary/tables/R7-T02.csv",
+  "csv_sha256": "7739222e80e45f8be839050026f077a6b8c2619fa93a086a8669af898f78e44b",
+  "producer": "stage_r7.py",
+  "producer_sha256": "de2cf626768de20eee83e38047eda77539693b2823bd537cad0b05d79e5bdbf3",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "created": "2026-09-27T20:11:08"
+}

@@ -1,0 +1,26 @@
+{
+  "id": "R5-F06",
+  "report": "R5",
+  "kind": "figure",
+  "title": "Held-out R² of the seed-0 GPs: log10 f1 0.68, f2 0.92, vm P99 0.60",
+  "caption": "种子 0 最终 GP（60 个 BO 设计训练）在 R4 参考扫描设计上的预测（含观测噪声的 90 % 区间）对 FE 真值。测试集与训练集按 cache_key 不重叠。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "results": "results/S5_runs.json",
+    "runs_csv": "campaign S5_* and S4_*"
+  },
+  "csv": "reports/R5_bo_results/figures/R5-F06.csv",
+  "csv_sha256": "29ab038a4248382db3ba9289a215e3f154818e6571b5fbdd01304a68cec78f55",
+  "png": "reports/R5_bo_results/figures/R5-F06.png",
+  "svg": "reports/R5_bo_results/figures/R5-F06.svg",
+  "plot_fn": "stage_s5.py:plot_r5_f06",
+  "plot_module_sha256": "3358aa7d657b1a9e755719856d34fc6379363d376a80613b6a2fba74d033bf59",
+  "producer": "stage_s5.py",
+  "producer_sha256": "3358aa7d657b1a9e755719856d34fc6379363d376a80613b6a2fba74d033bf59",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T18:32:39",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

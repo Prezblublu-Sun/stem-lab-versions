@@ -80,7 +80,7 @@ def plot_r6_f02(csv_path):
         ax.set_title(f"pooled Spearman ρ = {rho:.2f}", fontsize=7)
         ax.set_xlabel(f"2D {lab}", fontsize=7); ax.set_ylabel(f"3D {lab}", fontsize=7)
         if q == "f1":
-            ax.set_xscale("log"); ax.set_yscale("log")
+            ax.set_xscale("log"); ax.set_yscale("log"); ps.plain_log(ax, "x"); ps.plain_log(ax, "y")
     axes[0].legend(loc="upper left", fontsize=6)
     ps.panel_labels(axes)
     return fig

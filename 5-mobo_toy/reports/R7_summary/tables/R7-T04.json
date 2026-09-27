@@ -1,0 +1,16 @@
+{
+  "id": "R7-T04",
+  "report": "R7",
+  "kind": "table",
+  "title": "R0–R6 验收汇总",
+  "caption": "",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "reports/R7_summary/tables/R7-T04.csv",
+  "csv_sha256": "334a963ef6e57e928845cb0176ad5f8dae969480a695bbeb843f548c1c178439",
+  "producer": "stage_r7.py",
+  "producer_sha256": "de2cf626768de20eee83e38047eda77539693b2823bd537cad0b05d79e5bdbf3",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "created": "2026-09-27T20:11:08"
+}

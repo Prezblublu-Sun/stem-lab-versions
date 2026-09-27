@@ -1,0 +1,16 @@
+{
+  "id": "R7-T03",
+  "report": "R7",
+  "kind": "table",
+  "title": "局限清单与在真实模型中的处置",
+  "caption": "",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "reports/R7_summary/tables/R7-T03.csv",
+  "csv_sha256": "9ca268176bcb256b8a5d3d920853ef5493cfc3d3bc852b99f0ea00375bf53eef",
+  "producer": "stage_r7.py",
+  "producer_sha256": "de2cf626768de20eee83e38047eda77539693b2823bd537cad0b05d79e5bdbf3",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "created": "2026-09-27T20:11:08"
+}

@@ -1,0 +1,26 @@
+{
+  "id": "R5-F07",
+  "report": "R5",
+  "kind": "figure",
+  "title": "Empirical 90 % coverage ranges 0.85–0.99 across types, seeds and objectives (acceptance 0.80–0.97)",
+  "caption": "校准曲线（Kuleshov 2018）：名义中心区间覆盖率对实际覆盖率；灰色小带为 90 % 名义处的 0.80–0.97 验收带。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "results": "results/S5_runs.json",
+    "runs_csv": "campaign S5_* and S4_*"
+  },
+  "csv": "reports/R5_bo_results/figures/R5-F07.csv",
+  "csv_sha256": "d42ed6ba758ae6333f6ba57de5326e18568d5717534042711cee030fc75fd7a7",
+  "png": "reports/R5_bo_results/figures/R5-F07.png",
+  "svg": "reports/R5_bo_results/figures/R5-F07.svg",
+  "plot_fn": "stage_s5.py:plot_r5_f07",
+  "plot_module_sha256": "3358aa7d657b1a9e755719856d34fc6379363d376a80613b6a2fba74d033bf59",
+  "producer": "stage_s5.py",
+  "producer_sha256": "3358aa7d657b1a9e755719856d34fc6379363d376a80613b6a2fba74d033bf59",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T18:32:39",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

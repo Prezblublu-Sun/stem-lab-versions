@@ -1,0 +1,16 @@
+{
+  "id": "R5-T03",
+  "report": "R5",
+  "kind": "table",
+  "title": "可复现包清单",
+  "caption": "",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "reports/R5_bo_results/tables/R5-T03.csv",
+  "csv_sha256": "90f2edbed40ffef330668dfb17a98202c5b25748bf4fc6f2c844dc126b265041",
+  "producer": "stage_s5.py",
+  "producer_sha256": "3358aa7d657b1a9e755719856d34fc6379363d376a80613b6a2fba74d033bf59",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "created": "2026-09-27T18:32:41"
+}

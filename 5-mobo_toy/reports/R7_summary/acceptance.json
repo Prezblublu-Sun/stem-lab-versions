@@ -1,0 +1,14 @@
+{
+  "report": "R7",
+  "synthetic": false,
+  "created": "2026-09-27T20:11:08",
+  "producer": "stage_r7.py",
+  "items": [
+    {
+      "id": "R7-A1",
+      "measured": "16/24 PASS；处置已获同意的 FAIL：R1-A4, R2-A2, R2-A3；待用户决定的 FAIL：R4-A1, R5-A1, R5-A3, R6-A1, R6-A2",
+      "status": "FAIL",
+      "note": "待决定的 FAIL 项见各报告验收表的原因与处置建议"
+    }
+  ]
+}

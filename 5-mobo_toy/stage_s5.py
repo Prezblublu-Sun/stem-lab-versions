@@ -110,14 +110,14 @@ def plot_r5_f02(csv_path):
                 curves.append([d["igd"][i] for i in jj]); x = [d["n_fe"][i] for i in jj]
             st = dict(ps.METHOD[m]); st.setdefault("color", ps.DORR[t])
             ax.plot(x, np.median(np.array(curves), axis=0), label=f"{m} median", **st)
-        ax.set_yscale("log"); ax.set_title(f"Dorr {t}"); ax.set_xlabel(ps.LABEL["n_fe"])
+        ax.set_yscale("log"); ps.plain_log(ax, "y"); ax.set_title(f"Dorr {t}"); ax.set_xlabel(ps.LABEL["n_fe"])
     axes[0].set_ylabel(ps.LABEL["igd"]); axes[0].legend(loc="upper right")
     ps.panel_labels(axes)
     return fig
 
 
 def _front_axes(ax, t):
-    ax.set_xscale("log"); ax.set_xlabel(ps.LABEL["f1"]); ax.set_title(f"Dorr {t}")
+    ax.set_xscale("log"); ps.plain_log(ax, "x"); ax.set_xlabel(ps.LABEL["f1"]); ax.set_title(f"Dorr {t}")
 
 
 def plot_r5_f03(csv_path):
@@ -216,7 +216,7 @@ def plot_r5_f08(csv_path):
         ax.step([d["f1"][i] for i in jj], [d["f2"][i] for i in jj], where="post", color=ps.DORR[t], lw=1.3)
         ax.scatter([d["f1"][i] for i in jj], [d["f2"][i] for i in jj], s=12, color=ps.DORR[t], marker=ps.DORR_MARKER[t],
                    label=f"Dorr {t}", zorder=3)
-    ax.set_xscale("log"); ax.set_xlabel(ps.LABEL["f1"]); ax.set_ylabel(ps.LABEL["f2"]); ax.legend(loc="upper right")
+    ax.set_xscale("log"); ps.plain_log(ax, "x"); ax.set_xlabel(ps.LABEL["f1"]); ax.set_ylabel(ps.LABEL["f2"]); ax.legend(loc="upper right")
     return fig
 
 
@@ -242,15 +242,21 @@ def plot_r5_f10(csv_path):
     d = ps.read_csv(csv_path)
     fig, axes = ps.new_figure("double", 92, 1, 3)
     norm_ = LogNorm(vmin=0.3, vmax=300)
+    pc = None
     for ax, t in zip(axes, "ABC"):
         jj = [i for i, x in enumerate(d["dorr"]) if x == t]
+        if not jj:
+            ax.text(0.5, 0.5, f"Dorr {t}: knee design field not available", ha="center", va="center", transform=ax.transAxes)
+            ax.set_axis_off()
+            continue
         polys = [[(d["x1"][i], d["z1"][i]), (d["x2"][i], d["z2"][i]), (d["x3"][i], d["z3"][i])] for i in jj]
         pc = PolyCollection(polys, array=np.clip([d["mises"][i] for i in jj], 0.3, 300), cmap="viridis", norm=norm_,
                             edgecolors="none")
         ax.add_collection(pc)
         ax.set_xlim(-40, 70); ax.set_ylim(-80, 92); ax.set_aspect("equal")
         ax.set_title(f"Dorr {t} knee: f1 {d['f1'][jj[0]]:.0f} µm, f2 {d['f2'][jj[0]]:.0f} %", fontsize=7)
-    fig.colorbar(pc, ax=axes, shrink=0.8, label="von Mises (MPa, log), friction model under load")
+    if pc is not None:
+        fig.colorbar(pc, ax=axes, shrink=0.8, label="von Mises (MPa, log), friction model under load")
     return fig
 
 
@@ -306,15 +312,18 @@ def publish(out):
         ref = np.array(R["ref_point"])
         g = f"{t}_E{int(CFG['dorr'][t]['E_cancellous'])}"
         sweep = groups.get(g, [])
-        allY, allrows = [], []
-        for r in sweep:
+        # 该型全部可行 FE 设计：R4 扫描 + R5 各运行（按 design_id 从 runs.csv 取行，去重）
+        by_id = {r["design_id"]: r for r in EV.read_runs()}
+        seen, allY, allrows = set(), [], []
+        cand = list(sweep) + [by_id[row["design_id"]] for run in R["runs"].values() for row in run["rows"]
+                              if row["design_id"] in by_id]
+        for r in cand:
+            if r["design_id"] in seen:
+                continue
+            seen.add(r["design_id"])
             y, c, ok = RS.objectives(r)
             if ok and c <= 0:
                 allY.append(y); allrows.append(r)
-        for key, run in R["runs"].items():
-            for y, c, ok in zip(run["y"], run["c"], run["ok"]):
-                if ok and c[0] <= 0:
-                    allY.append(y)
         allY = np.array(allY)
         rf = allY[mobo.pareto_mask(allY)]
         rf = rf[np.argsort(rf[:, 0])]
