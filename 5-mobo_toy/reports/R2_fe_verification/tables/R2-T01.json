@@ -10,7 +10,7 @@
   "csv": "reports/R2_fe_verification/tables/R2-T01.csv",
   "csv_sha256": "ca56e00eac66cbe4df9045d995cccde62251af5ebdab5a2026e7b1fd2c86c40c",
   "producer": "stage_s2.py",
-  "producer_sha256": "4f0a85b23673efbfe71d84cc6582402ce36a3514a3fdf53caab5ce7830b84a8a",
+  "producer_sha256": "1eb90304416876cbe2b99ef8ff0cb03d97289409b922e98f4c528d48be33bf3d",
   "config_sha256": "151b9cb38c8f381389240b24feb9004eb415b6787cff5e89367efd3e469cef40",
-  "created": "2026-09-27T01:51:26"
+  "created": "2026-09-27T02:17:12"
 }

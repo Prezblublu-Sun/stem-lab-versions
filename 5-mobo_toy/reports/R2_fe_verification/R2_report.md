@@ -1,10 +1,10 @@
 # R2 FE 模型与验证
 
-<div class="meta">阶段 S2 · 生成 2026-09-27 01:51 · 规范 reports/spec.yaml (sha 46732ae7) · 总判定 <span class="verdict FAIL">FAIL</span></div>
+<div class="meta">阶段 S2 · 生成 2026-09-27 02:17 · 规范 reports/spec.yaml (sha 46732ae7) · 总判定 <span class="verdict FAIL">FAIL</span></div>
 
 ## 0 结论摘要
 
-Lamé 压配接触压力误差 3.6 %；**网格收敛不通过**：界面单元从 0.75 mm 减半到 0.375 mm，f1 最多变 43 %（细网格解出更大的滑移区，生产网格系统性低估 f1；f2 变化 5–9 %），但两套网格对设计的排序一致（R2-F10），处置需用户决定；5/7 项符号检查方向正确；同一设计重跑逐位相同；重新网格化噪声底 f1 约 3.03 %、f2 约 0.089 个百分点。三型基线设计的 f1（P95 微动）为 A 23.0、B 19.6、C 11.7 µm，f2（Gruen 7 SED 下降率）为 -16 / -31 / -63 %（负值表示股骨距应变能升高）。**相对已批准计划有两处模型修改**：加了 3 mm 前后皮质侧板（无侧板时压配后 90 % 界面张开，见方法），压配改为三步（固定假体头压配 → 释放 → 加载）。侧板厚度对 f1 影响大（R2-F04），在 R7 列为主要模型形式不确定性。
+Lamé 压配接触压力误差 3.6 %；**网格收敛不通过**：界面单元从 0.75 mm 减半到 0.375 mm，f1 最多变 43 %（细网格解出更大的滑移区，生产网格系统性低估 f1；f2 变化 5–9 %），但两套网格对设计的排序一致（R2-F10），处置需用户决定；5/7 项符号检查方向正确；同一设计重跑逐位相同；重新网格化噪声底 f1 约 3.03 %、f2 约 0.089 个百分点。三型基线设计的 f1（P95 微动）为 A 23.0、B 19.6、C 11.7 µm，f2（Gruen 7 SED 下降率）为 -16 / -31 / -63 %（负值表示股骨距应变能升高）。初步 3D 核对显示 2D 对柄宽的响应方向与 3D 相反，Gruen 7 的符号也相反（见 R2-A3 与局限），2D 模型形式需要用户决定如何处理。**相对已批准计划有两处模型修改**：加了 3 mm 前后皮质侧板（无侧板时压配后 90 % 界面张开，见方法），压配改为三步（固定假体头压配 → 释放 → 加载）。侧板厚度对 f1 影响大（R2-F04），在 R7 列为主要模型形式不确定性。
 
 ## 1 使用情境与问题
 
@@ -25,8 +25,8 @@ Lamé 压配接触压力误差 3.6 %；**网格收敛不通过**：界面单元�
 | baseline_design | {'tip_depth': 29.55, 'tip_lat': 0.416, 'w_prox': 0.803, 'taper': 0.502, 'theta_in': -1.42} |
 | side_plate_mm | 3.0 |
 | Abaqus | 2025 |
-| updated | 2026-09-27T01:51:26 |
-| 脚本 `stage_s2.py` | sha 4f0a85b2 |
+| updated | 2026-09-27T02:17:12 |
+| 脚本 `stage_s2.py` | sha 1eb90304 |
 | 软件包 | Python 3.12.10；numpy 2.5.3；scipy 1.18.1；matplotlib 3.11.2；shapely 2.1.2；PyYAML 6.0.3；markdown 3.11；torch 2.14.0+cpu；botorch 0.18.1；gpytorch 1.15.2；gmsh 4.15.2；meshio 5.3.5；scikit-learn 1.9.1；pymoo 0.6.2 |
 
 ## 3 方法
@@ -51,61 +51,61 @@ Lamé 压配接触压力误差 3.6 %；**网格收敛不通过**：界面单元�
 
 **图 1（R2-F01）Meshes use 0.75 mm elements at the interface and 3 mm far away (6,157 bone + 2,055 stem elements for Dorr B)**　上排为全模型，下排为柄尖附近放大（上排红框）。灰色为皮质、浅黄为松质、白色半透明为锉刀腔处的侧板单元、蓝色为柄。骨与柄网格独立（接触或 TIE 连接），皮质、松质与侧板共节点。单元均为 CPS6M。
 
-<span class='src'>数据 reports/R2_fe_verification/figures/R2-F01.csv（sha f267b4ae）· 作图 stage_s2.py:plot_r2_f01 · 生成脚本 stage_s2.py（sha 4f0a85b2）</span>
+<span class='src'>数据 reports/R2_fe_verification/figures/R2-F01.csv（sha f267b4ae）· 作图 stage_s2.py:plot_r2_f01 · 生成脚本 stage_s2.py（sha 1eb90304）</span>
 
 ![R2-F02](figures/R2-F02.png)
 
 **图 2（R2-F02）Press-fit contact pressure matches the Lamé solution within 3.6 %**　四分之一模型：钛合金实心圆盘（半径 10 mm）压入外径 25 mm 的圆环，径向过盈 0.1 mm，*CONTACT INTERFERENCE, SHRINK、小滑移面面接触、μ = 0.3，平面应力厚度 1 mm。纵轴为各接触节点 CPRESS 与平面应力 Lamé 解之比。
 
-<span class='src'>数据 reports/R2_fe_verification/figures/R2-F02.csv（sha 83c38e35）· 作图 stage_s2.py:plot_r2_f02 · 生成脚本 stage_s2.py（sha 4f0a85b2） · 单位 cpress: MPa；angle_deg: deg</span>
+<span class='src'>数据 reports/R2_fe_verification/figures/R2-F02.csv（sha 83c38e35）· 作图 stage_s2.py:plot_r2_f02 · 生成脚本 stage_s2.py（sha 1eb90304） · 单位 cpress: MPa；angle_deg: deg</span>
 
 ![R2-F03](figures/R2-F03.png)
 
 **图 3（R2-F03）Halving the interface element size from 0.75 to 0.375 mm changes f1 and f2 by at most 42.8 %**　三套网格（界面 1.5、0.75、0.375 mm，远场同比例缩放，细化比 r = 2）。最细网格上的误差棒为 Celik 2008 的 GCI_fine × |φ|。生产网格为 0.75 mm。
 
-<span class='src'>数据 reports/R2_fe_verification/figures/R2-F03.csv（sha 532d57db）· 作图 stage_s2.py:plot_r2_f03 · 生成脚本 stage_s2.py（sha 4f0a85b2） · 单位 h_mm: mm；f1: µm；f2: %</span>
+<span class='src'>数据 reports/R2_fe_verification/figures/R2-F03.csv（sha 532d57db）· 作图 stage_s2.py:plot_r2_f03 · 生成脚本 stage_s2.py（sha 1eb90304） · 单位 h_mm: mm；f1: µm；f2: %</span>
 
 ![R2-F04](figures/R2-F04.png)
 
 **图 4（R2-F04）5 of 7 sign checks go the expected way**　Dorr B 基线设计的单因素改动。绿色 = 方向符合预期，红色 = 不符合，灰色 = 只做敏感性、无预设方向。侧板厚度与载荷方向两组是模型假设的敏感性。
 
-<span class='src'>数据 reports/R2_fe_verification/figures/R2-F04.csv（sha 4ade9739）· 作图 stage_s2.py:plot_r2_f04 · 生成脚本 stage_s2.py（sha 4f0a85b2） · 单位 value: µm or %</span>
+<span class='src'>数据 reports/R2_fe_verification/figures/R2-F04.csv（sha 4ade9739）· 作图 stage_s2.py:plot_r2_f04 · 生成脚本 stage_s2.py（sha 1eb90304） · 单位 value: µm or %</span>
 
 ![R2-F05](figures/R2-F05.png)
 
 **图 5（R2-F05）Stem stresses peak in the prosthetic neck; bone stress concentrates in the calcar and lateral cortex**　摩擦模型加载步末的单元形心 von Mises 应力（对数色标，0.3–300 MPa 截断），只画小转子下 85 mm 以上。骨为冠状面切片（侧板单元未画）。
 
-<span class='src'>数据 reports/R2_fe_verification/figures/R2-F05.csv（sha c550e96d）· 作图 stage_s2.py:plot_r2_f05 · 生成脚本 stage_s2.py（sha 4f0a85b2） · 单位 mises: MPa</span>
+<span class='src'>数据 reports/R2_fe_verification/figures/R2-F05.csv（sha c550e96d）· 作图 stage_s2.py:plot_r2_f05 · 生成脚本 stage_s2.py（sha 1eb90304） · 单位 mises: MPa</span>
 
 ![R2-F06](figures/R2-F06.png)
 
 **图 6（R2-F06）Under load the medial flank carries the contact pressure near the resection and the lateral flank near the tip**　加载步末骨从面节点的接触压力，按节点在柄中轴上的弧长位置排列；实线内侧、虚线外侧、点线尖端帽。
 
-<span class='src'>数据 reports/R2_fe_verification/figures/R2-F06.csv（sha d8eef5f3）· 作图 stage_s2.py:plot_r2_f06 · 生成脚本 stage_s2.py（sha 4f0a85b2） · 单位 s_arc: mm；cpress_load: MPa</span>
+<span class='src'>数据 reports/R2_fe_verification/figures/R2-F06.csv（sha d8eef5f3）· 作图 stage_s2.py:plot_r2_f06 · 生成脚本 stage_s2.py（sha 1eb90304） · 单位 s_arc: mm；cpress_load: MPa</span>
 
 ![R2-F07](figures/R2-F07.png)
 
 **图 7（R2-F07）Micromotion stays below 50 µm along the whole interface for all three baselines**　加载步相对释放步的切向滑移增量（µm，对称对数轴）。点线为 50 与 150 µm 骨长入阈值。
 
-<span class='src'>数据 reports/R2_fe_verification/figures/R2-F07.csv（sha d8eef5f3）· 作图 stage_s2.py:plot_r2_f07 · 生成脚本 stage_s2.py（sha 4f0a85b2） · 单位 s_arc: mm；slip_um: µm</span>
+<span class='src'>数据 reports/R2_fe_verification/figures/R2-F07.csv（sha d8eef5f3）· 作图 stage_s2.py:plot_r2_f07 · 生成脚本 stage_s2.py（sha 1eb90304） · 单位 s_arc: mm；slip_um: µm</span>
 
 ![R2-F08](figures/R2-F08.png)
 
 **图 8（R2-F08）The neck-preserving stem raises calcar (Gruen 7) strain energy and shields the greater-trochanter region (Gruen 1)**　粘接模型与完整股骨在同一 ROI 内的平均应变能密度（kPa = kJ/m³）。f2 = 1 − 植入/完整（Gruen 7）。
 
-<span class='src'>数据 reports/R2_fe_verification/figures/R2-F08.csv（sha 3714cc6c）· 作图 stage_s2.py:plot_r2_f08 · 生成脚本 stage_s2.py（sha 4f0a85b2） · 单位 sed_kPa: kPa</span>
+<span class='src'>数据 reports/R2_fe_verification/figures/R2-F08.csv（sha 3714cc6c）· 作图 stage_s2.py:plot_r2_f08 · 生成脚本 stage_s2.py（sha 1eb90304） · 单位 sed_kPa: kPa</span>
 
 ![R2-F09](figures/R2-F09.png)
 
 **图 9（R2-F09）Re-meshing noise (RMS for perturbations ≤ 1e-3) is 3.0 % in f1 and 0.09 points in f2**　Dorr B 基线沿两个随机方向扰动（单位立方体坐标），每个扰动都重新生成网格。扰动很小时输出变化来自重新网格化的数值噪声；噪声底取扰动 ≤ 1e-3 各点变化的均方根，作为 GP 观测噪声的先验下限。个别小扰动出现数个百分点的跳变，说明网格拓扑变化会带来偶发噪声。
 
-<span class='src'>数据 reports/R2_fe_verification/figures/R2-F09.csv（sha f8dfaa6e）· 作图 stage_s2.py:plot_r2_f09 · 生成脚本 stage_s2.py（sha 4f0a85b2） · 单位 eps: –</span>
+<span class='src'>数据 reports/R2_fe_verification/figures/R2-F09.csv（sha f8dfaa6e）· 作图 stage_s2.py:plot_r2_f09 · 生成脚本 stage_s2.py（sha 1eb90304） · 单位 eps: –</span>
 
 ![R2-F10](figures/R2-F10.png)
 
 **图 10（R2-F10）The 0.75 mm mesh underestimates micromotion but ranks designs like the 0.375 mm mesh (Spearman ρ for f1 ≥ 0.96, f2 ≥ 0.95)**　附加验证（为 R2-A2 的处置提供证据）：每型 12 个通过几何门的 Sobol 设计分别用生产网格（界面 0.75 mm）与细网格（0.375 mm）计算。黑线为 y = x；ρ 为 Spearman 秩相关。
 
-<span class='src'>数据 reports/R2_fe_verification/figures/R2-F10.csv（sha 2d2c7e50）· 作图 stage_s2.py:plot_r2_f10 · 生成脚本 stage_s2.py（sha 4f0a85b2）</span>
+<span class='src'>数据 reports/R2_fe_verification/figures/R2-F10.csv（sha 2d2c7e50）· 作图 stage_s2.py:plot_r2_f10 · 生成脚本 stage_s2.py（sha 1eb90304）</span>
 
 ### 4.2 表
 
@@ -195,20 +195,20 @@ Lamé 压配接触压力误差 3.6 %；**网格收敛不通过**：界面单元�
 
 | dorr | quantity | run_1 | run_2 | identical | design_ids |
 |---|---|---|---|---|---|
-| A | f1_p95_um | 23 | 23 | yes | d000111_4375 / d000212_4375 |
-| A | f2_g7_loss_pct | -15.7 | -15.7 | yes | d000111_4375 / d000212_4375 |
-| A | f2_g1_loss_pct | 43.6 | 43.6 | yes | d000111_4375 / d000212_4375 |
-| A | vm_p99 | 80.4 | 80.4 | yes | d000111_4375 / d000212_4375 |
-| B | f1_p95_um | 19.6 | 19.6 | yes | d000112_89d3 / d000213_89d3 |
-| B | f2_g7_loss_pct | -30.8 | -30.8 | yes | d000112_89d3 / d000213_89d3 |
-| B | f2_g1_loss_pct | 44.2 | 44.2 | yes | d000112_89d3 / d000213_89d3 |
-| B | vm_p99 | 78.6 | 78.6 | yes | d000112_89d3 / d000213_89d3 |
-| C | f1_p95_um | 11.7 | 11.7 | yes | d000113_4e43 / d000214_4e43 |
-| C | f2_g7_loss_pct | -62.9 | -62.9 | yes | d000113_4e43 / d000214_4e43 |
-| C | f2_g1_loss_pct | 60.3 | 60.3 | yes | d000113_4e43 / d000214_4e43 |
-| C | vm_p99 | 79.5 | 79.5 | yes | d000113_4e43 / d000214_4e43 |
+| A | f1_p95_um | 23 | 23 | yes | d000111_4375 / d000385_4375 |
+| A | f2_g7_loss_pct | -15.7 | -15.7 | yes | d000111_4375 / d000385_4375 |
+| A | f2_g1_loss_pct | 43.6 | 43.6 | yes | d000111_4375 / d000385_4375 |
+| A | vm_p99 | 80.4 | 80.4 | yes | d000111_4375 / d000385_4375 |
+| B | f1_p95_um | 19.6 | 19.6 | yes | d000112_89d3 / d000386_89d3 |
+| B | f2_g7_loss_pct | -30.8 | -30.8 | yes | d000112_89d3 / d000386_89d3 |
+| B | f2_g1_loss_pct | 44.2 | 44.2 | yes | d000112_89d3 / d000386_89d3 |
+| B | vm_p99 | 78.6 | 78.6 | yes | d000112_89d3 / d000386_89d3 |
+| C | f1_p95_um | 11.7 | 11.7 | yes | d000113_4e43 / d000387_4e43 |
+| C | f2_g7_loss_pct | -62.9 | -62.9 | yes | d000113_4e43 / d000387_4e43 |
+| C | f2_g1_loss_pct | 60.3 | 60.3 | yes | d000113_4e43 / d000387_4e43 |
+| C | vm_p99 | 79.5 | 79.5 | yes | d000113_4e43 / d000387_4e43 |
 
-<span class='src'>两次运行各自从几何重新生成网格与 .inp；比较 QoI 的完整双精度值。  数据 `reports/R2_fe_verification/tables/R2-T03.csv`（sha f64042fb），生成脚本 `stage_s2.py`。</span>
+<span class='src'>两次运行各自从几何重新生成网格与 .inp；比较 QoI 的完整双精度值。  数据 `reports/R2_fe_verification/tables/R2-T03.csv`（sha 231b94bd），生成脚本 `stage_s2.py`。</span>
 
 ## 5 验收
 
@@ -216,7 +216,7 @@ Lamé 压配接触压力误差 3.6 %；**网格收敛不通过**：界面单元�
 |---|---|---|---|---|---|
 | R2-A1 | V1 Lamé 压配接触压力相对解析解误差 | < 5% | cortical ring 3.19 %；cancellous ring 3.56 % | PASS |  |
 | R2-A2 | V2 最细两档网格 f1、f2 相对变化，并报出 GCI | < 5% | 最细两套网格最大相对变化 42.81 %；GCI 见 R2-T02 | FAIL | f1（P95 微动）未收敛：细网格解出更大的滑移区，生产网格系统性低估 f1；换摩擦列式（Lagrange、滑移容差 0.0005）不改变结论。f2 变化 8.7 %。但生产网格与细网格对设计的排序一致（R2-F10：每型 12 个设计，f1 的 Spearman ρ = A 0.96、B 0.99、C 0.97）。处置建议：BO 与参考扫描用同一生产网格，本测试检验的是"在同一模型上 BO 能否找到前沿"，系统偏差不影响这一结论；f1 绝对值不作解释，R7 把离散误差列为可信度缺口。备选：生产网格改 0.375 mm，S4–S5 机时约增 4 倍（约 20 h）。需用户决定。 |
-| R2-A3 | V3 符号检查：δ=0 微动大于 δ=0.1；μ 升高微动下降；粘接滑移为零；柄更长更宽则微动降、遮挡升 | 全部方向正确 | 5/7 方向正确 | FAIL | 不符合的两项都是"柄更宽"（w_prox 0.80 → 0.95）：f1 19.6 → 38.8 µm（预期下降），f2 -30.8 → -42.8 %（预期升高）。预期来自常规柄"越大越硬越遮挡"的经验；保颈柄近端加宽后贴住保留颈环与股骨距，载荷更多经股骨距传递（f2 更负），与颈环接触形成支点也可能加大远端滑移。δ、μ、柄长与粘接四组方向全部正确，模型错误的可能性较小，但该解释未经独立验证。处置建议：保留模型，把"宽度"的预期方向改为"不预设"，由 R6 的 3D 抽检核对；需用户决定。 |
+| R2-A3 | V3 符号检查：δ=0 微动大于 δ=0.1；μ 升高微动下降；粘接滑移为零；柄更长更宽则微动降、遮挡升 | 全部方向正确 | 5/7 方向正确 | FAIL | 不符合的两项都是"柄更宽"（w_prox 0.80 → 0.95）：f1 19.6 → 38.8 µm（预期下降），f2 -30.8 → -42.8 %（预期升高）。初步 3D 核对（同一基线与加宽设计，理想化 3D 股骨，无侧板）：加宽使 3D 的 f1 17.5 → 16.2 µm、Gruen 7 20 → 35 %，符合常规预期；2D 方向相反。基线本身 2D 的 Gruen 7 为股骨距加载（负值）而 3D 为遮挡（正值），3D 压配接触压力约 6 MPa、2D 约 60 MPa。结论：这是 2D 侧板模型的形式问题（侧板过硬、近端传载方式失真），不是保颈柄机理。处置需用户决定：(1) 按原计划继续 2D（本测试检验的是 BO 能否找到给定模型的前沿，物理解释受限，R6 会量化）；(2) 先用 2D 对 3D 的秩相关校准侧板厚度再继续；(3) 改以 3D 为主模型（机时约增 20 倍以上）。 |
 | R2-A4 | V4 同设计重跑 f1、f2 逐位相同 | 相同 | 三型 4 个 QoI 全部逐位相同 | PASS |  |
 | R2-A5 | V5 噪声底已量化并写入 GP 噪声先验 | 给出数值 | f1 相对 3.029 %；f2 0.0895 百分点 | PASS |  |
 | R2-A6 | Erdemir 2012 清单 80 项全部填写，N/A 须写理由 | 80/80 | 80/80 | PASS |  |
@@ -244,6 +244,7 @@ Lamé 压配接触压力误差 3.6 %；**网格收敛不通过**：界面单元�
 
 - 近截骨处内侧的节点滑移呈锯齿（二次单元角节点与中点节点交替，R2-F07），P95 对此不敏感但单点最大值不可信。
 - f1（P95 微动）在生产网格上未网格收敛：细网格解出更大的滑移区，f1 绝对值偏低；换摩擦列式（Lagrange 乘子、滑移容差 0.0005）不改变这一点（开发测试：C 型基线 12.6 → 21.0 µm）。排序在两套网格间一致（R2-F10），所以只把 f1 用于同一网格上的相对比较。
+- 2D 与 3D 的形式差异：同一基线 2D 的 Gruen 7 为股骨距加载、3D 为遮挡；加宽柄的响应方向 2D 与 3D 相反（results/S2_3d_probe.json）。
 - 侧板厚度是本模型最大的形式假设：3 → 12 mm 时 f1 下降约 4 倍（R2-F04）。优化只比较同一侧板厚度下的设计，排序是否随侧板厚度改变未检验。
 - 压配接触压力量级（数十 MPa）高于真实松质骨能承受的水平；模型为线弹性，无骨屈服或压溃。
 - f2 在三型基线上都是负值（股骨距 SED 升高），Gruen 7 下降率作为目标时"越小越好"即"股骨距加载越多越好"。
@@ -262,16 +263,16 @@ Lamé 压配接触压力误差 3.6 %；**网格收敛不通过**：界面单元�
 
 | 图/表 | 数据 sha | 作图函数 | 生成脚本 sha | 合成 | 来源 |
 |---|---|---|---|---|---|
-| R2-F01 | f267b4ae | `stage_s2.py:plot_r2_f01` | 4f0a85b2 | 否 | runs_csv=results/runs.csv campaign S2_*；baseline_u=[0.291, 0.395, 0.342, 0.403, 0.429] |
-| R2-F02 | 83c38e35 | `stage_s2.py:plot_r2_f02` | 4f0a85b2 | 否 | runs=runs/S2_lame/ |
-| R2-F03 | 532d57db | `stage_s2.py:plot_r2_f03` | 4f0a85b2 | 否 | runs_csv=results/runs.csv campaign S2_*；baseline_u=[0.291, 0.395, 0.342, 0.403, 0.429] |
-| R2-F04 | 4ade9739 | `stage_s2.py:plot_r2_f04` | 4f0a85b2 | 否 | runs_csv=results/runs.csv campaign S2_*；baseline_u=[0.291, 0.395, 0.342, 0.403, 0.429] |
-| R2-F05 | c550e96d | `stage_s2.py:plot_r2_f05` | 4f0a85b2 | 否 | runs_csv=results/runs.csv campaign S2_*；baseline_u=[0.291, 0.395, 0.342, 0.403, 0.429] |
-| R2-F06 | d8eef5f3 | `stage_s2.py:plot_r2_f06` | 4f0a85b2 | 否 | runs_csv=results/runs.csv campaign S2_*；baseline_u=[0.291, 0.395, 0.342, 0.403, 0.429] |
-| R2-F07 | d8eef5f3 | `stage_s2.py:plot_r2_f07` | 4f0a85b2 | 否 | runs_csv=results/runs.csv campaign S2_*；baseline_u=[0.291, 0.395, 0.342, 0.403, 0.429] |
-| R2-F08 | 3714cc6c | `stage_s2.py:plot_r2_f08` | 4f0a85b2 | 否 | runs_csv=results/runs.csv campaign S2_*；baseline_u=[0.291, 0.395, 0.342, 0.403, 0.429] |
-| R2-F09 | f8dfaa6e | `stage_s2.py:plot_r2_f09` | 4f0a85b2 | 否 | runs_csv=results/runs.csv campaign S2_*；baseline_u=[0.291, 0.395, 0.342, 0.403, 0.429] |
-| R2-F10 | 2d2c7e50 | `stage_s2.py:plot_r2_f10` | 4f0a85b2 | 否 | runs_csv=results/runs.csv campaign S2_*；baseline_u=[0.291, 0.395, 0.342, 0.403, 0.429] |
-| R2-T01 | ca56e00e | `—` | 4f0a85b2 | 否 |  |
-| R2-T02 | 2b8d4d93 | `—` | 4f0a85b2 | 否 |  |
-| R2-T03 | f64042fb | `—` | 4f0a85b2 | 否 |  |
+| R2-F01 | f267b4ae | `stage_s2.py:plot_r2_f01` | 1eb90304 | 否 | runs_csv=results/runs.csv campaign S2_*；baseline_u=[0.291, 0.395, 0.342, 0.403, 0.429] |
+| R2-F02 | 83c38e35 | `stage_s2.py:plot_r2_f02` | 1eb90304 | 否 | runs=runs/S2_lame/ |
+| R2-F03 | 532d57db | `stage_s2.py:plot_r2_f03` | 1eb90304 | 否 | runs_csv=results/runs.csv campaign S2_*；baseline_u=[0.291, 0.395, 0.342, 0.403, 0.429] |
+| R2-F04 | 4ade9739 | `stage_s2.py:plot_r2_f04` | 1eb90304 | 否 | runs_csv=results/runs.csv campaign S2_*；baseline_u=[0.291, 0.395, 0.342, 0.403, 0.429] |
+| R2-F05 | c550e96d | `stage_s2.py:plot_r2_f05` | 1eb90304 | 否 | runs_csv=results/runs.csv campaign S2_*；baseline_u=[0.291, 0.395, 0.342, 0.403, 0.429] |
+| R2-F06 | d8eef5f3 | `stage_s2.py:plot_r2_f06` | 1eb90304 | 否 | runs_csv=results/runs.csv campaign S2_*；baseline_u=[0.291, 0.395, 0.342, 0.403, 0.429] |
+| R2-F07 | d8eef5f3 | `stage_s2.py:plot_r2_f07` | 1eb90304 | 否 | runs_csv=results/runs.csv campaign S2_*；baseline_u=[0.291, 0.395, 0.342, 0.403, 0.429] |
+| R2-F08 | 3714cc6c | `stage_s2.py:plot_r2_f08` | 1eb90304 | 否 | runs_csv=results/runs.csv campaign S2_*；baseline_u=[0.291, 0.395, 0.342, 0.403, 0.429] |
+| R2-F09 | f8dfaa6e | `stage_s2.py:plot_r2_f09` | 1eb90304 | 否 | runs_csv=results/runs.csv campaign S2_*；baseline_u=[0.291, 0.395, 0.342, 0.403, 0.429] |
+| R2-F10 | 2d2c7e50 | `stage_s2.py:plot_r2_f10` | 1eb90304 | 否 | runs_csv=results/runs.csv campaign S2_*；baseline_u=[0.291, 0.395, 0.342, 0.403, 0.429] |
+| R2-T01 | ca56e00e | `—` | 1eb90304 | 否 |  |
+| R2-T02 | 2b8d4d93 | `—` | 1eb90304 | 否 |  |
+| R2-T03 | 231b94bd | `—` | 1eb90304 | 否 |  |

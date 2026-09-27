@@ -232,8 +232,7 @@ def write_text(res, source, rho1, rho2, ch):
         "材料、载荷（Fy = 0）、三步压配、TIE 与 QoI 定义与 2D 相同；f1 用两个切向滑移分量的合成，Gruen ROI 取全部深度。"
         f"抽检设计来源：{'R5 各型参考前沿按 f1 等距' if source == 'front' else 'S2 网格排序检查的 Sobol 设计'}。", encoding="utf-8")
     tx.joinpath("limitations.md").write_text(
-        "- 3D 股骨为解析放样的理想化形状，不是真实解剖；与 2D 的比较只检验排序，不是确认。
-"
+        "- 3D 股骨为解析放样的理想化形状，不是真实解剖；与 2D 的比较只检验排序，不是确认。\n"
         "- 3D 网格较粗（受求解时间限制），绝对值不作结论。", encoding="utf-8")
 
 

@@ -1,0 +1,6 @@
+{
+ "note": "Preliminary 3D probe of the Dorr B S2 baseline and the wider variant (w_prox 0.95); idealised 3D femur, C3D10, interface 2 mm, far 6 mm; same materials, load (Fy = 0), 3-step press-fit; runs in runs/_dev/3dtest; log runs/test3d_b.log (2026-09-27).",
+ "baseline": {"f1_p95_um": 17.46, "f2_g7_loss_pct": 20.23, "f2_g1_loss_pct": 47.52, "cpress_mean_MPa": 6.4},
+ "wider":    {"f1_p95_um": 16.18, "f2_g7_loss_pct": 34.73, "f2_g1_loss_pct": 55.68},
+ "fric_wall_s": {"baseline": 330, "wider": 433}
+}

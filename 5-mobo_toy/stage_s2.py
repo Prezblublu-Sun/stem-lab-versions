@@ -584,9 +584,7 @@ def main():
              "不符合的两项都是\"柄更宽\"（w_prox 0.80 → 0.95）："
              f"f1 {fb1:.1f} → {fnum(S_['wider (w_prox 0.95)'], 'f1_p95_um'):.1f} µm（预期下降），"
              f"f2 {fb2:.1f} → {fnum(S_['wider (w_prox 0.95)'], 'f2_g7_loss_pct'):.1f} %（预期升高）。"
-             "预期来自常规柄\"越大越硬越遮挡\"的经验；保颈柄近端加宽后贴住保留颈环与股骨距，载荷更多经股骨距传递（f2 更负），"
-             "与颈环接触形成支点也可能加大远端滑移。δ、μ、柄长与粘接四组方向全部正确，模型错误的可能性较小，"
-             "但该解释未经独立验证。处置建议：保留模型，把\"宽度\"的预期方向改为\"不预设\"，由 R6 的 3D 抽检核对；需用户决定。")},
+             + probe_note())},
         {"id": "R2-A4", "measured": "三型 4 个 QoI 全部逐位相同" if same_all else "存在差异", "status": "PASS" if same_all else "FAIL",
          "note": "" if same_all else "检查网格或求解器的非确定性"},
         {"id": "R2-A5", "measured": f"f1 相对 {noise_f1 * 100:.3f} %；f2 {noise_f2:.4f} 百分点",
@@ -601,6 +599,21 @@ def main():
     write_text(base_rows, lame_err, change, sign_all, noise_f1, noise_f2, tie_um, S_, fb1, fb2)
     print(json.dumps({"lame": lame_err, "conv": change, "sign": sign_all, "noise": [noise_f1, noise_f2],
                       "tie_um": tie_um, "same": same_all}, indent=1, default=str))
+
+
+def probe_note() -> str:
+    """初步 3D 探针（results/S2_3d_probe.json）对"柄宽"方向的证据。"""
+    p = ROOT / "results" / "S2_3d_probe.json"
+    if not p.exists():
+        return "未做 3D 核对；处置需用户决定。"
+    q = json.loads(p.read_text(encoding="utf-8"))
+    b, w = q["baseline"], q["wider"]
+    return (f"初步 3D 核对（同一基线与加宽设计，理想化 3D 股骨，无侧板）：加宽使 3D 的 f1 {b['f1_p95_um']:.1f} → "
+            f"{w['f1_p95_um']:.1f} µm、Gruen 7 {b['f2_g7_loss_pct']:.0f} → {w['f2_g7_loss_pct']:.0f} %，符合常规预期；"
+            "2D 方向相反。基线本身 2D 的 Gruen 7 为股骨距加载（负值）而 3D 为遮挡（正值），3D 压配接触压力约 "
+            f"{b['cpress_mean_MPa']:.0f} MPa、2D 约 60 MPa。结论：这是 2D 侧板模型的形式问题（侧板过硬、近端传载方式失真），"
+            "不是保颈柄机理。处置需用户决定：(1) 按原计划继续 2D（本测试检验的是 BO 能否找到给定模型的前沿，物理解释受限，R6 会量化）；"
+            "(2) 先用 2D 对 3D 的秩相关校准侧板厚度再继续；(3) 改以 3D 为主模型（机时约增 20 倍以上）。")
 
 
 def tie_slip_um(run_dir: pathlib.Path, name: str) -> float:
@@ -650,7 +663,9 @@ def write_text(base_rows, lame_err, change, sign_all, noise_f1, noise_f2, tie_um
         f"同一设计重跑逐位相同；重新网格化噪声底 f1 约 {noise_f1 * 100:.2f} %、f2 约 {noise_f2:.3f} 个百分点。"
         f"三型基线设计的 f1（P95 微动）为 A {f1s['A']:.1f}、B {f1s['B']:.1f}、C {f1s['C']:.1f} µm，"
         f"f2（Gruen 7 SED 下降率）为 {f2s['A']:.0f} / {f2s['B']:.0f} / {f2s['C']:.0f} %（负值表示股骨距应变能升高）。"
-        "**相对已批准计划有两处模型修改**：加了 3 mm 前后皮质侧板（无侧板时压配后 90 % 界面张开，见方法），"
+        + ("初步 3D 核对显示 2D 对柄宽的响应方向与 3D 相反，Gruen 7 的符号也相反（见 R2-A3 与局限），2D 模型形式需要用户决定如何处理。"
+           if (ROOT / "results" / "S2_3d_probe.json").exists() else "")
+        + "**相对已批准计划有两处模型修改**：加了 3 mm 前后皮质侧板（无侧板时压配后 90 % 界面张开，见方法），"
         "压配改为三步（固定假体头压配 → 释放 → 加载）。侧板厚度对 f1 影响大（R2-F04），在 R7 列为主要模型形式不确定性。",
         encoding="utf-8")
     tx.joinpath("methods.md").write_text(
@@ -685,6 +700,7 @@ def write_text(base_rows, lame_err, change, sign_all, noise_f1, noise_f2, tie_um
         "- f1（P95 微动）在生产网格上未网格收敛：细网格解出更大的滑移区，f1 绝对值偏低；换摩擦列式（Lagrange 乘子、"
         "滑移容差 0.0005）不改变这一点（开发测试：C 型基线 12.6 → 21.0 µm）。排序在两套网格间一致（R2-F10），"
         "所以只把 f1 用于同一网格上的相对比较。\n"
+        "- 2D 与 3D 的形式差异：同一基线 2D 的 Gruen 7 为股骨距加载、3D 为遮挡；加宽柄的响应方向 2D 与 3D 相反（results/S2_3d_probe.json）。\n"
         "- 侧板厚度是本模型最大的形式假设：3 → 12 mm 时 f1 下降约 4 倍（R2-F04）。优化只比较同一侧板厚度下的设计，排序是否随侧板厚度改变未检验。\n"
         "- 压配接触压力量级（数十 MPa）高于真实松质骨能承受的水平；模型为线弹性，无骨屈服或压溃。\n"
         "- f2 在三型基线上都是负值（股骨距 SED 升高），Gruen 7 下降率作为目标时\"越小越好\"即\"股骨距加载越多越好\"。\n"

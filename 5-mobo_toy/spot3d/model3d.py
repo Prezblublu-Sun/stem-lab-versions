@@ -27,6 +27,20 @@ from inp_writer import CONTACT_OUTPUT, FIELD_OUTPUT, Inp, _f  # noqa: E402
 CFG = F.CFG
 FACES = {1: (0, 1, 2), 2: (0, 3, 1), 3: (1, 3, 2), 4: (2, 3, 0)}   # C3D10 面 → 角节点（0 基）
 GMSH2ABQ = [0, 1, 2, 3, 4, 5, 6, 7, 9, 8]                            # gmsh tet10 → Abaqus C3D10 节点顺序
+# 直边二阶（中点节点不贴曲面，避免负雅可比）；Delaunay + Netgen 优化减少细长四面体
+MESH_OPTS = (("Mesh.MeshSizeFromPoints", 0), ("Mesh.MeshSizeFromCurvature", 0), ("Mesh.MeshSizeExtendFromBoundary", 0),
+             ("Mesh.Algorithm3D", 1), ("Mesh.Optimize", 1), ("Mesh.OptimizeNetgen", 1),
+             ("Mesh.ElementOrder", 2), ("Mesh.SecondOrderLinear", 1))
+
+
+def check_volumes(elems: dict, coords: dict, rel_tol: float = 1e-4) -> dict:
+    """角节点四面体体积：返回最小体积与相对（除以中位体积）过小的单元数；过小者会被 Abaqus 拒绝。"""
+    out = {}
+    for k, c in elems.items():
+        P = np.array([[coords[int(n)] for n in row[:4]] for row in c])
+        v = np.abs(np.einsum("ij,ij->i", np.cross(P[:, 1] - P[:, 0], P[:, 2] - P[:, 0]), P[:, 3] - P[:, 0])) / 6
+        out[k] = {"min_vol": float(v.min()), "n_tiny": int((v < rel_tol * np.median(v)).sum())}
+    return out
 
 
 def depth_ratio(z):
@@ -174,9 +188,7 @@ def build(st: S.Stem2D, outdir: pathlib.Path, name: str, *, h_int: float = 1.5, 
         gmsh.model.mesh.field.setNumber(ft, "DistMin", 0.5)
         gmsh.model.mesh.field.setNumber(ft, "DistMax", 15.0)
         gmsh.model.mesh.field.setAsBackgroundMesh(ft)
-        for k, v in (("Mesh.MeshSizeFromPoints", 0), ("Mesh.MeshSizeFromCurvature", 0),
-                     ("Mesh.MeshSizeExtendFromBoundary", 0), ("Mesh.ElementOrder", 2), ("Mesh.Algorithm3D", 10),
-                     ("Mesh.HighOrderOptimize", 1)):
+        for k, v in MESH_OPTS:
             gmsh.option.setNumber(k, v)
         chk_tags = [t for d, t in chk]
         gmsh.model.mesh.generate(3)
@@ -209,6 +221,10 @@ def build(st: S.Stem2D, outdir: pathlib.Path, name: str, *, h_int: float = 1.5, 
             neg = vol < 0
             if neg.any():
                 c[neg] = c[neg][:, [0, 2, 1, 3, 6, 5, 4, 7, 9, 8]]
+
+        vq = check_volumes(elems, coords)
+        if any(q["n_tiny"] for q in vq.values()):
+            raise RuntimeError(f"3D mesh has near-zero-volume tetrahedra: {vq}")
 
         def boundary_faces(regions):
             cnt = {}
@@ -339,8 +355,7 @@ def build_intact(f: F.Femur2D, outdir: pathlib.Path, name: str, *, h_roi: float 
                      ("ZMin", -20), ("ZMax", 90), ("Thickness", 10)):
             gmsh.model.mesh.field.setNumber(box, k, v)
         gmsh.model.mesh.field.setAsBackgroundMesh(box)
-        for k, v in (("Mesh.MeshSizeFromPoints", 0), ("Mesh.MeshSizeFromCurvature", 0),
-                     ("Mesh.MeshSizeExtendFromBoundary", 0), ("Mesh.ElementOrder", 2), ("Mesh.Algorithm3D", 10)):
+        for k, v in MESH_OPTS:
             gmsh.option.setNumber(k, v)
         gmsh.model.mesh.generate(3)
         ntag, ncoord, _ = gmsh.model.mesh.getNodes()
@@ -364,6 +379,9 @@ def build_intact(f: F.Femur2D, outdir: pathlib.Path, name: str, *, h_roi: float 
         neg = vol < 0
         if neg.any():
             c[neg] = c[neg][:, [0, 2, 1, 3, 6, 5, 4, 7, 9, 8]]
+    vq = check_volumes(elems, coords)
+    if any(q["n_tiny"] for q in vq.values()):
+        raise RuntimeError(f"3D intact mesh has near-zero-volume tetrahedra: {vq}")
     offs = {"cortex": 0, "cancellous": len(elems["cortex"])}
     elab = {k: np.arange(offs[k] + 1, offs[k] + 1 + len(v)) for k, v in elems.items()}
     H = np.array(CFG["femur"]["head_center"], float); H3 = np.array([H[0], 0.0, H[1]])

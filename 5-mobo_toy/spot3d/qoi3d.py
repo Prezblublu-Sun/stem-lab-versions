@@ -48,10 +48,12 @@ def micromotion(d: pathlib.Path, job: str) -> dict:
     lab = np.array([n for n in w if n in b1 and n in a1])
     ww = np.array([w[n] for n in lab])
     slip = np.array([np.hypot(b1[n] - a1[n], b2.get(n, 0.0) - a2.get(n, 0.0)) for n in lab]) * 1000.0
-    s = np.array([st.get(n, 0.0) for n in lab])
     wt = ww / ww.sum()
+    has = np.array([n in st for n in lab])                  # 只在有 CSTATUS 输出的节点上算状态占比
+    s = np.array([st[n] for n in lab[has]])
+    ws = ww[has] / ww[has].sum() if has.any() else ww[has]
     return {"f1_p95_um": qoi.wquantile(slip, ww, 0.95), "f1_mean_um": float(np.sum(wt * slip)),
-            "frac_open": float(np.sum(wt * (s < 0.5))), "frac_stick": float(np.sum(wt * (s > 1.5))),
+            "frac_open": float(np.sum(ws * (s < 0.5))), "frac_stick": float(np.sum(ws * (s > 1.5))),
             "n_slave_nodes": int(len(lab)), "interface_area": float(ww.sum())}
 
 

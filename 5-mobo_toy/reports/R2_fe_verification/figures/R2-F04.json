@@ -23,12 +23,12 @@
   "png": "reports/R2_fe_verification/figures/R2-F04.png",
   "svg": "reports/R2_fe_verification/figures/R2-F04.svg",
   "plot_fn": "stage_s2.py:plot_r2_f04",
-  "plot_module_sha256": "4f0a85b23673efbfe71d84cc6582402ce36a3514a3fdf53caab5ce7830b84a8a",
+  "plot_module_sha256": "1eb90304416876cbe2b99ef8ff0cb03d97289409b922e98f4c528d48be33bf3d",
   "producer": "stage_s2.py",
-  "producer_sha256": "4f0a85b23673efbfe71d84cc6582402ce36a3514a3fdf53caab5ce7830b84a8a",
+  "producer_sha256": "1eb90304416876cbe2b99ef8ff0cb03d97289409b922e98f4c528d48be33bf3d",
   "config_sha256": "151b9cb38c8f381389240b24feb9004eb415b6787cff5e89367efd3e469cef40",
   "spec_sha256": "46732ae7f89ad014758b23fcbd2e744e44214e283af4085c47fb848979a60b10",
-  "created": "2026-09-27T01:51:23",
+  "created": "2026-09-27T02:17:09",
   "python": "3.12.10",
   "matplotlib": "3.11.2"
 }
