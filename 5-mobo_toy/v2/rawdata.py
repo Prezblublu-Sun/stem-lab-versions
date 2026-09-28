@@ -62,7 +62,8 @@ def all_jobs() -> list[dict]:
         tmpl = r.get("templating") or prep.get("templating") or {}
         row = {"job_id": d.name, "source": _source(d.name), "stage": spec.get("stage"), "tag": spec.get("tag"),
                "state": J.state(d), "h_int_mm": spec.get("h_int"),
-               "variant_delta": spec.get("delta", ""), "variant_mu": spec.get("mu", ""), "variant_torque": spec.get("torque", True)}
+               "variant_delta": spec.get("delta", ""), "variant_mu": spec.get("mu", ""), "variant_torque": spec.get("torque", True),
+               "variant_E_canc": spec.get("E_canc", "")}
         dsg = G.design_of_spec(spec)
         row.update({f"x_{k}": dsg[k] for k in G.VARS})
         row.update({"A0_mm2": tmpl.get("A0", ""), "entry_offset_mm": tmpl.get("e", ""), "contact_frac": tmpl.get("contact", ""),

@@ -31,8 +31,9 @@ def design_spec(design: dict, stage: str, tag: str, h_int: float = H_PROD, **var
     return {"kind": "design", "design": design, "h_int": h_int, "min_A0": MIN_A0, "stage": stage, "tag": tag, **variant}
 
 
-def intact_spec(h_int: float) -> dict:
-    return {"kind": "intact", "h_int": h_int, "stage": "ref", "tag": f"intact_h{h_int:g}"}
+def intact_spec(h_int: float, **variant) -> dict:
+    tag = f"intact_h{h_int:g}" + "".join(f"_{k}{v:g}" for k, v in sorted(variant.items()))
+    return {"kind": "intact", "h_int": h_int, "stage": "ref", "tag": tag, **variant}
 
 
 def serve(n_prep: int = 5, poll: float = 10.0) -> None:
@@ -53,7 +54,7 @@ def serve(n_prep: int = 5, poll: float = 10.0) -> None:
                     spec = json.loads((d / "spec.json").read_text())
                     if spec["kind"] == "design":
                         try:
-                            J.intact_ref(spec["h_int"])
+                            J.intact_ref(spec["h_int"], spec.get("E_canc"))
                         except FileNotFoundError:
                             continue
                     print(f"{time.strftime('%H:%M:%S')} post {d.name}: {J.post(d.name)}", flush=True)

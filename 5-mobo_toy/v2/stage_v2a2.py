@@ -69,7 +69,8 @@ def solved_dataset(margin: float | None = None) -> tuple[np.ndarray, np.ndarray,
         spec = json.loads(sp.read_text())
         if spec.get("kind") != "design" or spec.get("h_int") != S.H_PROD:
             continue
-        if spec.get("delta") is not None or spec.get("mu") is not None or spec.get("torque", True) is False:
+        if (spec.get("delta") is not None or spec.get("mu") is not None or spec.get("torque", True) is False
+                or spec.get("E_canc") is not None):
             continue
         dsg = G.design_of_spec(spec)
         if margin is not None and abs(dsg["m"] - float(margin)) > 1e-9:

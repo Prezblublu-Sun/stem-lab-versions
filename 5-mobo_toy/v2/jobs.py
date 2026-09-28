@@ -84,7 +84,8 @@ def prep(jid: str) -> str:
         fm = fm.with_cut(spec["h_cut"])
     try:
         if spec["kind"] == "intact":
-            info = M.build_intact(fm, d, "intact", h_roi=spec["h_int"], h_far=spec.get("h_far", 6.0))
+            info = M.build_intact(fm, d, "intact", h_roi=spec["h_int"], h_far=spec.get("h_far", 6.0),
+                                  E_canc=spec.get("E_canc"))
             info["templating"] = None
         else:
             st = G.Stem3D(**spec["design"])
@@ -96,7 +97,8 @@ def prep(jid: str) -> str:
                 _fail(d, "L1", "prep", f"shoulder {pl['A0']:.0f} mm² < prosthetic neck {spec['min_A0']:.0f} mm²")
                 return "FAILED"
             info = M.build(st, fm, pl, d, "m", h_int=spec["h_int"], h_far=spec.get("h_far"),
-                           delta=spec.get("delta"), mu=spec.get("mu"), torque=spec.get("torque", True))
+                           delta=spec.get("delta"), mu=spec.get("mu"), torque=spec.get("torque", True),
+                           E_canc=spec.get("E_canc"))
             info["templating"] = {k: pl[k] for k in ("alpha", "e", "A0", "contact", "s_bind", "volume", "margin")}
             resected = fm.resected_volume()
             info["bone_loss"] = {"h_cut_mm": fm.cut_from_head_mm, "resected_mm3": resected, "reamed_mm3": pl["volume"],
@@ -111,23 +113,29 @@ def prep(jid: str) -> str:
         return "FAILED"
 
 
-def intact_ref(h_int: float) -> dict:
-    """该网格档的完整股骨 Gruen 区 SED：取同一 h 的最新 DONE 完整股骨作业。
+def intact_ref(h_int: float, E_canc: float | None = None) -> dict:
+    """该网格档的完整股骨 Gruen 区 SED：取同一 h、同一松质骨模量变体的最新 DONE 完整股骨作业。
+    E_canc=None 只匹配标准材料的参照；给定 E_canc（敏感性变体）必须有同 h 的同变体参照，不作网格代替。
 
     不按全局代码哈希找：建柄模型的修正（退化单元门槛、假体颈起点）会改变哈希，但完整股骨模型（femur_real +
     model3d_v2.build_intact + 配置）没变，结果逐位相同；按哈希找会让新作业卡在等参照。所用参照的 id 写进结果。"""
+    def _same_variant(d):
+        sp = json.loads((d / "spec.json").read_text()) if (d / "spec.json").exists() else {}
+        return sp.get("E_canc") == E_canc
     cands = []
     for d in QROOT.glob(f"ref_intact_h{h_int:g}_*"):
-        if (d / "result.json").exists():
+        if (d / "result.json").exists() and _same_variant(d):
             cands.append((d.stat().st_mtime, d))
     substituted = None
+    if not cands and E_canc is not None:
+        raise FileNotFoundError(f"no DONE intact reference for h_int={h_int}, E_canc={E_canc}")
     if not cands:
         # 1.0 mm 的完整股骨超内存（直接解法要约 90 GB，本机上限约 50 GB），两次都 L4。完整股骨的 Gruen 区 SED
         # 从 2.0 到 1.4 mm 只变 +1.6%（G7）/ +2.0%（G1），外推到 1.0 mm 约再变 < 1%，所以用已完成的最细一档
         # （比要求的粗、且最接近者）代替，并在结果里记 intact_substituted_h，报告里写明。
         done = []
         for d in QROOT.glob("ref_intact_h*"):
-            if (d / "result.json").exists():
+            if (d / "result.json").exists() and _same_variant(d):
                 hh = float(d.name.split("_h", 1)[1].split("_")[0])
                 if hh >= h_int:
                     done.append((hh, -d.stat().st_mtime, d))
@@ -165,7 +173,7 @@ def post(jid: str) -> str:
         if spec["kind"] == "intact":
             res = P.zone_sed(R, "intact", fm)
         else:
-            ref = intact_ref(spec["h_int"])
+            ref = intact_ref(spec["h_int"], spec.get("E_canc"))
             res = P.evaluate(R, "m", fm, ref)
             res["intact_job"] = ref.get("intact_job")
             res["intact_substituted_h"] = ref.get("intact_substituted_h")
@@ -184,7 +192,7 @@ def post(jid: str) -> str:
             fh.write(json.dumps({"job_id": jid, "stage": spec.get("stage"), "kind": spec["kind"],
                                  **{k: v for k, v in res.items() if k not in ("spec", "solve")},
                                  "design": spec.get("design"), "h_int": spec["h_int"],
-                                 "variant": {k: spec.get(k) for k in ("delta", "mu", "torque")}}, default=float) + "\n")
+                                 "variant": {k: spec.get(k) for k in ("delta", "mu", "torque", "E_canc")}}, default=float) + "\n")
         # 大文件不再需要：保留 result、spec、prep 与 CSV
         for f in ("m_fric.inp", "m_bond.inp", "intact.inp"):
             if (d / f).exists():

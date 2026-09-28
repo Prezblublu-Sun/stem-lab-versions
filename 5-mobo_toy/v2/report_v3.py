@@ -42,7 +42,8 @@ def collect():
         spec = json.loads(sp.read_text())
         if spec.get("kind") != "design" or spec.get("h_int") != V3.S.H_PROD:
             continue
-        if spec.get("delta") is not None or spec.get("mu") is not None or spec.get("torque", True) is False:
+        if (spec.get("delta") is not None or spec.get("mu") is not None or spec.get("torque", True) is False
+                or spec.get("E_canc") is not None):
             continue
         dsg = G.design_of_spec(spec)
         h = float(spec.get("h_cut", 25.0))

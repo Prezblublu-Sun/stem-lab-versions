@@ -131,7 +131,7 @@ def _size_field(gmsh, surfs, cfg, h_int, h_far):
 
 def build(st: G.Stem3D, fm: FR.RealFemur, pl: dict, outdir: pathlib.Path, name: str, *,
           h_int: float | None = None, h_far: float | None = None, delta: float | None = None,
-          mu: float | None = None, torque: bool = True) -> dict:
+          mu: float | None = None, torque: bool = True, E_canc: float | None = None) -> dict:
     """建一个设计的两个 .inp；失败抛 BuildError。重试：Delaunay → HXT → 0.9·h（与 v1 相同）。"""
     cfg = fm.cfg
     h_int = cfg["mesh"]["h_int_mm"] if h_int is None else h_int
@@ -143,7 +143,7 @@ def build(st: G.Stem3D, fm: FR.RealFemur, pl: dict, outdir: pathlib.Path, name: 
     for algo, h, m in attempts:
         try:
             info = _build(st, fm, pl, outdir, name, h_int=h, h_far=h_far, delta=delta, mu=mu, torque=torque, algo=algo,
-                          sec_pts=m)
+                          sec_pts=m, E_canc=E_canc)
             info["mesh_attempt"] = {"algorithm3d": algo, "h_int": h, "section_points": m, "previous_errors": errors}
             (outdir / "model3d.json").write_text(json.dumps(info))
             return info
@@ -156,7 +156,7 @@ def build(st: G.Stem3D, fm: FR.RealFemur, pl: dict, outdir: pathlib.Path, name: 
     raise BuildError("L3", "meshing failed after retries: " + " | ".join(errors))
 
 
-def _build(st, fm, pl, outdir, name, *, h_int, h_far, delta, mu, torque, algo, sec_pts=40) -> dict:
+def _build(st, fm, pl, outdir, name, *, h_int, h_far, delta, mu, torque, algo, sec_pts=40, E_canc=None) -> dict:
     import gmsh
     cfg = fm.cfg
     ic = cfg["interface"]
@@ -244,10 +244,10 @@ def _build(st, fm, pl, outdir, name, *, h_int, h_far, delta, mu, torque, algo, s
     if not torque:
         F = F.copy(); F[1] = 0.0                                          # 符号检查：去掉前后向分量
     Mt = cfg["materials"]
-    E_canc = cfg["femur"]["E_cancellous"]
+    E_canc = cfg["femur"]["E_cancellous"] if E_canc is None else float(E_canc)   # 变体：松质骨模量（敏感性）
 
     def common(kind):
-        inp = Inp(f"mobo_toy V2A {name}_{kind} femur=real(STEP) delta={delta} mu={mu} torque={torque}")
+        inp = Inp(f"mobo_toy V2A {name}_{kind} femur=real(STEP) delta={delta} mu={mu} torque={torque} E_canc={E_canc}")
         allnodes = sorted(coords)
         inp.lines.append("*NODE")
         inp.lines += [f"{n}, {_f(coords[n][0])}, {_f(coords[n][1])}, {_f(coords[n][2])}" for n in allnodes]
@@ -320,10 +320,12 @@ FIXED, 1, 3
     return {"name": name, "n_tet": {k: int(len(v)) for k, v in elems.items()}, "n_nodes": len(coords),
             "n_slave_faces": len(slave), "n_master_faces": len(master), "n_head": len(head), "n_fixed": len(fixed),
             "slave": [[int(elab[r][i]), fc] for r, i, fc in slave], "h_int": h_int, "h_far": h_far, "delta": delta,
-            "mu": mu, "torque": torque, "load_N": F.tolist(), "stem_volume_mm3": v_stem, "A0": A0, "mesh_quality": quality}
+            "mu": mu, "torque": torque, "E_canc": E_canc, "load_N": F.tolist(), "stem_volume_mm3": v_stem, "A0": A0,
+            "mesh_quality": quality}
 
 
-def build_intact(fm: FR.RealFemur, outdir: pathlib.Path, name: str, *, h_roi: float = 2.0, h_far: float = 6.0) -> dict:
+def build_intact(fm: FR.RealFemur, outdir: pathlib.Path, name: str, *, h_roi: float = 2.0, h_far: float = 6.0,
+                 E_canc: float | None = None) -> dict:
     """完整股骨（不截骨、无柄），截到 z ≥ z_trunc；头心 14 mm 球内节点均分载荷。Gruen 区 SED 的参照。"""
     import gmsh
     cfg = fm.cfg
@@ -366,7 +368,8 @@ def build_intact(fm: FR.RealFemur, outdir: pathlib.Path, name: str, *, h_roi: fl
     inp.elements("C3D10", "CORTEX", elab["cortex"], elems["cortex"])
     inp.elements("C3D10", "CANC", elab["cancellous"], elems["cancellous"])
     inp.material("CORTICAL", Mt["cortical"]["E"], Mt["cortical"]["nu"])
-    inp.material("CANCELLOUS", cfg["femur"]["E_cancellous"], Mt["cancellous_nu"])
+    E_canc = cfg["femur"]["E_cancellous"] if E_canc is None else float(E_canc)
+    inp.material("CANCELLOUS", E_canc, Mt["cancellous_nu"])
     inp.lines += ["*SOLID SECTION, ELSET=CORTEX, MATERIAL=CORTICAL", ",", "*SOLID SECTION, ELSET=CANC, MATERIAL=CANCELLOUS", ","]
     inp.nset("HEADN", head); inp.nset("FIXED", fixed)
     inp.raw(f"""
@@ -386,7 +389,7 @@ HEADN, 3, {_f(F[2] / len(head))}
                         **{f"{k}_elab": v for k, v in elab.items()},
                         node_labels=np.array(sorted(coords)), nodes=np.array([coords[n] for n in sorted(coords)]))
     info = {"name": name, "n_tet": {k: int(len(v)) for k, v in elems.items()}, "n_head": len(head), "n_fixed": len(fixed),
-            "h_roi": h_roi, "h_far": h_far, "load_N": F.tolist(), "mesh_quality": quality}
+            "h_roi": h_roi, "h_far": h_far, "E_canc": E_canc, "load_N": F.tolist(), "mesh_quality": quality}
     (outdir / "model3d.json").write_text(json.dumps(info))
     return info
 
