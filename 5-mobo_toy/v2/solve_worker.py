@@ -49,7 +49,9 @@ def kind_of(stem: str) -> str:
 
 
 def claim_next(n: int) -> list[str]:
-    out = R.sh(f"cd {Q} 2>/dev/null && ls -d */READY 2>/dev/null | head -n {n} || true", timeout=60)
+    # 按 READY 标记的时间先来先服务（ls -tr）。原先按名字排序，bo_…_s0 的后续轮次总排在 s1/s2 的初始点前面，
+    # 三个种子被串行化（2026-09-28 11:35 观察：s0 已到第 6 轮，s2 一个都没算）。改后在 12:00 暂停后的重启生效。
+    out = R.sh(f"cd {Q} 2>/dev/null && ls -tr -d */READY 2>/dev/null | head -n {n} || true", timeout=60)
     got = []
     for line in out.split():
         jid = line.split("/")[0]
