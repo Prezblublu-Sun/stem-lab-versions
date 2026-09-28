@@ -96,7 +96,7 @@ def warm(seed: int, n_rounds: int = 8, q: int = 4) -> dict:
     ref_pt = np.array(c_ref_point())
     prob = PB.V2AProblem(ref_pt.tolist(), "cwarm", S.H_PROD, margin=MARGIN)
     pool = PB.gated_pool(8192, 200 + seed, margin=MARGIN)
-    X0, Y0, C0, ids0 = S2.solved_dataset(margin=MARGIN)
+    X0, Y0, C0, ids0 = S2.solved_dataset(margin=MARGIN)   # 只用留 1 mm 规则的数据（规则 B 单独的 BO；统一版见 stage_v2au）
     used = np.zeros(len(pool), bool)
     recs, timing = [], []
     print(f"[cwarm s{seed}] start: {len(X0)} solved designs (margin {MARGIN}), pool {len(pool)}, ref {ref_pt.round(3).tolist()}", flush=True)

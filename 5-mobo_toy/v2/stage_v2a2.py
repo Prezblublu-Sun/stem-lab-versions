@@ -57,8 +57,9 @@ def remap() -> dict:
     return out
 
 
-def solved_dataset(margin: float = 0.0) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[str]]:
-    """全部已解设计（生产网格、标准变体、去重）：X（新单位坐标）、Y、C、job_id。"""
+def solved_dataset(margin: float | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[str]]:
+    """全部已解设计（生产网格、标准变体、去重）：X（12 维单位坐标，含皮质余量 m）、Y、C、job_id。
+    margin=None 取全部尺寸规则；给定 margin 只取该余量的作业。"""
     import problem_v2a as PB
     seen, X, Y, C, ids = {}, [], [], [], []
     for d in sorted(J.QROOT.glob("*")):
@@ -70,9 +71,10 @@ def solved_dataset(margin: float = 0.0) -> tuple[np.ndarray, np.ndarray, np.ndar
             continue
         if spec.get("delta") is not None or spec.get("mu") is not None or spec.get("torque", True) is False:
             continue
-        if float(spec.get("margin", 0.0)) != float(margin):
+        dsg = G.design_of_spec(spec)
+        if margin is not None and abs(dsg["m"] - float(margin)) > 1e-9:
             continue
-        key = json.dumps(spec["design"], sort_keys=True)
+        key = json.dumps(dsg, sort_keys=True)
         if key in seen:
             continue
         r = J.result(d.name)
@@ -80,7 +82,7 @@ def solved_dataset(margin: float = 0.0) -> tuple[np.ndarray, np.ndarray, np.ndar
         if not ok:
             continue
         seen[key] = 1
-        X.append(G.to_unit(spec["design"])); Y.append(y); C.append([c]); ids.append(d.name)
+        X.append(G.to_unit(dsg)); Y.append(y); C.append([c]); ids.append(d.name)
     return np.array(X), np.array(Y), np.array(C), ids
 
 
