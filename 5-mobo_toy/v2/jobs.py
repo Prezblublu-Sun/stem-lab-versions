@@ -115,11 +115,26 @@ def intact_ref(h_int: float) -> dict:
     for d in QROOT.glob(f"ref_intact_h{h_int:g}_*"):
         if (d / "result.json").exists():
             cands.append((d.stat().st_mtime, d))
+    substituted = None
     if not cands:
-        raise FileNotFoundError(f"no DONE intact reference for h_int={h_int}")
-    d = max(cands)[1]
+        # 1.0 mm 的完整股骨超内存（直接解法要约 90 GB，本机上限约 50 GB），两次都 L4。完整股骨的 Gruen 区 SED
+        # 从 2.0 到 1.4 mm 只变 +1.6%（G7）/ +2.0%（G1），外推到 1.0 mm 约再变 < 1%，所以用已完成的最细一档
+        # （比要求的粗、且最接近者）代替，并在结果里记 intact_substituted_h，报告里写明。
+        done = []
+        for d in QROOT.glob("ref_intact_h*"):
+            if (d / "result.json").exists():
+                hh = float(d.name.split("_h", 1)[1].split("_")[0])
+                if hh >= h_int:
+                    done.append((hh, -d.stat().st_mtime, d))
+        if not done:
+            raise FileNotFoundError(f"no DONE intact reference for h_int={h_int}")
+        hh, _, d = min(done)
+        substituted = hh
+    else:
+        d = max(cands)[1]
     r = json.loads((d / "result.json").read_text())
     r["intact_job"] = d.name
+    r["intact_substituted_h"] = substituted
     return r
 
 
@@ -146,6 +161,7 @@ def post(jid: str) -> str:
             ref = intact_ref(spec["h_int"])
             res = P.evaluate(R, "m", fm, ref)
             res["intact_job"] = ref.get("intact_job")
+            res["intact_substituted_h"] = ref.get("intact_substituted_h")
             res["templating"] = json.loads((d / "prep.json").read_text()).get("templating")
             res["n_tet"] = json.loads((d / "prep.json").read_text()).get("n_tet")
         res["solve"] = solve

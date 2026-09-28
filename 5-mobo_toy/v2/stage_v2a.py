@@ -178,6 +178,28 @@ def reference(n: int = 64) -> dict:
     return {"n": n, "pool_seed": REF_SEED, "rows": rows, "n_ok": sum(r["ok"] for r in rows)}
 
 
+def reference_rebuild(n: int = 64) -> dict:
+    """只从队列里已完成的参考作业重算 reference.json（不提交任何作业）。
+
+    目标定义改了（2026-09-28，y2 改为 |ΔSED|）时用它：作业 id 含建模代码哈希，重新 submit 会因夜里的建模修正
+    而得到新 id、把 64 个设计重算一遍。这里按 tag 找原作业（最早完成者），设计取自作业自身的 spec。"""
+    import problem_v2a as PB
+    import geom3d as G
+    rows = []
+    for i in range(n):
+        cands = [d for d in J.QROOT.glob(f"ref_r{i}_h{H_PROD:g}_*") if J.state(d) in ("DONE", "FAILED")]
+        if not cands:
+            raise FileNotFoundError(f"reference design r{i} has no finished job")
+        d = min(cands, key=lambda p: p.stat().st_mtime)
+        spec = json.loads((d / "spec.json").read_text())
+        r = J.result(d.name)
+        y, c, ok = PB.objectives(r)
+        rows.append({"i": i, "job_id": d.name, "x": G.to_unit(spec["design"]).tolist(), "y": y, "c": c, "ok": ok,
+                     "failed": r.get("failed") if r else None})
+    return {"n": n, "pool_seed": REF_SEED, "rows": rows, "n_ok": sum(r["ok"] for r in rows),
+            "objective_y2": "|dSED| Gruen 7 (%)", "rebuilt": time.strftime("%Y-%m-%d %H:%M:%S")}
+
+
 def _fit_gp_unit(X, y, noise_min=1e-6):
     """mobo.fit_gp 的 V2A 版：输入归一化用显式 [0, 1] 边界（11 维只有 24 个初始点时，按数据推断边界不稳），
     拟合失败写日志而不是静默吞掉。"""
@@ -266,7 +288,7 @@ def auto(poll: float = 60.0) -> dict:
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["serve", "status", "e2e", "signs", "convergence", "reference", "bo", "auto"])
+    ap.add_argument("cmd", choices=["serve", "status", "e2e", "signs", "convergence", "reference", "reference-rebuild", "bo", "auto"])
     ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
     if a.cmd == "serve":
@@ -275,10 +297,10 @@ if __name__ == "__main__":
         print(json.dumps(J.summary()))
     else:
         fn = {"e2e": e2e, "signs": signs, "convergence": convergence, "reference": reference,
-              "bo": lambda: bo(a.seed), "auto": auto}[a.cmd]
+              "reference-rebuild": reference_rebuild, "bo": lambda: bo(a.seed), "auto": auto}[a.cmd]
         res = fn()
         J.RESULTS.mkdir(parents=True, exist_ok=True)
-        name = f"bo_s{a.seed}" if a.cmd == "bo" else a.cmd
+        name = f"bo_s{a.seed}" if a.cmd == "bo" else ("reference" if a.cmd == "reference-rebuild" else a.cmd)
         (J.RESULTS / f"{name}.json").write_text(json.dumps(res, indent=1, default=float))
-        print(json.dumps(res if a.cmd not in ("reference", "bo") else {k: v for k, v in res.items() if k not in ("rows", "x", "y", "c")},
+        print(json.dumps(res if a.cmd not in ("reference", "reference-rebuild", "bo") else {k: v for k, v in res.items() if k not in ("rows", "x", "y", "c")},
                          indent=1, default=float))

@@ -1,6 +1,9 @@
 """把 V2A 的远程 FE 流水线包装成 mobo.run 可用的 Problem（在 Linux 上跑）。
 
-目标（最小化，与 v1 相同）：y1 = log10(P95 微动 µm)，y2 = Gruen 7 SED 下降率（%）；约束 c = vm_p99 − 440 MPa ≤ 0。
+目标（最小化）：y1 = log10(P95 微动 µm)；y2 = Gruen 7 区 SED 相对完整股骨的偏离 |ΔSED|（%）= |1 − SED_植入/SED_完整|·100；
+约束 c = vm_p99 − 440 MPa ≤ 0。
+y2 于 2026-09-28 由用户改定：参考集 64 个设计中多数让 Gruen 7 区 SED 高于完整股骨（下降率中位 −18%），
+v1 的"最小化下降率"会把优化推向近端过载；改为偏离最小，遮挡与过载都受罚。FE 结果不变，只改目标的计算。
 候选池：按种子打乱的 11 维 Sobol 序列，逐点在真实股骨上模板化，只保留可行者（能放进去、尖端 ≥ 12 mm²、
 肩部 ≥ 假体颈截面），保持 Sobol 顺序；带磁盘缓存。FE 失败（L1–L5）记 ok = False，不进 GP，也不再被选。
 评估 = 把设计写进队列，等本机 worker 求解、serve 后处理完成（stage_v2a.wait_for）。
@@ -58,7 +61,7 @@ def gated_pool(n: int, seed: int, workers: int = 10) -> np.ndarray:
 def objectives(r: dict | None) -> tuple[list[float], float, bool]:
     if r is None or "failed" in r or not all(k in r for k in ("f1_p95_um", "f2_g7_loss_pct", "vm_p99")):
         return [math.nan, math.nan], math.nan, False
-    y = [math.log10(max(r["f1_p95_um"], 1e-3)), r["f2_g7_loss_pct"]]
+    y = [math.log10(max(r["f1_p95_um"], 1e-3)), abs(r["f2_g7_loss_pct"])]
     return y, r["vm_p99"] - VM_LIMIT, all(np.isfinite(y))
 
 
