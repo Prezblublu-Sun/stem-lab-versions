@@ -115,7 +115,7 @@ def plot_f01(csv_path):
         ax.text(ax.get_xlim()[1] if False else bl.max() * 1.02, t, f"{t:.0f} µm", fontsize=6, va="bottom", ha="right")
     ax.set_yscale("log"); ps.plain_log(ax, "y")
     ax.set_xlabel("bone loss: resected neck + reamed canal (cm³)"); ax.set_ylabel("micromotion P95 (µm)")
-    ax.legend(fontsize=6, loc="upper right")
+    ax.legend(fontsize=6, loc="center right")
     return fig
 
 
