@@ -16,3 +16,4 @@ scratch/
 v2/cache/
 v2/data/**/*.STEP
 v2/out/fe3d_smoke/*.msh
+v2/results/raw/
