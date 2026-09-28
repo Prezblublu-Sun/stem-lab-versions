@@ -35,7 +35,8 @@ KEEP_CSV = {"fric": ["RELEASE_CONTACT.csv", "LOAD_CONTACT.csv"], "bond": ["LOAD_
 
 def code_hash() -> str:
     h = hashlib.sha256()
-    for f in ("femur_real.py", "geom3d.py", "fe3d_geom.py", "model3d_v2.py", "post.py", "config_v2a.yaml"):
+    for f in ("femur_real.py", "geom3d.py", "fe3d_geom.py", "model3d_v2.py", "post.py", "config_v2a.yaml",
+              "model3d_m1.py", "post_m1.py"):
         h.update((HERE / f).read_bytes())
     return h.hexdigest()[:10]
 
@@ -74,6 +75,7 @@ def _fail(d: pathlib.Path, level: str, stage: str, reason: str) -> None:
 def prep(jid: str) -> str:
     """模板化 + 建模 → READY；失败 → FAILED.json。返回最终状态。"""
     import model3d_v2 as M
+    import model3d_m1 as M1
     d = QROOT / jid
     st0 = state(d)
     if st0 not in ("NEW",):
@@ -83,7 +85,11 @@ def prep(jid: str) -> str:
     if spec.get("h_cut") is not None:                     # V3：截骨高度是设计变量
         fm = fm.with_cut(spec["h_cut"])
     try:
-        if spec["kind"] == "intact":
+        if spec["kind"] == "bench":                          # Lamé 压配对照（M1 界面代码路径）
+            info = M1.build_lame(d, "lame", **{k: spec[k] for k in ("h", "delta", "mu", "slip_tol", "lagrange",
+                                                                    "interference") if k in spec})
+            info["templating"] = None
+        elif spec["kind"] == "intact":
             info = M.build_intact(fm, d, "intact", h_roi=spec["h_int"], h_far=spec.get("h_far", 6.0),
                                   E_canc=spec.get("E_canc"))
             info["templating"] = None
@@ -96,9 +102,15 @@ def prep(jid: str) -> str:
             if pl["A0"] < spec.get("min_A0", 0.0):
                 _fail(d, "L1", "prep", f"shoulder {pl['A0']:.0f} mm² < prosthetic neck {spec['min_A0']:.0f} mm²")
                 return "FAILED"
-            info = M.build(st, fm, pl, d, "m", h_int=spec["h_int"], h_far=spec.get("h_far"),
-                           delta=spec.get("delta"), mu=spec.get("mu"), torque=spec.get("torque", True),
-                           E_canc=spec.get("E_canc"))
+            if spec.get("model") == "m1":
+                info = M1.build(st, fm, pl, d, "m", h_int=spec["h_int"], h_far=spec.get("h_far"),
+                                delta=spec.get("delta"), mu=spec.get("mu"), torque=spec.get("torque", True),
+                                E_canc=spec.get("E_canc"), slip_tol=spec.get("slip_tol"), lagrange=spec.get("lagrange"),
+                                interference=spec.get("interference"))
+            else:
+                info = M.build(st, fm, pl, d, "m", h_int=spec["h_int"], h_far=spec.get("h_far"),
+                               delta=spec.get("delta"), mu=spec.get("mu"), torque=spec.get("torque", True),
+                               E_canc=spec.get("E_canc"))
             info["templating"] = {k: pl[k] for k in ("alpha", "e", "A0", "contact", "s_bind", "volume", "margin")}
             resected = fm.resected_volume()
             info["bone_loss"] = {"h_cut_mm": fm.cut_from_head_mm, "resected_mm3": resected, "reamed_mm3": pl["volume"],
@@ -154,6 +166,7 @@ def intact_ref(h_int: float, E_canc: float | None = None) -> dict:
 def post(jid: str) -> str:
     """SOLVED → 算 QoI → DONE（或 FAILED）。"""
     import post as P
+    import post_m1 as PM1
     d = QROOT / jid
     st0 = state(d)
     if st0 != "SOLVED":
@@ -170,11 +183,13 @@ def post(jid: str) -> str:
         fm = fm.with_cut(spec["h_cut"])
     try:
         R = d
-        if spec["kind"] == "intact":
+        if spec["kind"] == "bench":
+            res = PM1.lame(R)
+        elif spec["kind"] == "intact":
             res = P.zone_sed(R, "intact", fm)
         else:
             ref = intact_ref(spec["h_int"], spec.get("E_canc"))
-            res = P.evaluate(R, "m", fm, ref)
+            res = PM1.evaluate(R, "m", fm, ref) if spec.get("model") == "m1" else P.evaluate(R, "m", fm, ref)
             res["intact_job"] = ref.get("intact_job")
             res["intact_substituted_h"] = ref.get("intact_substituted_h")
             prep = json.loads((d / "prep.json").read_text())
@@ -191,10 +206,11 @@ def post(jid: str) -> str:
         with open(RESULTS / "runs_v2a.jsonl", "a") as fh:
             fh.write(json.dumps({"job_id": jid, "stage": spec.get("stage"), "kind": spec["kind"],
                                  **{k: v for k, v in res.items() if k not in ("spec", "solve")},
-                                 "design": spec.get("design"), "h_int": spec["h_int"],
-                                 "variant": {k: spec.get(k) for k in ("delta", "mu", "torque", "E_canc")}}, default=float) + "\n")
+                                 "design": spec.get("design"), "h_int": spec.get("h_int"),
+                                 "variant": {k: spec.get(k) for k in ("delta", "mu", "torque", "E_canc", "model", "slip_tol", "lagrange",
+                                                                  "interference")}}, default=float) + "\n")
         # 大文件不再需要：保留 result、spec、prep 与 CSV
-        for f in ("m_fric.inp", "m_bond.inp", "intact.inp"):
+        for f in ("m_fric.inp", "m_bond.inp", "intact.inp", "lame_fric.inp"):
             if (d / f).exists():
                 (d / f).unlink()
         return "DONE"

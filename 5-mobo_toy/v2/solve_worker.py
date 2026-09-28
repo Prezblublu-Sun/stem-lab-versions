@@ -68,7 +68,8 @@ def fetch(jid: str) -> list[pathlib.Path]:
     if d.exists():
         shutil.rmtree(d)
     d.mkdir(parents=True)
-    r = R._ssh(f"cd {Q}/{jid} && tar -cf - *.inp", timeout=600)
+    # keep.json（可选）：该作业要推回的 CSV 清单，由建模端写；没有则用本文件的 KEEP
+    r = R._ssh(f"cd {Q}/{jid} && tar -cf - *.inp $(ls keep.json 2>/dev/null)", timeout=600)
     if r.returncode != 0:
         raise R.RemoteError(f"fetch {jid}: {r.stderr.decode(errors='replace')[-500:]}")
     with tarfile.open(fileobj=io.BytesIO(r.stdout)) as tf:
@@ -79,13 +80,22 @@ def fetch(jid: str) -> list[pathlib.Path]:
     return inps
 
 
+def _keep_list(d: pathlib.Path, stem: str) -> list[str]:
+    kj = d / "keep.json"
+    if kj.exists():
+        k = json.loads(kj.read_text())
+        if kind_of(stem) in k:
+            return list(k[kind_of(stem)])
+    return KEEP[kind_of(stem)]
+
+
 def push(jid: str, results: dict) -> None:
     d = LOCAL / jid
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w") as tf:
         for stem, r in results.items():
             if r.get("status") == "OK":
-                for f in KEEP[kind_of(stem)]:
+                for f in _keep_list(d, stem):
                     p = d / f"{stem}_csv" / f
                     if not p.exists():
                         r["status"], r["reason"] = "L5", f"missing export {p.name}"
