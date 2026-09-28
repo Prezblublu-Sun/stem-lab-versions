@@ -58,6 +58,7 @@ def collect():
         bl = r.get("bone_loss") or {}
         rows.append({"job_id": d.name, "source": "v3" if spec.get("stage") == "v3" else "legacy",
                      "round": int(spec.get("tag", "s0_r0").split("_r")[-1]) if spec.get("stage") == "v3" else 0,
+                     "seed": int(spec.get("tag", "s0_r0").split("_r")[0][1:]) if spec.get("stage") == "v3" else -1,
                      **{k: round(v, 4) for k, v in zip(V3.VARS9, [V3.SPACE[k][0] + u * (V3.SPACE[k][1] - V3.SPACE[k][0])
                                                                    for k, u in zip(V3.VARS9, V3.to_unit9(dsg, h))])},
                      "A0_mm2": (r.get("templating") or {}).get("A0"), "f1_um": r["f1_p95_um"], "abs_dsed_pct": abs(r["f2_g7_loss_pct"]),
@@ -145,6 +146,92 @@ def plot_f02(csv_path):
     return fig
 
 
+def _sens_rows():
+    p = J.RESULTS / "v3_sens.json"
+    if not p.exists():
+        return None, []
+    S3 = json.loads(p.read_text())
+    rows = []
+    for d in S3["designs"]:
+        for var in ("base", "Ecanc200", "delta005"):
+            v = d.get(var) or {}
+            if "f1_um" not in v:
+                continue
+            rows.append({"job_id": d["job_id"], "source": d["source"], "front": d["front"], "L": round(d["L"], 2),
+                         "h_cut": round(d["h_cut"], 2), "m": round(d["m"], 3), "alpha": round(d["alpha"], 2), "variant": var,
+                         "f1_um": v["f1_um"], "abs_dsed_pct": v["abs_dsed_pct"], "vm_p99": v["vm_p99"],
+                         "feasible": bool(v["abs_dsed_pct"] <= V3.SED_LIMIT and v["vm_p99"] <= V3.VM_LIMIT)})
+    return S3, rows
+
+
+def fig_f03():
+    """敏感性：同一批设计在松质骨模量减半 / 过盈减半下的微动与 |ΔSED| 对基线。"""
+    S3, rows = _sens_rows()
+    if S3 is None:
+        return None
+    rc = S3["rank_correlation"]
+    n = len({r["job_id"] for r in rows})
+    ps.publish_figure("V3-F03", rows, plot_f03,
+                      title=f"Halving cancellous modulus or interference raises micromotion ×{rc['Ecanc200']['median_ratio_f1']:.1f} / "
+                            f"×{rc['delta005']['median_ratio_f1']:.1f} (median) with Spearman {rc['Ecanc200']['spearman_f1']:.2f} / "
+                            f"{rc['delta005']['spearman_f1']:.2f} over {n} designs",
+                      caption="左：变体下的微动 P95 对基线（400 MPa、0.10 mm），虚线为 y = x 与 y = 2x；右：Gruen 7 |ΔSED| 对基线，"
+                              "虚线为 30% 约束。设计 = 前沿 4 个（黑圈）+ V3 内部前沿 4 个。圆 = E_canc 200 MPa，三角 = δ 0.05 mm。",
+                      units={"f1_um": "um", "abs_dsed_pct": "%", "vm_p99": "MPa"})
+    by = {}
+    for r in rows:
+        by.setdefault(r["job_id"], {"job_id": r["job_id"], "source": r["source"], "front": r["front"], "L": r["L"],
+                                    "h_cut": r["h_cut"], "m": r["m"]})
+        by[r["job_id"]].update({f"f1_{r['variant']}": round(r["f1_um"], 2), f"dsed_{r['variant']}": round(r["abs_dsed_pct"], 1),
+                                f"vm_{r['variant']}": round(r["vm_p99"], 1), f"ok_{r['variant']}": r["feasible"]})
+    cols = ["job_id", "front", "L", "h_cut", "m", "f1_base", "f1_Ecanc200", "f1_delta005", "dsed_base", "dsed_Ecanc200",
+            "dsed_delta005", "vm_base", "vm_Ecanc200", "ok_Ecanc200", "ok_delta005"]      # 基线 8 个都可行，ok_base 省略
+    ps.publish_table("V3-T02", sorted(by.values(), key=lambda r: r["f1_base"]),
+                     title="Sensitivity of the eight re-run designs to cancellous modulus (200 MPa) and interference (0.05 mm)",
+                     caption="f1 = 微动 P95（µm），dsed = Gruen 7 |ΔSED|（%），vm = 柄 von Mises P99（MPa），ok = 满足两条约束。", columns=cols)
+    return rc
+
+
+def plot_f03(csv_path):
+    d = ps.read_csv(csv_path)
+    var = np.array(d["variant"]); jid = np.array(d["job_id"]); fr = np.array([str(v) == "True" for v in d["front"]])
+    f1 = np.array(d["f1_um"], float); ds = np.array(d["abs_dsed_pct"], float)
+    base = {j: (f, s) for j, v, f, s in zip(jid, var, f1, ds) if v == "base"}
+    fig, axes = ps.new_figure("double", 62, 1, 2)
+    for v, mk, col, lab in (("Ecanc200", "o", ACOL, "E_canc 200 MPa"), ("delta005", "^", ps.GREY, "δ 0.05 mm")):
+        m = var == v
+        xb = np.array([base[j][0] for j in jid[m]]); yb = np.array([base[j][1] for j in jid[m]])
+        axes[0].scatter(xb, f1[m], s=16, marker=mk, color=col, lw=0, label=lab)
+        axes[0].scatter(xb[fr[m]], f1[m][fr[m]], s=40, marker=mk, facecolors="none", edgecolors="black", lw=0.7)
+        axes[1].scatter(yb, ds[m], s=16, marker=mk, color=col, lw=0)
+        axes[1].scatter(yb[fr[m]], ds[m][fr[m]], s=40, marker=mk, facecolors="none", edgecolors="black", lw=0.7)
+    lo, hi = 3.0, 60.0
+    axes[0].plot([lo, hi], [lo, hi], color="black", lw=0.5, ls="--"); axes[0].plot([lo, hi], [2 * lo, 2 * hi], color="black", lw=0.5, ls=":")
+    axes[0].text(hi, 2 * hi, "2×", fontsize=6, ha="right", va="bottom")
+    axes[0].set_xscale("log"); axes[0].set_yscale("log"); ps.plain_log(axes[0], "x"); ps.plain_log(axes[0], "y")
+    axes[0].set_xlabel("micromotion P95, baseline (µm)"); axes[0].set_ylabel("micromotion P95, variant (µm)")
+    axes[0].legend(fontsize=6, loc="upper left")
+    axes[1].plot([0, 50], [0, 50], color="black", lw=0.5, ls="--")
+    axes[1].axhline(V3.SED_LIMIT, color="black", lw=0.5, ls="--"); axes[1].axvline(V3.SED_LIMIT, color="black", lw=0.5, ls="--")
+    axes[1].set_xlabel("|ΔSED| Gruen 7, baseline (%)"); axes[1].set_ylabel("|ΔSED| Gruen 7, variant (%)")
+    return fig
+
+
+def seed_stats(rows):
+    """按 BO 种子汇总 V3 评估：完成数、可行数、最好微动、最少骨量损失。"""
+    out = {}
+    for p in sorted(J.RESULTS.glob("v3_bo_s*.json")):
+        b = json.loads(p.read_text())
+        rec = b["records"]
+        ok = [r for r in rec if r["ok"]]
+        feas = [r for r in ok if r["c"][0] <= 0]
+        out[f"s{b['seed']}"] = {"rounds": max((r["round"] for r in rec), default=0), "n_eval": len(rec), "n_ok": len(ok),
+                                "n_feasible": len(feas),
+                                "min_f1_um": (10 ** min(r["y"][0] for r in feas)) if feas else None,
+                                "min_bone_loss_mm3": min((r["y"][1] for r in feas), default=None), "updated": b.get("updated")}
+    return out
+
+
 def table_t01(rows):
     fr = sorted([r for r in rows if r["feasible"] and r["front"]], key=lambda r: r["bone_loss_mm3"])
     cols = ["job_id", "source", "L", "h_cut", "alpha", "m", "lam", "g_ml", "g_ap", "n", "tau", "A0_mm2", "f1_um", "abs_dsed_pct",
@@ -160,11 +247,14 @@ def main():
     read = fig_f01(rows)
     fig_f02(rows)
     fr = table_t01(rows)
+    rc = fig_f03()
     n_v3 = sum(r["source"] == "v3" for r in rows)
     summ = {"n_designs": len(rows), "n_feasible": sum(r["feasible"] for r in rows), "n_v3": n_v3, "n_front": len(fr),
             "readout": {f"{t:.0f}um": ({k: read[t][k] for k in ("job_id", "L", "h_cut", "alpha", "m", "A0_mm2", "f1_um", "abs_dsed_pct",
                                                                   "resected_mm3", "reamed_mm3", "bone_loss_mm3")} if read[t] else None)
-                        for t in THRESH}}
+                        for t in THRESH},
+            "n_v3_feasible": sum(r["feasible"] for r in rows if r["source"] == "v3"),
+            "seeds": seed_stats(rows), "sensitivity": rc}
     (J.RESULTS / "v3_summary.json").write_text(json.dumps(summ, indent=1, default=float))
     print(json.dumps(summ, indent=1, default=float))
 

@@ -1,10 +1,14 @@
 {
-  "n_designs": 233,
-  "n_feasible": 154,
-  "n_v3_evaluations": 39,
+  "n_designs": 272,
+  "n_feasible": 177,
+  "n_v3_evaluations": 78,
   "v3_seed0_rounds": "10 (q = 4), finished 2026-09-28 17:29",
-  "n_v3_failed_L3": 1,
+  "n_v3_failed_L3": 2,
   "h_int_mm": 2.0,
   "v2a_report": "V2A (femur, FE model, validation)",
-  "updated": "2026-09-28T18:06:54"
+  "updated": "2026-09-28T21:50:48",
+  "n_v3_feasible": 46,
+  "v3_seed0": "10 rounds x 4, 39/40 solved, finished 2026-09-28 17:29:50",
+  "v3_seed1": "10 rounds x 4, 39/40 solved, finished 2026-09-28 21:18:35",
+  "sensitivity": "8 designs x {E_canc 200 MPa, delta 0.05 mm} + 1 intact (E_canc 200)"
 }
