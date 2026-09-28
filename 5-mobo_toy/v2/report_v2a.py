@@ -537,7 +537,10 @@ if __name__ == "__main__":
     if a.part in ("verification", "interim", "all"):
         import report_v2a_fe as RF
         verif = RF.part_verification(fm)
-    if a.part in ("bo", "interim", "all"):
+    if a.part in ("bo", "all"):
+        import report_v2a_bo as RB
+        bo = RB.part_bo(fm)
+    if a.part == "interim":
         import report_v2a_fe as RF
         bo = RF.part_bo(fm)
     if a.part == "interim":

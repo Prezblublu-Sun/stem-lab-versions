@@ -37,6 +37,7 @@ reports:
       - {id: V2A-F13, what: "各种子 BO 前沿与已知最佳前沿叠图", std: "Zitzler 2003"}
       - {id: V2A-F14, what: "GP 校准：64 点测试集上名义覆盖对实际覆盖，及预测对 FE 值", std: "Kuleshov 2018"}
       - {id: V2A-F15, what: "前沿设计图册：截面形状、面积曲线与插入角", std: "结果可解释性"}
+      - {id: V2A-F16, what: "两个目标对柄长度（20–90 mm）：全部已解设计按来源着色，标前沿点；含 20–40 mm 探针（2026-09-28 扩展）", std: "结果可解释性"}
     tables:
       - {id: V2A-T01, what: "股骨模型：源文件与哈希、距离场与 OCC 体积复核、解剖量与 straight3d 对照、Dorr 指标两种量法"}
       - {id: V2A-T02, what: "设计变量：定义、范围、分组"}
@@ -45,6 +46,7 @@ reports:
       - {id: V2A-T05, what: "网格收敛与 GCI"}
       - {id: V2A-T06, what: "BO 结果：各种子超体积比、IGD、FE 次数、机时；Sobol 基线"}
       - {id: V2A-T07, what: "前沿设计清单：设计变量、肩部面积、f1、f2、柄应力"}
+      - {id: V2A-T08, what: "短柄探针（20–40 mm，每 5 mm 8 个）：微动、|ΔSED|、肩部面积、失败"}
     acceptance:
       - {id: V2A-A1, criterion: "解剖量（头半径、颈干角、前倾）与 straight3d 在同一股骨上的实测之差", threshold: "< 1 mm、< 1°"}
       - {id: V2A-A2, criterion: "距离场所围体积与 OCC 体积之差（髓腔、外形，盒内）", threshold: "< 0.5%"}

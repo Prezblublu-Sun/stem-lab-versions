@@ -226,6 +226,13 @@ def part_bo(fm) -> list[dict]:
                               f"实心为非支配前沿；叉号为违反柄应力约束者。超体积参考点 = 可行点各目标最大值 + 10% 范围 = ({refp[0]:.3f}, {refp[1]:.2f})。")
     # F11 敏感性（参考集 64 点上的 GP）
     X = np.array([r["x"] for r in rrows if r["ok"]]); Y = np.array([r["y"] for r in rrows if r["ok"]])
+    try:                                                   # 最终版：用全部已解设计（含探针、热启动）拟合敏感性 GP
+        import stage_v2a2 as S2
+        Xs, Ys_, _, _ = S2.solved_dataset()
+        if len(Xs) > len(X):
+            X, Y = Xs, Ys_
+    except Exception as e:                                 # noqa: BLE001
+        print(f"  sensitivity: falling back to reference set ({e})", flush=True)
     srows = []
     if len(X) >= 20:
         for j, q in enumerate(("y1_log10_f1", "y2_g7_abs_dsed")):
