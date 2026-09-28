@@ -218,27 +218,27 @@ def part_bo(fm) -> list[dict]:
         feas = r["c"] <= 0
         front = bool(feas and pr[k]) if feas else False
         k += int(feas)
-        rows.append({"i": r["i"], "y1_log10_f1": r["y"][0], "y2_g7_loss": r["y"][1], "c_vm_minus_440": r["c"], "feasible": feas, "front": front})
+        rows.append({"i": r["i"], "y1_log10_f1": r["y"][0], "y2_g7_abs_dsed": r["y"][1], "c_vm_minus_440": r["c"], "feasible": feas, "front": front})
     ps.publish_figure("V2A-F10", rows, plot_f10,
                       title=f"Reference set: {sum(r['front'] for r in rows)} non-dominated designs among {len(rows)} solved "
                             f"({sum(not r['feasible'] for r in rows)} violate the stress limit)",
-                      caption=f"S4′ 参考集：参考池（种子 999）前 64 个可行设计全部 FE。横轴 log10(P95 微动 µm)，纵轴 Gruen 7 SED 下降率。"
+                      caption=f"S4′ 参考集：参考池（种子 999）前 64 个可行设计全部 FE。横轴 log10(P95 微动 µm)，纵轴 Gruen 7 区 SED 相对完整股骨的偏离 |ΔSED|（2026-09-28 起的 f2）。"
                               f"实心为非支配前沿；叉号为违反柄应力约束者。超体积参考点 = 可行点各目标最大值 + 10% 范围 = ({refp[0]:.3f}, {refp[1]:.2f})。")
     # F11 敏感性（参考集 64 点上的 GP）
     X = np.array([r["x"] for r in rrows if r["ok"]]); Y = np.array([r["y"] for r in rrows if r["ok"]])
     srows = []
     if len(X) >= 20:
-        for j, q in enumerate(("y1_log10_f1", "y2_g7_loss")):
+        for j, q in enumerate(("y1_log10_f1", "y2_g7_abs_dsed")):
             ST, STg = _sobol_total(X, Y[:, j])
             for v, val in zip(G.VARS, ST):
                 srows.append({"objective": q, "level": "variable", "name": v, "ST": val})
             for g, val in STg.items():
                 srows.append({"objective": q, "level": "group", "name": g, "ST": val})
         top = {q: max((r for r in srows if r["objective"] == q and r["level"] == "group"), key=lambda r: r["ST"])["name"]
-               for q in ("y1_log10_f1", "y2_g7_loss")}
+               for q in ("y1_log10_f1", "y2_g7_abs_dsed")}
         ps.publish_figure("V2A-F11", srows, plot_f11,
                           title=f"Global sensitivity: micromotion is driven mostly by {top['y1_log10_f1']}, "
-                                f"proximal shielding by {top['y2_g7_loss']}",
+                                f"deviation of proximal SED from intact by {top['y2_g7_abs_dsed']}",
                           caption="在参考集（n = %d）上各拟合一个 GP（ARD Matérn 5/2，输入 [0,1]），在后验均值上用 Jansen 估计总效应指数 ST；"
                                   "组指数把组内变量一起替换。输入按单位立方体均匀分布，不可行区是 GP 外推，指数只作定性排序（Saltelli 2019）。" % len(X))
     if not bos:
@@ -300,11 +300,11 @@ def part_bo(fm) -> list[dict]:
         arows += [{"k": k, "kind": "area", "x": float(si), "y": float(pl["A0"] * st.area_ratio(si))} for si in s]
         arows.append({"k": k, "kind": "meta", "x": float(st.alpha), "y": float(pl["A0"])})
         trows.append({"k": k, "source": allsrc[i], **{v: round(dd[v], 3) for v in G.VARS}, "A0_mm2": round(pl["A0"], 1),
-                      "f1_um": round(10 ** allY[i, 0], 2), "g7_loss_pct": round(allY[i, 1], 2)})
+                      "f1_um": round(10 ** allY[i, 0], 2), "g7_abs_dsed_pct": round(allY[i, 1], 2)})
     ps.publish_figure("V2A-F15", arows, plot_f15, title=f"{len(pick)} designs spread along the best-known front",
                       caption="沿前沿按 f1 从小到大等距取点（最多 6 个）。上：肩部截面（按模板化尺寸，内侧向右、前方向上）；下：截面积沿长度。"
                               "面板标题给插入角与肩部面积。")
-    ps.publish_table("V2A-T07", trows, title="Designs on the best-known front", caption="变量为物理量；f1 为 P95 微动，g7 为 Gruen 7 SED 下降率。")
+    ps.publish_table("V2A-T07", trows, title="Designs on the best-known front", caption="变量为物理量；f1 为 P95 微动，g7 为 Gruen 7 区 SED 相对完整股骨的偏离 |ΔSED|。")
     trows6 = [{"series": f"bo_s{s}", "final_hv_ratio": round(v, 3),
                "n_eval": len(bos[s]["x"]), "n_ok": int(sum(bos[s]["ok"]))} for s, v in final.items()]
     trows6.append({"series": "sobol (median of 200 orders)", "final_hv_ratio": round(sob_final, 3), "n_eval": n_max, "n_ok": ""})
@@ -349,7 +349,7 @@ def _calibration(Xtr, Ytr, Xte, Yte):
     from scipy.stats import norm
     import stage_v2a as S
     rows, cover90 = [], {}
-    for j, q in enumerate(("y1_log10_f1", "y2_g7_loss")):
+    for j, q in enumerate(("y1_log10_f1", "y2_g7_abs_dsed")):
         gp = S._fit_gp_unit(torch.as_tensor(Xtr), torch.as_tensor(Ytr[:, j]))
         with torch.no_grad():
             post = gp.posterior(torch.as_tensor(Xte), observation_noise=True)
@@ -367,24 +367,24 @@ def plot_f10(csv_path):
     d = ps.read_csv(csv_path)
     fig, ax = ps.new_figure("single", 70)
     feas = [str(v) == "True" for v in d["feasible"]]; front = [str(v) == "True" for v in d["front"]]
-    x, y = np.array(d["y1_log10_f1"], float), np.array(d["y2_g7_loss"], float)
+    x, y = np.array(d["y1_log10_f1"], float), np.array(d["y2_g7_abs_dsed"], float)
     ax.scatter(x[np.array(feas) & ~np.array(front)], y[np.array(feas) & ~np.array(front)], s=10, facecolors="none", edgecolors=ACOL, label="feasible")
     ax.scatter(x[np.array(front)], y[np.array(front)], s=14, color=ACOL, label="non-dominated")
     ax.scatter(x[~np.array(feas)], y[~np.array(feas)], s=12, marker="x", color=ps.GREY, label="stress limit violated")
-    ax.set_xlabel("log10 micromotion P95 (µm)"); ax.set_ylabel("Gruen 7 SED loss (%)"); ax.legend(fontsize=6)
+    ax.set_xlabel("log10 micromotion P95 (µm)"); ax.set_ylabel("Gruen 7 |ΔSED| vs intact (%)"); ax.legend(fontsize=6)
     return fig
 
 
 def plot_f11(csv_path):
     d = ps.read_csv(csv_path)
     fig, axes = ps.new_figure("double", 62, 1, 2, gridspec_kw={"width_ratios": [3, 1.2]})
-    objs = ("y1_log10_f1", "y2_g7_loss")
+    objs = ("y1_log10_f1", "y2_g7_abs_dsed")
     for k, (lev, ax) in enumerate((("variable", axes[0]), ("group", axes[1]))):
         names = [d["name"][i] for i in range(len(d["name"])) if d["level"][i] == lev and d["objective"][i] == objs[0]]
         xs = np.arange(len(names))
         for j, (q, col) in enumerate(zip(objs, (ACOL, ps.GREY))):
             vals = [d["ST"][i] for i in range(len(d["name"])) if d["level"][i] == lev and d["objective"][i] == q]
-            ax.bar(xs + (j - 0.5) * 0.38, vals, width=0.38, color=col, label=("micromotion" if j == 0 else "SED loss"))
+            ax.bar(xs + (j - 0.5) * 0.38, vals, width=0.38, color=col, label=("micromotion" if j == 0 else "|ΔSED|"))
         ax.set_xticks(xs); ax.set_xticklabels(names, rotation=45, ha="right", fontsize=6)
         ax.set_ylabel("total-effect Sobol index")
     axes[0].legend(fontsize=6)
@@ -416,14 +416,14 @@ def plot_f13(csv_path):
         if ii:
             pts = sorted((d["y1"][i], d["y2"][i]) for i in ii)
             ax.plot(*zip(*pts), marker=mk, ms=3, lw=0.8 if s != "best_known" else 2.5, color=col, label=s)
-    ax.set_xlabel("log10 micromotion P95 (µm)"); ax.set_ylabel("Gruen 7 SED loss (%)"); ax.legend(fontsize=6)
+    ax.set_xlabel("log10 micromotion P95 (µm)"); ax.set_ylabel("Gruen 7 |ΔSED| vs intact (%)"); ax.legend(fontsize=6)
     return fig
 
 
 def plot_f14(csv_path):
     d = ps.read_csv(csv_path)
     fig, axes = ps.new_figure("double", 110, 2, 2)
-    for j, q in enumerate(("y1_log10_f1", "y2_g7_loss")):
+    for j, q in enumerate(("y1_log10_f1", "y2_g7_abs_dsed")):
         ii = [i for i in range(len(d["objective"])) if d["objective"][i] == q and d["kind"][i] == "calib"]
         axes[0, j].plot([d["nominal"][i] for i in ii], [d["observed"][i] for i in ii], marker="o", ms=2.5, color=ACOL)
         axes[0, j].plot([0, 1], [0, 1], color=ps.GREY, lw=0.6, ls="--")
@@ -457,3 +457,69 @@ def plot_f15(csv_path):
         if c == 0:
             axes[1, c].set_ylabel("section area (mm²)")
     return fig
+
+
+# ================================================================== 中期快照（BO 未完成时）
+def part_bo_interim() -> dict:
+    """从队列直接读 BO 已完成的评估（按种子、按完成先后），与同 n 的 Sobol 重抽基线比超体积比；出两张附加图
+    （V2A-X01 超体积比、V2A-X02 前沿，未登记，只出现在报告末尾）。"""
+    import re
+    import mobo
+    import problem_v2a as PB
+    import stage_v2a as S
+    ref = _load("reference.json")
+    if not ref:
+        return {}
+    rrows = ref["rows"]
+    refp = np.array(S.ref_point())
+    seeds = {}
+    n_pending = {}
+    for r in _scan(stage="bo"):
+        m = re.match(r"qnehvi_s(\d+)_r(\d+)", r["spec"].get("tag", ""))
+        if not m:
+            continue
+        sd, rd = int(m[1]), int(m[2])
+        if r["state"] not in ("DONE", "FAILED"):
+            n_pending[sd] = n_pending.get(sd, 0) + 1
+            continue
+        d = J.QROOT / r["job_id"]
+        t = max((d / f).stat().st_mtime for f in ("DONE", "FAILED.json") if (d / f).exists())
+        y, c, ok = PB.objectives(r["result"])
+        seeds.setdefault(sd, []).append({"round": rd, "t": t, "y": y, "c": c, "ok": ok})
+    for sd in seeds:
+        seeds[sd].sort(key=lambda e: (e["round"], e["t"]))
+    allY = [np.array(x["y"]) for x in rrows if x["ok"] and x["c"] <= 0]
+    for ev in seeds.values():
+        allY += [np.array(e["y"]) for e in ev if e["ok"] and e["c"] <= 0]
+    allY = np.array(allY)
+    hv_best = mobo.hypervolume(allY, refp)
+    rng = np.random.default_rng(0)
+    Ys = [np.array(x["y"]) for x in rrows]; Cs = [x["c"] for x in rrows]; OKs = [x["ok"] for x in rrows]
+    sob = np.array([_hv_curve([Ys[i] for i in o], [Cs[i] for i in o], [OKs[i] for i in o], refp, hv_best, 64)
+                    for o in (rng.permutation(len(Ys)) for _ in range(200))])
+    rows, summ = [], {}
+    for n in range(1, sob.shape[1] + 1):
+        rows.append({"series": "sobol_median", "n": n, "hv_ratio": float(np.median(sob[:, n - 1])),
+                     "lo": float(np.percentile(sob[:, n - 1], 10)), "hi": float(np.percentile(sob[:, n - 1], 90))})
+    for sd, ev in sorted(seeds.items()):
+        cur = _hv_curve([np.array(e["y"]) for e in ev], [e["c"] for e in ev], [e["ok"] for e in ev], refp, hv_best, 64)
+        rows += [{"series": f"bo_s{sd}", "n": n + 1, "hv_ratio": v, "lo": v, "hi": v} for n, v in enumerate(cur)]
+        nn = len(cur)
+        summ[f"bo_s{sd}"] = {"n_done": len(ev), "n_failed": sum(not e["ok"] for e in ev), "rounds_done": max(e["round"] for e in ev),
+                             "n_pending": n_pending.get(sd, 0), "hv_ratio_now": cur[-1] if cur else None,
+                             "sobol_median_same_n": float(np.median(sob[:, nn - 1])) if nn else None}
+    if seeds:
+        ps.publish_figure("V2A-X01", rows, plot_f12,
+                          title="Interim (paused run): hypervolume ratio of each BO seed so far against the same-budget Sobol baseline",
+                          caption="中期快照：BO 尚未完成，分母为目前已知最佳前沿（参考集 + 目前全部 BO 可行点），最终报告会随新点变化。"
+                                  "BO 的前 24 次为初始 Sobol 点（与基线同类），第 25 次起才是 qLogNEHVI 选点。")
+        frows = [{"series": "best_known", "y1": float(y[0]), "y2": float(y[1])} for y in allY[mobo.pareto_mask(allY)]]
+        for sd, ev in seeds.items():
+            Yb = np.array([e["y"] for e in ev if e["ok"] and e["c"] <= 0])
+            if len(Yb):
+                frows += [{"series": f"bo_s{sd}", "y1": float(y[0]), "y2": float(y[1])} for y in Yb[mobo.pareto_mask(Yb)]]
+        ps.publish_figure("V2A-X02", frows, plot_f13, title="Interim (paused run): BO fronts so far against the best-known front",
+                          caption="中期快照：各种子目前的非支配前沿与目前已知最佳前沿（灰）。")
+    summ["hv_ref_point"] = refp.tolist()
+    (J.RESULTS / "interim_bo.json").write_text(json.dumps(summ, indent=1, default=float))
+    return summ

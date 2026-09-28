@@ -530,15 +530,17 @@ def publish_all_acceptance(fm, occ, di, oc, rate, verif=None, bo=None):
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
-    ap.add_argument("--part", default="geometry", choices=["geometry", "verification", "bo", "all"])
+    ap.add_argument("--part", default="geometry", choices=["geometry", "verification", "bo", "interim", "all"])
     a = ap.parse_args()
     fm, occ, di, oc, rate = part_geometry()
     verif = bo = None
-    if a.part in ("verification", "all"):
+    if a.part in ("verification", "interim", "all"):
         import report_v2a_fe as RF
         verif = RF.part_verification(fm)
-    if a.part in ("bo", "all"):
+    if a.part in ("bo", "interim", "all"):
         import report_v2a_fe as RF
         bo = RF.part_bo(fm)
+    if a.part == "interim":
+        print(json.dumps(RF.part_bo_interim(), indent=1, default=float))
     publish_all_acceptance(fm, occ, di, oc, rate, verif, bo)
     print("published", a.part)
