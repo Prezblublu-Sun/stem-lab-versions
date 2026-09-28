@@ -1,0 +1,23 @@
+{
+  "id": "V3-F02",
+  "report": "V3",
+  "kind": "figure",
+  "title": "Front designs span L 48–62 mm, cut 25–25 mm from head centre, cortical margin -0.25–-0.25 mm",
+  "caption": "可行设计在（长度，截骨高度）与（长度，皮质余量）平面上的分布，颜色为微动 P95（对数）；黑圈为前沿点。旧数据全部在截骨高度 25 mm 这条线上。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "v2/reports/V3_short_stem/figures/V3-F02.csv",
+  "csv_sha256": "3e7a2fa39183bd35b55c52f2f4fca8ec6e0f9bf1b96d3ed1d2a43005aa6723c8",
+  "png": "v2/reports/V3_short_stem/figures/V3-F02.png",
+  "svg": "v2/reports/V3_short_stem/figures/V3-F02.svg",
+  "plot_fn": "v2/report_v3.py:plot_f02",
+  "plot_module_sha256": "bb5839478572a24f82cc8051b1509d334e1ec4a62da42d35b5373db4ae8ae372",
+  "producer": "v2/report_v3.py",
+  "producer_sha256": "bb5839478572a24f82cc8051b1509d334e1ec4a62da42d35b5373db4ae8ae372",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "spec_sha256": "1382d8fd91144099e54cddf5fc88858cfb75e03c109ad70b7b84438ca3a8cac0",
+  "created": "2026-09-28T18:02:32",
+  "python": "3.12.3",
+  "matplotlib": "3.11.2"
+}

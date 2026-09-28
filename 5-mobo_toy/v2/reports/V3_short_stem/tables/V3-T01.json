@@ -1,0 +1,16 @@
+{
+  "id": "V3-T01",
+  "report": "V3",
+  "kind": "table",
+  "title": "Designs on the stability–bone-loss front (least bone loss first)",
+  "caption": "变量为物理量；bone_loss = resected + reamed。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "v2/reports/V3_short_stem/tables/V3-T01.csv",
+  "csv_sha256": "6f3fe458ff9bd5c36f62149d5a5b55747684464eede27b0892f306670ab5a91b",
+  "producer": "v2/report_v3.py",
+  "producer_sha256": "bb5839478572a24f82cc8051b1509d334e1ec4a62da42d35b5373db4ae8ae372",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "created": "2026-09-28T18:02:32"
+}

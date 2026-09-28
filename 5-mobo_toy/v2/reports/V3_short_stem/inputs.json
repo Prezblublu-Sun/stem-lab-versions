@@ -1,0 +1,10 @@
+{
+  "n_designs": 233,
+  "n_feasible": 154,
+  "n_v3_evaluations": 39,
+  "v3_seed0_rounds": "10 (q = 4), finished 2026-09-28 17:29",
+  "n_v3_failed_L3": 1,
+  "h_int_mm": 2.0,
+  "v2a_report": "V2A (femur, FE model, validation)",
+  "updated": "2026-09-28T18:06:54"
+}
