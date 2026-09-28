@@ -137,22 +137,26 @@ def build(st: G.Stem3D, fm: FR.RealFemur, pl: dict, outdir: pathlib.Path, name: 
     h_int = cfg["mesh"]["h_int_mm"] if h_int is None else h_int
     h_far = cfg["mesh"]["h_far_mm"] if h_far is None else h_far
     errors = []
-    for algo, h in ((1, h_int), (10, h_int), (1, 0.9 * h_int), (10, 0.9 * h_int)):
+    # 重试：换 3D 算法、缩小界面尺寸、换柄截面离散点数（截面 B 样条的控制点数改变柄面的分片，
+    # 能消掉一部分"线段与面片相交"的 PLC 错误；2026-09-28 在参考集的失败设计上实测）
+    attempts = ((1, h_int, 40), (10, h_int, 40), (1, 0.9 * h_int, 40), (1, h_int, 24), (1, h_int, 72), (10, 0.9 * h_int, 24))
+    for algo, h, m in attempts:
         try:
-            info = _build(st, fm, pl, outdir, name, h_int=h, h_far=h_far, delta=delta, mu=mu, torque=torque, algo=algo)
-            info["mesh_attempt"] = {"algorithm3d": algo, "h_int": h, "previous_errors": errors}
+            info = _build(st, fm, pl, outdir, name, h_int=h, h_far=h_far, delta=delta, mu=mu, torque=torque, algo=algo,
+                          sec_pts=m)
+            info["mesh_attempt"] = {"algorithm3d": algo, "h_int": h, "section_points": m, "previous_errors": errors}
             (outdir / "model3d.json").write_text(json.dumps(info))
             return info
         except BuildError as e:
             if e.level == "L1":
                 raise
-            errors.append(f"algo {algo}, h {h:g}: {e}"[:300])
+            errors.append(f"algo {algo}, h {h:g}, m {m}: {e}"[:300])
         except Exception as e:                                            # noqa: BLE001  gmsh/OCC 的异常类型不统一
-            errors.append(f"algo {algo}, h {h:g}: {type(e).__name__}: {e}"[:300])
+            errors.append(f"algo {algo}, h {h:g}, m {m}: {type(e).__name__}: {e}"[:300])
     raise BuildError("L3", "meshing failed after retries: " + " | ".join(errors))
 
 
-def _build(st, fm, pl, outdir, name, *, h_int, h_far, delta, mu, torque, algo) -> dict:
+def _build(st, fm, pl, outdir, name, *, h_int, h_far, delta, mu, torque, algo, sec_pts=40) -> dict:
     import gmsh
     cfg = fm.cfg
     ic = cfg["interface"]
@@ -170,7 +174,7 @@ def _build(st, fm, pl, outdir, name, *, h_int, h_far, delta, mu, torque, algo) -
         C, K = _femur_shapes(occ, fm)
         Ck, _ = occ.intersect(C, _keep(occ, fm))
         Kk, _ = occ.intersect(K, _keep(occ, fm))
-        cav = E.stem_solid(occ, st, A0, pose, delta=delta)
+        cav = E.stem_solid(occ, st, A0, pose, delta=delta, m=sec_pts)
         bone, _ = occ.cut(Ck, cav, removeObject=True, removeTool=False)
         canc, _ = occ.cut(Kk, cav, removeObject=True, removeTool=True)
         frag, fmap = occ.fragment(bone, canc)
@@ -178,10 +182,10 @@ def _build(st, fm, pl, outdir, name, *, h_int, h_far, delta, mu, torque, algo) -
         cort_vols = sorted({t for d, t in frag if d == 3} - set(canc_vols))
         if not cort_vols or not canc_vols:
             raise BuildError("L3", f"fragment produced cortex {len(cort_vols)} / cancellous {len(canc_vols)} volumes")
-        body = E.stem_solid(occ, st, A0, pose, delta=0.0)
+        body = E.stem_solid(occ, st, A0, pose, delta=0.0, m=sec_pts)
         body_in, _ = occ.intersect(body, E.kept_halfspace(occ, fm))
         u3 = fm.u3
-        a = fm.C03 - 3.0 * u3
+        a = fm.C03                                                       # 假体颈从截骨面（柄体顶面）起：原先从面下 3 mm 起，入口偏移较大时颈底从柄侧壁穿出，留下近切的碎面（PLC 错误）
         Lneck = float(np.linalg.norm(fm.H - a))
         neck = occ.addCylinder(*a, *(Lneck * u3), pr["neck_radius_mm"])
         head = occ.addSphere(*fm.H, pr["head_radius_mm"])

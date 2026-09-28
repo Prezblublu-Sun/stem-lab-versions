@@ -60,6 +60,15 @@ def launch(name: str, args: str) -> str:
     return sh(cmd, timeout=60).strip()
 
 
+def stop(name: str) -> str:
+    """停掉 launch 起的常驻进程：先杀其子进程（ProcessPoolExecutor 的工作进程在父进程被杀后会成孤儿继续跑），再杀本身。
+    不用 pkill -f：它会匹配到这条 ssh 命令自身。"""
+    L = f"~/{RBASE}/logs"
+    cmd = (f"P={L}/{name}.pid; if [ -f $P ] && kill -0 $(cat $P) 2>/dev/null; then "
+           f"pkill -P $(cat $P); kill $(cat $P); sleep 2; echo \"{name} stopped\"; else echo \"{name} not running\"; fi")
+    return sh(cmd, timeout=60).strip()
+
+
 def _files() -> list[pathlib.Path]:
     out = []
     for pat in SYNC:

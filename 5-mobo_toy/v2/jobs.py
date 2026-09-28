@@ -107,13 +107,20 @@ def prep(jid: str) -> str:
 
 
 def intact_ref(h_int: float) -> dict:
-    """该网格档的完整股骨 Gruen 区 SED（需已 DONE）。"""
-    import post as P
-    jid = job_id({"kind": "intact", "h_int": h_int, "stage": "ref", "tag": f"intact_h{h_int:g}"})
-    d = QROOT / jid
-    if not (d / "result.json").exists():
-        raise FileNotFoundError(f"intact reference for h_int={h_int} not done: {jid}")
-    return json.loads((d / "result.json").read_text())
+    """该网格档的完整股骨 Gruen 区 SED：取同一 h 的最新 DONE 完整股骨作业。
+
+    不按全局代码哈希找：建柄模型的修正（退化单元门槛、假体颈起点）会改变哈希，但完整股骨模型（femur_real +
+    model3d_v2.build_intact + 配置）没变，结果逐位相同；按哈希找会让新作业卡在等参照。所用参照的 id 写进结果。"""
+    cands = []
+    for d in QROOT.glob(f"ref_intact_h{h_int:g}_*"):
+        if (d / "result.json").exists():
+            cands.append((d.stat().st_mtime, d))
+    if not cands:
+        raise FileNotFoundError(f"no DONE intact reference for h_int={h_int}")
+    d = max(cands)[1]
+    r = json.loads((d / "result.json").read_text())
+    r["intact_job"] = d.name
+    return r
 
 
 def post(jid: str) -> str:
@@ -138,6 +145,7 @@ def post(jid: str) -> str:
         else:
             ref = intact_ref(spec["h_int"])
             res = P.evaluate(R, "m", fm, ref)
+            res["intact_job"] = ref.get("intact_job")
             res["templating"] = json.loads((d / "prep.json").read_text()).get("templating")
             res["n_tet"] = json.loads((d / "prep.json").read_text()).get("n_tet")
         res["solve"] = solve
