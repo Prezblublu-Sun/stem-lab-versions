@@ -63,7 +63,8 @@ def all_jobs() -> list[dict]:
         row = {"job_id": d.name, "source": _source(d.name), "stage": spec.get("stage"), "tag": spec.get("tag"),
                "state": J.state(d), "h_int_mm": spec.get("h_int"),
                "variant_delta": spec.get("delta", ""), "variant_mu": spec.get("mu", ""), "variant_torque": spec.get("torque", True)}
-        row.update({f"x_{k}": spec["design"][k] for k in G.VARS})
+        dsg = G.design_of_spec(spec)
+        row.update({f"x_{k}": dsg[k] for k in G.VARS})
         row.update({"A0_mm2": tmpl.get("A0", ""), "entry_offset_mm": tmpl.get("e", ""), "contact_frac": tmpl.get("contact", ""),
                     "tightest_s_mm": tmpl.get("s_bind", ""), "stem_volume_mm3": tmpl.get("volume", "")})
         nt = r.get("n_tet") or prep.get("n_tet") or {}

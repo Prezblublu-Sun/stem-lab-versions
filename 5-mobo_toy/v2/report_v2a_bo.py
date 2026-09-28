@@ -31,7 +31,14 @@ import report_v2a_fe as RF  # noqa: E402
 plt = ps.plt
 ACOL = ps.DORR["A"]
 STYLE = {"best_known": ("o", ps.LIGHT, 2.5), "best_known_original_box": ("o", ps.GREY, 1.2), "bo_s0": ("s", ACOL, 0.8),
-         "warm_s0": ("^", "#56B4E9", 0.8), "warm_s1": ("D", "#E69F00", 0.8)}
+         "warm_s0": ("^", "#56B4E9", 0.8), "warm_s1": ("^", "#0072B2", 0.8), "cwarm_s0": ("v", "#009E73", 0.8), "cwarm_s1": ("v", "#004d3a", 0.8),
+         "uwarm_s0": ("D", "#E69F00", 0.8), "uwarm_s1": ("D", "#b07400", 0.8)}
+
+
+def _pad(x):
+    """11 维旧坐标（皮质余量变量加入前）→ 12 维：旧规则 m = −0.25 = DESIGN["m"] 下限 → 单位坐标 0。"""
+    x = list(x)
+    return x + [0.0] * (len(G.VARS) - len(x)) if len(x) < len(G.VARS) else x
 
 
 def _source(job_id: str) -> str:
@@ -67,6 +74,8 @@ def part_bo(fm) -> list[dict]:
     if not ref:
         return items
     rrows = ref["rows"]
+    for r in rrows:
+        r["x"] = _pad(r["x"])
     refp = np.array(S.ref_point())
     Xall, Yall, Call, idsall = S2.solved_dataset()
     src = np.array([_source(j) for j in idsall])
@@ -108,16 +117,21 @@ def part_bo(fm) -> list[dict]:
                       "note": "complete" if len(ev) >= 64 else "stopped 12:30 (user decision)"})
     trows.append({"series": "sobol (median of 200 orders of the 64-point reference set)", "n_eval": 64, "n_ok": int(sum(OKs)),
                   "hv_ratio_vs_original_best": round(float(np.median(sob[:, -1])), 3), "sobol_median_same_n": "", "note": ""})
-    warm = {s: RF._load(f"bo_warm_s{s}.json") for s in (0, 1)}
-    warm = {s: w for s, w in warm.items() if w}
+    warm = {}
+    for tag in ("warm", "cwarm", "uwarm"):
+        for s in (0, 1):
+            w = RF._load(f"bo_{tag}_s{s}.json")
+            if w:
+                warm[f"{tag}_s{s}"] = w
     for s, w in warm.items():
         wid = set(w.get("warm_start_ids", []))
         mask_ws = np.array([j in wid for j in ida])
         hv_ws = mobo.hypervolume(Ya[mask_ws], refp) if mask_ws.any() else float("nan")
         Yw = np.array([y for y, c, ok in zip(w["y"], w["c"], w["ok"]) if ok and c[0] <= 0])
         hv_after = mobo.hypervolume(np.vstack([Ya[mask_ws], Yw]) if len(Yw) else Ya[mask_ws], refp)
-        n_front = int(sum(1 for j, p in zip(ida, pm_all) if p and j.startswith("warm_") and f"_s{s}_" in j))
-        trows.append({"series": f"warm-start BO seed {s} (extended box, L 20–90)", "n_eval": len(w["x"]), "n_ok": int(sum(w["ok"])),
+        n_front = int(sum(1 for j, p in zip(ida, pm_all) if p and j.startswith(s.split("_")[0] + "_") and f"_{s.split('_')[1]}_" in j))
+        trows.append({"series": f"warm-start BO {s} (12-D incl. cortical margin)" if s.startswith("uwarm") else f"warm-start BO {s}",
+                      "n_eval": len(w["x"]), "n_ok": int(sum(w["ok"])),
                       "hv_ratio_vs_original_best": f"HV/best(all): {hv_ws / hv_all:.3f} → {hv_after / hv_all:.3f}",
                       "sobol_median_same_n": "", "note": f"warm start on {w['warm_start_n']} solved designs; {n_front} points on the final front"})
     ps.publish_table("V2A-T06", trows, title="BO against the same-budget Sobol baseline; warm-started BO in the extended space",
@@ -132,7 +146,7 @@ def part_bo(fm) -> list[dict]:
     for s, w in warm.items():
         Yw = np.array([y for y, c, ok in zip(w["y"], w["c"], w["ok"]) if ok and c[0] <= 0])
         if len(Yw):
-            frows += [{"series": f"warm_s{s}", "y1": float(y[0]), "y2": float(y[1])} for y in Yw[mobo.pareto_mask(Yw)]]
+            frows += [{"series": s, "y1": float(y[0]), "y2": float(y[1])} for y in Yw[mobo.pareto_mask(Yw)]]
     n_new = int(sum(1 for j, p in zip(ida, pm_all) if p and _source(j) in ("probe", "warm")))
     ps.publish_figure("V2A-F13", frows, plot_f13,
                       title=f"Best-known front has {int(pm_all.sum())} points, {n_new} of them from the extended-length campaign "
@@ -144,9 +158,9 @@ def part_bo(fm) -> list[dict]:
     b0 = RF._load("bo_s0.json")
     Xtr, Ytr = [], []
     if b0:
-        Xtr += [x for x, ok in zip(b0["x"], b0["ok"]) if ok]; Ytr += [y for y, ok in zip(b0["y"], b0["ok"]) if ok]
+        Xtr += [_pad(x) for x, ok in zip(b0["x"], b0["ok"]) if ok]; Ytr += [y for y, ok in zip(b0["y"], b0["ok"]) if ok]
     for w in warm.values():
-        Xtr += [x for x, ok in zip(w["x"], w["ok"]) if ok]; Ytr += [y for y, ok in zip(w["y"], w["ok"]) if ok]
+        Xtr += [_pad(x) for x, ok in zip(w["x"], w["ok"]) if ok]; Ytr += [y for y, ok in zip(w["y"], w["ok"]) if ok]
     Xte = np.array([r["x"] for r in rrows if r["ok"]]); Yte = np.array([r["y"] for r in rrows if r["ok"]])
     cover90 = {}
     if len(Xtr) >= 20:
@@ -172,7 +186,7 @@ def part_bo(fm) -> list[dict]:
         arows.append({"k": k, "kind": "meta", "x": float(st.alpha), "y": float(pl["A0"])})
         t7.append({"k": k, "source": srca[i], **{v: round(dd[v], 3) for v in G.VARS}, "A0_mm2": round(pl["A0"], 1),
                    "f1_um": round(10 ** Ya[i, 0], 2), "g7_abs_dsed_pct": round(Ya[i, 1], 2)})
-    Lf = [20 + 70 * Xa[i][0] for i in idx]
+    Lf = [G.DESIGN["L"][0] + (G.DESIGN["L"][1] - G.DESIGN["L"][0]) * Xa[i][0] for i in idx]
     ps.publish_figure("V2A-F15", arows, RF.plot_f15,
                       title=f"{len(pick)} designs along the best-known front; front lengths span {min(Lf):.0f}–{max(Lf):.0f} mm",
                       caption="沿前沿按 f1 从小到大等距取点（最多 6 个）。上：肩部截面（按模板化尺寸，内侧向右、前方向上，橙虚线为前后镜像）；"
@@ -181,7 +195,7 @@ def part_bo(fm) -> list[dict]:
 
     # ---- F16 目标对长度；T08 探针
     probe = RF._load("probe_short.json")
-    L_all = 20 + 70 * Xall[:, 0]
+    L_all = G.DESIGN["L"][0] + (G.DESIGN["L"][1] - G.DESIGN["L"][0]) * Xall[:, 0]
     front_ids = {ida[i] for i in idx}
     r16 = [{"job_id": j, "source": s, "L": float(l), "f1_um": float(10 ** y[0]), "dsed_pct": float(y[1]), "feasible": bool(f),
             "front": j in front_ids} for j, s, l, y, f in zip(idsall, src, L_all, Yall, feas)]
