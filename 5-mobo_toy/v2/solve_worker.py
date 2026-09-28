@@ -34,7 +34,7 @@ LOCAL = HERE / "runs" / "q"
 LOG = HERE / "runs" / "worker.log"
 STOP_LOCAL = HERE / "runs" / "worker.STOP"
 KEEP = {"fric": ["RELEASE_CONTACT.csv", "LOAD_CONTACT.csv"], "bond": ["LOAD_ENER.csv", "LOAD_S.csv"],
-        "intact": ["LOAD_ENER.csv"]}
+        "intact": ["LOAD_ENER.csv", "LOAD_S.csv"]}      # 完整股骨的应力场：应力屏蔽对比图要用（2026-09-28 23:00）
 Q = "~/mobo_toy_v2/queue"
 
 
