@@ -45,15 +45,19 @@ def _groups(d, *keys):
 
 
 # ================================================================== 几何：轮廓提取
-def _contours(fm, C, e1, e2, ext1, ext2, h=0.25):
-    """平面上外膜、内膜的零等值线（contourpy），返回 [(kind, ring_id, xy)]。"""
+def _contours(fm, C, e1, e2, ext1, ext2, h=0.25, cut=False):
+    """平面上外膜、内膜的零等值线（contourpy），返回 [(kind, ring_id, xy)]。
+    cut=True 时只取截骨面以下的保留骨（取 max(sdf, 到截骨面的有号距离)），截骨处的轮廓也是闭合的。
+    范围要大于骨截面，否则等值线在窗口边上断开，填色会被错连。"""
     import contourpy
     a = np.arange(ext1[0], ext1[1], h); b = np.arange(ext2[0], ext2[1], h)
     A, B = np.meshgrid(a, b)
     P = C + A.reshape(-1, 1) * e1 + B.reshape(-1, 1) * e2
+    dcut = (P - fm.C03) @ fm.u3 if cut else None
     out = []
     for kind, fn in (("outer", fm.outer_sdf), ("canal", fm.canal_sdf)):
-        Z = fn(P).reshape(A.shape)
+        Z = fn(P) if dcut is None else np.maximum(fn(P), dcut)
+        Z = Z.reshape(A.shape)
         for k, ln in enumerate(contourpy.contour_generator(a, b, Z).lines(0.0)):
             if len(ln) > 5:
                 out.append((kind, k, ln))
@@ -308,7 +312,7 @@ def fig_f06(fm):
     import cases as CS
     rows = []
     C, e1, e2 = fm.neck_plane()
-    np_cons = _contours(fm, C, e1, e2, (-70, 55), (-130, 45), h=0.3)
+    np_cons = _contours(fm, C, e1, e2, (-80, 70), (-140, 80), h=0.3, cut=True)
     info = []
     for ex, (name, dd) in enumerate(CS.EXAMPLES.items()):
         st = G.Stem3D(**dd)
@@ -321,8 +325,14 @@ def fig_f06(fm):
         ring = np.r_[[P0 + si * d + ki * sec[:, 0].max() * e_ml for si, ki in zip(s, kk)],
                      [P0 + (st.L + st.cap_length(pl["A0"])) * d],
                      [P0 + si * d + ki * sec[:, 0].min() * e_ml for si, ki in zip(s[::-1], kk[::-1])]]
+        from shapely.geometry import Polygon as SP
         Q = ring - C
-        for j, (x, y) in enumerate(np.c_[Q @ e1, Q @ e2]):
+        poly = SP(np.c_[Q @ e1, Q @ e2]).buffer(0)
+        u2 = np.array([fm.u3 @ e1, fm.u3 @ e2]); n2 = np.array([-u2[1], u2[0]])
+        half = SP([400 * n2, -400 * n2, -400 * n2 - 400 * u2, 400 * n2 - 400 * u2])      # 截骨面以下（颈平面上）
+        poly = poly.intersection(half)
+        poly = max(getattr(poly, "geoms", [poly]), key=lambda g: g.area)
+        for j, (x, y) in enumerate(np.asarray(poly.exterior.coords)):
             rows.append({"panel": "neck_plane", "kind": "stem", "ring": 0, "pt": j, "x": float(x), "y": float(y), "example": ex})
         cut = [C - 30 * fm.n3, C + 30 * fm.n3]
         for j, P in enumerate(cut):
@@ -330,7 +340,7 @@ def fig_f06(fm):
             rows.append({"panel": "neck_plane", "kind": "cut", "ring": 0, "pt": j, "x": float(q @ e1), "y": float(q @ e2), "example": ex})
         for fr in (0.15, 0.5, 0.85):
             sc = fr * st.L
-            cons = _contours(fm, P0 + sc * d, e_ml, e_ap, (-20, 20), (-20, 20), h=0.15)
+            cons = _contours(fm, P0 + sc * d, e_ml, e_ap, (-60, 60), (-60, 60), h=0.2, cut=True)
             rows += _rows_from_contours(f"s{fr:.2f}", cons, {"example": ex})
             sp = G.unit_section(st.d, 120) * math.sqrt(pl["A0"] * float(st.area_ratio(sc)))
             rows += [{"panel": f"s{fr:.2f}", "kind": "stem", "ring": 0, "pt": j, "x": float(x), "y": float(y), "example": ex}
@@ -338,14 +348,15 @@ def fig_f06(fm):
         info.append({"example": ex, "name": name, "alpha": st.alpha, "A0": pl["A0"], "s_bind": pl["s_bind"],
                      "feasible": pl["fit"] and pl["A0"] >= MIN_A0})
     n_ok = sum(i["feasible"] for i in info)
+    cols = ["panel", "kind", "ring", "pt", "x", "y", "example", "alpha", "feasible"]
     for i in info:                                              # 每个示例的注释写进 CSV
         rows.append({"panel": "info", "kind": i["name"], "ring": 0, "pt": 0, "x": i["A0"], "y": i["s_bind"],
                      "example": i["example"], "alpha": i["alpha"], "feasible": i["feasible"]})
     ps.publish_figure("V2A-F06", rows, plot_f06,
                       title=f"Three example stems in the real femur: {n_ok} of 3 are large enough to carry the prosthetic neck",
                       caption="每行一根示例柄（插入角为其设计值）。左：颈平面，橙线为截骨线，蓝色为柄在颈平面上的投影；右三列：垂直于柄轴、"
-                              "距肩部 0.15/0.50/0.85 L 的截面（内侧向右、前方向上），灰为皮质、米色为松质、蓝为柄截面。尺寸为皮质穿透 ≤ 0.25 mm 的最大号。",
-                      units={"x": "mm", "y": "mm", "A0": "mm2"})
+                              "距肩部 0.15/0.50/0.85 L 的截面（内侧向右、前方向上），灰为皮质、米色为松质、蓝为柄截面；只画截骨面以下的保留骨。尺寸为皮质穿透 ≤ 0.25 mm 的最大号。",
+                      units={"x": "mm", "y": "mm", "A0": "mm2"}, columns=cols)
 
 
 def plot_f06(csv_path):
