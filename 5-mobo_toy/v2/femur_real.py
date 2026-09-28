@@ -311,7 +311,8 @@ class RealFemur:
         self.H = np.asarray(self.lm["head_m"], float)
         self.u3 = np.asarray(self.lm["neck_u_m"], float)
         self.Rh = float(self.lm["head_r"])
-        self.C03 = self.H - fc["cut_from_head_mm"] * self.u3
+        self.cut_from_head_mm = float(fc["cut_from_head_mm"])
+        self.C03 = self.H - self.cut_from_head_mm * self.u3
         self.ez = np.array([0.0, 0.0, 1.0])
         e = self.u3 - (self.u3 @ self.ez) * self.ez
         self.e_med0 = e / np.linalg.norm(e)                       # 颈平面内、垂直干轴、指向内侧（头侧）
@@ -319,6 +320,31 @@ class RealFemur:
         self.n3 = n / np.linalg.norm(n)                           # 截骨面内、颈平面内、指向内下
         self.ant = np.array([0.0, -1.0, 0.0])                     # +y 为后方
         self.z_trunc = float(fc["z_trunc_mm"])
+
+    def with_cut(self, cut_from_head_mm: float) -> "RealFemur":
+        """同一股骨、另一截骨高度（距头心，沿颈轴）：浅拷贝，共享距离场。截骨高度是 V3 的设计变量（用户 2026-09-28 14:00）。"""
+        import copy
+        f = copy.copy(self)
+        f.cut_from_head_mm = float(cut_from_head_mm)
+        f.C03 = f.H - f.cut_from_head_mm * f.u3
+        return f
+
+    def resected_volume(self, cut_from_head_mm: float | None = None, ref_cut_mm: float = 25.0) -> float:
+        """截骨面（距头心 cut）与最高截法（ref_cut，头颈交界）之间的骨体积（皮质 + 松质，mm³）。
+        头本身总要去掉，不计；cut ≤ ref_cut 时为 0。按距离场体素计数。"""
+        cut = self.cut_from_head_mm if cut_from_head_mm is None else float(cut_from_head_mm)
+        if cut <= ref_cut_mm:
+            return 0.0
+        nx, ny, nz = self.sdf_o.shape
+        gx = self.g0[0] + (np.arange(nx) + 0.5) * self.h
+        gy = self.g0[1] + (np.arange(ny) + 0.5) * self.h
+        gz = self.g0[2] + (np.arange(nz) + 0.5) * self.h
+        # t = (H − P)·u：沿颈轴从头心向干部的距离
+        t = ((self.H[0] - gx)[:, None, None] * self.u3[0] + (self.H[1] - gy)[None, :, None] * self.u3[1]
+             + (self.H[2] - gz)[None, None, :] * self.u3[2])
+        inside = self.sdf_o <= 0
+        m = inside & (t > ref_cut_mm) & (t <= cut)
+        return float(m.sum()) * self.h ** 3
 
     def _interp(self, grid, P, cval):
         from scipy.ndimage import map_coordinates

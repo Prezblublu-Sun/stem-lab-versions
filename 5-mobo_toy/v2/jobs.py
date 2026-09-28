@@ -80,6 +80,8 @@ def prep(jid: str) -> str:
         return st0
     spec = json.loads((d / "spec.json").read_text())
     fm = FR.build()
+    if spec.get("h_cut") is not None:                     # V3：截骨高度是设计变量
+        fm = fm.with_cut(spec["h_cut"])
     try:
         if spec["kind"] == "intact":
             info = M.build_intact(fm, d, "intact", h_roi=spec["h_int"], h_far=spec.get("h_far", 6.0))
@@ -96,6 +98,9 @@ def prep(jid: str) -> str:
             info = M.build(st, fm, pl, d, "m", h_int=spec["h_int"], h_far=spec.get("h_far"),
                            delta=spec.get("delta"), mu=spec.get("mu"), torque=spec.get("torque", True))
             info["templating"] = {k: pl[k] for k in ("alpha", "e", "A0", "contact", "s_bind", "volume", "margin")}
+            resected = fm.resected_volume()
+            info["bone_loss"] = {"h_cut_mm": fm.cut_from_head_mm, "resected_mm3": resected, "reamed_mm3": pl["volume"],
+                                 "total_mm3": resected + pl["volume"]}
         info["code_hash"] = code_hash()
         (d / "prep.json").write_text(json.dumps({k: v for k, v in info.items() if k != "slave"}, default=float))
         (d / "READY").write_text(time.strftime("%Y-%m-%d %H:%M:%S"))
@@ -153,6 +158,8 @@ def post(jid: str) -> str:
         _fail(d, v.get("status", "L4"), "solve", f"{k}: {v.get('reason', '')}")
         return "FAILED"
     fm = FR.build()
+    if spec.get("h_cut") is not None:
+        fm = fm.with_cut(spec["h_cut"])
     try:
         R = d
         if spec["kind"] == "intact":
@@ -162,8 +169,11 @@ def post(jid: str) -> str:
             res = P.evaluate(R, "m", fm, ref)
             res["intact_job"] = ref.get("intact_job")
             res["intact_substituted_h"] = ref.get("intact_substituted_h")
-            res["templating"] = json.loads((d / "prep.json").read_text()).get("templating")
-            res["n_tet"] = json.loads((d / "prep.json").read_text()).get("n_tet")
+            prep = json.loads((d / "prep.json").read_text())
+            res["templating"] = prep.get("templating")
+            res["n_tet"] = prep.get("n_tet")
+            res["bone_loss"] = prep.get("bone_loss")
+            res["h_cut_mm"] = fm.cut_from_head_mm
         res["solve"] = solve
         res["spec"] = spec
         res["job_id"] = jid
