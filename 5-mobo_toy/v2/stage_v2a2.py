@@ -57,7 +57,7 @@ def remap() -> dict:
     return out
 
 
-def solved_dataset() -> tuple[np.ndarray, np.ndarray, np.ndarray, list[str]]:
+def solved_dataset(margin: float = 0.0) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[str]]:
     """全部已解设计（生产网格、标准变体、去重）：X（新单位坐标）、Y、C、job_id。"""
     import problem_v2a as PB
     seen, X, Y, C, ids = {}, [], [], [], []
@@ -69,6 +69,8 @@ def solved_dataset() -> tuple[np.ndarray, np.ndarray, np.ndarray, list[str]]:
         if spec.get("kind") != "design" or spec.get("h_int") != S.H_PROD:
             continue
         if spec.get("delta") is not None or spec.get("mu") is not None or spec.get("torque", True) is False:
+            continue
+        if float(spec.get("margin", 0.0)) != float(margin):
             continue
         key = json.dumps(spec["design"], sort_keys=True)
         if key in seen:

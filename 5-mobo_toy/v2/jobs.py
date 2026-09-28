@@ -86,7 +86,7 @@ def prep(jid: str) -> str:
             info["templating"] = None
         else:
             st = G.Stem3D(**spec["design"])
-            pl = G.template(st, fm)
+            pl = G.template(st, fm, margin=float(spec.get("margin", 0.0)))
             if not pl["fit"]:
                 _fail(d, "L1", "prep", f"templating: {pl['reason']}")
                 return "FAILED"
@@ -95,7 +95,7 @@ def prep(jid: str) -> str:
                 return "FAILED"
             info = M.build(st, fm, pl, d, "m", h_int=spec["h_int"], h_far=spec.get("h_far"),
                            delta=spec.get("delta"), mu=spec.get("mu"), torque=spec.get("torque", True))
-            info["templating"] = {k: pl[k] for k in ("alpha", "e", "A0", "contact", "s_bind", "volume")}
+            info["templating"] = {k: pl[k] for k in ("alpha", "e", "A0", "contact", "s_bind", "volume", "margin")}
         info["code_hash"] = code_hash()
         (d / "prep.json").write_text(json.dumps({k: v for k, v in info.items() if k != "slave"}, default=float))
         (d / "READY").write_text(time.strftime("%Y-%m-%d %H:%M:%S"))

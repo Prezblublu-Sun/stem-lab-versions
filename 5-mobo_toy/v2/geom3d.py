@@ -297,10 +297,18 @@ class Femur3D:
         return P0 + loc[:, :1] * d + loc[:, 1:2] * e_ml + loc[:, 2:3] * e_ap
 
 
-def penetration(stem: Stem3D, fem: Femur3D, A0: float, pose) -> float:
+def penetration(stem: Stem3D, fem: Femur3D, A0: float, pose, margin: float = 0.0) -> float:
+    """柄表面（截骨面以下）越出髓腔的最大距离。margin > 0 时改为"距皮质不足 margin 的最大欠量"：
+    max(sdf + margin, 0)，即要求整个柄面离内膜面至少 margin（只接触松质骨；用户 2026-09-28 13:30 要求）。"""
     P = fem.to_world(stem.local_surface(A0), pose)
     P = P[fem.below_cut(P)]
-    return float(fem.canal_excess(P).max()) if len(P) else 0.0
+    if not len(P):
+        return 0.0
+    if margin > 0:
+        if not hasattr(fem, "canal_sdf"):
+            raise ValueError("margin requires a signed-distance femur (femur_real.RealFemur)")
+        return float(np.maximum(fem.canal_sdf(P) + margin, 0.0).max())
+    return float(fem.canal_excess(P).max())
 
 
 def contact_fraction(stem: Stem3D, fem: Femur3D, A0: float, pose, band: float = 0.5) -> float:
@@ -316,46 +324,47 @@ def contact_fraction(stem: Stem3D, fem: Femur3D, A0: float, pose, band: float = 
     return float(np.mean(fem.canal_excess(fem.to_world(loc2, pose)) > 0))
 
 
-def binding_s(stem: Stem3D, fem: Femur3D, A0: float, pose) -> float:
+def binding_s(stem: Stem3D, fem: Femur3D, A0: float, pose, margin: float = 0.0) -> float:
     """最紧处（皮质穿透最大的表面点）的轴向位置 s（mm，< 0 表示在肩部以上、截骨面以下的柄体）。"""
     loc = stem.local_surface(A0)
     P = fem.to_world(loc, pose)
     keep = fem.below_cut(P)
-    ex = fem.canal_excess(P[keep])
+    ex = fem.canal_sdf(P[keep]) if (margin > 0 and hasattr(fem, "canal_sdf")) else fem.canal_excess(P[keep])
     return float(loc[keep][int(np.argmax(ex)), 0])
 
 
 def template(stem: Stem3D, fem: Femur3D, alphas=None, offsets=np.arange(-8.0, 8.1, 2.0),
-             iters: int = 14) -> dict:
+             iters: int = 14, margin: float = 0.0) -> dict:
     """模板化：α 默认取设计变量 stem.alpha；对每个 (α, e) 二分求最大 A0；返回最佳（A0 最大，平手取 |e| 小）或失败原因。
     传入 alphas 网格时同时搜索 α（只用于"若 α 由模板化决定会选多少"的对照）。"""
     alphas = [stem.alpha] if alphas is None else alphas
+    tol = TOL if margin <= 0 else 0.05          # 有余量时只留数值容差
     best = None
     lo0, hi0 = A_BOUNDS
     for a in alphas:
         for e in offsets:
             ps = fem.pose(a, e)
-            if penetration(stem, fem, lo0, ps) > TOL:
+            if penetration(stem, fem, lo0, ps, margin) > tol:
                 continue
             lo, hi = lo0, hi0
-            if penetration(stem, fem, hi, ps) <= TOL:
+            if penetration(stem, fem, hi, ps, margin) <= tol:
                 lo = hi
             else:
                 for _ in range(iters):
                     mid = math.sqrt(lo * hi)
-                    (lo, hi) = (mid, hi) if penetration(stem, fem, mid, ps) <= TOL else (lo, mid)
+                    (lo, hi) = (mid, hi) if penetration(stem, fem, mid, ps, margin) <= tol else (lo, mid)
             cand = {"alpha": float(a), "e": float(e), "A0": float(lo)}
             if best is None or lo > best["A0"] * 1.005 or (abs(lo - best["A0"]) <= best["A0"] * 0.005 and abs(e) < abs(best["e"])):
                 best = cand
     if best is None:
-        return {"fit": False, "reason": "blocked (smallest size hits cortex at every offset)"}
+        return {"fit": False, "reason": "blocked (smallest size hits cortex at every offset)", "margin": margin}
     if best["A0"] >= hi0 - 1e-6:
         return {"fit": False, "reason": "canal larger than largest size", **best}
     if best["A0"] * stem.rho_tip < MIN_TIP_AREA:
         return {"fit": False, "reason": f"tip too thin ({best['A0'] * stem.rho_tip:.0f} mm² < {MIN_TIP_AREA:.0f})", **best}
     ps = fem.pose(best["alpha"], best["e"])
     best.update(fit=True, pose=ps, volume=stem.volume(best["A0"]), contact=contact_fraction(stem, fem, best["A0"], ps),
-                s_bind=binding_s(stem, fem, best["A0"], ps),
+                s_bind=binding_s(stem, fem, best["A0"], ps, margin), margin=margin,
                 w_eq=2 * math.sqrt(best["A0"] / math.pi))
     return best
 

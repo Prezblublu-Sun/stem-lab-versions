@@ -32,28 +32,29 @@ VM_LIMIT = 440.0
 _FM = {}
 
 
-def _feasible(u) -> tuple[bool, float]:
+def _feasible(u, margin: float = 0.0) -> tuple[bool, float]:
     if "fm" not in _FM:
         _FM["fm"] = FR.build()
     st = G.Stem3D(**G.from_unit(u))
-    r = G.template(st, _FM["fm"])
+    r = G.template(st, _FM["fm"], margin=margin)
     ok = bool(r["fit"] and r["A0"] >= math.pi * 7.0 ** 2)
     return ok, float(r.get("A0", math.nan))
 
 
-def gated_pool(n: int, seed: int, workers: int = 10) -> np.ndarray:
+def gated_pool(n: int, seed: int, workers: int = 10, margin: float = 0.0) -> np.ndarray:
+    from functools import partial
     POOLS.mkdir(parents=True, exist_ok=True)
-    key = hashlib.sha1((J.code_hash() + f"{n}_{seed}").encode()).hexdigest()[:8]
-    f = POOLS / f"pool_n{n}_s{seed}_{key}.npy"
+    key = hashlib.sha1((J.code_hash() + f"{n}_{seed}_m{margin:g}").encode()).hexdigest()[:8]
+    f = POOLS / f"pool_n{n}_s{seed}_m{margin:g}_{key}.npy"
     if f.exists():
         return np.load(f)
     U = qmc.Sobol(len(G.VARS), scramble=True, seed=10_000 + seed).random(n)
     with Pool(workers) as p:
-        res = p.map(_feasible, list(U), chunksize=32)
+        res = p.map(partial(_feasible, margin=margin), list(U), chunksize=32)
     keep = np.array([r[0] for r in res])
     P = U[keep]
     np.save(f, P)
-    (POOLS / f"{f.stem}.json").write_text(json.dumps({"n": n, "seed": seed, "feasible": int(keep.sum()),
+    (POOLS / f"{f.stem}.json").write_text(json.dumps({"n": n, "seed": seed, "margin": margin, "feasible": int(keep.sum()),
                                                       "rate": float(keep.mean())}))
     return P
 
@@ -68,18 +69,19 @@ def objectives(r: dict | None) -> tuple[list[float], float, bool]:
 class V2AProblem:
     n_obj, n_con, d = 2, 1, len(G.VARS)
 
-    def __init__(self, ref_point, stage: str, h_int: float, n_pool: int = 8192):
+    def __init__(self, ref_point, stage: str, h_int: float, n_pool: int = 8192, margin: float = 0.0):
         self.ref_point = np.asarray(ref_point, float)
-        self.stage, self.h_int, self.n_pool = stage, h_int, n_pool
+        self.stage, self.h_int, self.n_pool, self.margin = stage, h_int, n_pool, margin
         self.name = "V2A real femur"
         self.rows: list[dict] = []
 
     def pool(self, n, seed):
-        return gated_pool(n, seed)
+        return gated_pool(n, seed, margin=self.margin)
 
     def evaluate(self, X, seed=0, round=0, method=""):
         import stage_v2a as S
-        specs = [S.design_spec(G.from_unit(x), self.stage, f"{method}_s{seed}_r{round}", h_int=self.h_int) for x in X]
+        specs = [S.design_spec(G.from_unit(x), self.stage, f"{method}_s{seed}_r{round}", h_int=self.h_int,
+                               **({"margin": self.margin} if self.margin > 0 else {})) for x in X]
         ids = [J.submit(s) for s in specs]
         res = S.wait_for(ids)
         Y, C, ok = [], [], []
