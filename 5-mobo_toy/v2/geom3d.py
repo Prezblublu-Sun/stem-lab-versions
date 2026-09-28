@@ -46,14 +46,20 @@ DESIGN = {                      # 11 个设计变量
     "tau_a": (-0.30, 0.30),     # 前半楔形：前半厚度随内外侧变化，+ = 内侧厚
     "tau_p": (-0.30, 0.30),     # 后半楔形
     "alpha": (ALPHA_LO, ALPHA_HI),  # °，插入角（冠状面内与干轴夹角）
+    "m": (-0.25, 2.0),          # mm，皮质余量（第 12 个变量，用户 2026-09-28 13:50 决定把两种尺寸规则并成一条轴）：
+                                #   柄面到内膜面的最小距离；负值 = 允许压入皮质。−0.25 ≡ 原"贴皮质"规则，+1 ≡ "只接触松质骨"规则。
+                                #   尺寸仍取满足该余量的最大号。
 }
 VARS = list(DESIGN)
+M_LEGACY = -0.25                # 旧作业（说明里没有 margin、设计里没有 m）对应的余量
 SHAPE_VARS = ["lam", "g_ml", "g_ap", "n_a", "n_p", "tau_a", "tau_p"]
-GROUPS = {"length": ["L"], "area curve": ["rho_tip", "q"], "section shape": SHAPE_VARS, "insertion angle": ["alpha"]}
+GROUPS = {"length": ["L"], "area curve": ["rho_tip", "q"], "section shape": SHAPE_VARS, "insertion angle": ["alpha"],
+          "cortical margin": ["m"]}
 LABEL = {"L": "length L (mm)", "rho_tip": "tip/shoulder area ρ_tip", "q": "area-curve exponent q",
          "lam": "aspect ML/AP λ", "g_ml": "medial share γ_ml", "g_ap": "anterior share γ_ap",
          "n_a": "anterior squareness n_a", "n_p": "posterior squareness n_p",
-         "tau_a": "anterior keystone τ_a", "tau_p": "posterior keystone τ_p", "alpha": "insertion angle α (°)"}
+         "tau_a": "anterior keystone τ_a", "tau_p": "posterior keystone τ_p", "alpha": "insertion angle α (°)",
+         "m": "cortical margin m (mm)"}
 TOL = 0.25                      # mm，允许的皮质穿透（模板化；压配另由 δ 给）
 A_BOUNDS = (20.0, 900.0)        # mm²，肩部面积二分区间
 S_TOP = -60.0                   # mm，肩部以上等截面棱柱的长度（只在截骨面以下的部分算数）
@@ -65,7 +71,16 @@ def from_unit(u) -> dict:
 
 
 def to_unit(d: dict) -> np.ndarray:
+    d = {**d, "m": d.get("m", M_LEGACY)}
     return np.array([(d[k] - DESIGN[k][0]) / (DESIGN[k][1] - DESIGN[k][0]) for k in VARS])
+
+
+def design_of_spec(spec: dict) -> dict:
+    """作业说明 → 12 维设计（含皮质余量 m）：新作业的 m 在设计里；旧作业按 spec['margin']，都没有则为 M_LEGACY。"""
+    d = dict(spec["design"])
+    if "m" not in d:
+        d["m"] = float(spec.get("margin", M_LEGACY))
+    return d
 
 
 def _smoothstep(t):
@@ -107,6 +122,7 @@ class Stem3D:
     tau_a: float
     tau_p: float
     alpha: float = 20.0
+    m: float = M_LEGACY
 
     @property
     def d(self) -> dict:
@@ -297,18 +313,19 @@ class Femur3D:
         return P0 + loc[:, :1] * d + loc[:, 1:2] * e_ml + loc[:, 2:3] * e_ap
 
 
-def penetration(stem: Stem3D, fem: Femur3D, A0: float, pose, margin: float = 0.0) -> float:
+def penetration(stem: Stem3D, fem: Femur3D, A0: float, pose, margin: float | None = None) -> float:
     """柄表面（截骨面以下）越出髓腔的最大距离。margin > 0 时改为"距皮质不足 margin 的最大欠量"：
     max(sdf + margin, 0)，即要求整个柄面离内膜面至少 margin（只接触松质骨；用户 2026-09-28 13:30 要求）。"""
     P = fem.to_world(stem.local_surface(A0), pose)
     P = P[fem.below_cut(P)]
     if not len(P):
         return 0.0
-    if margin > 0:
-        if not hasattr(fem, "canal_sdf"):
-            raise ValueError("margin requires a signed-distance femur (femur_real.RealFemur)")
+    margin = stem.m if margin is None else margin
+    if hasattr(fem, "canal_sdf"):                        # 统一口径：max(sdf + m, 0)，对任何 m（含负值 = 允许压入皮质）
         return float(np.maximum(fem.canal_sdf(P) + margin, 0.0).max())
-    return float(fem.canal_excess(P).max())
+    if margin > 0:
+        raise ValueError("margin requires a signed-distance femur (femur_real.RealFemur)")
+    return float(np.maximum(fem.canal_excess(P) + margin, 0.0).max())
 
 
 def contact_fraction(stem: Stem3D, fem: Femur3D, A0: float, pose, band: float = 0.5) -> float:
@@ -324,21 +341,22 @@ def contact_fraction(stem: Stem3D, fem: Femur3D, A0: float, pose, band: float = 
     return float(np.mean(fem.canal_excess(fem.to_world(loc2, pose)) > 0))
 
 
-def binding_s(stem: Stem3D, fem: Femur3D, A0: float, pose, margin: float = 0.0) -> float:
+def binding_s(stem: Stem3D, fem: Femur3D, A0: float, pose, margin: float | None = None) -> float:
     """最紧处（皮质穿透最大的表面点）的轴向位置 s（mm，< 0 表示在肩部以上、截骨面以下的柄体）。"""
     loc = stem.local_surface(A0)
     P = fem.to_world(loc, pose)
     keep = fem.below_cut(P)
-    ex = fem.canal_sdf(P[keep]) if (margin > 0 and hasattr(fem, "canal_sdf")) else fem.canal_excess(P[keep])
+    ex = fem.canal_sdf(P[keep]) if hasattr(fem, "canal_sdf") else fem.canal_excess(P[keep])
     return float(loc[keep][int(np.argmax(ex)), 0])
 
 
 def template(stem: Stem3D, fem: Femur3D, alphas=None, offsets=np.arange(-8.0, 8.1, 2.0),
-             iters: int = 14, margin: float = 0.0) -> dict:
+             iters: int = 14, margin: float | None = None) -> dict:
     """模板化：α 默认取设计变量 stem.alpha；对每个 (α, e) 二分求最大 A0；返回最佳（A0 最大，平手取 |e| 小）或失败原因。
     传入 alphas 网格时同时搜索 α（只用于"若 α 由模板化决定会选多少"的对照）。"""
     alphas = [stem.alpha] if alphas is None else alphas
-    tol = TOL if margin <= 0 else 0.05          # 有余量时只留数值容差
+    margin = stem.m if margin is None else float(margin)
+    tol = 0.05 if hasattr(fem, "canal_sdf") else TOL     # 统一口径下只留数值容差（旧规则 = m −0.25，与原 0.25 mm 穿透容差等价）
     best = None
     lo0, hi0 = A_BOUNDS
     for a in alphas:

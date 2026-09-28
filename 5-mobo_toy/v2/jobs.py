@@ -86,7 +86,7 @@ def prep(jid: str) -> str:
             info["templating"] = None
         else:
             st = G.Stem3D(**spec["design"])
-            pl = G.template(st, fm, margin=float(spec.get("margin", 0.0)))
+            pl = G.template(st, fm, margin=spec.get("margin"))     # None → 设计自带的 m
             if not pl["fit"]:
                 _fail(d, "L1", "prep", f"templating: {pl['reason']}")
                 return "FAILED"
