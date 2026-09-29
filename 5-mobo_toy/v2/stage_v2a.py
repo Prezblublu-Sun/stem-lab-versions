@@ -52,9 +52,9 @@ def serve(n_prep: int = 5, poll: float = 10.0) -> None:
                 elif s == "SOLVED":
                     # 完整股骨参照必须先 DONE，设计作业的后处理才能进行
                     spec = json.loads((d / "spec.json").read_text())
-                    if spec["kind"] == "design":
+                    if spec["kind"] in ("design", "variant"):
                         try:
-                            J.intact_ref(spec["h_int"], spec.get("E_canc"))
+                            J.explicit_ref(spec) or J.intact_ref(spec["h_int"], spec.get("E_canc"))
                         except FileNotFoundError:
                             continue
                     print(f"{time.strftime('%H:%M:%S')} post {d.name}: {J.post(d.name)}", flush=True)

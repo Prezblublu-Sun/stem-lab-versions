@@ -1,6 +1,11 @@
 """V2A 作业队列（Linux 侧）。每个作业一个目录 ~/mobo_toy_v2/queue/<job_id>/，状态用标记文件表示：
 
-    spec.json        作业说明（kind = design | intact；设计向量、网格尺寸、变体、所属阶段）
+    spec.json        作业说明（kind = design | intact | variant；设计向量、网格尺寸、变体、所属阶段）
+                     variant（2026-09-29）：与 design 同样建模，但不进任何常规数据集。可带
+                       cfg        对配置的覆盖，如 {"load": {...}} 或 {"materials": {"titanium": {"E": 55000}}}
+                       bond_only  只解粘接模型（应力屏蔽用），不解摩擦模型
+                       intact_job 指定完整股骨参照的作业 id（载荷或网格与标准参照不同时必须给）
+                     intact 作业同样可带 cfg；带 cfg 的参照一律用 stage ≠ "ref"，不会被 intact_ref 选中
     READY            .inp 已生成，等待本机求解            ← prep 写
     CLAIMED          本机 worker 已认领（mv READY CLAIMED，原子）
     SOLVED           本机已推回 <name>_csv/ 与 solve.json    ← worker 写
@@ -72,6 +77,43 @@ def _fail(d: pathlib.Path, level: str, stage: str, reason: str) -> None:
                                                "time": time.strftime("%Y-%m-%d %H:%M:%S")}))
 
 
+def _merge(a: dict, b: dict) -> None:
+    for k, v in b.items():
+        if isinstance(v, dict) and isinstance(a.get(k), dict):
+            _merge(a[k], v)
+        else:
+            if k not in a:
+                raise KeyError(f"cfg override: unknown key {k!r}")
+            a[k] = v
+
+
+def femur_for(spec: dict):
+    """该作业用的股骨对象：截骨高度（V3 设计变量）与配置覆盖（变体作业）。覆盖只作用于本作业的副本。"""
+    import copy
+    fm = FR.build()
+    if spec.get("h_cut") is not None:
+        fm = fm.with_cut(spec["h_cut"])
+    if spec.get("cfg"):
+        fm = copy.copy(fm)
+        fm.cfg = copy.deepcopy(fm.cfg)
+        _merge(fm.cfg, spec["cfg"])
+    return fm
+
+
+def explicit_ref(spec: dict) -> dict | None:
+    """变体作业指定的完整股骨参照；没指定返回 None。参照未完成抛 FileNotFoundError。"""
+    rid = spec.get("intact_job")
+    if not rid:
+        return None
+    p = QROOT / rid / "result.json"
+    if not p.exists():
+        raise FileNotFoundError(f"intact reference {rid} not DONE")
+    r = json.loads(p.read_text())
+    r["intact_job"] = rid
+    r["intact_substituted_h"] = spec.get("intact_substituted_h")
+    return r
+
+
 def prep(jid: str) -> str:
     """模板化 + 建模 → READY；失败 → FAILED.json。返回最终状态。"""
     import model3d_v2 as M
@@ -81,10 +123,8 @@ def prep(jid: str) -> str:
     if st0 not in ("NEW",):
         return st0
     spec = json.loads((d / "spec.json").read_text())
-    fm = FR.build()
-    if spec.get("h_cut") is not None:                     # V3：截骨高度是设计变量
-        fm = fm.with_cut(spec["h_cut"])
     try:
+        fm = femur_for(spec)
         if spec["kind"] == "bench":                          # Lamé 压配对照（M1 界面代码路径）
             info = M1.build_lame(d, "lame", **{k: spec[k] for k in ("h", "delta", "mu", "slip_tol", "lagrange",
                                                                     "interference") if k in spec})
@@ -115,6 +155,10 @@ def prep(jid: str) -> str:
             resected = fm.resected_volume()
             info["bone_loss"] = {"h_cut_mm": fm.cut_from_head_mm, "resected_mm3": resected, "reamed_mm3": pl["volume"],
                                  "total_mm3": resected + pl["volume"]}
+            if spec.get("bond_only"):
+                (d / "m_fric.inp").unlink()
+                info["bond_only"] = True
+        info["cfg_override"] = spec.get("cfg")
         info["code_hash"] = code_hash()
         (d / "prep.json").write_text(json.dumps({k: v for k, v in info.items() if k != "slave"}, default=float))
         (d / "READY").write_text(time.strftime("%Y-%m-%d %H:%M:%S"))
@@ -178,18 +222,22 @@ def post(jid: str) -> str:
         k, v = next(iter(bad.items()))
         _fail(d, v.get("status", "L4"), "solve", f"{k}: {v.get('reason', '')}")
         return "FAILED"
-    fm = FR.build()
-    if spec.get("h_cut") is not None:
-        fm = fm.with_cut(spec["h_cut"])
     try:
+        fm = femur_for(spec)
         R = d
         if spec["kind"] == "bench":
             res = PM1.lame(R)
         elif spec["kind"] == "intact":
             res = P.zone_sed(R, "intact", fm)
         else:
-            ref = intact_ref(spec["h_int"], spec.get("E_canc"))
-            res = PM1.evaluate(R, "m", fm, ref) if spec.get("model") == "m1" else P.evaluate(R, "m", fm, ref)
+            ref = explicit_ref(spec) or intact_ref(spec["h_int"], spec.get("E_canc"))
+            if spec.get("bond_only"):
+                zs = P.zone_sed(R, "m_bond", fm)
+                res = {**P.stem_vm(R, "m_bond", fm), "sed_gruen7": zs["gruen7"], "sed_gruen1": zs["gruen1"],
+                       "f2_g7_loss_pct": 100.0 * (1.0 - zs["gruen7"] / ref["gruen7"]),
+                       "f2_g1_loss_pct": 100.0 * (1.0 - zs["gruen1"] / ref["gruen1"]), "bond_only": True}
+            else:
+                res = PM1.evaluate(R, "m", fm, ref) if spec.get("model") == "m1" else P.evaluate(R, "m", fm, ref)
             res["intact_job"] = ref.get("intact_job")
             res["intact_substituted_h"] = ref.get("intact_substituted_h")
             prep = json.loads((d / "prep.json").read_text())
@@ -208,7 +256,8 @@ def post(jid: str) -> str:
                                  **{k: v for k, v in res.items() if k not in ("spec", "solve")},
                                  "design": spec.get("design"), "h_int": spec.get("h_int"),
                                  "variant": {k: spec.get(k) for k in ("delta", "mu", "torque", "E_canc", "model", "slip_tol", "lagrange",
-                                                                  "interference")}}, default=float) + "\n")
+                                                                  "interference", "cfg", "bond_only", "h_far", "intact_job")}},
+                                default=float) + "\n")
         # 大文件不再需要：保留 result、spec、prep 与 CSV
         for f in ("m_fric.inp", "m_bond.inp", "intact.inp", "lame_fric.inp"):
             if (d / f).exists():
