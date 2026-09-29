@@ -216,6 +216,31 @@ def delta_sweep(fr: dict) -> dict:
     return out
 
 
+def review3(fr: dict) -> dict:
+    """第三份评估后的 23 个验证作业（用户 2026-09-29 批准）。全部带新导出（反力、接触力与接触面积、应变）。"""
+    tol14 = {"slip_tol": fr["slip_tol"] * 2.0 / 1.4}           # 1.4 mm 网格上保持绝对弹性滑移上限不变（0.5 µm）
+    ids = {}
+    for d in NAMED:                                              # 第三循环
+        ids[f"cycle3:{d}:d0.1"] = J.submit(named(d, 2.0, fr, cycles=3))
+        ids[f"cycle3:{d}:d0.025"] = J.submit(named(d, 2.0, fr, cycles=3, delta=0.025))
+    for d in NAMED:                                              # 等绝对滑移的网格加密
+        ids[f"mesh14:{d}:d0.1"] = J.submit(named(d, 1.4, tol14))
+    for dl in (0.05, 0.025):                                     # 短柄阈值工况：噪声底与网格
+        for h in (1.94, 1.97, 2.03, 2.06):
+            ids[f"noise:short:d{dl:g}:h{h:g}"] = J.submit(named("short", h, fr, delta=dl))
+        ids[f"mesh14:short:d{dl:g}"] = J.submit(named("short", 1.4, tol14, delta=dl))
+    ids["export:base:d0.1"] = J.submit(named("base", 2.0, fr))   # 四个代表工况按原规格重解（新导出；兼作跨版本一致性检查）
+    ids["export:readout:d0.1"] = J.submit(named("readout", 2.0, fr))
+    ids["export:short:d0.05"] = J.submit(named("short", 2.0, fr, delta=0.05))
+    ids["export:short:d0.025"] = J.submit(named("short", 2.0, fr, delta=0.025))
+    (J.RESULTS / "m1_review3_ids.json").write_text(json.dumps(ids, indent=1))
+    print(f"[review3] submitted {len(ids)} jobs", flush=True)
+    res = S.wait_for(list(ids.values()), timeout_h=12.0, poll=30.0)
+    out = {"runs": {k: {"job_id": j, **brief(res[j])} for k, j in ids.items()}}
+    save("review3", out)
+    return out
+
+
 def mesh(fr: dict, fine: bool = False, delta=None) -> dict:
     ids = {(d, h): J.submit(named(d, h, fr, **_var(delta))) for d in NAMED for h in (2.0, 1.4)}
     if fine:
@@ -229,7 +254,7 @@ def mesh(fr: dict, fine: bool = False, delta=None) -> dict:
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["lame", "smoke", "friction", "noise", "compare", "signs", "mesh", "delta", "pick"])
+    ap.add_argument("cmd", choices=["lame", "smoke", "friction", "noise", "compare", "signs", "mesh", "delta", "review3", "pick"])
     ap.add_argument("--slip-tol", type=float, default=2.5e-4)
     ap.add_argument("--lagrange", action="store_true")
     ap.add_argument("--fine", action="store_true")
@@ -253,5 +278,7 @@ if __name__ == "__main__":
         mesh(fr, a.fine, a.delta)
     elif a.cmd == "delta":
         delta_sweep(fr)
+    elif a.cmd == "review3":
+        review3(fr)
     else:
         print("\n".join(pick_compare()))

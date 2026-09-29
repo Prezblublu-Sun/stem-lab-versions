@@ -8,6 +8,9 @@
   <step>_S.csv        elem, mises, s11, s22, s12        （单元形心）
   <step>_ENER.csv     elem, else, evol                  （整单元量）
   <step>_CONTACT.csv  field, node, value                （CPRESS / CSLIP1 / CSTATUS / COPEN / CSHEAR1）
+  <step>_RF.csv       node, rf1, rf2, rf3               （反力非零的节点；2026-09-29 加）
+  <step>_E.csv        elem, e_max, e_mid, e_min         （单元形心主应变；输出里有 E 时）
+  <step>_CFORCE.csv   field, node, f1, f2, f3           （CNORMF / CSHEARF 节点接触力矢量；CNAREA 节点接触面积放在 f1）
   odb_meta.json       分析步、帧数、最后帧时间、字段清单
 """
 import csv
@@ -64,6 +67,29 @@ def main(odb_path, out_dir):
                         rows.append((key.split()[0], v.nodeLabel, repr(float(v.data))))
             if rows:
                 _write(os.path.join(out_dir, sname + "_CONTACT.csv"), ["field", "node", "value"], rows)
+            if "RF" in fo.keys():
+                _write(os.path.join(out_dir, sname + "_RF.csv"), ["node", "rf1", "rf2", "rf3"],
+                       [(v.nodeLabel, repr(float(v.data[0])), repr(float(v.data[1])),
+                         repr(float(v.data[2])) if len(v.data) > 2 else "0.0")
+                        for v in fo["RF"].values if any(float(x) != 0.0 for x in v.data)])
+            if "E" in fo.keys():
+                ec = fo["E"].getSubset(position=CENTROID)
+                _write(os.path.join(out_dir, sname + "_E.csv"), ["elem", "e_max", "e_mid", "e_min"],
+                       [(v.elementLabel, repr(float(v.maxPrincipal)), repr(float(v.midPrincipal)), repr(float(v.minPrincipal)))
+                        for v in ec.values])
+            frows = []
+            for key in fo.keys():
+                k0 = key.split()[0]
+                if k0 in ("CNORMF", "CSHEARF"):
+                    for v in fo[key].values:
+                        d = v.data
+                        frows.append((k0, v.nodeLabel, repr(float(d[0])), repr(float(d[1])),
+                                      repr(float(d[2])) if len(d) > 2 else "0.0"))
+                elif k0 == "CNAREA":
+                    for v in fo[key].values:
+                        frows.append((k0, v.nodeLabel, repr(float(v.data)), "0.0", "0.0"))
+            if frows:
+                _write(os.path.join(out_dir, sname + "_CFORCE.csv"), ["field", "node", "f1", "f2", "f3"], frows)
             meta["steps"].append(info)
     finally:
         odb.close()

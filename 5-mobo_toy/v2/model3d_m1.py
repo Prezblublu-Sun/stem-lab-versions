@@ -38,7 +38,16 @@ DEFAULTS = {"slip_tol": 2.5e-4, "lagrange": False, "interference": "clearance"}
 KEEP_FRIC = ["RELEASE_CONTACT.csv", "LOAD_CONTACT.csv", "UNLOAD_CONTACT.csv", "LOAD2_CONTACT.csv",
              "RELEASE_U.csv", "LOAD_U.csv", "UNLOAD_U.csv", "LOAD2_U.csv"]
 KEEP_BOND = ["LOAD_ENER.csv", "LOAD_S.csv"]
-KEEP_LAME = ["PRESSFIT_CONTACT.csv", "PRESSFIT_U.csv"]
+KEEP_LAME = ["PRESSFIT_CONTACT.csv", "PRESSFIT_U.csv", "PRESSFIT_RF.csv", "PRESSFIT_E.csv", "PRESSFIT_CFORCE.csv"]
+# 2026-09-29 第三份评估后：摩擦模型另外输出反力、节点接触力与接触面积、应变（导出见 abaqus/odb_export.py）
+FIELD_M1 = "*OUTPUT, FIELD\n*NODE OUTPUT\nU, RF\n*ELEMENT OUTPUT\nS, E, ELSE, EVOL"
+CONTACT_M1 = "*CONTACT OUTPUT\nCSTRESS, CDISP, CSTATUS, CFORCE, CNAREA"
+
+
+def keep_lists(steps):
+    k = [f"{s}_{x}.csv" for s in steps[1:] for x in ("U", "CONTACT", "CFORCE", "RF")]
+    k += [f"{s}_{x}.csv" for s in ("RELEASE", steps[-1]) for x in ("E", "S")]
+    return k
 
 
 # ------------------------------------------------------------------------------------------------ 界面
@@ -131,8 +140,9 @@ def _write_nodes(inp: Inp, coords: dict) -> None:
 
 # ------------------------------------------------------------------------------------------------ 设计模型
 def build(st: G.Stem3D, fm: FR.RealFemur, pl: dict, outdir: pathlib.Path, name: str, *, h_int=None, h_far=None, delta=None,
-          mu=None, torque: bool = True, E_canc=None, slip_tol=None, lagrange=None, interference=None) -> dict:
+          mu=None, torque: bool = True, E_canc=None, slip_tol=None, lagrange=None, interference=None, cycles=None) -> dict:
     cfg = fm.cfg
+    cycles = 2 if cycles is None else int(cycles)
     h_int = cfg["mesh"]["h_int_mm"] if h_int is None else h_int
     h_far = cfg["mesh"]["h_far_mm"] if h_far is None else h_far
     slip_tol = DEFAULTS["slip_tol"] if slip_tol is None else float(slip_tol)
@@ -143,7 +153,7 @@ def build(st: G.Stem3D, fm: FR.RealFemur, pl: dict, outdir: pathlib.Path, name: 
     for algo, h, m in attempts:
         try:
             info = _build(st, fm, pl, outdir, name, h_int=h, h_far=h_far, delta=delta, mu=mu, torque=torque, algo=algo, sec_pts=m,
-                          E_canc=E_canc, slip_tol=slip_tol, lagrange=lagrange, interference=interference)
+                          E_canc=E_canc, slip_tol=slip_tol, lagrange=lagrange, interference=interference, cycles=cycles)
             info["mesh_attempt"] = {"algorithm3d": algo, "h_int": h, "section_points": m, "previous_errors": errors}
             (outdir / "model3d.json").write_text(json.dumps(info))
             return info
@@ -156,7 +166,7 @@ def build(st: G.Stem3D, fm: FR.RealFemur, pl: dict, outdir: pathlib.Path, name: 
     raise BuildError("L3", "meshing failed after retries: " + " | ".join(errors))
 
 
-def _build(st, fm, pl, outdir, name, *, h_int, h_far, delta, mu, torque, algo, sec_pts, E_canc, slip_tol, lagrange, interference):
+def _build(st, fm, pl, outdir, name, *, h_int, h_far, delta, mu, torque, algo, sec_pts, E_canc, slip_tol, lagrange, interference, cycles=2):
     import gmsh
     cfg = fm.cfg
     ic = cfg["interface"]
@@ -251,7 +261,8 @@ def _build(st, fm, pl, outdir, name, *, h_int, h_far, delta, mu, torque, algo, s
     load = (f"*CLOAD, OP=NEW\nHEADN, 1, {_f(F[0] / len(head_n))}\nHEADN, 2, {_f(F[1] / len(head_n))}\n"
             f"HEADN, 3, {_f(F[2] / len(head_n))}")
     unload = "*CLOAD, OP=NEW\nHEADN, 1, 0.\nHEADN, 2, 0.\nHEADN, 3, 0."
-    out = f"{FIELD_OUTPUT}\n{CONTACT_OUTPUT}"
+    out = f"{FIELD_M1}\n{CONTACT_M1}"
+    steps = ["PRESSFIT", "RELEASE", "LOAD", "UNLOAD", "LOAD2"] + [x for k in range(2, cycles) for x in (f"UNLOAD{k}", f"LOAD{k + 1}")]
     fric = common("fric", coords_f, stem_f)
     fric.element_surface("S_BONE", [(elab[r][i], fc) for r, i, fc in slave])
     fric.element_surface("S_STEM", [(elab[r][i], fc) for r, i, fc in master])
@@ -297,6 +308,9 @@ FIXED, 1, 3
 {load}
 {out}
 *END STEP""")
+    for sname in steps[5:]:
+        body = unload if sname.startswith("UNLOAD") else load
+        fric.raw(f"*STEP, NAME={sname}, INC=1000\n*STATIC\n0.25, 1., 1e-08, 1.\n{body}\n{out}\n*END STEP")
     fric.write(outdir / f"{name}_fric.inp")
     bond = common("bond", coords, elems["stem"])
     bond.raw(f"""
@@ -315,13 +329,13 @@ FIXED, 1, 3
                         stem_conn_bond=elems["stem"], **{f"{k}_elab": v for k, v in elab.items()},
                         node_labels=labs, nodes=np.array([coords_f[int(n)] for n in labs]),
                         pair_bone=nodes, pair_stem=twin, pair_normal=nrm, pair_area=area, pair_interf=interf, pair_cortex=on_cortex)
-    (outdir / "keep.json").write_text(json.dumps({"fric": KEEP_FRIC, "bond": KEEP_BOND}))
+    (outdir / "keep.json").write_text(json.dumps({"fric": keep_lists(steps), "bond": KEEP_BOND}))
     return {"name": name, "model": "m1", "n_tet": {k: int(len(v)) for k, v in elems.items()}, "n_nodes": len(coords_f),
             "n_slave_faces": len(slave), "n_master_faces": len(master), "n_pairs": int(len(nodes)),
             "n_pairs_cortex": int(on_cortex.sum()), "interface_area_mm2": float(area.sum()),
             "cortex_area_frac": float(area[on_cortex].sum() / area.sum()), "n_head": len(head_n), "n_fixed": len(fixed),
             "slave": [[int(elab[r][i]), fc] for r, i, fc in slave], "h_int": h_int, "h_far": h_far, "delta": delta, "mu": mu,
-            "torque": torque, "E_canc": E_canc, "slip_tol": slip_tol, "lagrange": lagrange, "interference": interference,
+            "torque": torque, "E_canc": E_canc, "slip_tol": slip_tol, "lagrange": lagrange, "interference": interference, "cycles": cycles, "steps": steps,
             "load_N": F.tolist(), "stem_volume_mm3": v_stem, "A0": A0, "mesh_quality": quality}
 
 
@@ -396,8 +410,8 @@ S_BONE, S_STEM
 SYMX, 1, 1
 SYMY, 2, 2
 SYMZ, 3, 3
-{FIELD_OUTPUT}
-{CONTACT_OUTPUT}
+{FIELD_M1}
+{CONTACT_M1}
 *END STEP""")
     inp.write(outdir / f"{name}_fric.inp")
     labs = np.array(sorted(coords_f))
