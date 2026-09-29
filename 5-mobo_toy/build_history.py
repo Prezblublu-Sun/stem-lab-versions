@@ -302,7 +302,7 @@ def b_v3():
             continue
         b = json.loads(p.read_text(encoding="utf-8"))
         s += (f"#### 数据：V3 种子 {sd} 逐个评估（热启动 {b['warm_start_n']} 个设计，候选池 {b['pool_size']} 个，"
-              f"参考点 (log10 f1, 骨量损失) = ({b['ref_point'][0]:.3f}, {b['ref_point'][1]:.0f} mm³)）\n\n")
+              f"参考点 (log10 f1, 去骨体积) = ({b['ref_point'][0]:.3f}, {b['ref_point'][1]:.0f} mm³)）\n\n")
         rows = []
         for r in b["records"]:
             if r["ok"]:
@@ -310,11 +310,11 @@ def b_v3():
                              fmt(r["y"][1] / 1000, 2), "是" if r["c"][0] <= 0 else "否", fmt(r["c"][0], 2)])
             else:
                 rows.append([r["round"], fmt(r["L"], 1), fmt(r["h_cut"], 1), fmt(r["alpha"], 1), fmt(r["m"], 2), "失败", "—", "—", "—"])
-        s += table(["轮", "L (mm)", "截骨 (mm)", "α (°)", "余量 (mm)", "f1 (µm)", "骨量损失 (cm³)", "满足约束", "归一化违反量"], rows)
+        s += table(["轮", "L (mm)", "截骨 (mm)", "α (°)", "余量 (mm)", "f1 (µm)", "去骨体积 (cm³)", "满足约束", "归一化违反量"], rows)
         s += f"\n选点耗时每轮 {min(b['acq_s']):.0f}–{max(b['acq_s']):.0f} s。\n\n"
     t = rd(V / "reports/V3_short_stem/tables/V3-T01.csv")
     s += "#### 数据：V3 报告里的前沿设计（V3-T01；已撤回，留作记录）\n\n"
-    s += table(["作业", "L", "截骨", "α", "余量", "λ", "γ_ml", "γ_ap", "n", "τ", "A0", "f1 (µm)", "偏离 (%)", "柄应力", "锉骨 (mm³)", "骨量损失 (mm³)"],
+    s += table(["作业", "L", "截骨", "α", "余量", "λ", "γ_ml", "γ_ap", "n", "τ", "A0", "f1 (µm)", "偏离 (%)", "柄应力", "锉骨 (mm³)", "去骨体积 (mm³)"],
                [[r["job_id"][:22], r["L"], r["h_cut"], r["alpha"], r["m"], r["lam"], r["g_ml"], r["g_ap"], r["n"], r["tau"], r["A0_mm2"], r["f1_um"],
                  r["abs_dsed_pct"], r["vm_p99"], fmt(r["reamed_mm3"], 0), fmt(r["bone_loss_mm3"], 0)] for r in t])
     t = rd(V / "reports/V3_short_stem/tables/V3-T02.csv")
@@ -324,7 +324,7 @@ def b_v3():
                  r["dsed_base"], r["dsed_Ecanc200"], r["dsed_delta005"], r["vm_base"], r["vm_Ecanc200"]] for r in t])
     s += "\n柄应力在基线与变体之间从 61–110 跳到 134–202 MPa 的三行，就是假体颈修正前解的参考设计。\n"
     s += "\n#### 图题\n\n" + titles(V / "reports/V3_short_stem")
-    s += img("V3 目标空间：骨量损失对微动（V3-F01，旧界面模型，结论已撤回）", "v2/reports/V3_short_stem/figures/V3-F01.png")
+    s += img("V3 目标空间：去骨体积对微动（V3-F01，旧界面模型，结论已撤回）", "v2/reports/V3_short_stem/figures/V3-F01.png")
     return s
 
 
