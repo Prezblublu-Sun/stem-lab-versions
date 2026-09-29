@@ -6,6 +6,7 @@
     noise     噪声底：3 设计 × h_int {1.94, 1.97, 2.00, 2.03, 2.06}
     compare   新旧界面对比：12 个当前版本设计（按旧 f1 分位取）
     signs     方向性：基准设计 δ 0 / 0.05、μ 0.6、去扭转
+    delta     过盈量扫描：3 设计 × δ {0.01, 0.025, 0.05, 0.10}
     mesh      网格：3 设计 × {2.0, 1.4} mm（--fine 再加基准 1.0 mm）
 公共选项 --slip-tol / --lagrange：生产用的摩擦设置（默认 slip tolerance 2.5e-4；friction 之后可改）。
 同一（设计、网格、摩擦设置、变体）在各命令里用同一个作业说明，所以互相命中缓存。
@@ -33,7 +34,7 @@ KEYS = ("f1_p95_um", "f1_rev_p50_um", "f1_first_p95_um", "f1_closed_p95_um", "f1
         "status_frac_open", "stick_cslip_p95_um", "stick_cslip_max_um", "f2_g7_loss_pct", "vm_p99", "cortex_area_frac", "n_pairs")
 NAMED = {"base": None, "short": "probe_L25_12_e265f0bf", "readout": "bo_qnehvi_s1_r0_62bbf792"}
 FRICTION_SETS = {"tol0.005": {"slip_tol": 0.005}, "tol0.001": {"slip_tol": 0.001}, "tol0.00025": {"slip_tol": 0.00025},
-                 "lagrange": {"lagrange": True}}
+                 "tol0.0001": {"slip_tol": 0.0001}, "lagrange": {"lagrange": True}}
 
 
 def brief(r: dict | None) -> dict:
@@ -113,12 +114,21 @@ def friction() -> dict:
     return out
 
 
-def noise(fr: dict) -> dict:
+def _var(delta):
+    return {} if delta is None else {"delta": float(delta)}
+
+
+def _sfx(delta):
+    return "" if delta is None else f"_d{delta:g}"
+
+
+def noise(fr: dict, delta=None, designs=None) -> dict:
     hs = (1.94, 1.97, 2.00, 2.03, 2.06)
-    ids = {(d, h): J.submit(named(d, h, fr)) for d in NAMED for h in hs}
+    names = [d for d in NAMED if designs is None or d in designs]
+    ids = {(d, h): J.submit(named(d, h, fr, **_var(delta))) for d in names for h in hs}
     res = S.wait_for(list(ids.values()), timeout_h=8.0, poll=30.0)
-    out = {"runs": {f"{d}:h{h:g}": {"job_id": j, **brief(res[j])} for (d, h), j in ids.items()}, "summary": {}}
-    for d in NAMED:
+    out = {"delta": delta, "runs": {f"{d}:h{h:g}": {"job_id": j, **brief(res[j])} for (d, h), j in ids.items()}, "summary": {}}
+    for d in names:
         for q in ("f1_p95_um", "f1_first_p95_um", "f1_cslip_p95_um", "f2_g7_loss_pct", "vm_p99", "open_frac_release"):
             v = np.array([res[ids[(d, h)]].get(q, np.nan) for h in hs if "failed" not in res[ids[(d, h)]]], float)
             v = v[np.isfinite(v)]
@@ -126,7 +136,7 @@ def noise(fr: dict) -> dict:
                 out["summary"][f"{d}:{q}"] = {"n": int(len(v)), "mean": float(v.mean()), "sd": float(v.std(ddof=1)),
                                               "cv_pct": float(100 * v.std(ddof=1) / abs(v.mean())) if v.mean() else None,
                                               "min": float(v.min()), "max": float(v.max())}
-    save("noise", out)
+    save("noise" + _sfx(delta), out)
     return out
 
 
@@ -152,9 +162,9 @@ def pick_compare(n: int = 12) -> list[str]:
     return [rows[i][1] for i in idx]
 
 
-def compare(fr: dict, n: int = 12) -> dict:
+def compare(fr: dict, n: int = 12, delta=None) -> dict:
     jobs_ = pick_compare(n)
-    ids = {j: J.submit(spec_of(core_of(j), "cmp" + j[-8:], 2.0, fr)) for j in jobs_}
+    ids = {j: J.submit(spec_of(core_of(j), "cmp" + j[-8:], 2.0, fr, **_var(delta))) for j in jobs_}
     res = S.wait_for(list(ids.values()), timeout_h=8.0, poll=30.0)
     from scipy.stats import spearmanr
     rows = []
@@ -165,14 +175,14 @@ def compare(fr: dict, n: int = 12) -> dict:
         rows.append({"old_job": j, "m1_job": k, "L": dsg["L"], "alpha": dsg["alpha"], "m": dsg["m"], "h_cut": sp.get("h_cut", 25.0),
                      "old": {q: o.get(q) for q in ("f1_p95_um", "f2_g7_loss_pct", "vm_p99", "frac_open")}, "m1": brief(res[k])})
     ok = [r for r in rows if "f1_p95_um" in r["m1"]]
-    out = {"rows": rows, "n_ok": len(ok)}
+    out = {"delta": delta, "rows": rows, "n_ok": len(ok)}
     if len(ok) >= 4:
         a = np.array([r["old"]["f1_p95_um"] for r in ok])
         for q in ("f1_p95_um", "f1_first_p95_um", "f1_cslip_p95_um"):
             b = np.array([r["m1"][q] for r in ok])
             out[f"spearman_old_vs_{q}"] = float(spearmanr(a, b)[0])
             out[f"median_ratio_{q}"] = float(np.median(b / a))
-    save("compare", out)
+    save("compare" + _sfx(delta), out)
     return out
 
 
@@ -194,23 +204,37 @@ def signs(fr: dict) -> dict:
     return out
 
 
-def mesh(fr: dict, fine: bool = False) -> dict:
-    ids = {(d, h): J.submit(named(d, h, fr)) for d in NAMED for h in (2.0, 1.4)}
+def delta_sweep(fr: dict) -> dict:
+    """过盈量扫描：3 个设计 × δ {0, 0.025, 0.05, 0.10} mm。δ 是压配模型里最不确定的输入（线弹性松质骨、无压溃上限）。"""
+    # δ = 0 不在扫描里：没有压配时，卸载到零载荷后柄完全松开，第二次加载不收敛（2026-09-29 01:25 基准设计 L4，
+    # 前四步都完成，LOAD2 第一增量反复减步长）。最低一档取 0.01 mm。
+    ds = (0.01, 0.025, 0.05, 0.10)
+    ids = {(d, x): J.submit(named(d, 2.0, fr) if x == 0.10 else named(d, 2.0, fr, delta=x)) for d in NAMED for x in ds}
+    res = S.wait_for(list(ids.values()), timeout_h=8.0, poll=30.0)
+    out = {"runs": {f"{d}:delta{x:g}": {"job_id": j, **brief(res[j])} for (d, x), j in ids.items()}}
+    save("delta", out)
+    return out
+
+
+def mesh(fr: dict, fine: bool = False, delta=None) -> dict:
+    ids = {(d, h): J.submit(named(d, h, fr, **_var(delta))) for d in NAMED for h in (2.0, 1.4)}
     if fine:
-        ids[("base", 1.0)] = J.submit(named("base", 1.0, fr))
+        ids[("base", 1.0)] = J.submit(named("base", 1.0, fr, **_var(delta)))
     res = S.wait_for(list(ids.values()), timeout_h=10.0, poll=30.0)
-    out = {"runs": {f"{d}:h{h:g}": {"job_id": j, **brief(res[j])} for (d, h), j in ids.items()}}
-    save("mesh", out)
+    out = {"delta": delta, "runs": {f"{d}:h{h:g}": {"job_id": j, **brief(res[j])} for (d, h), j in ids.items()}}
+    save("mesh" + _sfx(delta), out)
     return out
 
 
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["lame", "smoke", "friction", "noise", "compare", "signs", "mesh", "pick"])
+    ap.add_argument("cmd", choices=["lame", "smoke", "friction", "noise", "compare", "signs", "mesh", "delta", "pick"])
     ap.add_argument("--slip-tol", type=float, default=2.5e-4)
     ap.add_argument("--lagrange", action="store_true")
     ap.add_argument("--fine", action="store_true")
+    ap.add_argument("--delta", type=float, default=None, help="过盈量变体（mm）；不给则用配置里的 0.10")
+    ap.add_argument("--designs", default=None, help="逗号分隔：base,short,readout")
     a = ap.parse_args()
     fr = {"lagrange": True} if a.lagrange else {"slip_tol": a.slip_tol}
     if a.cmd == "lame":
@@ -220,12 +244,14 @@ if __name__ == "__main__":
     elif a.cmd == "friction":
         friction()
     elif a.cmd == "noise":
-        noise(fr)
+        noise(fr, a.delta, a.designs.split(",") if a.designs else None)
     elif a.cmd == "compare":
-        compare(fr)
+        compare(fr, delta=a.delta)
     elif a.cmd == "signs":
         signs(fr)
     elif a.cmd == "mesh":
-        mesh(fr, a.fine)
+        mesh(fr, a.fine, a.delta)
+    elif a.cmd == "delta":
+        delta_sweep(fr)
     else:
         print("\n".join(pick_compare()))

@@ -26,7 +26,7 @@ sys.path.insert(0, str(HERE))
 import remote as R  # noqa: E402
 import run_abaqus as RA  # noqa: E402
 
-SLOTS = 2
+SLOTS = 3                # 2026-09-29 02:35：2 → 3。8 核 16 线程，2 个作业并行时 CPU 占用只有约 26%（接触迭代串行段多），内存余 32 GB
 CPUS = 4
 TIMEOUT = 6 * 3600       # s/单元。v1 默认 900 s 太短：1.0 mm 网格的摩擦模型要 40–60 min；且 Windows 上
                          # subprocess 超时要等孙进程结束才返回，会把实际已算完的作业误判 L4

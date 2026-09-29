@@ -149,11 +149,11 @@ def intact_ref(h_int: float, E_canc: float | None = None) -> dict:
         for d in QROOT.glob("ref_intact_h*"):
             if (d / "result.json").exists() and _same_variant(d):
                 hh = float(d.name.split("_h", 1)[1].split("_")[0])
-                if hh >= h_int:
-                    done.append((hh, -d.stat().st_mtime, d))
+                # 优先取比要求粗且最接近的一档；没有更粗的（如噪声底研究里的 2.03、2.06 mm）就取最接近的一档
+                done.append((0 if hh >= h_int else 1, abs(hh - h_int), -d.stat().st_mtime, hh, d))
         if not done:
             raise FileNotFoundError(f"no DONE intact reference for h_int={h_int}")
-        hh, _, d = min(done)
+        _, _, _, hh, d = min(done)
         substituted = hh
     else:
         d = max(cands)[1]
