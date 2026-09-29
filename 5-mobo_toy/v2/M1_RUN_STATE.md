@@ -92,3 +92,6 @@ CNAREA 之和 412.8 mm² 比几何面积 377.0 大 9.5%，所以用 CPRESS 或 C
 
 收尾步骤（全部 DONE/FAILED 后）：sync → `R.py('v2/audit3b.py')` → fetch results/audit3b → 两个生成脚本（--stamp 用实际时间）→ build_doc 两个 PDF → 看页面 →
 SendUserFile 两个 PDF → 提交 → 更新记忆、REVISION_PLAN_V4（加第 10 节）、PROJECT_HISTORY_base（加 10B 节）并重建 → CronDelete e54384d1。
+
+**14:54 全部 23 个作业 DONE，无失败。15:00 出 `v2/REVIEW3_RUNS.pdf`（6 页）与 `v2/PROJECT_ASSESSMENT_2026-09-29.pdf`（4 页）。**
+定时任务 e54384d1 已删除。Linux serve 与本机 worker（3 槽）仍在运行，队列为空。等用户定评估文件第 5 节的 7 件事；定了前三件就可以跑 A1 + A2（18 个作业）。

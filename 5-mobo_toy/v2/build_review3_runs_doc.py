@@ -48,9 +48,18 @@ def main(stamp):
     r23 = [abs(v["reloading_3_P95"] / v["reloading_2_P95"] - 1) for v in cy.values() if "reloading_3_P95" in v]
     dr = [(v["peak_drift_1to2_P95"], v["peak_drift_2to3_P95"]) for v in cy.values() if "peak_drift_2to3_P95" in v]
     if r23:
-        A(f"1. **第二循环已经够用。** 第三循环的可恢复微动与第二循环相差 {100 * min(r23):.1f}–{100 * max(r23):.1f}%。"
-          f"两次峰值之间的漂移从第一到第二循环的 {min(a for a, _ in dr):.2f}–{max(a for a, _ in dr):.2f} µm 降到第二到第三循环的 "
-          f"{min(b for _, b in dr):.2f}–{max(b for _, b in dr):.2f} µm，在收敛。")
+        by = {}
+        for k, v in cy.items():
+            if "reloading_3_P95" in v:
+                by.setdefault(dl(k), []).append((SHORT[k.split(":")[1]], 100 * (v["reloading_3_P95"] / v["reloading_2_P95"] - 1)))
+        lo = by.get("0.025", [])
+        hi = by.get("0.1", [])
+        worst = max(hi + lo, key=lambda x: abs(x[1]))
+        A("1. **滑动为主时第二循环够用，粘着与滑动并存时还不够。** 过盈 0.025 mm 下，第三循环的可恢复微动与第二循环相差 "
+          + "、".join(f"{n} {x:+.1f}%" for n, x in lo) + "；过盈 0.10 mm 下相差 " + "、".join(f"{n} {x:+.1f}%" for n, x in hi)
+          + f"。{worst[0]}在过盈 0.10 mm 时两个循环还差 {abs(worst[1]):.0f}%，没有稳定。"
+          f"峰值之间的漂移从第一到第二循环的 {min(a for a, _ in dr):.2f}–{max(a for a, _ in dr):.2f} µm 降到第二到第三循环的 "
+          f"{min(b for _, b in dr):.2f}–{max(b for _, b in dr):.2f} µm。")
     ms = {k: v for k, v in me.items() if ":short:" in k and v["h2.0"]}
     if ms:
         a = [100 * (v["h1.4_const_slip"]["f1_p95_um"] / v["h2.0"]["f1_p95_um"] - 1) for v in ms.values()]
@@ -76,6 +85,11 @@ def main(stamp):
           f"过盈 0.025 mm 时中位 {-100 * max(x['emin_P50'] for x in k25):.2f}–{-100 * min(x['emin_P50'] for x in k25):.2f}%，超过 0.7% 的占 "
           f"{100 * min(x['vol_frac_comp_gt_0.7pct'] for x in k25):.0f}–{100 * max(x['vol_frac_comp_gt_0.7pct'] for x in k25):.0f}%。"
           "线弹性模型在 0.10 mm 下不成立；这一条直接影响过盈量的选择。")
+        pk = {k: [o for kk, o in v.items() if isinstance(o, dict) and kk.endswith(":cancellous:within_2mm") and not kk.startswith("RELEASE")][0]
+              for k, v in sn.items() if dl(k) == "0.025"}
+        if pk:
+            A("   峰值载荷下（过盈 0.025 mm），柄周 2 mm 内超过 0.7% 压缩应变的松质骨体积："
+              + "、".join(f"{SHORT[k.split(':')[1]]} {100 * o['vol_frac_comp_gt_0.7pct']:.0f}%" for k, o in pk.items() if k.startswith("cycle3")) + "。短柄周围的骨在受载时应变最高。")
     if de:
         same = all(all(v["identical"].values()) for v in de.values())
         A(f"6. **跨代码版本结果{'逐位一致' if same else '不完全一致'}。** {len(de)} 个代表工况按原规格重解，微动、首次加载微动、柄应力"
@@ -93,7 +107,8 @@ def main(stamp):
         rows.append([SHORT[lab], dl(k), f(v["first_loading_P95"], 1), f(v["unloading_1_P95"]), f(v["reloading_2_P95"]), f(v.get("unloading_2_P95")),
                      f(v.get("reloading_3_P95")), pct(v.get("reloading_3_P95"), v["reloading_2_P95"]), f(v["peak_drift_1to2_P95"]), f(v.get("peak_drift_2to3_P95"))])
     A(tab(["设计", "过盈 (mm)", "首次加载", "第 1 次卸载", "第 2 次加载", "第 2 次卸载", "第 3 次加载", "第 3 对第 2", "峰值漂移 1→2", "峰值漂移 2→3"], rows))
-    A("\n第一次卸载的可恢复量偏大（含首次就位后的回弹），从第二次加载起各循环基本重合。主指标继续用第二次加载的可恢复量。\n")
+    A("\n第一次卸载的可恢复量偏大（含首次就位后的回弹）。过盈 0.025 mm 的三个工况从第二次加载起各循环重合到 1.3% 以内；"
+      "过盈 0.10 mm 的短柄一部分界面粘着、一部分滑动，可恢复量还在逐循环下降。\n")
     A("各步峰值载荷下间隙超过 5 µm 的界面面积：\n")
     rows = []
     for k, v in cy.items():
