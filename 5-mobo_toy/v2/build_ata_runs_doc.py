@@ -71,9 +71,24 @@ def main(stamp):
     dt = {d: {k: z(ms.get(f"{d}:{k}"), "res_0.6", "total") - z(ms.get(f"{d}:h2:f6"), "res_0.6", "total") for k, _ in MESH[1:]} for d in DES}
     flat = [abs(v) for d in dm.values() for v in d.values() if math.isfinite(v)]
     flat_t = [abs(v) for d in dt.values() for v in d.values() if math.isfinite(v)]
+    worst = {}
+    for key, nm in (("ssi_pct", "应力屏蔽"), ("res_0.6", "骨吸收")):
+        c = []
+        for d in DES:
+            for k, mn in MESH[1:]:
+                for zn in ("G1", "G2", "G3", "G4", "G5", "G6", "G7"):
+                    a, b = z(ms.get(f"{d}:{k}"), key, zn), z(ms.get(f"{d}:h2:f6"), key, zn)
+                    if math.isfinite(a) and math.isfinite(b):
+                        c.append((abs(a - b), a - b, d, mn, zn))
+        worst[key] = (nm, max(c) if c else None)
     A("## 1 结论\n")
     if flat:
-        A(f"1. **网格。** 加密界面和远场网格后，7 区应力屏蔽最多变化 {max(flat):.1f} 个百分点，骨吸收总值最多变化 {max(flat_t):.1f} 个百分点。")
+        A(f"1. **网格。** 加密界面和远场网格后，7 区应力屏蔽最多变化 {max(flat):.1f} 个百分点，骨吸收总值最多变化 {max(flat_t):.1f} 个百分点。"
+          + "逐区看，" + "；".join(f"{nm}变化最大的是{DES[w[2]]}的 {w[4][1]} 区，{w[3]} 网格下 {w[1]:+.1f} 个百分点"
+                                for nm, w in worst.values() if w) + "。")
+        rt = [((ms.get(f"{d}:{k}") or {}).get("n_tet") or {}).get("cortex", 0) / max(1, ((ms.get(f"{d}:h2:f6") or {}).get("n_tet") or {}).get("cortex", 0))
+              for d in DES for k, _ in MESH[1:]]
+        A(f"   这次检查里植入模型的皮质单元数最多增加到生产网格的 {max(rt):.1f} 倍。在这个范围内，生产网格用于分区统计是够的。")
     g7i = [z(iso.get(d), "ssi_pct", "G7") for d in DES]
     g7s = [z(ms.get(f"{d}:h2:f6"), "ssi_pct", "G7") for d in DES]
     if all(math.isfinite(x) for x in g7i + g7s):
@@ -85,6 +100,12 @@ def main(stamp):
     if all(math.isfinite(x) for x in dg7) and all(x is not None for x in mm + ml):
         A(f"3. **柄模量。** 从 110 GPa 降到 20 GPa，7 区应力屏蔽变化 {min(dg7):+.0f} 到 {max(dg7):+.0f} 个百分点，"
           "可恢复微动从 " + "、".join(f"{a:.1f}" for a in mm) + " µm 变为 " + "、".join(f"{a:.1f}" for a in ml) + " µm（基准、原读数、短柄）。")
+        mh = [(es.get(f"{d}:E55") or {}).get("f1_p95_um") for d in DES]
+        dh = [z(es.get(f"{d}:E55"), "ssi_pct", "G7") - z(es.get(f"{d}:{e_hi}"), "ssi_pct", "G7") for d in DES]
+        if all(x is not None for x in mh):
+            A(f"   模量减半到 55 GPa 时，7 区应力屏蔽变化 {min(dh):+.0f} 到 {max(dh):+.0f} 个百分点，可恢复微动变为 "
+              + "、".join(f"{a:.1f}" for a in mh) + " µm。")
+    A("4. **求解。** 27 个作业全部有结果。其中 2 个第一次因为申请不到内存而失败，重跑后通过，见第 6 节。")
     A("")
 
     # ------------------------------------------------------------ 2 作业
@@ -105,13 +126,19 @@ def main(stamp):
         rows = []
         for k, nm in MESH:
             o = ms.get(f"{d}:{k}")
-            rows.append([nm, f((o or {}).get("n_tet")), f(z(o, "ssi_pct", "G7"), 1), f(z(o, "ssi_pct", "G6"), 1), f(z(o, "ssi_pct", "G1"), 1),
-                         f(z(o, "ssi_vw_pct", "total"), 1), f(z(o, "res_0.6", "G7"), 1), f(z(o, "res_0.6", "total"), 1),
-                         f(z(o, "ssi_pct", "G7", "fixed"), 1)])
+            nt = (o or {}).get("n_tet") or {}
+            rows.append([nm, nt.get("cortex", "—"), sum(nt.values()) if nt else "—", f(z(o, "ssi_pct", "G7"), 1), f(z(o, "ssi_pct", "G6"), 1),
+                         f(z(o, "ssi_pct", "G1"), 1), f(z(o, "ssi_vw_pct", "total"), 1), f(z(o, "res_0.6", "G7"), 1),
+                         f(z(o, "res_0.6", "total"), 1), f(z(o, "ssi_pct", "G7", "fixed"), 1)])
         A(f"**{DES[d]}**\n")
-        A(tab(["网格", "单元数", "7 区屏蔽", "6 区屏蔽", "1 区屏蔽", "屏蔽总值", "7 区吸收", "吸收总值", "固定 7 区屏蔽"], rows))
+        A(tab(["网格", "皮质单元数", "总单元数", "7 区屏蔽", "6 区屏蔽", "1 区屏蔽", "屏蔽总值", "7 区吸收", "吸收总值", "固定 7 区屏蔽"], rows))
         A("")
     A("屏蔽与吸收的单位都是 %，吸收取死区 0.6，分区取股骨坐标系、随柄定位，最后一列是固定分区。\n")
+    rf = S.get("ref", {})
+    if rf:
+        A("完整股骨参照的皮质单元数：" + "；".join(
+            f"{ {'h1.4_f6': '1.4 / 6', 'h1.4_f4': '1.4 / 4', 'iso': '2.0 / 6，2300 N 工况'}.get(k, k)} 为 {(v.get('prep') or {}).get('cortex', '—')}"
+            for k, v in rf.items()) + "。完整股骨在整个关注区内都按界面尺寸划分，所以皮质单元比植入模型多得多。\n")
     chk = []
     for d, job in (("readout", "bo_qnehvi_s1_r0_62bbf792"), ("short", "probe_L25_12_e265f0bf")):
         a, b = std_row(job), z(ms.get(f"{d}:h2:f6"), "ssi_pct", "G7")
@@ -162,6 +189,29 @@ def main(stamp):
                "屏蔽总值 (%)", "7 区吸收 (%)", "吸收总值 (%)", "柄体最大应力 (MPa)", "颈部最大应力 (MPa)"], rows))
         A("")
     A("应力屏蔽和骨吸收来自粘接模型，微动来自摩擦模型。最大应力取交界 3 mm 以外的单元质心值。\n")
+    A("读这三张表：\n")
+    A("- 基准和原读数两个设计原本是稳定的，柄越软微动越大，应力屏蔽越轻。这与论文引用的 Kuiper 与 Huiskes 1997 的说法一致。")
+    A("- 短柄的微动几乎不随柄模量变化。它在这个过盈量下已经整体滑动，微动由界面决定，不由柄的刚度决定。")
+    A("- 颈部最大应力不随柄模量变化，因为颈是静定的传力件。柄体最大应力随模量降低而下降。")
+    A("- 110 GPa 一行来自共节点的粘接模型，第 3 节的 2.0 / 6 一行来自绑定约束的粘接模型。两者的 7 区屏蔽相差不到 1 个百分点。\n")
+
+    # ------------------------------------------------------------ 6 失败与处置
+    A("## 6 求解中的失败与处置\n")
+    A(tab(["时间", "作业", "现象", "原因", "处置"], [
+        ["16:22", "完整股骨 1.4 / 6 参照", "63 秒后退出", "求解器申请约 24 GB 内存失败", "限制内存 12 GB 后重跑，181 秒解完"],
+        ["16:22", "短柄 55 GPa 摩擦模型", "37 秒后退出", "同一时刻内存被另一个大模型占用", "原样重跑，20 分钟解完"]]))
+    A("\n两次失败发生在同一分钟，当时远场加密的完整股骨正在求解。本机同时开着很多别的程序，可分配的内存余量只有 14 到 25 GB。"
+      "夜里跑同样规模的作业没有出过这个问题。\n")
+    A("限内存的做法是在作业目录里放一个只对该作业生效的 Abaqus 设置文件，求解程序 `v2/solve_worker.py` 会把它一起取回本机。"
+      "没有改系统设置，也没有改 Abaqus 的全局配置。失败记录存在 Linux 的 `logs/failed_attempts/` 里。\n")
+
+    # ------------------------------------------------------------ 7 对计划的影响
+    A("## 7 对后续计划的影响\n")
+    A("- **网格。** 应力屏蔽和骨吸收的分区统计可以继续用生产网格，不需要为它加密。")
+    A("- **载荷。** 分区数值随载荷工况变化，短柄最明显。今后报告应力屏蔽时要写明工况，与文献比较时用 2300 N 这一组。肌力仍然没有加。")
+    A("- **柄模量。** 降低柄刚度能减轻屏蔽，代价是稳定设计的微动成倍增加。是否把柄刚度加进设计变量，需要你决定。"
+      "此前 210 个设计里，单靠几何就能让 7 区屏蔽在 5% 到 69% 之间变化，范围比模量减半的效果大。")
+    A("- **大模型的内存。** 白天本机有其他程序时，完整股骨 1.4 mm 一档要限内存才能解。\n")
     OUT.write_text("\n".join(L) + "\n", encoding="utf-8")
     print("written", OUT, len(L))
 

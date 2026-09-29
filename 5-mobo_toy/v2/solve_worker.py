@@ -69,7 +69,9 @@ def fetch(jid: str) -> list[pathlib.Path]:
         shutil.rmtree(d)
     d.mkdir(parents=True)
     # keep.json（可选）：该作业要推回的 CSV 清单，由建模端写；没有则用本文件的 KEEP
-    r = R._ssh(f"cd {Q}/{jid} && tar -cf - *.inp $(ls keep.json 2>/dev/null)", timeout=600)
+    # abaqus_v6.env（可选）：该作业自己的 Abaqus 环境设置，放在作业目录里只对这一个作业生效。用途：本机可用内存紧张时
+    # 给大模型限内存（memory = "12 gb"），让求解器走核外，而不是申请不到内存直接退出（2026-09-29 16:22 的两次 L4）
+    r = R._ssh(f"cd {Q}/{jid} && tar -cf - *.inp $(ls keep.json abaqus_v6.env 2>/dev/null)", timeout=600)
     if r.returncode != 0:
         raise R.RemoteError(f"fetch {jid}: {r.stderr.decode(errors='replace')[-500:]}")
     with tarfile.open(fileobj=io.BytesIO(r.stdout)) as tf:

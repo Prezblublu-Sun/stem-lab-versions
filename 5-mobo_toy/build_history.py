@@ -431,6 +431,68 @@ def b_m1():
     return s
 
 
+def b_ata():
+    RS = json.loads((V / "results/resorption/summary.json").read_text(encoding="utf-8"))
+    NU = json.loads((V / "results/resorption/null.json").read_text(encoding="utf-8"))
+    AT = json.loads((V / "results/ata/summary.json").read_text(encoding="utf-8"))
+    Z = ("G1", "G2", "G3", "G4", "G5", "G6", "G7", "total")
+    zn = lambda z: "总值" if z == "total" else z[1] + " 区"
+    m = lambda sc, z, k: RS["zones"][f"{sc}:cortex:{z}"][k]
+
+    def c(o, n=0):
+        return "—" if not o.get("n") else f"{fmt(o['median'], n)}（{fmt(o['min'], n)} 到 {fmt(o['max'], n)}）"
+    s = f"#### 数据：骨吸收与应力屏蔽（{RS['n']} 个现行版本设计，皮质骨，中位数与范围）\n\n"
+    s += table(["分区", "吸收，死区 0.4 (%)", "死区 0.6 (%)", "死区 0.75 (%)", "屏蔽，柄坐标系 (%)", "屏蔽，股骨坐标系随柄 (%)", "屏蔽，固定分区 (%)"],
+               [[zn(z)] + [c(m("femur", z, f"res_{t}")) for t in ("0.4", "0.6", "0.75")]
+                + [c(m(sc, z, "ssi_vw_pct" if z == "total" else "ssi_pct")) for sc in ("stem", "femur", "fixed")] for z in Z])
+    nk = {r["zone"]: r for r in NU["k"]["1"] if r["tissue"] == "cortex"}
+    s += ("\n吸收按“股骨坐标系、随柄定位”分区。空白对照（完整股骨 1.4 mm 对 2.0 mm 网格）的本底：死区 0.6 下总值 "
+          f"{nk['total']['res_0.6']:.1f}%，单区最高 {max(nk[z]['res_0.6'] for z in Z):.1f}%；死区 0.4 下单区最高 {max(nk[z]['res_0.4'] for z in Z):.1f}%。\n")
+    gv = RS["grid_vs_element_vm_change_pct_points"]
+    s += (f"采样网格与原有逐单元统计的差：{gv['n']} 个分区，中位 {gv['median']:+.1f} 个百分点，P5 到 P95 为 {gv['p05']:+.1f} 到 {gv['p95']:+.1f}。\n")
+    s += "\n#### 数据：柄应力分段（单元质心 von Mises，载荷 2391 N，MPa）\n\n"
+    S_ = RS["stem"]
+    s += table(["部位", "P99 中位", "P99 范围", "最大值中位", "最大值范围"],
+               [[nm, fmt(S_[f"vm_p99_{k}"]["median"], 0), f"{fmt(S_[f'vm_p99_{k}']['min'], 0)} – {fmt(S_[f'vm_p99_{k}']['max'], 0)}",
+                 fmt(S_[f"vm_max_{k}"]["median"], 0), f"{fmt(S_[f'vm_max_{k}']['min'], 0)} – {fmt(S_[f'vm_max_{k}']['max'], 0)}"]
+                for nm, k in (("柄体，离交界 3 mm 以上", "body_deep"), ("交界，截骨面两侧各 3 mm", "junction"), ("假体颈，离交界 3 mm 以上", "neck_free"))])
+    NAME = {"base": "基准", "readout": "原读数", "short": "短柄"}
+
+    def zz(o, key, zone, sc="femur"):
+        return None if o is None else o["zones"].get(f"{sc}:cortex:{zone}", {}).get(key)
+    s += "\n#### 数据：网格检查（粘接模型，皮质骨，%）\n\n"
+    rows = []
+    for d in NAME:
+        for k, nm in (("h2:f6", "2.0 / 6"), ("h1.4:f6", "1.4 / 6"), ("h1.4:f4", "1.4 / 4"), ("h1:f6", "1.0 / 6")):
+            o = AT["mesh"].get(f"{d}:{k}")
+            nt = (o or {}).get("n_tet") or {}
+            rows.append([NAME[d], nm, nt.get("cortex", "—"), sum(nt.values()) if nt else "—"] + [fmt(zz(o, "ssi_pct", z), 1) for z in ("G1", "G6", "G7")]
+                        + [fmt(zz(o, "ssi_vw_pct", "total"), 1), fmt(zz(o, "res_0.6", "G7"), 1), fmt(zz(o, "res_0.6", "total"), 1),
+                           fmt((o or {}).get("wall_s", {}).get("m_bond"), 0)])
+    s += table(["设计", "界面 / 远场 (mm)", "皮质单元", "总单元", "1 区屏蔽", "6 区屏蔽", "7 区屏蔽", "屏蔽总值", "7 区吸收", "吸收总值", "求解 (s)"], rows)
+    s += "\n#### 数据：2300 N 工况对上楼工况（粘接模型，皮质应力屏蔽，%）\n\n"
+    s += table(["分区"] + [f"{NAME[d]}，{w}" for d in NAME for w in ("上楼", "2300 N")],
+               [[zn(z)] + [fmt(zz(o, "ssi_vw_pct" if z == "total" else "ssi_pct", z), 0)
+                           for d in NAME for o in (AT["mesh"].get(f"{d}:h2:f6"), AT["iso"].get(d))] for z in Z])
+    s += "\n#### 数据：柄模量（过盈 0.025 mm）\n\n"
+    rows = []
+    for d in NAME:
+        for e in ("E110", "E95", "E55", "E20"):
+            o = AT["estem"].get(f"{d}:{e}") or {}
+            stm = o.get("stem", {})
+            rows.append([NAME[d], e[1:], fmt(o.get("f1_p95_um"), 1), fmt(o.get("f1_first_p95_um"), 1),
+                         fmt(100 * o["area_frac_gt40"], 0) if o.get("area_frac_gt40") is not None else "—",
+                         fmt(zz(o, "ssi_pct", "G7"), 0), fmt(zz(o, "ssi_vw_pct", "total"), 0), fmt(zz(o, "res_0.6", "G7"), 0),
+                         fmt(zz(o, "res_0.6", "total"), 0), fmt(stm.get("vm_max_body_deep"), 0), fmt(stm.get("vm_max_neck_free"), 0),
+                         fmt(o.get("wall_s", {}).get("m_fric"), 0)])
+    s += table(["设计", "柄模量 (GPa)", "可恢复微动 (µm)", "首次加载微动 (µm)", "> 40 µm 面积 (%)", "7 区屏蔽 (%)", "屏蔽总值 (%)", "7 区吸收 (%)",
+                "吸收总值 (%)", "柄体最大应力 (MPa)", "颈部最大应力 (MPa)", "摩擦求解 (s)"], rows)
+    s += img("各 Gruen 区被判为吸收的皮质骨比例，三个死区取值", "v2/results/resorption/figs/R2_resorption_zones.png")
+    s += img("三套分区下的皮质应力屏蔽", "v2/results/resorption/figs/R1_ssi_schemes.png")
+    s += img("总值对柄长", "v2/results/resorption/figs/R3_total_vs_length.png")
+    return s
+
+
 def b_times():
     log = (V / "runs/worker.log").read_text(encoding="utf-8", errors="replace").splitlines()
     pat = re.compile(r"^(\S+ \S+)\s+(\S+?)/(\S+): OK (\d+) s")
@@ -454,7 +516,8 @@ def b_times():
 BLOCKS = [("### 2.2 FE 模型与验证", b_v1_geometry), ("### 2.3 优化器自检", b_v1_fe), ("### 2.4 参考扫描", b_v1_selftest),
           ("### 2.5 BO 结果", b_v1_sweep), ("### 2.6 3D 抽检", b_v1_bo), ("### 2.7 v1 收尾", b_v1_spot), ("## 3 柄型变更", b_v1_close),
           ("## 5 09-28 中午到傍晚的三次转向", b_v2a), ("## 6 V3 的结果与敏感性", b_pivot), ("## 7 文献核对与 Methods", b_v3),
-          ("## 10 M1 界面模型与七小时验证", b_shield), ("## 10A 第三份评估意见的复核", b_m1), ("## 12 经验教训", b_times)]
+          ("## 10 M1 界面模型与七小时验证", b_shield), ("## 10A 第三份评估意见的复核", b_m1), ("## 11 当前状态", b_ata),
+          ("## 12 经验教训", b_times)]
 
 
 def main():
