@@ -77,3 +77,18 @@ CNAREA 之和 412.8 mm² 比几何面积 377.0 大 9.5%，所以用 CPRESS 或 C
 
 预计 14:10 前后跑完。跑完后：写 `v2/audit3b.py`（循环稳定性、等绝对滑移的网格差、短柄阈值工况噪声底、反力与接触合力的平衡检查、骨主应变、跨版本一致性）
 → 结果并入 `v2/REVIEW3_AUDIT.md` 的新一节或单独出 `v2/REVIEW3_RUNS.md` → PDF → 发送 → 提交 → 更新记忆。定时任务每 20 分钟检查。
+
+**用户 11:10 追加的要求**：这批任务完成后，整体评估当前项目，并计划后续试验。收尾时除 `v2/REVIEW3_RUNS.md` 外再出
+`v2/PROJECT_ASSESSMENT_2026-09-29.md`（各环节可信度、已成立 / 已撤回 / 未验证的结论、后续试验的分阶段计划与每阶段的作业数、机时、门槛、需要用户先定的事）。
+定时任务已换成 id 见 CronList（旧的 9294a967 已删）。状态查询脚本：scratchpad 下的 r3_status.py。
+
+11:06 进度：2/23 完成（cycle3:base:d0.1 与 export:base:d0.1，f1 0.446 / 首次 6.06，与昨晚逐位一致），无失败。
+
+14:15 进度：18/23 完成，无失败。分析脚本 `v2/audit3b.py` 已在 18 个作业上试跑通过；两份文件的生成脚本已写好并试生成过：
+`v2/build_review3_runs_doc.py` → `v2/REVIEW3_RUNS.md`，`v2/build_assessment_doc.py` → `v2/PROJECT_ASSESSMENT_2026-09-29.md`。
+中间结果：第三循环对第二循环 0.4–4.6%；短柄 1.4 mm 对 2.0 mm（等绝对滑移）可恢复微动 +8–9%；短柄阈值工况噪声 CV 1.1–2.0%；
+反力残差 0、接触合力与载荷之差 ≤ 0.2 N；过盈 0.10 mm 时柄周 2 mm 松质骨压缩应变中位 1.6–1.9%（≈100% 超过 0.7%），0.025 mm 时 0.41–0.47%（8–15%）；
+跨版本重解逐位一致。**据此把过盈量的建议从 0.05 改为 0.025 mm（0.05 作对照）。**
+
+收尾步骤（全部 DONE/FAILED 后）：sync → `R.py('v2/audit3b.py')` → fetch results/audit3b → 两个生成脚本（--stamp 用实际时间）→ build_doc 两个 PDF → 看页面 →
+SendUserFile 两个 PDF → 提交 → 更新记忆、REVISION_PLAN_V4（加第 10 节）、PROJECT_HISTORY_base（加 10B 节）并重建 → CronDelete e54384d1。
