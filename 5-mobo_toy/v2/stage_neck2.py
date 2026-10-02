@@ -1,12 +1,13 @@
 """颈部柄第二阶段（用户 2026-10-02 下午）：在第一阶段九类里选出的两类（综合最优、柄最短）内，优化截面形状与截骨深度。Linux 上跑。
 
 类 = 柄长 × 领宽，第一阶段的记法：S/M/L = 25/30/35 mm，后面的数字 = 领宽 mm（S4 = 短柄、宽领）。
-固定（全部）：插入角 40°、ρ_tip 0.5、q 1.0、皮质余量 m −0.25、领厚 2.5 mm；固定（按类）：L、collar_w。
-变量 8 个：h_cut 25–40（截骨面距头心）、λ、γ_ml、γ_ap、n_a、n_p、τ_a、τ_p（圆、椭圆都是这组参数的特例）。
+固定（全部）：插入角 40°、ρ_tip 0.5、q 1.0、领厚 2.5 mm；固定（按类）：L、collar_w。
+变量 9 个：h_cut 25–40（截骨面距头心）、皮质余量 m −0.25…2 mm（用户 2026-10-02 13:00 决定加入：决定尺寸与是否贴皮质）、
+λ、γ_ml、γ_ap、n_a、n_p、τ_a、τ_p（圆、椭圆都是这组参数的特例）。
 目标（最小化）：y1 = log10(柄身可恢复微动 P95, µm)；y2 = 骨量损失 = 截骨 + 锉骨（mm³）。
 约束（≤ 0）：Gruen 7 |ΔSED| ≤ 30 %；柄 von Mises P99 ≤ 440 MPa。
 模型：M1 界面模型（领与截骨面接触），过盈 0.025 mm，slip_tol 2.5e-4，生产网格 2.0 mm —— 与第一阶段相同。
-一个 GP 两类共用：输入 = 8 个变量 + L + 领宽（归一化），热启动 = 第一阶段全部颈部柄作业（同模型，h_cut 25）。
+一个 GP 两类共用：输入 = 9 个变量 + L + 领宽（归一化），热启动 = 第一阶段全部颈部柄作业（同模型，h_cut 25）。
 每轮每类提 q 个（默认 2），初始每类 n_init 个 Sobol 点。
 
     python v2/stage_neck2.py dataset
@@ -34,11 +35,11 @@ import geom3d as G  # noqa: E402
 import jobs as J  # noqa: E402
 import stage_v2a as S  # noqa: E402
 
-SPACE = {"h_cut": (25.0, 40.0), "lam": (1.0, 2.2), "g_ml": (0.35, 0.65), "g_ap": (0.35, 0.65), "n_a": (2.0, 6.0), "n_p": (2.0, 6.0),
+SPACE = {"h_cut": (25.0, 40.0), "m": (-0.25, 2.0), "lam": (1.0, 2.2), "g_ml": (0.35, 0.65), "g_ap": (0.35, 0.65), "n_a": (2.0, 6.0), "n_p": (2.0, 6.0),
          "tau_a": (-0.30, 0.30), "tau_p": (-0.30, 0.30)}
-VARS8 = list(SPACE)
+VARS = list(SPACE)
 CLASS_SPACE = {"L": (25.0, 35.0), "collar_w": (0.0, 4.0)}          # GP 的两个“类”输入；只取第一阶段的离散水平
-FIXED = {"alpha": 40.0, "rho_tip": 0.5, "q": 1.0, "m": G.M_LEGACY}
+FIXED = {"alpha": 40.0, "rho_tip": 0.5, "q": 1.0}
 LEN = {"S": 25.0, "M": 30.0, "L": 35.0}
 FRIC = {"slip_tol": 2.5e-4, "delta": 0.025}
 SED_LIMIT, VM_LIMIT = 30.0, 440.0
@@ -51,17 +52,17 @@ def parse_class(name: str) -> tuple[float, float]:
 
 
 def design_of(u8, L: float, w: float) -> tuple[dict, float]:
-    p = {k: SPACE[k][0] + float(x) * (SPACE[k][1] - SPACE[k][0]) for k, x in zip(VARS8, u8)}
+    p = {k: SPACE[k][0] + float(x) * (SPACE[k][1] - SPACE[k][0]) for k, x in zip(VARS, u8)}
     d = {"L": float(L), "rho_tip": FIXED["rho_tip"], "q": FIXED["q"], "lam": p["lam"], "g_ml": p["g_ml"], "g_ap": p["g_ap"],
-         "n_a": p["n_a"], "n_p": p["n_p"], "tau_a": p["tau_a"], "tau_p": p["tau_p"], "alpha": FIXED["alpha"], "m": FIXED["m"]}
+         "n_a": p["n_a"], "n_p": p["n_p"], "tau_a": p["tau_a"], "tau_p": p["tau_p"], "alpha": FIXED["alpha"], "m": p["m"]}
     if w > 0:
         d.update(collar_w=float(w), collar_t=G.COLLAR_T)
     return d, p["h_cut"]
 
 
 def to_unit10(d: dict, h_cut: float) -> np.ndarray:
-    p = {"h_cut": h_cut, **{k: d[k] for k in VARS8 if k != "h_cut"}}
-    u = [(p[k] - SPACE[k][0]) / (SPACE[k][1] - SPACE[k][0]) for k in VARS8]
+    p = {"h_cut": h_cut, "m": float(d.get("m", G.M_LEGACY)), **{k: d[k] for k in VARS if k not in ("h_cut", "m")}}
+    u = [(p[k] - SPACE[k][0]) / (SPACE[k][1] - SPACE[k][0]) for k in VARS]
     u += [(d["L"] - CLASS_SPACE["L"][0]) / (CLASS_SPACE["L"][1] - CLASS_SPACE["L"][0]),
           (d.get("collar_w", 0.0) - CLASS_SPACE["collar_w"][0]) / (CLASS_SPACE["collar_w"][1] - CLASS_SPACE["collar_w"][0])]
     return np.clip(np.array(u, float), 0.0, 1.0)
@@ -134,7 +135,7 @@ def gated_pool(cls: str, n: int = 8192, seed: int = 0, workers: int = 10) -> np.
     f = J.RESULTS / "pools" / f"neck2pool_{cls}_n{n}_s{seed}_{key}.npy"
     if f.exists():
         return np.load(f)
-    U = qmc.Sobol(len(VARS8), scramble=True, seed=40_000 + seed).random(n)
+    U = qmc.Sobol(len(VARS), scramble=True, seed=40_000 + seed).random(n)
     with Pool(workers) as p:
         keep = np.array(p.map(_feasible, [(u, L, w) for u in U], chunksize=32))
     f.parent.mkdir(exist_ok=True)
@@ -168,11 +169,11 @@ def _save(state: dict) -> None:
     OUT.write_text(json.dumps(state, indent=1, default=float))
 
 
-def bo(classes: list[str], n_rounds: int = 8, n_init: int = 8, q: int = 2, seed: int = 0) -> dict:
+def bo(classes: list[str], n_rounds: int = 8, n_init: int = 8, q: int = 2, seed: int = 0, workers: int = 6) -> dict:
     import mobo
     mobo.fit_gp = S._fit_gp_unit
     X0, Y0, C0, ids0 = dataset()
-    pools = {c: gated_pool(c, seed=seed) for c in classes}
+    pools = {c: gated_pool(c, seed=seed, workers=workers) for c in classes}
     used = {c: np.zeros(len(pools[c]), bool) for c in classes}
     recs = []
     if OUT.exists():                                                   # 续跑：读回已有记录（同一组类）
@@ -254,6 +255,7 @@ if __name__ == "__main__":
     ap.add_argument("--init", type=int, default=8)
     ap.add_argument("--q", type=int, default=2)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--workers", type=int, default=6)      # 模板化进程数；与建模服务同机时不要超过 6（内存）
     a = ap.parse_args()
     classes = [c.strip() for c in a.classes.split(",") if c.strip()]
     if a.cmd == "dataset":
@@ -263,8 +265,8 @@ if __name__ == "__main__":
                           "loss_range": [float(Y[:, 1].min()), float(Y[:, 1].max())] if len(Y) else None}, indent=1))
     elif a.cmd == "pool":
         for c in classes:
-            print(c, gated_pool(c, seed=a.seed).shape)
+            print(c, gated_pool(c, seed=a.seed, workers=a.workers).shape)
     elif a.cmd == "status":
         status()
     else:
-        bo(classes, a.rounds, a.init, a.q, a.seed)
+        bo(classes, a.rounds, a.init, a.q, a.seed, a.workers)

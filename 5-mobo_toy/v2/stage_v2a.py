@@ -36,35 +36,59 @@ def intact_spec(h_int: float, **variant) -> dict:
     return {"kind": "intact", "h_int": h_int, "stage": "ref", "tag": tag, **variant}
 
 
+PREP_MEM_GB = 12.0          # 每个建模子进程的地址空间上限（RLIMIT_AS，是虚拟地址空间不是常驻内存）。2026-10-02 11:29 与 11:49：一个作业
+                            # 的网格生成涨到 13.6 GB 常驻被 OOM killer 杀掉，当时用的进程池整体报废，在建与排队的作业全部停摆；12:03 又因为
+                            # “崩两次判失败”的规则误伤了 10 个同批作业；12:10 上限设 10 GB 时五个正常设计在网格阶段一起段错误（gmsh/OCC
+                            # 多线程保留的虚拟地址空间远大于常驻），所以上限只能当最后的保险，设得比正常建模的虚拟占用高得多。
+                            # 改为下面的独立子进程后，失控的建模只影响它自己的作业。
+PREP_CMD = "import sys; sys.path.insert(0, 'v2'); import jobs as J; print(J.prep(sys.argv[1]))"
+
+
+def _prep_limits() -> None:
+    import resource
+    lim = int(PREP_MEM_GB * 2 ** 30)
+    resource.setrlimit(resource.RLIMIT_AS, (lim, lim))
+
+
 def serve(n_prep: int = 5, poll: float = 10.0) -> None:
-    """常驻服务：建模用进程池（gmsh 单线程）；后处理在主进程串行（很快）。"""
+    """常驻服务：每个 NEW 作业用一个独立子进程建模（gmsh 单线程），最多 n_prep 个并行；后处理在主进程串行（很快）。
+    子进程被 OOM 杀掉或段错误（gmsh 在内存上限下的典型表现）只影响它自己的作业：退出码非零且作业仍是 NEW → FAILED L3，
+    退出码写进原因，子进程的输出在作业目录的 prep.log。"""
+    import subprocess
     J.QROOT.mkdir(parents=True, exist_ok=True)
-    running = {}
-    print(f"serve start {time.strftime('%H:%M:%S')} code={J.code_hash()}", flush=True)
-    with ProcessPoolExecutor(n_prep) as ex:
-        while not (J.QROOT / "STOP_SERVE").exists():
-            for d in sorted(J.QROOT.glob("*")):
-                if not d.is_dir():
-                    continue
-                s = J.state(d)
-                if s == "NEW" and d.name not in running and len(running) < 2 * n_prep:
-                    running[d.name] = ex.submit(J.prep, d.name)
-                elif s == "SOLVED":
-                    # 完整股骨参照必须先 DONE，设计作业的后处理才能进行
-                    spec = json.loads((d / "spec.json").read_text())
-                    if spec["kind"] in ("design", "variant"):
-                        try:
-                            J.explicit_ref(spec) or J.intact_ref(spec["h_int"], spec.get("E_canc"))
-                        except FileNotFoundError:
-                            continue
-                    print(f"{time.strftime('%H:%M:%S')} post {d.name}: {J.post(d.name)}", flush=True)
-            for k in [k for k, f in running.items() if f.done()]:
-                f = running.pop(k)
-                try:
-                    print(f"{time.strftime('%H:%M:%S')} prep {k}: {f.result()}", flush=True)
-                except Exception as e:                                        # noqa: BLE001
-                    print(f"{time.strftime('%H:%M:%S')} prep {k}: EXCEPTION {e}", flush=True)
-            time.sleep(poll)
+    running: dict[str, subprocess.Popen] = {}
+    print(f"serve start {time.strftime('%H:%M:%S')} code={J.code_hash()} prep_mem={PREP_MEM_GB:g} GB n_prep={n_prep}", flush=True)
+    while not (J.QROOT / "STOP_SERVE").exists():
+        for d in sorted(J.QROOT.glob("*")):
+            if not d.is_dir():
+                continue
+            s = J.state(d)
+            if s == "NEW" and d.name not in running and len(running) < n_prep:
+                with open(d / "prep.log", "ab") as log:
+                    running[d.name] = subprocess.Popen([sys.executable, "-c", PREP_CMD, d.name], cwd=str(HERE.parent),
+                                                       stdout=log, stderr=subprocess.STDOUT, preexec_fn=_prep_limits)
+            elif s == "SOLVED":
+                # 完整股骨参照必须先 DONE，设计作业的后处理才能进行
+                spec = json.loads((d / "spec.json").read_text())
+                if spec["kind"] in ("design", "variant"):
+                    try:
+                        J.explicit_ref(spec) or J.intact_ref(spec["h_int"], spec.get("E_canc"))
+                    except FileNotFoundError:
+                        continue
+                print(f"{time.strftime('%H:%M:%S')} post {d.name}: {J.post(d.name)}", flush=True)
+        for k in [k for k, p in running.items() if p.poll() is not None]:
+            p = running.pop(k)
+            d = J.QROOT / k
+            st = J.state(d)
+            if p.returncode != 0 and st == "NEW":
+                sig = f" (signal {-p.returncode})" if p.returncode < 0 else ""
+                J._fail(d, "L3", "prep", f"prep process exited with code {p.returncode}{sig} under a {PREP_MEM_GB:g} GB memory limit; "
+                                         f"see prep.log in the job directory")
+                st = "FAILED"
+            print(f"{time.strftime('%H:%M:%S')} prep {k}: {st}" + (f" (exit {p.returncode})" if p.returncode else ""), flush=True)
+        time.sleep(poll)
+    for p in running.values():
+        p.terminate()
     print("serve stop", flush=True)
 
 
@@ -291,9 +315,10 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["serve", "status", "e2e", "signs", "convergence", "reference", "reference-rebuild", "bo", "auto"])
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--n-prep", type=int, default=5, help="serve：并行建模子进程数（每个最多 PREP_MEM_GB 虚拟内存）")
     a = ap.parse_args()
     if a.cmd == "serve":
-        serve()
+        serve(a.n_prep)
     elif a.cmd == "status":
         print(json.dumps(J.summary()))
     else:

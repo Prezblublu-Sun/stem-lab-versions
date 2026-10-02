@@ -73,6 +73,7 @@ ELLIPSE = {"g_ml": 0.5, "g_ap": 0.5, "n_a": 2.0, "n_p": 2.0, "tau_a": 0.0, "tau_
 COLLAR = {"collar_w": (0.0, 6.0)}   # mm，领的外伸宽度（0 = 无领）；不进 VARS，旧设计空间与候选池不受影响
 COLLAR_T = 2.5                  # mm，领的默认厚度
 COLLAR_CLIP = 0.5               # mm，领的外缘离骨外表面至少这么远（不悬出骨外）
+CAP_FLAT = 1.5                  # mm，“平端”的帽高（平面加小圆角）；Stem3D.cap_h 取它即为平端，< 0 为原来的半椭球帽
 
 
 def from_unit(u) -> dict:
@@ -93,12 +94,14 @@ def design_of_spec(spec: dict) -> dict:
 
 
 def ellipse_design(L: float, rho_tip: float, q: float, lam: float, alpha: float, m: float = M_LEGACY,
-                   collar_w: float = 0.0, collar_t: float = COLLAR_T) -> dict:
-    """椭圆截面的设计（λ = 内外侧宽 / 前后厚；λ = 1 为圆）。返回可直接给 Stem3D(**d) 的字典。"""
+                   collar_w: float = 0.0, collar_t: float = COLLAR_T, cap_h: float | None = None) -> dict:
+    """椭圆截面的设计（λ = 内外侧宽 / 前后厚；λ = 1 为圆）。返回可直接给 Stem3D(**d) 的字典。cap_h 给定时写入（平端用 CAP_FLAT）。"""
     d = {"L": float(L), "rho_tip": float(rho_tip), "q": float(q), "lam": float(lam), **ELLIPSE, "alpha": float(alpha),
          "m": float(m)}
     if collar_w > 0:
         d.update(collar_w=float(collar_w), collar_t=float(collar_t))
+    if cap_h is not None:
+        d["cap_h"] = float(cap_h)
     return d
 
 
@@ -148,6 +151,8 @@ class Stem3D:
     m: float = M_LEGACY
     collar_w: float = 0.0           # mm，领的外伸宽度；0 = 无领
     collar_t: float = COLLAR_T      # mm，领厚
+    cap_h: float = -1.0             # mm，尖端帽高。< 0 = 原来的半椭球帽，高 0.5·√(A0·ρ_tip)（ρ 0.5、A0 413 时约 7 mm）；
+                                    # 用户 2026-10-02 13:20 要求远端改为平面 → 颈部柄取 CAP_FLAT（1.5 mm：平端 + 小圆角，边缘不尖）
 
     @property
     def has_collar(self) -> bool:
@@ -164,7 +169,7 @@ class Stem3D:
         return np.where(s <= 0, 1.0, r)
 
     def cap_length(self, A0: float) -> float:
-        return 0.5 * math.sqrt(A0 * self.rho_tip)
+        return float(self.cap_h) if self.cap_h >= 0 else 0.5 * math.sqrt(A0 * self.rho_tip)
 
     def local_surface(self, A0: float, s_top: float = S_TOP, ns: int = 70, m: int = 64, ncap: int = 6):
         """表面采样点（局部坐标 s, x, y），返回 (N, 3)。"""
