@@ -148,6 +148,9 @@ def prep(jid: str) -> str:
                                 E_canc=spec.get("E_canc"), slip_tol=spec.get("slip_tol"), lagrange=spec.get("lagrange"),
                                 interference=spec.get("interference"), cycles=spec.get("cycles"))
             else:
+                if st.has_collar:
+                    _fail(d, "L1", "prep", "collar is implemented only in the M1 interface model (spec model = m1)")
+                    return "FAILED"
                 info = M.build(st, fm, pl, d, "m", h_int=spec["h_int"], h_far=spec.get("h_far"),
                                delta=spec.get("delta"), mu=spec.get("mu"), torque=spec.get("torque", True),
                                E_canc=spec.get("E_canc"))

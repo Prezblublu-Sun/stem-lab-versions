@@ -11,6 +11,11 @@
     截面形状沿长度不变、只按 √r(s) 缩放 ⇒ 各截面嵌套 ⇒ 沿中轴直线平移插入的扫掠体 = 柄本身（零过切）。
     尖端：截面沿半椭球收拢，帽长 = 0.5·√A_tip。
 插入角 α（冠状面内柄轴与股骨干轴的夹角，+ = 远端偏外侧）是设计变量；头心复位时它等价于假体颈干角 130° + α。
+椭圆截面（2026-10-02 用户要求）：上面截面公式的特例 n_a = n_p = 2、γ_ml = γ_ap = 0.5、τ_a = τ_p = 0，
+    只剩宽厚比 λ（λ = 1 为圆）。ellipse_design() 生成这类设计；is_ellipse() 判断。
+领（2026-10-02 用户要求，只在 M1 界面模型里实现）：平放在截骨面上、截骨面以上的一块板。
+    外形 = 柄在截骨面上的截口向外偏移 collar_w（mm），再裁到骨外轮廓以内 COLLAR_CLIP；厚 collar_t（mm）。
+    collar_w = 0 表示无领。领底面与截骨面接触（摩擦、无过盈），见 model3d_m1 与 fe3d_geom.collar_outline。
 尺寸 A0 与入口偏移 e 由模板化给出（"能放进去的最大号"）：肩部中心在截骨面上、偏离截骨中心 e；
 对每个 e 二分求皮质穿透 ≤ TOL 的最大 A0，取 A0 最大者。
 
@@ -64,6 +69,10 @@ TOL = 0.25                      # mm，允许的皮质穿透（模板化；压�
 A_BOUNDS = (20.0, 900.0)        # mm²，肩部面积二分区间
 S_TOP = -60.0                   # mm，肩部以上等截面棱柱的长度（只在截骨面以下的部分算数）
 MIN_TIP_AREA = 12.0             # mm²，尖端最小面积（≈ Ø 3.9 mm），小于此判"太细"
+ELLIPSE = {"g_ml": 0.5, "g_ap": 0.5, "n_a": 2.0, "n_p": 2.0, "tau_a": 0.0, "tau_p": 0.0}   # 椭圆截面 = 截面公式的特例
+COLLAR = {"collar_w": (0.0, 6.0)}   # mm，领的外伸宽度（0 = 无领）；不进 VARS，旧设计空间与候选池不受影响
+COLLAR_T = 2.5                  # mm，领的默认厚度
+COLLAR_CLIP = 0.5               # mm，领的外缘离骨外表面至少这么远（不悬出骨外）
 
 
 def from_unit(u) -> dict:
@@ -81,6 +90,20 @@ def design_of_spec(spec: dict) -> dict:
     if "m" not in d:
         d["m"] = float(spec.get("margin", M_LEGACY))
     return d
+
+
+def ellipse_design(L: float, rho_tip: float, q: float, lam: float, alpha: float, m: float = M_LEGACY,
+                   collar_w: float = 0.0, collar_t: float = COLLAR_T) -> dict:
+    """椭圆截面的设计（λ = 内外侧宽 / 前后厚；λ = 1 为圆）。返回可直接给 Stem3D(**d) 的字典。"""
+    d = {"L": float(L), "rho_tip": float(rho_tip), "q": float(q), "lam": float(lam), **ELLIPSE, "alpha": float(alpha),
+         "m": float(m)}
+    if collar_w > 0:
+        d.update(collar_w=float(collar_w), collar_t=float(collar_t))
+    return d
+
+
+def is_ellipse(d: dict, tol: float = 1e-9) -> bool:
+    return all(abs(float(d.get(k, -99)) - v) <= tol for k, v in ELLIPSE.items())
 
 
 def _smoothstep(t):
@@ -123,6 +146,12 @@ class Stem3D:
     tau_p: float
     alpha: float = 20.0
     m: float = M_LEGACY
+    collar_w: float = 0.0           # mm，领的外伸宽度；0 = 无领
+    collar_t: float = COLLAR_T      # mm，领厚
+
+    @property
+    def has_collar(self) -> bool:
+        return self.collar_w > 1e-6
 
     @property
     def d(self) -> dict:
@@ -389,6 +418,11 @@ def template(stem: Stem3D, fem: Femur3D, alphas=None, offsets=np.arange(-8.0, 8.
 
 def inside_stem(stem: Stem3D, A0: float, loc: np.ndarray, tol: float = 1e-3) -> np.ndarray:
     """局部坐标点 (s, x, y) 是否在柄体内（含肩部以上棱柱与尖端帽）。"""
+    return stem_radial_excess(stem, A0, loc) <= tol
+
+
+def stem_radial_excess(stem: Stem3D, A0: float, loc: np.ndarray) -> np.ndarray:
+    """局部坐标点 (s, x, y) 在本截面内沿径向超出柄表面的距离（mm，< 0 在柄内）。连续，可用来取等值线。"""
     sec = unit_section(stem.d, 720)
     th_s = np.arctan2(sec[:, 1], sec[:, 0])
     r_s = np.hypot(sec[:, 0], sec[:, 1])
@@ -402,7 +436,7 @@ def inside_stem(stem: Stem3D, A0: float, loc: np.ndarray, tol: float = 1e-3) -> 
     tcap = np.clip((s - stem.L) / max(c, 1e-9), 0, None)
     k = np.where(s > stem.L, math.sqrt(A0 * stem.rho_tip) * np.sqrt(np.clip(1 - tcap ** 2, 0, 1)), k)
     k = np.where(s > stem.L + c, -1.0, k)
-    return np.hypot(loc[:, 1], loc[:, 2]) <= k * r_unit + tol
+    return np.hypot(loc[:, 1], loc[:, 2]) - k * r_unit
 
 
 def overcut_check(stem: Stem3D, fem: "Femur3D", A0: float, pose, travel: float = 120.0, n_steps: int = 60) -> dict:

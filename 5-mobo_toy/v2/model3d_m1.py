@@ -8,7 +8,11 @@
   备选 "clearance"：几何不动，用 *CLEARANCE, VALUE=−δ（只在 Lamé 对照里比较用）。
 * 摩擦：罚函数的弹性滑移上限 = slip tolerance × 特征单元尺寸；默认 2.5e-4（2 mm 单元 → 0.5 µm）。可选 Lagrange。
 * 步：PRESSFIT → RELEASE → LOAD → UNLOAD → LOAD2。微动取第二循环（LOAD2 对 UNLOAD）的节点对相对切向位移。
-* mesh3d.npz 另存节点对：pair_bone、pair_stem、pair_normal（柄外法向）、pair_area、pair_interf、pair_cortex。
+* mesh3d.npz 另存节点对：pair_bone、pair_stem、pair_normal（柄外法向）、pair_area、pair_interf、pair_cortex、pair_collar。
+* 领（2026-10-02）：st.collar_w > 0 时，在截骨面上加一块厚 collar_t 的板（fe3d_geom.collar_outline / collar_solid），
+  与柄体、假体颈、头合成一个实体。领底面与截骨面重合，碎片化后自动成为界面，进同一个接触对（同样的摩擦）。
+  落在截骨面上的界面节点（含柄身与领交接的一圈）记为 pair_collar，过盈为 0：领是承压接触，不是压配。
+  粘接模型里领与骨共节点，即假定领也骨整合。
 
 Lamé 对照（build_lame）：四分之一圆柱压入套筒，走同一套界面代码。
 """
@@ -71,8 +75,9 @@ def interface_faces(elems: dict, bone_regions, stem_region: str = "stem"):
     return slave, master
 
 
-def node_pairs(elems: dict, coords: dict, slave, delta: float, no_interference=("cortex",)):
-    """界面节点：柄外法向（指向骨内，面积加权平均）、集总面积（每面 A/6）、各节点的过盈量。"""
+def node_pairs(elems: dict, coords: dict, slave, delta: float, no_interference=("cortex",), plane=None):
+    """界面节点：柄外法向（指向骨内，面积加权平均）、集总面积（每面 A/6）、各节点的过盈量。
+    plane = (C, u, tol)：落在该平面上的节点记为领节点（过盈 0）。不给 plane 时没有领节点。"""
     acc_n, acc_a, touch = {}, {}, {}
     for r, i, fc in slave:
         row = elems[r][i]
@@ -99,8 +104,14 @@ def node_pairs(elems: dict, coords: dict, slave, delta: float, no_interference=(
     nrm = nrm / ln[:, None]
     area = np.array([acc_a[int(n)] for n in nodes])
     on_cortex = np.array([bool(touch[int(n)] & set(no_interference)) for n in nodes])
-    interf = np.where(on_cortex, 0.0, float(delta))
-    return nodes, nrm, area, interf, on_cortex
+    if plane is not None:
+        C, u, tol = plane
+        X = np.array([coords[int(n)] for n in nodes])
+        on_collar = np.abs((X - C) @ u) <= tol
+    else:
+        on_collar = np.zeros(len(nodes), bool)
+    interf = np.where(on_cortex | on_collar, 0.0, float(delta))
+    return nodes, nrm, area, interf, on_cortex, on_collar
 
 
 def split_interface(elems: dict, coords: dict, nodes, nrm, interf, method: str, stem_region: str = "stem"):
@@ -186,12 +197,19 @@ def _build(st, fm, pl, outdir, name, *, h_int, h_far, delta, mu, torque, algo, s
         Kk, _ = occ.intersect(K, _keep(occ, fm))
         body = E.stem_solid(occ, st, A0, pose, delta=0.0, m=sec_pts)
         body_in, _ = occ.intersect(body, E.kept_halfspace(occ, fm))
+        collar_info, collar_v = None, []
+        if getattr(st, "has_collar", False):
+            try:
+                collar_info = E.collar_outline(st, fm, pl)
+            except ValueError as e:
+                raise BuildError("L1", f"collar: {e}")
+            collar_v = E.collar_solid(occ, fm, collar_info["poly"], st.collar_t)
         u3 = fm.u3
         a = fm.C03
         Lneck = float(np.linalg.norm(fm.H - a))
         neck = occ.addCylinder(*a, *(Lneck * u3), pr["neck_radius_mm"])
         head = occ.addSphere(*fm.H, pr["head_radius_mm"])
-        stem, _ = occ.fuse(body_in, [(3, neck), (3, head)])
+        stem, _ = occ.fuse(body_in, [(3, neck), (3, head)] + collar_v)
         if len([1 for d_, _t in stem if d_ == 3]) != 1:
             raise BuildError("L1", "stem is not a single volume (neck base outside the shoulder?)")
         bone, _ = occ.cut(Ck, stem, removeObject=True, removeTool=False)
@@ -222,7 +240,10 @@ def _build(st, fm, pl, outdir, name, *, h_int, h_far, delta, mu, torque, algo, s
     slave, master = interface_faces(elems, ["cortex", "cancellous"])
     if len(slave) < 50:
         raise BuildError("L3", f"interface too small: {len(slave)} faces")
-    nodes, nrm, area, interf, on_cortex = node_pairs(elems, coords, slave, delta)
+    plane = (fm.C03, E.cut_plane(fm)[3], 1e-3) if collar_info else None
+    nodes, nrm, area, interf, on_cortex, on_collar = node_pairs(elems, coords, slave, delta, plane=plane)
+    if collar_info and int(on_collar.sum()) < 20:
+        raise BuildError("L3", f"collar not in contact with the resection surface ({int(on_collar.sum())} nodes)")
     stem_f, coords_f, twin = split_interface(elems, coords, nodes, nrm, interf, interference)
     offs = {"cortex": 0, "cancellous": len(elems["cortex"]), "stem": len(elems["cortex"]) + len(elems["cancellous"])}
     elab = {k: np.arange(offs[k] + 1, offs[k] + 1 + len(v)) for k, v in elems.items()}
@@ -328,12 +349,16 @@ FIXED, 1, 3
                         cortex_conn=elems["cortex"], cancellous_conn=elems["cancellous"], stem_conn=stem_f,
                         stem_conn_bond=elems["stem"], **{f"{k}_elab": v for k, v in elab.items()},
                         node_labels=labs, nodes=np.array([coords_f[int(n)] for n in labs]),
-                        pair_bone=nodes, pair_stem=twin, pair_normal=nrm, pair_area=area, pair_interf=interf, pair_cortex=on_cortex)
+                        pair_bone=nodes, pair_stem=twin, pair_normal=nrm, pair_area=area, pair_interf=interf, pair_cortex=on_cortex,
+                        pair_collar=on_collar)
     (outdir / "keep.json").write_text(json.dumps({"fric": keep_lists(steps), "bond": KEEP_BOND}))
     return {"name": name, "model": "m1", "n_tet": {k: int(len(v)) for k, v in elems.items()}, "n_nodes": len(coords_f),
             "n_slave_faces": len(slave), "n_master_faces": len(master), "n_pairs": int(len(nodes)),
             "n_pairs_cortex": int(on_cortex.sum()), "interface_area_mm2": float(area.sum()),
             "cortex_area_frac": float(area[on_cortex].sum() / area.sum()), "n_head": len(head_n), "n_fixed": len(fixed),
+            "collar": ({k: v for k, v in collar_info.items() if k not in ("poly", "footprint")}
+                       | {"n_pairs": int(on_collar.sum()), "contact_area_mm2": float(area[on_collar].sum()),
+                          "outline_uv": [list(map(float, xy)) for xy in collar_info["poly"].exterior.coords]}) if collar_info else None,
             "slave": [[int(elab[r][i]), fc] for r, i, fc in slave], "h_int": h_int, "h_far": h_far, "delta": delta, "mu": mu,
             "torque": torque, "E_canc": E_canc, "slip_tol": slip_tol, "lagrange": lagrange, "interference": interference, "cycles": cycles, "steps": steps,
             "load_N": F.tolist(), "stem_volume_mm3": v_stem, "A0": A0, "mesh_quality": quality}
@@ -377,7 +402,7 @@ def build_lame(outdir: pathlib.Path, name: str, *, h: float = 2.0, delta: float 
     finally:
         gmsh.finalize()
     slave, master = interface_faces(elems, ["cancellous"])
-    nodes, nrm, area, interf, on_cortex = node_pairs(elems, coords, slave, delta)
+    nodes, nrm, area, interf, on_cortex, _ = node_pairs(elems, coords, slave, delta)
     stem_f, coords_f, twin = split_interface(elems, coords, nodes, nrm, interf, interference)
     offs = {"cancellous": 0, "stem": len(elems["cancellous"])}
     elab = {k: np.arange(offs[k] + 1, offs[k] + 1 + len(v)) for k, v in elems.items()}

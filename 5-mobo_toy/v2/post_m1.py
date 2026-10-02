@@ -6,6 +6,8 @@
 * f1_first = 首次加载的切向相对位移 |r_t(LOAD) − r_t(RELEASE)|（含首次就位），与旧定义可比。
 * 间隙 g = −(δ_i + r·n)：> 1 µm 记为张开；δ_i 为该节点施加的过盈（皮质相邻节点为 0）。
 * f1_cslip = 旧定义（CSLIP 增量，只在接触时累积），留作对照。
+* 带领的柄（2026-10-02）：上面各量只统计柄身（不含领节点），与无领设计可比；领另报 collar_* ：
+  领面滑移、张开（掀起）比例、法向分离，以及领在加载峰值时承担的接触力占柄传给骨的总接触力的比例。
 """
 from __future__ import annotations
 
@@ -54,12 +56,15 @@ def _wq(x, w, q):
 
 def pairs(d: pathlib.Path) -> dict:
     m = dict(np.load(d / "mesh3d.npz"))
-    return {k: m[k] for k in ("pair_bone", "pair_stem", "pair_normal", "pair_area", "pair_interf", "pair_cortex")} | \
-           {"n": int(m["node_labels"].max()), "nodes": m["nodes"], "node_labels": m["node_labels"]}
+    out = {k: m[k] for k in ("pair_bone", "pair_stem", "pair_normal", "pair_area", "pair_interf", "pair_cortex")} | \
+          {"n": int(m["node_labels"].max()), "nodes": m["nodes"], "node_labels": m["node_labels"]}
+    out["pair_collar"] = m["pair_collar"].astype(bool) if "pair_collar" in m else np.zeros(len(m["pair_bone"]), bool)
+    return out
 
 
 def micromotion(d: pathlib.Path, job: str) -> dict:
     p = pairs(d)
+    col = p["pair_collar"]
     pb, ps, nrm, w, di, cort = p["pair_bone"], p["pair_stem"], p["pair_normal"], p["pair_area"], p["pair_interf"], p["pair_cortex"]
     U = {s: _utab(d / f"{job}_csv" / f"{s}_U.csv", p["n"]) for s in STEPS}
     rel = {s: U[s][ps] - U[s][pb] for s in STEPS}
@@ -68,10 +73,23 @@ def micromotion(d: pathlib.Path, job: str) -> dict:
 
     def tang(v):
         return v - (v * nrm).sum(1)[:, None] * nrm
-    first = np.linalg.norm(tang(rel["LOAD"] - rel["RELEASE"]), axis=1) * 1e3
-    rev = np.linalg.norm(tang(rel["LOAD2"] - rel["UNLOAD"]), axis=1) * 1e3
-    nrev = np.abs(((rel["LOAD2"] - rel["UNLOAD"]) * nrm).sum(1)) * 1e3
-    gap = {s: -(di + (rel[s] * nrm).sum(1)) * 1e3 for s in STEPS}
+    first_all = np.linalg.norm(tang(rel["LOAD"] - rel["RELEASE"]), axis=1) * 1e3
+    rev_all = np.linalg.norm(tang(rel["LOAD2"] - rel["UNLOAD"]), axis=1) * 1e3
+    gap_all = {s: -(di + (rel[s] * nrm).sum(1)) * 1e3 for s in STEPS}
+    extra = {}
+    if col.any():
+        wc = w[col]
+        extra = {"collar_area": float(wc.sum()), "collar_n_pairs": int(col.sum()),
+                 "collar_slip_rev_p95_um": _wq(rev_all[col], wc, 0.95), "collar_slip_first_p95_um": _wq(first_all[col], wc, 0.95),
+                 "collar_open_frac_load2": float(wc[gap_all["LOAD2"][col] > OPEN_UM].sum() / wc.sum()),
+                 "collar_open_frac_unload": float(wc[gap_all["UNLOAD"][col] > OPEN_UM].sum() / wc.sum()),
+                 "collar_gap_p95_load2_um": _wq(gap_all["LOAD2"][col], wc, 0.95),
+                 "f1_all_p95_um": _wq(rev_all, w, 0.95), "f1_first_all_p95_um": _wq(first_all, w, 0.95)}
+    b = ~col                                             # 以下各量只统计柄身
+    first, rev, w, cort, nrm = first_all[b], rev_all[b], w[b], cort[b], nrm[b]
+    nrev = np.abs(((rel["LOAD2"] - rel["UNLOAD"])[b] * nrm).sum(1)) * 1e3
+    gap = {s: v[b] for s, v in gap_all.items()}
+    pb = pb[b]
     W = w.sum()
     out = {"f1_p95_um": _wq(rev, w, 0.95), "f1_rev_p50_um": _wq(rev, w, 0.50), "f1_rev_max_um": float(rev.max()),
            "f1_first_p95_um": _wq(first, w, 0.95), "f1_first_p50_um": _wq(first, w, 0.50),
@@ -87,12 +105,44 @@ def micromotion(d: pathlib.Path, job: str) -> dict:
         out["f1_closed_p95_um"] = _wq(rev[closed], w[closed], 0.95)
     if (~cort).any():
         out["f1_canc_p95_um"] = _wq(rev[~cort], w[~cort], 0.95)
+    out.update(extra)
+    return out
+
+
+def _ftab(path: pathlib.Path, n: int):
+    """<STEP>_CFORCE.csv → 节点接触力（CNORMF + CSHEARF，作用在骨侧从节点上）。"""
+    F = np.zeros((n + 1, 3))
+    t = qoi._csv(path)
+    node = t["node"].astype(int)
+    k = np.isin(t["field"], ["CNORMF", "CSHEARF"]) & (node <= n)
+    np.add.at(F, node[k], np.c_[t["f1"], t["f2"], t["f3"]][k])
+    return F
+
+
+def collar_load(d: pathlib.Path, job: str) -> dict:
+    """领承担的接触力：加载峰值时领面节点的接触合力在"柄传给骨的接触合力"方向上的分量占比。"""
+    p = pairs(d)
+    col = p["pair_collar"]
+    if not col.any():
+        return {}
+    out = {}
+    for s in ("LOAD", "LOAD2"):
+        f = d / f"{job}_csv" / f"{s}_CFORCE.csv"
+        if not f.exists():
+            continue
+        F = _ftab(f, p["n"])[p["pair_bone"]]
+        tot, fc = F.sum(0), F[col].sum(0)
+        nt = float(np.linalg.norm(tot))
+        out[f"collar_force_share_{s.lower()}"] = float(fc @ tot / (nt * nt)) if nt > 0 else float("nan")
+        out[f"collar_force_N_{s.lower()}"] = float(np.linalg.norm(fc))
+        out[f"contact_force_total_N_{s.lower()}"] = nt
     return out
 
 
 def contact_stats(d: pathlib.Path, job: str) -> dict:
     p = pairs(d)
-    pb, w = p["pair_bone"], p["pair_area"]
+    b = ~p["pair_collar"]                                  # 只统计柄身
+    pb, w = p["pair_bone"][b], p["pair_area"][b]
     C = {s: _ctab(d / f"{job}_csv" / f"{s}_CONTACT.csv", p["n"]) for s in ("RELEASE", "UNLOAD", "LOAD2")}
     cp = C["RELEASE"]["CPRESS"][pb]
     ok = np.isfinite(cp) & (cp > 0)
@@ -116,6 +166,7 @@ def contact_stats(d: pathlib.Path, job: str) -> dict:
 def evaluate(d: pathlib.Path, name: str, fm, intact: dict) -> dict:
     mm = micromotion(d, f"{name}_fric")
     cs = contact_stats(d, f"{name}_fric")
+    cs.update(collar_load(d, f"{name}_fric"))
     old = qoi3d.micromotion(d, f"{name}_fric")
     zs = P.zone_sed(d, f"{name}_bond", fm)
     vm = P.stem_vm(d, f"{name}_bond", fm)

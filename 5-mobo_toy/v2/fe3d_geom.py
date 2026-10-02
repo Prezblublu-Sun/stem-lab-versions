@@ -95,6 +95,86 @@ def stem_solid(occ, st: G.Stem3D, A0: float, pose, delta: float = 0.0, n_body: i
     return body
 
 
+def cut_plane(fm):
+    """建模实际用的截骨面（与 kept_halfspace 一致）：过 C03，由 n3 与全局 y 张成。返回 (C, e1, e2, 法向)：
+    e2 = 全局 y，e1 = 面内与 y 垂直、靠近 n3 的方向，法向指向头侧（与 u3 同侧）。
+    注意（2026-10-02 查出）：u3 有前后分量，这个面的法向与颈轴 u3 相差约 4°；解析函数 below_cut 用的是垂直于 u3 的面。
+    领必须贴在建模实际切出的面上，所以这里按 kept_halfspace 取。"""
+    y = np.array([0.0, 1.0, 0.0])
+    nrm = np.cross(fm.n3, y)
+    nrm = nrm / np.linalg.norm(nrm)
+    if nrm @ fm.u3 < 0:
+        nrm = -nrm
+    e1 = np.cross(y, nrm)
+    e1 = e1 / np.linalg.norm(e1)
+    if e1 @ fm.n3 < 0:
+        e1 = -e1
+    return fm.C03, e1, y, nrm
+
+
+def _plane_basis(fm):
+    C, e1, e2, _ = cut_plane(fm)
+    return C, e1, e2
+
+
+def _loops(field2d, g, level):
+    import contourpy
+    from shapely.geometry import Polygon
+    cg = contourpy.contour_generator(g, g, field2d)
+    polys = []
+    for ln in cg.lines(level):
+        if len(ln) >= 4 and np.allclose(ln[0], ln[-1], atol=1e-6):
+            pg = Polygon(ln).buffer(0)
+            if pg.area > 1.0:
+                polys.append(pg)
+    return polys
+
+
+def collar_outline(st: G.Stem3D, fm, pl: dict, step: float = 0.15, half: float = 45.0) -> dict:
+    """领的外形（截骨面内的二维多边形，坐标 (u, v) 沿 _plane_basis 的 e1、e2，原点在截骨中心 C03）：
+    柄在截骨面上的截口向外偏移 collar_w，与"骨外表面向内 COLLAR_CLIP"的轮廓求交，再并上截口本身。
+    另返回截口、领的面积，以及截口以外（真正压在骨上的环）落在皮质上的面积。"""
+    from shapely.geometry import Point
+    C, e1, e2 = _plane_basis(fm)
+    g = np.arange(-half, half + step / 2, step)
+    U, V = np.meshgrid(g, g)
+    P = C + U.reshape(-1, 1) * e1 + V.reshape(-1, 1) * e2
+    P0, d, e_ml, e_ap = pl["pose"]
+    Q = P - P0
+    ex = G.stem_radial_excess(st, pl["A0"], np.c_[Q @ d, Q @ e_ml, Q @ e_ap]).reshape(U.shape)
+    fps = _loops(ex, g, 0.0)
+    if not fps:
+        raise ValueError("stem has no footprint on the resection plane")
+    foot = max(fps, key=lambda p: p.area)
+    outer = _loops(fm.outer_sdf(P).reshape(U.shape), g, -G.COLLAR_CLIP)
+    c = foot.centroid
+    host = [p for p in outer if p.contains(Point(c.x, c.y))] or [max(outer, key=lambda p: p.intersection(foot).area)]
+    col = foot.buffer(float(st.collar_w), quad_segs=16).intersection(host[0]).union(foot).buffer(0)
+    if col.geom_type != "Polygon":
+        col = max(col.geoms, key=lambda p: p.area)
+    col = col.simplify(0.05)
+    ring = col.difference(foot)
+    inside_ring = np.array([ring.contains(Point(u, v)) for u, v in zip(U.ravel()[::7], V.ravel()[::7])])
+    Pr = P[::7][inside_ring]
+    cort = float((fm.canal_sdf(Pr) > 0).mean()) if len(Pr) else 0.0
+    return {"poly": col, "footprint": foot, "area_mm2": float(col.area), "footprint_mm2": float(foot.area),
+            "ring_mm2": float(ring.area), "ring_cortex_frac": cort,
+            "overhang_mean_mm": float(ring.area / max(foot.length, 1e-9)), "collar_w": float(st.collar_w),
+            "collar_t": float(st.collar_t)}
+
+
+def collar_solid(occ, fm, poly, t: float, n_pts: int = 96):
+    """领的实体：截骨面上的外形（cut_plane 坐标）沿截骨面法向向上拉伸 t。外形用闭合 B 样条（重采样 n_pts 点）。"""
+    C, e1, e2, nrm = cut_plane(fm)
+    ring = poly.exterior
+    pts2 = np.array([ring.interpolate(x, normalized=True).coords[0] for x in np.linspace(0, 1, n_pts, endpoint=False)])
+    pts3 = C + pts2[:, :1] * e1 + pts2[:, 1:2] * e2
+    w = _wire(occ, pts3)
+    sf = occ.addPlaneSurface([w])
+    ex = occ.extrude([(2, sf)], *(float(t) * nrm))
+    return [e for e in ex if e[0] == 3]
+
+
 def smoke(dorr="B", design=None, h_int=2.0, h_far=6.0, out=HERE / "out" / "fe3d_smoke", stride=3, algo2d=6,
           netgen=1, tag=""):
     import gmsh
