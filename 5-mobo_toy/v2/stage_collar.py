@@ -31,6 +31,17 @@ OUT = J.RESULTS / "collar"
 DELTA = 0.025
 FR = {"slip_tol": 2.5e-4}
 NECK = G.ellipse_design(30.0, 0.5, 1.0, 1.3, 40.0)
+# 2026-10-02 下午追加：给导师的三类“第一个候选”——同一长度、插入角、锥度与领，只换截面：圆、椭圆（= neck_w3）、非对称
+NECK_CIRC = G.ellipse_design(30.0, 0.5, 1.0, 1.0, 40.0)
+NECK_ASYM = {**S.BASE, "L": 30.0, "rho_tip": 0.5, "q": 1.0, "lam": 1.3, "alpha": 40.0, "m": G.M_LEGACY}
+# 用户随后要求每类三个候选：类内按“固定方式的平衡”拉开——短柄 + 宽领 / 中（上面三个）/ 长柄 + 窄领；截面、锥度、插入角不变
+NECK_SETS = {"circ": lambda L: G.ellipse_design(L, 0.5, 1.0, 1.0, 40.0),
+             "ell": lambda L: G.ellipse_design(L, 0.5, 1.0, 1.3, 40.0),
+             "asym": lambda L: {**NECK_ASYM, "L": float(L)}}
+NECK_VARIANTS = (("L25_w4", 25.0, 4.0), ("L35_w2", 35.0, 2.0))
+# 用户再改为完整网格（第一阶段筛选）：短 / 中 / 长柄 × 无领 / 窄领 / 宽领 = 九类，每类三个截面 = 27 个设计。
+# 其中 (椭圆, 30, 无领) 就是 neck_w0；对角线上的 L25_w4、L35_w2 名字与上面一致，不重复登记。(·, 30, 3 mm) 三个在网格之外，作补充数据。
+NECK_GRID = {"L": (25.0, 30.0, 35.0), "w": (0.0, 2.0, 4.0)}
 KEYS = ("f1_p95_um", "f1_first_p95_um", "f1_rev_p50_um", "area_frac_gt40", "area_frac_gt150", "open_frac_load2", "interface_area",
         "f1_all_p95_um", "f1_first_all_p95_um", "collar_area", "collar_n_pairs", "collar_slip_rev_p95_um", "collar_slip_first_p95_um",
         "collar_open_frac_load2", "collar_open_frac_unload", "collar_gap_p95_load2_um", "collar_force_share_load",
@@ -42,9 +53,17 @@ def cases() -> dict:
     base = M1S.core_of(None)
     short = M1S.core_of(M1S.NAMED["short"])
     neck = {**base, "design": dict(NECK)}
+    circ = {**base, "design": dict(NECK_CIRC)}
+    asym = {**base, "design": dict(NECK_ASYM)}
     out = {}
-    for name, core, w in (("base_w0", base, 0.0), ("base_w2", base, 2.0), ("base_w4", base, 4.0), ("short_w3", short, 3.0),
-                          ("neck_w0", neck, 0.0), ("neck_w3", neck, 3.0)):
+    plan = [("base_w0", base, 0.0), ("base_w2", base, 2.0), ("base_w4", base, 4.0), ("short_w3", short, 3.0),
+            ("neck_w0", neck, 0.0), ("neck_w3", neck, 3.0), ("neck_circ_w3", circ, 3.0), ("neck_asym_w3", asym, 3.0)]
+    plan += [(f"neck_{cls}_{tag}", {**base, "design": mk(L)}, w) for cls, mk in NECK_SETS.items() for tag, L, w in NECK_VARIANTS]
+    plan += [("neck_w0" if (cls, L, w) == ("ell", 30.0, 0.0) else f"neck_{cls}_L{L:g}_w{w:g}", {**base, "design": mk(L)}, w)
+             for cls, mk in NECK_SETS.items() for L in NECK_GRID["L"] for w in NECK_GRID["w"]]
+    for name, core, w in plan:
+        if name in out:
+            continue
         dsg = dict(core["design"])
         if w > 0:
             dsg.update(collar_w=w, collar_t=G.COLLAR_T)
@@ -101,6 +120,10 @@ def collect() -> dict:
         ro = J.result(old[0].name)
         out["regression"] = {"old_job": old[0].name, **{kk: [ro.get(kk), out["jobs"]["base_w0"].get(kk)]
                                                         for kk in ("f1_p95_um", "f1_first_p95_um", "vm_p99")}}
+    ref = sorted(J.QROOT.glob("m1_short_h2_tol0.00025_delta0.025_*"))    # 短柄无领，改动前同设置
+    if ref:
+        rr = J.result(ref[0].name)
+        out["short_w0_old"] = {"job_id": ref[0].name, **{kk: rr.get(kk) for kk in KEYS if kk in rr}}
     out["created"] = time.strftime("%Y-%m-%d %H:%M:%S")
     (OUT / "summary.json").write_text(json.dumps(out, indent=1, default=float))
     print(json.dumps(out, indent=1, default=float)[:6000], flush=True)

@@ -14,8 +14,9 @@ import pathlib
 HERE = pathlib.Path(__file__).resolve().parent
 R = HERE / "results" / "collar"
 OUT = HERE / "COLLAR_ELLIPSE_2026-10-02.md"
-NAMES = {"base_w0": "基准，无领", "base_w2": "基准，2 mm 领", "base_w4": "基准，4 mm 领", "short_w3": "短柄，3 mm 领",
-         "neck_w0": "椭圆颈部柄，无领", "neck_w3": "椭圆颈部柄，3 mm 领"}
+NAMES = {"base_w0": "基准，无领", "base_w2": "基准，2 mm 领", "base_w4": "基准，4 mm 领", "short_w0_old": "短柄，无领（改动前已解）", "short_w3": "短柄，3 mm 领",
+         "neck_w0": "椭圆颈部柄，无领", "neck_w3": "椭圆颈部柄，3 mm 领", "neck_circ_w3": "圆截面颈部柄，3 mm 领",
+         "neck_asym_w3": "非对称截面颈部柄，3 mm 领"}
 
 
 def tab(head, rows):
@@ -53,8 +54,10 @@ def main(stamp):
           f"{f(b2.get('collar_force_share_load2'), 0, pct=True)} 和 {f(b4.get('collar_force_share_load2'), 0, pct=True)}；"
           f"柄身的可恢复微动从 {f(b0.get('f1_p95_um'))} µm 变为 {f(b2.get('f1_p95_um'))} 和 {f(b4.get('f1_p95_um'))} µm。")
     if s3:
+        s0 = S.get("short_w0_old", {})
         A(f"4. **短柄加领。** 25 mm 短柄加 3 mm 领，柄身可恢复微动 {f(s3.get('f1_p95_um'))} µm，"
-          f"改动前无领时是 89.5 µm（同一过盈 0.025 mm）；领承担 {f(s3.get('collar_force_share_load2'), 0, pct=True)} 的接触力。")
+          f"改动前无领时是 {f(s0.get('f1_p95_um'))} µm（同一过盈 0.025 mm，作业 `{s0.get('job_id', '—')}`）；"
+          f"领承担 {f(s3.get('collar_force_share_load2'), 0, pct=True)} 的接触力。")
     if n0 and n3:
         A(f"5. **椭圆颈部柄。** 长 30 mm、插入角 40°、整根在股骨颈和转子间区，柄身可恢复微动无领 {f(n0.get('f1_p95_um'))} µm，"
           f"加 3 mm 领 {f(n3.get('f1_p95_um'))} µm。")
@@ -98,7 +101,7 @@ def main(stamp):
     A("新界面模型，过盈 0.025 mm，摩擦系数 0.3，生产网格。微动只统计柄身。\n")
     rows = []
     for k in NAMES:
-        j = J.get(k)
+        j = S.get(k) if k == "short_w0_old" else J.get(k)
         if not j:
             rows.append([NAMES[k]] + ["没有结果"] + [""] * 8)
             continue
