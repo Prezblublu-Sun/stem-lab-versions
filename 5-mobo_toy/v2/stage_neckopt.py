@@ -1,8 +1,8 @@
 """颈部柄的两阶段优化（用户 2026-10-02 13:20 的方案；Linux 上跑，本机只求解）。
 
-阶段 1（主要变量，截面默认椭圆 λ 1.3，平端）：柄长 L、插入角 α、领宽 collar_w、皮质余量 m、截骨深度 h_cut —— 5 个变量。
-阶段 2（次要变量，围绕阶段 1 选定的参考设置）：截面形状 λ、γ_ml、γ_ap、n_a、n_p、τ_a、τ_p —— 7 个变量；柄长、插入角、领宽、
-    余量、截骨深度取 --ref 作业的值。
+阶段 1（术式相关的基本形状要素，其余默认：椭圆 λ 1.3、皮质余量 −0.25、平端）：柄长 L、插入角 α、领宽 collar_w、截骨深度 h_cut —— 4 个变量。
+阶段 2（围绕阶段 1 选定的参考设置）：截面形状 λ、γ_ml、γ_ap、n_a、n_p、τ_a、τ_p + 皮质余量 m（= 粗细）—— 8 个变量；
+    柄长、插入角、领宽、截骨深度取 --ref 作业的值。（用户 2026-10-02 15:50：余量移到第二轮；应力屏蔽两轮都只作约束。）
 全程不变：锥度（ρ_tip 0.5、q 1.0）、领厚 2.5 mm、尖端平端（cap_h 1.5 mm）、M1 界面模型（过盈 0.025、slip_tol 2.5e-4、
     网格 2.0）、上楼载荷含扭转、四项指标。之后的多孔 / 变模量优化在此之外。
 
@@ -47,11 +47,11 @@ import stage_v2a as S  # noqa: E402
 
 PHASES = {
     # 柄长 20–60（用户 15:05）：> 45 mm 只有小插入角放得进，所以 α 下限 15°；截骨深度上限 32：更深的无限截骨面会切到大转子（审查第 2 条）
-    1: {"vars": {"L": (20.0, 60.0), "alpha": (15.0, 45.0), "collar_w": (0.0, 6.0), "m": (-0.25, 2.0), "h_cut": (25.0, 32.0)},
-        "fixed": {"rho_tip": 0.5, "q": 1.0, "lam": 1.3, **G.ELLIPSE}},
+    1: {"vars": {"L": (20.0, 60.0), "alpha": (15.0, 45.0), "collar_w": (0.0, 6.0), "h_cut": (25.0, 32.0)},
+        "fixed": {"rho_tip": 0.5, "q": 1.0, "lam": 1.3, **G.ELLIPSE, "m": G.M_LEGACY}},
     2: {"vars": {"lam": (1.0, 2.2), "g_ml": (0.35, 0.65), "g_ap": (0.35, 0.65), "n_a": (2.0, 6.0), "n_p": (2.0, 6.0),
-                 "tau_a": (-0.30, 0.30), "tau_p": (-0.30, 0.30)},
-        "fixed": {"rho_tip": 0.5, "q": 1.0}},                 # 其余（L、alpha、collar_w、m、h_cut）来自 --ref
+                 "tau_a": (-0.30, 0.30), "tau_p": (-0.30, 0.30), "m": (-0.25, 2.0)},
+        "fixed": {"rho_tip": 0.5, "q": 1.0}},                 # 其余（L、alpha、collar_w、h_cut）来自 --ref
 }
 CONST = {"collar_t": G.COLLAR_T, "cap_h": G.CAP_FLAT}
 FRIC = {"slip_tol": 2.5e-4, "delta": 0.025}
@@ -71,8 +71,8 @@ class Phase:
         self.fixed = dict(PHASES[phase]["fixed"])
         if phase == 2:
             if not ref:
-                raise ValueError("phase 2 needs --ref <job_id> (the phase-1 design whose L, alpha, collar_w, m, h_cut are kept)")
-            self.fixed.update({k: ref[k] for k in ("L", "alpha", "collar_w", "m", "h_cut")})
+                raise ValueError("phase 2 needs --ref <job_id> (the phase-1 design whose L, alpha, collar_w, h_cut are kept)")
+            self.fixed.update({k: ref[k] for k in ("L", "alpha", "collar_w", "h_cut")})
         self.ref = ref
 
     # 单位立方体 ↔ 设计
@@ -350,7 +350,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["dataset", "pool", "bo", "status", "selftest"])
     ap.add_argument("--phase", type=int, default=1)
-    ap.add_argument("--ref", default=None, help="phase 2: phase-1 job id whose L, alpha, collar_w, m, h_cut are kept")
+    ap.add_argument("--ref", default=None, help="phase 2: phase-1 job id whose L, alpha, collar_w, h_cut are kept")
     ap.add_argument("--sed", choices=["one-sided", "abs", "none"], default="abs")
     ap.add_argument("--rounds", type=int, default=12)
     ap.add_argument("--init", type=int, default=16)
