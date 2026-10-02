@@ -61,9 +61,12 @@ def femur_solids(occ, fem: G.Femur3D, stride: int = 3):
 
 
 def kept_halfspace(occ, fem: G.Femur3D, size: float = 400.0):
-    """截骨面以下的半空间（大盒子）。"""
+    """截骨面以下的半空间（大盒子）。截骨面过 C03、法向 = 颈轴 u3，与 below_cut / 模板化 / 去骨量 / 分区用的面相同。
+    2026-10-02 15:00 前：面由 n3 与全局 y 张成，法向与 u3 相差 4.1°（u3 有前后分量）；截骨深度成为设计变量后每个设计都受影响，
+    改为由 n3 与 u3 × n3 张成（两者都垂直于 u3）。旧哈希的作业（阶段 0 及之前）仍是旧面。"""
     u, n = fem.u3, fem.n3
-    e2 = np.array([0.0, 1.0, 0.0])
+    e2 = np.cross(u, n)
+    e2 = e2 / np.linalg.norm(e2)
     c = fem.C03
     corners = [c + sa * size * n + sb * size * e2 for sa, sb in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
     p = [occ.addPoint(*q) for q in corners]
@@ -96,20 +99,18 @@ def stem_solid(occ, st: G.Stem3D, A0: float, pose, delta: float = 0.0, n_body: i
 
 
 def cut_plane(fm):
-    """建模实际用的截骨面（与 kept_halfspace 一致）：过 C03，由 n3 与全局 y 张成。返回 (C, e1, e2, 法向)：
-    e2 = 全局 y，e1 = 面内与 y 垂直、靠近 n3 的方向，法向指向头侧（与 u3 同侧）。
-    注意（2026-10-02 查出）：u3 有前后分量，这个面的法向与颈轴 u3 相差约 4°；解析函数 below_cut 用的是垂直于 u3 的面。
-    领必须贴在建模实际切出的面上，所以这里按 kept_halfspace 取。"""
-    y = np.array([0.0, 1.0, 0.0])
-    nrm = np.cross(fm.n3, y)
+    """建模实际用的截骨面（与 kept_halfspace 一致）：过 C03，法向 = 颈轴 u3。返回 (C, e1, e2, 法向)：
+    e1 = n3（面内、颈平面内、指向内下），e2 = 面内与 e1 垂直、取靠近全局 +y（后方）的一侧，法向指向头侧。
+    2026-10-02 15:00 起与解析函数 below_cut 用的面相同（此前相差 4.1°）。领贴在这个面上。"""
+    nrm = np.asarray(fm.u3, float)
     nrm = nrm / np.linalg.norm(nrm)
-    if nrm @ fm.u3 < 0:
-        nrm = -nrm
-    e1 = np.cross(y, nrm)
+    e1 = np.asarray(fm.n3, float)
     e1 = e1 / np.linalg.norm(e1)
-    if e1 @ fm.n3 < 0:
-        e1 = -e1
-    return fm.C03, e1, y, nrm
+    e2 = np.cross(nrm, e1)
+    e2 = e2 / np.linalg.norm(e2)
+    if e2[1] < 0:
+        e2 = -e2
+    return fm.C03, e1, e2, nrm
 
 
 def _plane_basis(fm):
