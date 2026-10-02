@@ -18,7 +18,7 @@ USED: set[str] = set()
 
 # 2026-09-29 19:15 的快照；能连上 Linux 时用现查的数替换
 SNAPSHOT = {"ref_r": 64, "ref_intact": 12, "conv": 18, "signs": 5, "e2e": 1, "bo_": 82, "probe_": 32, "cref": 43, "cprobe": 6,
-            "v3_": 80, "v3sens": 16, "m1_": 75, "m1lame": 24, "ata_": 27, "collar_": 6}
+            "v3_": 80, "v3sens": 16, "m1_": 75, "m1lame": 24, "ata_": 27, "collar_": 34}
 
 
 def tab(head, rows):
@@ -161,8 +161,8 @@ def main(stamp: str, remote: bool):
          cell(doc=F("v2/ATA_FE_FIGURES_2026-09-29.md"), script=F("v2/build_ata_figs_doc.py"), result="`v2/refs_pdf/11_*.pdf`，不进 git")],
         ["doe_evidence", "试验设计论证：样本量、采集什么，用已有数据上的实测作依据。是重新设计方案的补充",
          cell(doc=F("DOE_JUSTIFICATION_2026-09-29.md"), script=F("v2/doe_evidence.py", "v2/build_doe_doc.py"), result=F("v2/results/doe_evidence/"))],
-        ["collar：领与椭圆截面", "2026-10-02 加入领（有无与外伸宽度）、椭圆截面、领与截骨面的接触；截骨范围的解剖量；6 个验证作业",
-         cell(doc=F("v2/COLLAR_ELLIPSE_2026-10-02.md"), script=F("v2/stage_collar.py", "v2/build_collar_doc.py"),
+        ["collar：领与椭圆截面", "2026-10-02 加入领（有无与外伸宽度）、椭圆截面、领与截骨面的接触；截骨范围的解剖量；6 个验证作业。之后追加颈部柄第一阶段筛选网格（长 25/30/35 mm × 领 0/2/4 mm × 圆、椭圆、非对称截面，27 个设计，另加 3 个 3 mm 领的探针）与第二阶段优化（`v2/stage_neck2.py`：截面形状与截骨高度 25–40 mm）",
+         cell(doc=F("v2/COLLAR_ELLIPSE_2026-10-02.md"), script=F("v2/stage_collar.py", "v2/build_collar_doc.py", "v2/stage_neck2.py"),
               result=F("v2/results/collar/"), prefix="`collar_`")],
         ["项目总结", "全过程的时间线记录",
          cell(doc=F("PROJECT_HISTORY_2026-09-29.md"), script=F("build_history.py", "PROJECT_HISTORY_base.md"), result="读各阶段结果")],

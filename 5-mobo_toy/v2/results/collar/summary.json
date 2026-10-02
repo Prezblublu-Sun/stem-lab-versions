@@ -1,0 +1,652 @@
+{
+ "jobs": {
+  "base_w0": {
+   "job_id": "collar_base_w0_d23f6d02",
+   "f1_p95_um": 7.442609207529794,
+   "f1_first_p95_um": 19.066356356944567,
+   "f1_rev_p50_um": 0.5235813062145822,
+   "area_frac_gt40": 0.0,
+   "area_frac_gt150": 0.0,
+   "open_frac_load2": 0.0464592640407859,
+   "interface_area": 2461.6720055899027,
+   "f1_all_p95_um": null,
+   "f1_first_all_p95_um": null,
+   "collar_area": null,
+   "collar_n_pairs": null,
+   "collar_slip_rev_p95_um": null,
+   "collar_slip_first_p95_um": null,
+   "collar_open_frac_load2": null,
+   "collar_open_frac_unload": null,
+   "collar_gap_p95_load2_um": null,
+   "collar_force_share_load": null,
+   "collar_force_share_load2": null,
+   "collar_force_N_load2": null,
+   "contact_force_total_N_load2": null,
+   "cpress_release_p50": 2.362284937647766,
+   "status_frac_stick": 0.23616856179423315,
+   "status_frac_slip": 0.6639932184549231,
+   "vm_p99": 123.15431771877759,
+   "vm_max": 325.74285888671875,
+   "f2_g7_loss_pct": -4.105443276500087,
+   "templating": {
+    "alpha": 20.0,
+    "e": -4.0,
+    "A0": 311.8301314649577,
+    "contact": 0.08138528138528138,
+    "s_bind": 13.91304347826087,
+    "volume": 7456.9357574323885,
+    "margin": -0.25
+   },
+   "collar": null,
+   "n_tet": {
+    "cortex": 8470,
+    "cancellous": 9880,
+    "stem": 8975
+   },
+   "wall_s": {
+    "m_bond": 74.48055529999692,
+    "m_fric": 1201.9725504000016
+   },
+   "zones": {
+    "stem:G1": {
+     "ssi_pct": 27.629015151688584,
+     "res_0.6": 28.57142857142857
+    },
+    "stem:G7": {
+     "ssi_pct": 48.91188523863485,
+     "res_0.6": 73.63057324840764
+    },
+    "stem:total": {
+     "ssi_pct": 8.525279538205599,
+     "res_0.6": 11.9819140919367
+    },
+    "femur:G1": {
+     "ssi_pct": 24.623300081657717,
+     "res_0.6": 22.652885443583116
+    },
+    "femur:G7": {
+     "ssi_pct": 53.98494162670852,
+     "res_0.6": 77.3121387283237
+    },
+    "femur:total": {
+     "ssi_pct": 8.523149924573625,
+     "res_0.6": 11.978729359082003
+    },
+    "fixed:G1": {
+     "ssi_pct": 4.265007736798376,
+     "res_0.6": 7.270693512304251
+    },
+    "fixed:G7": {
+     "ssi_pct": 15.383536672107423,
+     "res_0.6": 20.86540461826503
+    },
+    "fixed:total": {
+     "ssi_pct": 2.343182605932459,
+     "res_0.6": 6.556163978096788
+    }
+   },
+   "stem_regions": {
+    "vm_max_body_deep": 140.52215576171875,
+    "vm_max_junction": 745.899169921875,
+    "vm_max_neck_free": 159.7923583984375
+   }
+  },
+  "base_w2": {
+   "job_id": "collar_base_w2_9d3e7e27",
+   "f1_p95_um": 1.196061439896166,
+   "f1_first_p95_um": 10.611205043237156,
+   "f1_rev_p50_um": 0.3177348706979439,
+   "area_frac_gt40": 0.0,
+   "area_frac_gt150": 0.0,
+   "open_frac_load2": 0.02647608347641673,
+   "interface_area": 2435.1821596685886,
+   "f1_all_p95_um": 3.8857236334156458,
+   "f1_first_all_p95_um": 12.763843172827375,
+   "collar_area": 159.00185923413508,
+   "collar_n_pairs": 429,
+   "collar_slip_rev_p95_um": 17.202619441827803,
+   "collar_slip_first_p95_um": 17.72525602822175,
+   "collar_open_frac_load2": 0.6599627269144819,
+   "collar_open_frac_unload": 0.6974524695176392,
+   "collar_gap_p95_load2_um": 34.181059248625616,
+   "collar_force_share_load": 0.3225726664519631,
+   "collar_force_share_load2": 0.3223487223748371,
+   "collar_force_N_load2": 791.4015162033128,
+   "contact_force_total_N_load2": 2391.018626504167,
+   "cpress_release_p50": 2.3361302709024288,
+   "status_frac_stick": 0.36798824966635435,
+   "status_frac_slip": 0.562078404593809,
+   "vm_p99": 50.33612966119348,
+   "vm_max": 131.4508514404297,
+   "f2_g7_loss_pct": 2.146011340406151,
+   "templating": {
+    "alpha": 20.0,
+    "e": -4.0,
+    "A0": 311.8301314649577,
+    "contact": 0.08138528138528138,
+    "s_bind": 13.91304347826087,
+    "volume": 7456.9357574323885,
+    "margin": -0.25
+   },
+   "collar": {
+    "area_mm2": 445.3371344008785,
+    "footprint_mm2": 307.1431359261998,
+    "ring_mm2": 138.19399847467844,
+    "ring_cortex_frac": 0.1523702031602709,
+    "overhang_mean_mm": 2.0320229982026854,
+    "collar_w": 2.0,
+    "collar_t": 2.5,
+    "n_pairs": 429,
+    "contact_area_mm2": 159.00185923413508
+   },
+   "n_tet": {
+    "cortex": 8647,
+    "cancellous": 10061,
+    "stem": 9343
+   },
+   "wall_s": {
+    "m_bond": 37.846959899994545,
+    "m_fric": 891.323524899999
+   },
+   "zones": {
+    "stem:G1": {
+     "ssi_pct": 23.00900984585097,
+     "res_0.6": 20.883534136546185
+    },
+    "stem:G7": {
+     "ssi_pct": 36.77376701182342,
+     "res_0.6": 57.324840764331206
+    },
+    "stem:total": {
+     "ssi_pct": 7.307610009115861,
+     "res_0.6": 9.005275056518462
+    },
+    "femur:G1": {
+     "ssi_pct": 20.982476389860317,
+     "res_0.6": 16.32213608957795
+    },
+    "femur:G7": {
+     "ssi_pct": 39.049127756027026,
+     "res_0.6": 60.115606936416185
+    },
+    "femur:total": {
+     "ssi_pct": 7.314551809815839,
+     "res_0.6": 9.03069316167553
+    },
+    "fixed:G1": {
+     "ssi_pct": 4.469337916404648,
+     "res_0.6": 4.306487695749441
+    },
+    "fixed:G7": {
+     "ssi_pct": 12.943372859430259,
+     "res_0.6": 16.496775535677138
+    },
+    "fixed:total": {
+     "ssi_pct": 2.02016081863734,
+     "res_0.6": 5.041685166000691
+    }
+   },
+   "stem_regions": {
+    "vm_max_body_deep": 54.043487548828125,
+    "vm_max_junction": 131.4508514404297,
+    "vm_max_neck_free": 110.35397338867188
+   }
+  },
+  "base_w4": {
+   "job_id": "collar_base_w4_b3e685fe",
+   "f1_p95_um": 0.7498943296204886,
+   "f1_first_p95_um": 9.985909953876657,
+   "f1_rev_p50_um": 0.2762884329862934,
+   "area_frac_gt40": 0.0,
+   "area_frac_gt150": 0.0,
+   "open_frac_load2": 0.026101742615966993,
+   "interface_area": 2435.183043760537,
+   "f1_all_p95_um": 8.26446440659084,
+   "f1_first_all_p95_um": 12.829916477195665,
+   "collar_area": 300.2296210429408,
+   "collar_n_pairs": 649,
+   "collar_slip_rev_p95_um": 15.82003838125714,
+   "collar_slip_first_p95_um": 17.151447620487208,
+   "collar_open_frac_load2": 0.5762346719070375,
+   "collar_open_frac_unload": 0.6866078673670916,
+   "collar_gap_p95_load2_um": 31.482485853836007,
+   "collar_force_share_load": 0.40116507355564096,
+   "collar_force_share_load2": 0.4004821490812084,
+   "collar_force_N_load2": 981.6540389194035,
+   "contact_force_total_N_load2": 2390.9945490782334,
+   "cpress_release_p50": 2.342998459339954,
+   "status_frac_stick": 0.39636002094757683,
+   "status_frac_slip": 0.5411769958775837,
+   "vm_p99": 45.65106538879928,
+   "vm_max": 70.90251922607422,
+   "f2_g7_loss_pct": 4.7753223326875265,
+   "templating": {
+    "alpha": 20.0,
+    "e": -4.0,
+    "A0": 311.8301314649577,
+    "contact": 0.08138528138528138,
+    "s_bind": 13.91304347826087,
+    "volume": 7456.9357574323885,
+    "margin": -0.25
+   },
+   "collar": {
+    "area_mm2": 586.8511558904673,
+    "footprint_mm2": 307.1431359261998,
+    "ring_mm2": 279.70801996426735,
+    "ring_cortex_frac": 0.2997750281214848,
+    "overhang_mean_mm": 4.1128640579371565,
+    "collar_w": 4.0,
+    "collar_t": 2.5,
+    "n_pairs": 649,
+    "contact_area_mm2": 300.2296210429408
+   },
+   "n_tet": {
+    "cortex": 8735,
+    "cancellous": 10120,
+    "stem": 9574
+   },
+   "wall_s": {
+    "m_bond": 38.169921599997906,
+    "m_fric": 884.4822271000012
+   },
+   "zones": {
+    "stem:G1": {
+     "ssi_pct": 22.357251025429147,
+     "res_0.6": 16.98221457257602
+    },
+    "stem:G7": {
+     "ssi_pct": 35.29977195112042,
+     "res_0.6": 51.97452229299363
+    },
+    "stem:total": {
+     "ssi_pct": 7.181083533123722,
+     "res_0.6": 7.827807083647325
+    },
+    "femur:G1": {
+     "ssi_pct": 20.404994417090407,
+     "res_0.6": 13.264427217915589
+    },
+    "femur:G7": {
+     "ssi_pct": 36.86810240433336,
+     "res_0.6": 53.75722543352601
+    },
+    "femur:total": {
+     "ssi_pct": 7.189917830458725,
+     "res_0.6": 7.864539602574867
+    },
+    "fixed:G1": {
+     "ssi_pct": 4.838629663851446,
+     "res_0.6": 3.942953020134228
+    },
+    "fixed:G7": {
+     "ssi_pct": 12.58460266189745,
+     "res_0.6": 14.166840024963594
+    },
+    "fixed:total": {
+     "ssi_pct": 1.8822544012816467,
+     "res_0.6": 4.385575452617039
+    }
+   },
+   "stem_regions": {
+    "vm_max_body_deep": 50.24647521972656,
+    "vm_max_junction": 132.92828369140625,
+    "vm_max_neck_free": 111.95206451416016
+   }
+  },
+  "short_w3": {
+   "job_id": "collar_short_w3_35350236",
+   "f1_p95_um": 33.17912284322128,
+   "f1_first_p95_um": 53.08441046649153,
+   "f1_rev_p50_um": 11.780072873012669,
+   "area_frac_gt40": 0.006084742341146975,
+   "area_frac_gt150": 0.0,
+   "open_frac_load2": 0.3607341019608253,
+   "interface_area": 1726.7520396973753,
+   "f1_all_p95_um": 37.23839641414813,
+   "f1_first_all_p95_um": 53.812758565141976,
+   "collar_area": 218.13710841807404,
+   "collar_n_pairs": 513,
+   "collar_slip_rev_p95_um": 45.21364092992082,
+   "collar_slip_first_p95_um": 54.388170537627474,
+   "collar_open_frac_load2": 0.6667412175347076,
+   "collar_open_frac_unload": 0.7765193189940129,
+   "collar_gap_p95_load2_um": 80.39825870896706,
+   "collar_force_share_load": 0.5725762876859211,
+   "collar_force_share_load2": 0.5539912041580596,
+   "collar_force_N_load2": 1351.8659581034601,
+   "contact_force_total_N_load2": 2391.000004326339,
+   "cpress_release_p50": 1.4341720827195918,
+   "status_frac_stick": 0.026878974423335818,
+   "status_frac_slip": 0.4621977249554173,
+   "vm_p99": 62.93029920734384,
+   "vm_max": 131.11508178710938,
+   "f2_g7_loss_pct": -28.99049923397754,
+   "templating": {
+    "alpha": 36.90791262779385,
+    "e": -6.0,
+    "A0": 297.4640925586425,
+    "contact": 0.06096256684491978,
+    "s_bind": 5.51342784082922,
+    "volume": 6167.912862946294,
+    "margin": -0.25
+   },
+   "collar": {
+    "area_mm2": 503.45994907081814,
+    "footprint_mm2": 297.16451827223403,
+    "ring_mm2": 206.29543079858433,
+    "ring_cortex_frac": 0.22323462414578588,
+    "overhang_mean_mm": 3.0054983047828383,
+    "collar_w": 3.0,
+    "collar_t": 2.5,
+    "n_pairs": 513,
+    "contact_area_mm2": 218.13710841807404
+   },
+   "n_tet": {
+    "cortex": 7661,
+    "cancellous": 9484,
+    "stem": 9979
+   },
+   "wall_s": {
+    "m_bond": 38.00493529999949,
+    "m_fric": 1320.8225192000027
+   },
+   "zones": {
+    "stem:G1": {
+     "ssi_pct": -26.165875371963665,
+     "res_0.6": 9.266409266409266
+    },
+    "stem:G7": {
+     "ssi_pct": 13.683450751463312,
+     "res_0.6": 44.2159383033419
+    },
+    "stem:total": {
+     "ssi_pct": 1.019117450016227,
+     "res_0.6": 8.605737158105404
+    },
+    "femur:G1": {
+     "ssi_pct": -22.94838948215783,
+     "res_0.6": 3.711484593837535
+    },
+    "femur:G7": {
+     "ssi_pct": 45.56347434967638,
+     "res_0.6": 56.9620253164557
+    },
+    "femur:total": {
+     "ssi_pct": -0.7638298211073646,
+     "res_0.6": 8.185129633597601
+    },
+    "fixed:G1": {
+     "ssi_pct": -4.788982955432264,
+     "res_0.6": 0.6152125279642058
+    },
+    "fixed:G7": {
+     "ssi_pct": 2.306838489471452,
+     "res_0.6": 8.281315022888057
+    },
+    "fixed:total": {
+     "ssi_pct": -0.04660548433141898,
+     "res_0.6": 2.3877651702022695
+    }
+   },
+   "stem_regions": {
+    "vm_max_body_deep": 73.27778625488281,
+    "vm_max_junction": 242.08804321289062,
+    "vm_max_neck_free": 137.62554931640625
+   }
+  },
+  "neck_w0": {
+   "job_id": "collar_neck_w0_9e92d3e1",
+   "f1_p95_um": 44.5763513833455,
+   "f1_first_p95_um": 54.736574388735605,
+   "f1_rev_p50_um": 17.02565011667648,
+   "area_frac_gt40": 0.08819363430377129,
+   "area_frac_gt150": 0.0,
+   "open_frac_load2": 0.15573251717034214,
+   "interface_area": 2269.67403439827,
+   "f1_all_p95_um": null,
+   "f1_first_all_p95_um": null,
+   "collar_area": null,
+   "collar_n_pairs": null,
+   "collar_slip_rev_p95_um": null,
+   "collar_slip_first_p95_um": null,
+   "collar_open_frac_load2": null,
+   "collar_open_frac_unload": null,
+   "collar_gap_p95_load2_um": null,
+   "collar_force_share_load": null,
+   "collar_force_share_load2": null,
+   "collar_force_N_load2": null,
+   "contact_force_total_N_load2": null,
+   "cpress_release_p50": 1.7487467640647705,
+   "status_frac_stick": 0.01016857747893161,
+   "status_frac_slip": 0.6160589924470665,
+   "vm_p99": 81.74906902291492,
+   "vm_max": 193.05780029296875,
+   "f2_g7_loss_pct": -41.194075779932994,
+   "templating": {
+    "alpha": 40.0,
+    "e": -2.0,
+    "A0": 412.77112335748495,
+    "contact": 0.014511041009463722,
+    "s_bind": 0.0,
+    "volume": 10275.670568545609,
+    "margin": -0.25
+   },
+   "collar": null,
+   "n_tet": {
+    "cortex": 7755,
+    "cancellous": 10274,
+    "stem": 10557
+   },
+   "wall_s": {
+    "m_bond": 38.04022780000378,
+    "m_fric": 1932.5565770999965
+   },
+   "zones": {
+    "stem:G1": {
+     "ssi_pct": 13.287678346901345,
+     "res_0.6": 25.862068965517242
+    },
+    "stem:G7": {
+     "ssi_pct": 45.094428333482064,
+     "res_0.6": 62.32179226069247
+    },
+    "stem:total": {
+     "ssi_pct": 11.671983485901972,
+     "res_0.6": 13.312054074352234
+    },
+    "femur:G1": {
+     "ssi_pct": 3.4967039438879133,
+     "res_0.6": 10.185185185185185
+    },
+    "femur:G7": {
+     "ssi_pct": 49.35790928859877,
+     "res_0.6": 67.85714285714286
+    },
+    "femur:total": {
+     "ssi_pct": 10.90921439029221,
+     "res_0.6": 12.782784623873459
+    },
+    "fixed:G1": {
+     "ssi_pct": -2.3796528646192083,
+     "res_0.6": 1.929530201342282
+    },
+    "fixed:G7": {
+     "ssi_pct": 9.695084649452424,
+     "res_0.6": 13.58435614728521
+    },
+    "fixed:total": {
+     "ssi_pct": 1.0500095533265141,
+     "res_0.6": 3.8725272556854624
+    }
+   },
+   "stem_regions": {
+    "vm_max_body_deep": 76.2049560546875,
+    "vm_max_junction": 613.3294677734375,
+    "vm_max_neck_free": 146.688720703125
+   }
+  },
+  "neck_w3": {
+   "job_id": "collar_neck_w3_36c2bb73",
+   "f1_p95_um": 13.572793917411648,
+   "f1_first_p95_um": 21.685471211916642,
+   "f1_rev_p50_um": 1.9109416052155481,
+   "area_frac_gt40": 0.0,
+   "area_frac_gt150": 0.0,
+   "open_frac_load2": 0.013734737115453902,
+   "interface_area": 2257.6072007780854,
+   "f1_all_p95_um": 15.609204169398714,
+   "f1_first_all_p95_um": 22.12339078461154,
+   "collar_area": 226.95538706476054,
+   "collar_n_pairs": 513,
+   "collar_slip_rev_p95_um": 22.33847814356738,
+   "collar_slip_first_p95_um": 23.986003542818505,
+   "collar_open_frac_load2": 0.5894164968416856,
+   "collar_open_frac_unload": 0.9231578055427443,
+   "collar_gap_p95_load2_um": 32.30805647930173,
+   "collar_force_share_load": 0.5178219734180661,
+   "collar_force_share_load2": 0.5078667466337183,
+   "collar_force_N_load2": 1239.4575175067412,
+   "contact_force_total_N_load2": 2391.0014220517096,
+   "cpress_release_p50": 1.7382469525334434,
+   "status_frac_stick": 0.2061597375171263,
+   "status_frac_slip": 0.5983992345054411,
+   "vm_p99": 38.1896474138325,
+   "vm_max": 73.19291687011719,
+   "f2_g7_loss_pct": -13.597222204234626,
+   "templating": {
+    "alpha": 40.0,
+    "e": -2.0,
+    "A0": 412.77112335748495,
+    "contact": 0.014511041009463722,
+    "s_bind": 0.0,
+    "volume": 10275.670568545609,
+    "margin": -0.25
+   },
+   "collar": {
+    "area_mm2": 626.5228771779928,
+    "footprint_mm2": 412.21130677460894,
+    "ring_mm2": 214.31157040338348,
+    "ring_cortex_frac": 0.2884473877851361,
+    "overhang_mean_mm": 2.940000895455673,
+    "collar_w": 3.0,
+    "collar_t": 2.5,
+    "n_pairs": 513,
+    "contact_area_mm2": 226.95538706476054
+   },
+   "n_tet": {
+    "cortex": 8041,
+    "cancellous": 10494,
+    "stem": 11265
+   },
+   "wall_s": {
+    "m_bond": 38.25905719999719,
+    "m_fric": 1497.3380042000063
+   },
+   "zones": {
+    "stem:G1": {
+     "ssi_pct": 29.64042690439691,
+     "res_0.6": 26.436781609195403
+    },
+    "stem:G7": {
+     "ssi_pct": 14.099927066363694,
+     "res_0.6": 22.810590631364562
+    },
+    "stem:total": {
+     "ssi_pct": 9.647423873020323,
+     "res_0.6": 7.979722117912129
+    },
+    "femur:G1": {
+     "ssi_pct": 19.477216799526055,
+     "res_0.6": 12.210648148148149
+    },
+    "femur:G7": {
+     "ssi_pct": 14.843236354250477,
+     "res_0.6": 29.761904761904763
+    },
+    "femur:total": {
+     "ssi_pct": 9.585804020355281,
+     "res_0.6": 7.596100790877322
+    },
+    "fixed:G1": {
+     "ssi_pct": 2.5788565101843686,
+     "res_0.6": 2.1812080536912752
+    },
+    "fixed:G7": {
+     "ssi_pct": 7.02671548477618,
+     "res_0.6": 7.572290409819014
+    },
+    "fixed:total": {
+     "ssi_pct": 0.9463200261550786,
+     "res_0.6": 2.476444181342805
+    }
+   },
+   "stem_regions": {
+    "vm_max_body_deep": 34.671207427978516,
+    "vm_max_junction": 115.02930450439453,
+    "vm_max_neck_free": 98.77548217773438
+   }
+  }
+ },
+ "missing": [
+  "neck_circ_w3",
+  "neck_asym_w3",
+  "neck_circ_L25_w4",
+  "neck_circ_L35_w2",
+  "neck_ell_L25_w4",
+  "neck_ell_L35_w2",
+  "neck_asym_L25_w4",
+  "neck_asym_L35_w2",
+  "neck_circ_L25_w0",
+  "neck_circ_L25_w2",
+  "neck_circ_L30_w0",
+  "neck_circ_L30_w2",
+  "neck_circ_L30_w4",
+  "neck_circ_L35_w0",
+  "neck_circ_L35_w4",
+  "neck_ell_L25_w0",
+  "neck_ell_L25_w2",
+  "neck_ell_L30_w2",
+  "neck_ell_L30_w4",
+  "neck_ell_L35_w0",
+  "neck_ell_L35_w4",
+  "neck_asym_L25_w0",
+  "neck_asym_L25_w2",
+  "neck_asym_L30_w0",
+  "neck_asym_L30_w2",
+  "neck_asym_L30_w4",
+  "neck_asym_L35_w0",
+  "neck_asym_L35_w4"
+ ],
+ "regression": {
+  "old_job": "m1_base_h2_tol0.00025_delta0.025_e710a153",
+  "f1_p95_um": [
+   7.442609207529794,
+   7.442609207529794
+  ],
+  "f1_first_p95_um": [
+   19.066356356944567,
+   19.066356356944567
+  ],
+  "vm_p99": [
+   123.15431771877759,
+   123.15431771877759
+  ]
+ },
+ "short_w0_old": {
+  "job_id": "m1_short_h2_tol0.00025_delta0.025_7f62c025",
+  "f1_p95_um": 89.46197053282187,
+  "f1_first_p95_um": 99.75549683130829,
+  "f1_rev_p50_um": 44.05148997262884,
+  "area_frac_gt40": 0.5344552983166715,
+  "area_frac_gt150": 0.0,
+  "open_frac_load2": 0.4788127485097582,
+  "interface_area": 1738.2304774018764,
+  "cpress_release_p50": 1.425319306133145,
+  "status_frac_stick": 0.0008834464815606587,
+  "status_frac_slip": 0.4045832387021006,
+  "vm_p99": 108.80864737218666,
+  "vm_max": 210.7008819580078,
+  "f2_g7_loss_pct": -56.80992824070006
+ },
+ "created": "2026-10-02 12:15:16"
+}

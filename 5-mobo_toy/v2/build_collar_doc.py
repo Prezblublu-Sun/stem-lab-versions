@@ -17,6 +17,7 @@ OUT = HERE / "COLLAR_ELLIPSE_2026-10-02.md"
 NAMES = {"base_w0": "基准，无领", "base_w2": "基准，2 mm 领", "base_w4": "基准，4 mm 领", "short_w0_old": "短柄，无领（改动前已解）", "short_w3": "短柄，3 mm 领",
          "neck_w0": "椭圆颈部柄，无领", "neck_w3": "椭圆颈部柄，3 mm 领", "neck_circ_w3": "圆截面颈部柄，3 mm 领",
          "neck_asym_w3": "非对称截面颈部柄，3 mm 领"}
+CORE = ("base_w0", "base_w2", "base_w4", "short_w3", "neck_w0", "neck_w3")       # 最初的 6 个验证作业；圆与非对称两个是后来追加的
 
 
 def tab(head, rows):
@@ -34,7 +35,12 @@ def f(x, n=1, pct=False, sign=False):
 def main(stamp):
     S = json.loads((R / "summary.json").read_text(encoding="utf-8"))
     CR = json.loads((R / "cut_range.json").read_text(encoding="utf-8"))
-    J = S["jobs"]
+    J = {k: v for k, v in S["jobs"].items() if k in NAMES}                # summary 里还有别的阶段登记的作业，这里只看本验证的 6 个
+    miss = [k for k in S.get("missing", []) if k in NAMES]
+    core = [k for k in CORE if k in J]
+    rng = lambda key, ks, n=1, pct=False: (f(min(J[k][key] for k in ks), n, pct=pct) + "–" + f(max(J[k][key] for k in ks), n, pct=pct)
+                                          if ks and all(J[k].get(key) is not None for k in ks) else "—")
+    wc = [k for k in core if (J[k].get("collar") or {}).get("collar_w")]
     L = []
     A = L.append
     A("# 领与椭圆截面：实现与求解验证\n")
@@ -46,22 +52,33 @@ def main(stamp):
     same = rg and all(a == b for a, b in (v for k, v in rg.items() if k != "old_job"))
     b0, b2, b4 = J.get("base_w0", {}), J.get("base_w2", {}), J.get("base_w4", {})
     s3, n0, n3 = J.get("short_w3", {}), J.get("neck_w0", {}), J.get("neck_w3", {})
+    s0 = S.get("short_w0_old", {})
+    g7 = lambda j: (j.get("zones", {}).get("femur:G7") or {}).get("ssi_pct")
+    jn = lambda j: (j.get("stem_regions") or {}).get("vm_max_junction")
     A(f"1. **三项都已实现。** 椭圆截面是原截面公式的特例；领是平贴在截骨面上的一块板；领与截骨面之间是摩擦接触、不加过盈。"
-      f"{len(J)} 个验证作业全部解完" + ("，没有失败。" if not S.get("missing") else f"，{len(S['missing'])} 个没有结果。"))
+      f"最初的 {len(CORE)} 个验证作业解完 {len(core)} 个" + ("，没有失败。" if len(core) == len(CORE) else "。")
+      + (f"后来追加的 {len(miss)} 个（{'、'.join(NAMES[k] for k in miss)}）还没有结果。" if miss else ""))
     A("2. **无领的模型没有任何变化。** " + ("基准设计按原设置重解，微动和柄应力与改动前逐位相同。" if same else "回归检查见第 4 节。"))
     if b0 and b2 and b4:
-        A(f"3. **领承担了相当一部分载荷。** 基准设计加 2 mm 和 4 mm 领后，领承担的接触力占柄传给骨的合力的 "
-          f"{f(b2.get('collar_force_share_load2'), 0, pct=True)} 和 {f(b4.get('collar_force_share_load2'), 0, pct=True)}；"
-          f"柄身的可恢复微动从 {f(b0.get('f1_p95_um'))} µm 变为 {f(b2.get('f1_p95_um'))} 和 {f(b4.get('f1_p95_um'))} µm。")
+        A(f"3. **领使柄身微动大幅下降。** 基准设计加 2、4 mm 领，"
+          f"柄身可恢复微动从 {f(b0.get('f1_p95_um'))} µm 降到 {f(b2.get('f1_p95_um'))} 和 {f(b4.get('f1_p95_um'))} µm，"
+          f"首次加载微动从 {f(b0.get('f1_first_p95_um'))} 降到 {f(b2.get('f1_first_p95_um'))} 和 {f(b4.get('f1_first_p95_um'))} µm；"
+          f"领承担柄传给骨的接触合力的 {f(b2.get('collar_force_share_load2'), 0, pct=True)} 和 {f(b4.get('collar_force_share_load2'), 0, pct=True)}。")
     if s3:
-        s0 = S.get("short_w0_old", {})
-        A(f"4. **短柄加领。** 25 mm 短柄加 3 mm 领，柄身可恢复微动 {f(s3.get('f1_p95_um'))} µm，"
-          f"改动前无领时是 {f(s0.get('f1_p95_um'))} µm（同一过盈 0.025 mm，作业 `{s0.get('job_id', '—')}`）；"
-          f"领承担 {f(s3.get('collar_force_share_load2'), 0, pct=True)} 的接触力。")
+        A(f"4. **短柄最受益。** 25 mm 短柄无领 {f(s0.get('f1_p95_um'))} µm（改动前已解），加 3 mm 领降到 {f(s3.get('f1_p95_um'))} µm，"
+          f"领承担 {f(s3.get('collar_force_share_load2'), 0, pct=True)} 的接触力。但领面自身滑移 {f(s3.get('collar_slip_rev_p95_um'))} µm、"
+          f"峰值载荷时 {f(s3.get('collar_open_frac_load2'), 0, pct=True)} 的领面掀起，领在短柄上是主要承力件、也在明显移动。")
     if n0 and n3:
-        A(f"5. **椭圆颈部柄。** 长 30 mm、插入角 40°、整根在股骨颈和转子间区，柄身可恢复微动无领 {f(n0.get('f1_p95_um'))} µm，"
-          f"加 3 mm 领 {f(n3.get('f1_p95_um'))} µm。")
-    A("6. **查出一处原有的不一致。** 建模时实际切骨的平面与解析计算用的“垂直于颈轴的平面”相差 4.1°。领已按实际切骨面放置；"
+        A(f"5. **椭圆颈部柄。** 长 30 mm、插入角 40°，无领 {f(n0.get('f1_p95_um'))} µm（{f(n0.get('area_frac_gt40'), 0, pct=True)} 的柄身面积超过 40 µm），"
+          f"加 3 mm 领 {f(n3.get('f1_p95_um'))} µm，领承担 {f(n3.get('collar_force_share_load2'), 0, pct=True)}。")
+    if b0 and b2 and n0 and n3:
+        A(f"6. **领面只有一部分在承压。** 峰值载荷时 {rng('collar_open_frac_load2', wc, 0, True)} 的领面掀起（间隙超过 1 µm），"
+          f"领面滑移 {rng('collar_slip_rev_p95_um', wc)} µm。领面滑移不计入上面的柄身微动。")
+        A(f"7. **股骨距的应力屏蔽减轻，但这一项高估了领的作用。** 7 区（随柄分区）应变能下降：基准 {f(g7(b0), 0)}% → {f(g7(b2), 0)}% / {f(g7(b4), 0)}%，"
+          f"椭圆颈部柄 {f(g7(n0), 0)}% → {f(g7(n3), 0)}%。屏蔽来自粘接模型，领在其中与骨固结；而摩擦模型显示领面一半以上会掀起。")
+        A(f"8. **柄颈与柄体交界的应力集中消失。** 无领时交界处最大 von Mises 应力 {f(jn(b0), 0)} MPa（基准）、{f(jn(n0), 0)} MPa（颈部柄），"
+          f"是尖角处的奇异值；加领后交界被填平，降到 {f(min(jn(J[k]) for k in wc), 0)}–{f(max(jn(J[k]) for k in wc), 0)} MPa。")
+    A("9. **查出一处原有的不一致。** 建模时实际切骨的平面与解析计算用的“垂直于颈轴的平面”相差 4.1°。领已按实际切骨面放置；"
       "其余影响见第 6 节。\n")
 
     # ------------------------------------------------------------------ 2
@@ -103,7 +120,7 @@ def main(stamp):
     for k in NAMES:
         j = S.get(k) if k == "short_w0_old" else J.get(k)
         if not j:
-            rows.append([NAMES[k]] + ["没有结果"] + [""] * 8)
+            rows.append([NAMES[k]] + ["尚未解完"] + [""] * 8)
             continue
         z = j.get("zones", {})
         rows.append([NAMES[k], f(j.get("f1_p95_um")), f(j.get("f1_first_p95_um")), f(j.get("area_frac_gt40"), 0, pct=True),
@@ -112,11 +129,12 @@ def main(stamp):
                      f((z.get("femur:G7") or {}).get("ssi_pct"), 0), f((z.get("fixed:G7") or {}).get("ssi_pct"), 0),
                      f((j.get("stem_regions") or {}).get("vm_max_body_deep"), 0)])
     A(tab(["设计", "可恢复微动 (µm)", "首次加载微动 (µm)", "超过 40 µm 的柄身面积", "领承担的接触力", "领面滑移 (µm)", "领掀起面积",
-           "7 区屏蔽，随柄分区 (%)", "7 区屏蔽，固定分区 (%)", "柄体最大应力 (MPa)"], rows))
+           "7 区屏蔽，随柄分区 (%)", "7 区屏蔽，固定分区 (%)", "柄体最大应力，不含颈体交界 (MPa)"], rows))
     A("\n领承担的接触力：峰值载荷时领面节点的接触合力，在柄传给骨的接触合力方向上的分量所占比例。领掀起面积：峰值载荷时领面间隙超过 1 µm 的比例。"
       "应力屏蔽来自粘接模型，领在其中与骨固结。\n")
     if rg:
-        A("回归检查，基准设计无领，改动前与改动后：" + "；".join(f"{k} {v[0]} 对 {v[1]}" for k, v in rg.items() if k != "old_job")
+        A("回归检查，基准设计无领，改动前与改动后：" + "；".join(f"{k} {v[0]:.6f} 对 {v[1]:.6f}" + ("（逐位相同）" if v[0] == v[1] else "")
+                                                    for k, v in rg.items() if k != "old_job")
           + f"。改动前的作业是 `{rg['old_job']}`。\n")
     A("![带领与椭圆截面的设计](results/collar/collar_shapes.png)\n")
 
