@@ -53,6 +53,11 @@ PHASES = {
                  "tau_a": (-0.30, 0.30), "tau_p": (-0.30, 0.30), "m": (-0.25, 2.0),
                  "rho_tip": (0.10, 0.50), "q": (0.5, 3.0)},     # 锥度也进第二轮（用户 2026-10-02 16:00）
         "fixed": {}},                                           # 其余（L、alpha、collar_w、h_cut）来自 --ref
+    # 阶段 3（用户 2026-10-03 11:30）：14 个变量一轮联合优化，热启动 = 阶段 1 + 阶段 2 的全部设计（同一几何族），用于和两阶段对比
+    3: {"vars": {"L": (20.0, 60.0), "alpha": (15.0, 45.0), "collar_w": (0.0, 6.0), "h_cut": (25.0, 32.0), "m": (-0.25, 2.0),
+                 "rho_tip": (0.10, 0.50), "q": (0.5, 3.0), "lam": (1.0, 2.2), "g_ml": (0.35, 0.65), "g_ap": (0.35, 0.65),
+                 "n_a": (2.0, 6.0), "n_p": (2.0, 6.0), "tau_a": (-0.30, 0.30), "tau_p": (-0.30, 0.30)},
+        "fixed": {}},
 }
 CONST = {"collar_t": G.COLLAR_T, "cap_h": G.CAP_FLAT}
 FRIC = {"slip_tol": 2.5e-4, "delta": 0.025}
@@ -209,6 +214,29 @@ def gated_pool(ph: Phase, n: int = 8192, seed: int = 0, workers: int = 6) -> tup
     return U[keep], loss[keep]
 
 
+def refresh_pool(ph: Phase, centres: np.ndarray, k: int = 64, rad: float = 0.08, workers: int = 6, seed: int = 0) -> tuple[np.ndarray, np.ndarray]:
+    """前沿邻域补点：每个中心周围 [x−rad, x+rad]^d 内均匀取 k 个点，过模板化，返回 (可行点, 骨量损失)。离散池的局部加密。"""
+    rng = np.random.default_rng(seed)
+    U = np.clip(np.vstack([c + rng.uniform(-rad, rad, size=(k, len(ph.vars))) for c in np.atleast_2d(centres)]), 0.0, 1.0)
+    with Pool(workers) as p:
+        res = p.map(_feasible, [(u, ph.phase, ph.ref) for u in U], chunksize=16)
+    keep = np.array([r[0] for r in res]); loss = np.array([r[1] for r in res], float)
+    return U[keep], loss[keep]
+
+
+def lengthscales(model, ph: Phase) -> dict:
+    """微动 GP 与约束 GP 的 ARD 长度尺度（归一化输入空间；越短越重要）。"""
+    out = {}
+    for name, idx in (("micromotion", 0), ("constraint", 2)):
+        try:
+            gp = model.models[idx]
+            ls = gp.covar_module.base_kernel.lengthscale.detach().cpu().numpy().ravel()
+            out[name] = {v: float(x) for v, x in zip(ph.vars, ls)}
+        except Exception as e:                                       # noqa: BLE001
+            out[name] = f"n/a ({type(e).__name__})"
+    return out
+
+
 def det_loss_fn(pool: np.ndarray, loss: np.ndarray):
     """确定性目标：单位坐标 → 骨量损失（最近的候选点；采集只在候选池上离散优化，所以是精确值）。"""
     import torch
@@ -233,27 +261,35 @@ def ref_point(Y, C) -> np.ndarray:
     return hi + 0.1 * (hi - lo)
 
 
-def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, legacy_warm: bool) -> dict:
+def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, legacy_warm: bool, n_pool: int = 8192,
+       refresh_k: int = 0, refresh_rad: float = 0.08, stop_tol: float = 0.0, stop_rounds: int = 4) -> dict:
     import mobo
     mobo.fit_gp = S._fit_gp_unit
     X0, Y0, C0, ids0 = dataset(ph, legacy_warm)
-    pool, pool_loss = gated_pool(ph, seed=seed, workers=workers)
-    used = np.zeros(len(pool), bool)
-    recs, refp = [], None
+    pool, pool_loss = gated_pool(ph, n=n_pool, seed=seed, workers=workers)
+    live = J.RESULTS / f"neckopt_p{ph.phase}_pool_live.npz"           # 含邻域补点的池（续跑时用，保证 pool_idx 不变）
+    recs, refp, hv_hist, ls_hist = [], None, [], {}
     out = out_path(ph.phase)
     if out.exists():                                                     # 续跑：按当前约束形式从作业结果重算
         prev = json.loads(out.read_text())
         if prev.get("space") == {k: list(v) for k, v in ph.space.items()} and prev.get("fixed") == ph.fixed:
             recs = prev["records"]
+            hv_hist, ls_hist = prev.get("hv_hist", []), prev.get("lengthscales", {})
+            if live.exists():
+                z = np.load(live); pool, pool_loss = z["U"], z["loss"]
+    used = np.zeros(len(pool), bool)
+    if recs:
             for r in recs:
                 used[r["pool_idx"]] = True
                 r.update(record_of(r["job_id"], ph.sed))
             refp = np.array(prev["ref_point"]) if prev.get("ref_point") else None
-            if prev.get("sed") != ph.sed:
+            if prev.get("sed") != ph.sed:  # noqa: SIM102
                 print(f"[neckopt p{ph.phase}] constraint form changed {prev.get('sed')} -> {ph.sed}; feasibility recomputed", flush=True)
     state = {"phase": ph.phase, "space": ph.space, "fixed": ph.fixed, "const": CONST, "sed": ph.sed, "sed_limit": SED_LIMIT, "vm_limit": VM_LIMIT,
              "ref": ph.ref, "n_init": n_init, "q": q, "n_rounds": n_rounds, "warm_start_n": int(len(X0)), "warm_start_ids": ids0,
-             "pool_size": int(len(pool)), "records": recs, "ref_point": None if refp is None else refp.tolist()}
+             "pool_size": int(len(pool)), "records": recs, "ref_point": None if refp is None else refp.tolist(),
+             "hv_hist": hv_hist, "lengthscales": ls_hist, "n_pool": n_pool, "refresh_k": refresh_k, "refresh_rad": refresh_rad,
+             "stop_tol": stop_tol, "stop_rounds": stop_rounds}
 
     def save():
         state["updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -285,13 +321,20 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
         print(f"[neckopt p{ph.phase}] init: {int(okn.sum())}/{len(idx)} ok", flush=True)
     det = {1: det_loss_fn(pool, pool_loss)}
     done_rounds = max([r["round"] for r in recs], default=0)
+
+    def front_rows(X, Y, C):
+        f = np.nonzero(C[:, 0] <= 0)[0]
+        keep = [i for i in f if not any((Y[j] <= Y[i]).all() and (Y[j] < Y[i]).any() for j in f)]
+        return X[keep]
+
     for rnd in range(done_rounds + 1, n_rounds + 1):
         t0 = time.perf_counter()
         X, Y, C = stack()
-        if refp is None:                                                 # 参考点在初始批之后固定一次，超体积才可跨轮比较
+        if refp is None:                                                 # 参考点在热启动 / 初始批之后固定一次，超体积才可跨轮、跨阶段比较
             refp = ref_point(Y, C)
             state["ref_point"] = refp.tolist()
         model = mobo.fit_models(X, Y, C, det=det)
+        ls_hist[str(rnd)] = lengthscales(model, ph)
         free = np.nonzero(~used)[0]
         pick = mobo.propose(model, X, refp, pool[free], q, 2, 1, (50_000 + ph.phase * 100 + seed) * 1000 + rnd)
         idx = free[pick]
@@ -300,12 +343,32 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
         okn = run_batch(idx, f"r{rnd}", rnd)
         X, Y, C = stack()
         feas = Y[C[:, 0] <= 0]
-        hv = mobo.hypervolume(feas, refp) if len(feas) else float("nan")
+        hv = float(mobo.hypervolume(feas, refp)) if len(feas) else float("nan")
+        hv_hist.append({"round": rnd, "hv": hv, "n_eval": int(len(recs)), "n_ok": int(sum(r["ok"] for r in recs))})
         last = recs[-len(idx):]
         print(f"[neckopt p{ph.phase}] round {rnd}: +{int(okn.sum())}/{len(idx)} ok; "
-              f"{[{k: round(v, 1) for k, v in r['design'].items()} | {'h': round(r['h_cut'], 1), 'ssi': None if r['ssi_pct'] is None else round(r['ssi_pct'], 1)} for r in last]}; "
+              f"{[{k: round(v, 2) for k, v in r['design'].items()} | {'h': round(r['h_cut'], 1), 'ssi': None if r['ssi_pct'] is None else round(r['ssi_pct'], 1)} for r in last]}; "
               f"HV {hv:.4g}; acq {acq_s:.0f} s", flush=True)
+        if refresh_k > 0:                                               # 前沿邻域补点（离散池的局部加密）
+            t1 = time.perf_counter()
+            Un, Ln = refresh_pool(ph, front_rows(X, Y, C), k=refresh_k, rad=refresh_rad, workers=workers, seed=seed * 1000 + rnd)
+            if len(Un):
+                pool, pool_loss = np.vstack([pool, Un]), np.r_[pool_loss, Ln]
+                used = np.r_[used, np.zeros(len(Un), bool)]
+                det = {1: det_loss_fn(pool, pool_loss)}
+                np.savez(live, U=pool, loss=pool_loss)
+            state["pool_size"] = int(len(pool))
+            print(f"[neckopt p{ph.phase}] pool refresh: +{len(Un)} feasible around {len(front_rows(X, Y, C))} front points "
+                  f"({time.perf_counter() - t1:.0f} s), pool {len(pool)}", flush=True)
         save()
+        if stop_tol > 0 and len(hv_hist) > stop_rounds:
+            hvs = [h["hv"] for h in hv_hist[-(stop_rounds + 1):]]
+            gains = [(b - a) / a for a, b in zip(hvs[:-1], hvs[1:]) if a > 0]
+            if gains and max(gains) < stop_tol:
+                print(f"[neckopt p{ph.phase}] stop: hypervolume gain < {stop_tol:.1%} for {stop_rounds} rounds", flush=True)
+                state["stopped_early"] = rnd
+                save()
+                break
     return state
 
 
@@ -359,6 +422,11 @@ if __name__ == "__main__":
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--warm", choices=["family", "legacy"], default="family")
+    ap.add_argument("--pool", type=int, default=8192, help="候选池 Sobol 点数（阶段 3 建议 32768）")
+    ap.add_argument("--refresh", type=int, default=0, help="每轮在前沿各点邻域补的点数（0 = 不补）")
+    ap.add_argument("--refresh-rad", type=float, default=0.08)
+    ap.add_argument("--stop-tol", type=float, default=0.0, help="连续 --stop-rounds 轮超体积改进都小于此比例则停（0 = 不停）")
+    ap.add_argument("--stop-rounds", type=int, default=4)
     a = ap.parse_args()
     if a.cmd == "selftest":
         selftest()
@@ -369,9 +437,10 @@ if __name__ == "__main__":
         X, Y, C, ids = dataset(ph, a.warm == "legacy")
         print(json.dumps({"n": int(len(X)), "feasible": int((C[:, 0] <= 0).sum()) if len(C) else 0, "ids": ids}, indent=1))
     elif a.cmd == "pool":
-        U, loss = gated_pool(ph, seed=a.seed, workers=a.workers)
+        U, loss = gated_pool(ph, n=a.pool, seed=a.seed, workers=a.workers)
         print(U.shape, float(np.nanmin(loss)), float(np.nanmax(loss)))
     elif a.cmd == "status":
         status(a.phase)
     else:
-        bo(ph, a.rounds, a.init, a.q, a.seed, a.workers, a.warm == "legacy")
+        bo(ph, a.rounds, a.init, a.q, a.seed, a.workers, a.warm == "legacy", n_pool=a.pool, refresh_k=a.refresh,
+           refresh_rad=a.refresh_rad, stop_tol=a.stop_tol, stop_rounds=a.stop_rounds)
