@@ -378,6 +378,145 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
     return state
 
 
+def _front_rows(X, Y, C):
+    f = np.nonzero(C[:, 0] <= 0)[0]
+    keep = [i for i in f if not any((Y[j] <= Y[i]).all() and (Y[j] < Y[i]).any() for j in f)]
+    return X[keep]
+
+
+def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, legacy_warm: bool, n_pool: int = 8192,
+             refresh_k: int = 0, refresh_rad: float = 0.08, stop_tol: float = 0.0, stop_window: int = 18, n_cand: int = 10000,
+             poll: float = 30.0) -> dict:
+    """异步版（用户 2026-10-03 21:45：同步版每轮采集 6–7 分钟时求解器空转，4 个设计 3 个槽又拖一个尾巴）：
+    求解器里始终保持 inflight 个设计在算；每有一个算完，就用全部已完成结果重拟合代理、选 1 个新点提交（在算的点作 X_pending）。
+    与同步版共用记录文件、参考点、候选池，可互相续跑；重启时把本阶段不在记录里的作业收编（已解的进记录，在算的进待定）。
+    budget = 本阶段新设计的总数（含已完成的）。停止：最近 stop_window 个完成的超体积改进 < stop_tol，之后只排空不再提交。"""
+    import mobo
+    mobo.fit_gp = S._fit_gp_unit
+    X0, Y0, C0, ids0 = dataset(ph, legacy_warm)
+    pool, pool_loss = gated_pool(ph, n=n_pool, seed=seed, workers=workers)
+    live = J.RESULTS / f"neckopt_p{ph.phase}_pool_live.npz"
+    out = out_path(ph.phase)
+    recs, refp, hv_hist, ls_hist, pending = [], None, [], {}, {}
+    if out.exists():
+        prev = json.loads(out.read_text())
+        if prev.get("space") == {k: list(v) for k, v in ph.space.items()} and prev.get("fixed") == ph.fixed:
+            recs, hv_hist, ls_hist, pending = prev["records"], prev.get("hv_hist", []), prev.get("lengthscales", {}), prev.get("pending", {})
+            refp = np.array(prev["ref_point"]) if prev.get("ref_point") else None
+            if live.exists():
+                z = np.load(live); pool, pool_loss = z["U"], z["loss"]
+    used = np.zeros(len(pool), bool)
+
+    def rec_from(job: str, x, pool_idx, round_):
+        d_, h_ = ph.design_of(np.asarray(x, float))
+        return {"pool_idx": pool_idx, "x": list(map(float, x)), "round": round_, "job_id": job, "h_cut": h_,
+                "design": {k: d_[k] for k in ph.vars if k in d_}, **record_of(job, ph.sed)}
+
+    known = set()
+    for r in recs:
+        known.add(r["job_id"]); r.update(record_of(r["job_id"], ph.sed))
+        if r.get("pool_idx") is not None and r["pool_idx"] < len(pool):
+            used[r["pool_idx"]] = True
+    adopted = 0
+    for d in sorted(J.QROOT.glob(f"neck{ph.phase}_*")):                 # 收编本阶段不在记录里的作业
+        if d.name in known or not (d / "spec.json").exists():
+            continue
+        st_ = J.state(d)
+        spec = json.loads((d / "spec.json").read_text())
+        x = ph.to_unit(spec["design"], float(spec.get("h_cut", 25.0)))
+        if st_ in ("DONE", "FAILED"):
+            recs.append(rec_from(d.name, x, pending.pop(d.name, {}).get("pool_idx"), -1)); known.add(d.name); adopted += 1
+        elif st_ in ("NEW", "READY", "CLAIMED", "SOLVED") and d.name not in pending:
+            pending[d.name] = {"pool_idx": None, "x": x.tolist(), "submitted": "adopted"}
+    for j in list(pending):                                             # 上次待定里已经算完的
+        if J.state(J.QROOT / j) in ("DONE", "FAILED"):
+            p_ = pending.pop(j); recs.append(rec_from(j, p_["x"], p_.get("pool_idx"), -1)); known.add(j)
+    for p_ in pending.values():
+        if p_.get("pool_idx") is not None and p_["pool_idx"] < len(pool):
+            used[p_["pool_idx"]] = True
+    state = {"phase": ph.phase, "mode": "async", "space": ph.space, "fixed": ph.fixed, "const": CONST, "sed": ph.sed, "sed_limit": SED_LIMIT,
+             "vm_limit": VM_LIMIT, "ref": ph.ref, "inflight": inflight, "budget": budget, "n_cand": n_cand, "warm_start_n": int(len(X0)),
+             "warm_start_ids": ids0, "pool_size": int(len(pool)), "records": recs, "pending": pending,
+             "ref_point": None if refp is None else refp.tolist(), "hv_hist": hv_hist, "lengthscales": ls_hist, "n_pool": n_pool,
+             "refresh_k": refresh_k, "refresh_rad": refresh_rad, "stop_tol": stop_tol, "stop_window": stop_window}
+
+    def save():
+        state["pending"], state["pool_size"], state["updated"] = pending, int(len(pool)), time.strftime("%Y-%m-%d %H:%M:%S")
+        out.write_text(json.dumps(state, indent=1, default=float))
+
+    def stack():
+        good = [r for r in recs if r["ok"]]
+        X = np.vstack([X0] + [np.array(r["x"])[None] for r in good]) if good else X0
+        Y = np.vstack([Y0] + [np.array(r["y"])[None] for r in good]) if good else Y0
+        C = np.vstack([C0] + [np.array(r["c"])[None] for r in good]) if good else C0
+        return X, Y, C
+
+    det = {1: det_loss_fn(pool, pool_loss)}
+    rng = np.random.default_rng(seed + 7)
+    n_sub = len(recs) + len(pending)
+    since_refresh, stopped = 0, False
+    print(f"[neckopt p{ph.phase} async] warm start {len(X0)}; records {len(recs)} (adopted {adopted}); pending {len(pending)}; pool {len(pool)}; "
+          f"budget {budget}; inflight {inflight}; sed={ph.sed}", flush=True)
+    save()
+    while True:
+        while not stopped and len(pending) < inflight and n_sub < budget:               # 1. 补满在算的设计
+            t0 = time.perf_counter()
+            X, Y, C = stack()
+            if refp is None:
+                refp = ref_point(Y, C); state["ref_point"] = refp.tolist()
+            model = mobo.fit_models(X, Y, C, det=det)
+            ls_hist[str(n_sub)] = lengthscales(model, ph)
+            free = np.nonzero(~used)[0]
+            if len(free) > n_cand:                                                      # 随机子集 + 最近补的点（池尾部）
+                cand = np.unique(np.r_[rng.choice(free, size=n_cand, replace=False), free[free >= len(pool) - 2000]])
+            else:
+                cand = free
+            Xp = np.array([p_["x"] for p_ in pending.values()]) if pending else None
+            pick = mobo.propose(model, X, refp, pool[cand], 1, 2, 1, (60_000 + ph.phase * 100 + seed) * 1000 + n_sub, X_pending=Xp)
+            i = int(cand[pick[0]]); used[i] = True
+            job = J.submit(ph.spec_of(pool[i], f"a{n_sub}"))
+            pending[job] = {"pool_idx": i, "x": pool[i].tolist(), "submitted": time.strftime("%Y-%m-%d %H:%M:%S")}
+            n_sub += 1
+            d_, h_ = ph.design_of(pool[i])
+            print(f"[neckopt p{ph.phase} async] submit #{n_sub} {job} (acq {time.perf_counter() - t0:.0f} s, {len(pending)} in flight, cand {len(cand)}): "
+                  f"{ {k: round(d_[k], 2) for k in ph.vars if k in d_} | {'h': round(h_, 1)} }", flush=True)
+            save()
+        if not pending:
+            break
+        time.sleep(poll)                                                                # 2. 等任一完成
+        done_now = [j for j in list(pending) if J.state(J.QROOT / j) in ("DONE", "FAILED")]
+        if not done_now:
+            continue
+        for j in done_now:
+            p_ = pending.pop(j)
+            recs.append(rec_from(j, p_["x"], p_.get("pool_idx"), len(recs) + 1))
+        X, Y, C = stack()
+        feas = Y[C[:, 0] <= 0]
+        hv = float(mobo.hypervolume(feas, refp)) if len(feas) and refp is not None else float("nan")
+        hv_hist.append({"n_done": int(len(recs)), "hv": hv, "time": time.strftime("%Y-%m-%d %H:%M:%S")})
+        print(f"[neckopt p{ph.phase} async] done {len(recs)} (+{len(done_now)}: {[round(10 ** r['y'][0], 1) if r['ok'] else 'fail' for r in recs[-len(done_now):]]} um), "
+              f"ok {sum(r['ok'] for r in recs)}, HV {hv:.4g}, {len(pending)} in flight", flush=True)
+        since_refresh += len(done_now)
+        if refresh_k > 0 and since_refresh >= 6:                                       # 3. 前沿邻域补点
+            t1 = time.perf_counter()
+            Un, Ln = refresh_pool(ph, _front_rows(X, Y, C), k=refresh_k, rad=refresh_rad, workers=workers, seed=seed * 1000 + len(recs))
+            if len(Un):
+                pool, pool_loss = np.vstack([pool, Un]), np.r_[pool_loss, Ln]
+                used = np.r_[used, np.zeros(len(Un), bool)]
+                det = {1: det_loss_fn(pool, pool_loss)}
+                np.savez(live, U=pool, loss=pool_loss)
+            since_refresh = 0
+            print(f"[neckopt p{ph.phase} async] pool refresh: +{len(Un)} ({time.perf_counter() - t1:.0f} s), pool {len(pool)}", flush=True)
+        if stop_tol > 0 and not stopped and len(hv_hist) > stop_window:                 # 4. 停止判据（按完成数）
+            a_, b_ = hv_hist[-stop_window - 1]["hv"], hv_hist[-1]["hv"]
+            if a_ > 0 and (b_ - a_) / a_ < stop_tol:
+                stopped = True; state["stopped_early"] = int(len(recs))
+                print(f"[neckopt p{ph.phase} async] stop: HV gain over the last {stop_window} completions < {stop_tol:.1%}; draining {len(pending)} in flight", flush=True)
+        save()
+    print(f"[neckopt p{ph.phase} async] finished: {len(recs)} records", flush=True)
+    return state
+
+
 def selftest() -> None:
     """不提交作业：合成数据检查 确定性目标 + 两个 GP + qLogNEHVI 在候选池上能选点。"""
     import mobo
@@ -392,6 +531,8 @@ def selftest() -> None:
     refp = ref_point(Y, C[:, None])
     pick = mobo.propose(model, X, refp, pool[20:], 4, 2, 1, 123)
     print("selftest picks", pick.tolist(), "loss of picks", [round(float(loss[20:][i])) for i in pick])
+    pick1 = mobo.propose(model, X, refp, pool[20:], 1, 2, 1, 124, X_pending=pool[20:][pick])
+    print("selftest async pick with 4 pending", pick1.tolist())
 
 
 def status(phase: int) -> None:
@@ -423,7 +564,7 @@ if __name__ == "__main__":
     except Exception:                                                    # noqa: BLE001  （Windows 没有 resource）
         pass
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["dataset", "pool", "bo", "status", "selftest"])
+    ap.add_argument("cmd", choices=["dataset", "pool", "bo", "async", "status", "selftest"])
     ap.add_argument("--phase", type=int, default=1)
     ap.add_argument("--ref", default=None, help="phase 2: phase-1 job id whose L, alpha, collar_w, h_cut are kept")
     ap.add_argument("--sed", choices=["one-sided", "abs", "none"], default="abs")
@@ -438,6 +579,10 @@ if __name__ == "__main__":
     ap.add_argument("--refresh-rad", type=float, default=0.08)
     ap.add_argument("--stop-tol", type=float, default=0.0, help="连续 --stop-rounds 轮超体积改进都小于此比例则停（0 = 不停）")
     ap.add_argument("--stop-rounds", type=int, default=4)
+    ap.add_argument("--inflight", type=int, default=6, help="async：同时在算的设计数（3 槽 → 6 = 两整波）")
+    ap.add_argument("--budget", type=int, default=80, help="async：本阶段新设计总数（含已完成）")
+    ap.add_argument("--cand", type=int, default=10000, help="async：每次采集随机取的候选数（池尾最近补的点总是包含）")
+    ap.add_argument("--stop-window", type=int, default=18, help="async：停止判据的完成数窗口")
     a = ap.parse_args()
     if a.cmd == "selftest":
         selftest()
@@ -452,6 +597,9 @@ if __name__ == "__main__":
         print(U.shape, float(np.nanmin(loss)), float(np.nanmax(loss)))
     elif a.cmd == "status":
         status(a.phase)
+    elif a.cmd == "async":
+        bo_async(ph, a.budget, a.inflight, a.seed, a.workers, a.warm == "legacy", n_pool=a.pool, refresh_k=a.refresh,
+                 refresh_rad=a.refresh_rad, stop_tol=a.stop_tol, stop_window=a.stop_window, n_cand=a.cand)
     else:
         bo(ph, a.rounds, a.init, a.q, a.seed, a.workers, a.warm == "legacy", n_pool=a.pool, refresh_k=a.refresh,
            refresh_rad=a.refresh_rad, stop_tol=a.stop_tol, stop_rounds=a.stop_rounds)

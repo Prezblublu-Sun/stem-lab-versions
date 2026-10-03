@@ -98,26 +98,46 @@ def fit_gp(X: torch.Tensor, y: torch.Tensor, noise_min: float = 1e-6) -> SingleT
     return gp
 
 
-def fit_models(X: np.ndarray, Y: np.ndarray, C: np.ndarray | None, noise_sd: list[float] | None = None) -> ModelListGP:
+def fit_models(X: np.ndarray, Y: np.ndarray, C: np.ndarray | None, noise_sd: list[float] | None = None,
+               det: dict | None = None):
     """按 BoTorch 最大化约定：目标取负；约束保持原号（≤ 0 可行）。
-    noise_sd：各输出的观测噪声标准差（原单位，来自 R2 噪声底）；换算成标准化后的方差下界 (σ / sd_y)²。"""
+    noise_sd：各输出的观测噪声标准差（原单位，来自 R2 噪声底）；换算成标准化后的方差下界 (σ / sd_y)²。
+    det：{目标下标: f(X) → 目标值（最小化意义，张量 (..., q)）}——已知的确定性目标（如由几何直接算出的截骨量），
+         用 GenericDeterministicModel 代替 GP；没有 det 时行为与原来完全相同。"""
     Xt = torch.as_tensor(X)
     cols = [-Y[:, j] for j in range(Y.shape[1])] + ([C[:, j] for j in range(C.shape[1])] if C is not None else [])
     mins = []
     for j, c in enumerate(cols):
         sd = float(np.std(c)) or 1.0
         mins.append(max(1e-6, (noise_sd[j] / sd) ** 2) if noise_sd else 1e-6)
-    return ModelListGP(*[fit_gp(Xt, torch.as_tensor(c), n) for c, n in zip(cols, mins)])
+    if not det:
+        return ModelListGP(*[fit_gp(Xt, torch.as_tensor(c), n) for c, n in zip(cols, mins)])
+    from botorch.models.deterministic import GenericDeterministicModel
+    from botorch.models.model import ModelList
+    models = []
+    for j, (c, n) in enumerate(zip(cols, mins)):
+        if j in det:
+            models.append(GenericDeterministicModel(lambda Z, f=det[j]: -f(Z).unsqueeze(-1)))
+        else:
+            models.append(fit_gp(Xt, torch.as_tensor(c), n))
+    return ModelList(*models)
 
 
 def propose(model: ModelListGP, X_obs: np.ndarray, ref_min: np.ndarray, pool: np.ndarray, q: int, n_obj: int,
-            n_con: int, seed: int) -> np.ndarray:
-    """返回候选池中选中点的下标（长度 q）。"""
+            n_con: int, seed: int, X_pending: np.ndarray | None = None) -> np.ndarray:
+    """返回候选池中选中点的下标（长度 q）。X_pending：已提交、还没算完的点（异步模式），采集函数把它们当作待定点避开。"""
     constraints = [(lambda Z, j=j: Z[..., n_obj + j]) for j in range(n_con)] or None
+    if isinstance(model, ModelListGP):
+        sampler = SobolQMCNormalSampler(sample_shape=torch.Size([128]), seed=seed)
+    else:                                           # 含确定性目标的 ModelList：按后验类型取 ListSampler
+        from botorch.sampling.get_sampler import get_sampler
+        sampler = get_sampler(model.posterior(torch.as_tensor(X_obs[:1])), sample_shape=torch.Size([128]), seed=seed)
     acq = qLogNoisyExpectedHypervolumeImprovement(
         model=model, ref_point=(-torch.as_tensor(ref_min)).tolist(), X_baseline=torch.as_tensor(X_obs),
-        prune_baseline=True, sampler=SobolQMCNormalSampler(sample_shape=torch.Size([128]), seed=seed),
+        prune_baseline=True, sampler=sampler,
         constraints=constraints, objective=None if n_con == 0 else _obj_only(n_obj), cache_root=False)
+    if X_pending is not None and len(X_pending):
+        acq.set_X_pending(torch.as_tensor(np.asarray(X_pending, float)))
     choices = torch.as_tensor(pool)
     cand, _ = optimize_acqf_discrete(acq, q=q, choices=choices, max_batch_size=2048, unique=True)
     cand = cand.numpy()
@@ -145,7 +165,7 @@ class Record:
 
 def run(problem, *, method: str = "qnehvi", seed: int = 0, n_init: int = 12, n_rounds: int = 12, q: int = 4,
         n_pool: int = 20000, noise_sd: list[float] | None = None, verbose: bool = True,
-        pool: np.ndarray | None = None) -> tuple[list[Record], dict]:
+        pool: np.ndarray | None = None, det: dict | None = None, proposer=None) -> tuple[list[Record], dict]:
     """返回 (记录列表, 附加信息)。候选池是按种子打乱的 Sobol 序列（已过几何门），保持序列顺序：
     初始点 = 池的前 n_init 个；Sobol 基线 = 池的前 n_init + n_rounds·q 个（同种子下两种方法初始点相同）。"""
     pool = problem.pool(n_pool, seed) if pool is None else pool
@@ -171,11 +191,14 @@ def run(problem, *, method: str = "qnehvi", seed: int = 0, n_init: int = 12, n_r
         good = [r for r in recs if r.ok]
         X = np.array([r.x for r in good]); Y = np.array([r.y for r in good])
         C = np.array([r.c for r in good]) if problem.n_con else None
-        model = fit_models(X, Y, C, noise_sd)
         free = np.nonzero(~used)[0]
-        pick_local = propose(model, X, problem.ref_point, pool[free], q, problem.n_obj, problem.n_con, seed * 1000 + rnd)
+        if proposer is not None:                         # 例如交给 Linux 上的 worker（straight3d/remote.py）
+            pick_local = np.asarray(proposer(X, Y, C, pool[free], q, seed * 1000 + rnd))
+        else:
+            model = fit_models(X, Y, C, noise_sd, det)
+            pick_local = propose(model, X, problem.ref_point, pool[free], q, problem.n_obj, problem.n_con, seed * 1000 + rnd)
+            info["last_model"] = model
         info["timing"].append(time.perf_counter() - t0)
-        info["last_model"] = model
         do_eval(free[pick_local], rnd)
         if verbose:
             ys = np.array([r.y for r in recs if r.ok])
