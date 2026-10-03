@@ -163,6 +163,8 @@ def dataset(ph: Phase, legacy: bool = False):
         spec = json.loads(sp.read_text())
         if spec.get("kind") not in ("design", "variant") or not ph.in_family(spec, legacy):
             continue
+        if spec.get("stage") == f"neck{ph.phase}":                        # 本阶段自己的作业由 records 续跑接管，不作热启动（否则重复计入）
+            continue
         dsg = dict(spec["design"])
         h = float(spec.get("h_cut", 25.0))
         key = json.dumps({**dsg, "h_cut": h}, sort_keys=True)
@@ -238,14 +240,18 @@ def lengthscales(model, ph: Phase) -> dict:
 
 
 def det_loss_fn(pool: np.ndarray, loss: np.ndarray):
-    """确定性目标：单位坐标 → 骨量损失（最近的候选点；采集只在候选池上离散优化，所以是精确值）。"""
+    """确定性目标：单位坐标 → 骨量损失（最近的候选点；采集只在候选池上离散优化，所以是精确值）。
+    用 KD 树做最近邻：NEHVI 把基线点和候选批一起送进来（每批 2048 × ~150 行），原来的 torch.cdist 会物化
+    (30 万 × 2.5 万) 的距离矩阵——2026-10-03 13:30 把 Linux 的 31 GB 吃光、整台机僵了 6 小时。离散采集不需要梯度。"""
     import torch
-    P, Lt = torch.as_tensor(pool, dtype=torch.double), torch.as_tensor(loss, dtype=torch.double)
+    from scipy.spatial import cKDTree
+    tree = cKDTree(np.asarray(pool, float))
+    Lt = np.asarray(loss, float)
 
     def fn(Z):
-        Zf = Z.reshape(-1, Z.shape[-1]).to(torch.double)
-        idx = torch.cdist(Zf, P).argmin(dim=1)
-        return Lt[idx].reshape(Z.shape[:-1]).to(Z.dtype)
+        Zf = Z.detach().cpu().numpy().reshape(-1, Z.shape[-1])
+        _, idx = tree.query(Zf, k=1, workers=1)
+        return torch.as_tensor(Lt[idx], dtype=Z.dtype, device=Z.device).reshape(Z.shape[:-1])
     return fn
 
 
@@ -411,6 +417,11 @@ def load_ref(job_id: str) -> dict:
 
 if __name__ == "__main__":
     import argparse
+    try:                                                                 # 内存保险：优化进程最多 24 GB 地址空间，撑爆时死自己而不是拖垮整台机
+        import resource
+        resource.setrlimit(resource.RLIMIT_AS, (24 << 30, 24 << 30))
+    except Exception:                                                    # noqa: BLE001  （Windows 没有 resource）
+        pass
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["dataset", "pool", "bo", "status", "selftest"])
     ap.add_argument("--phase", type=int, default=1)
