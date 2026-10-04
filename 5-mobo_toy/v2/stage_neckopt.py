@@ -58,7 +58,17 @@ PHASES = {
                  "rho_tip": (0.10, 0.50), "q": (0.5, 3.0), "lam": (1.0, 2.2), "g_ml": (0.35, 0.65), "g_ap": (0.35, 0.65),
                  "n_a": (2.0, 6.0), "n_p": (2.0, 6.0), "tau_a": (-0.30, 0.30), "tau_p": (-0.30, 0.30)},
         "fixed": {}},
+    # 阶段 5 / 6（用户 2026-10-04 12:00）：按方差分解给出的新分法、从零开始的两阶段测试（不用任何已有结果热启动）。
+    # 截骨深度固定 25（前沿始终在下限）；第一阶段 = 柄长、插入角、皮质余量（三者通过"放得进去"互相牵连，且是两个目标里最重要的）；
+    # 第一阶段里第二阶段变量取先验默认：椭圆 λ 1.3、领 3 mm（0–6 的中点）、锥度 0.5 / 1.0。
+    5: {"vars": {"L": (20.0, 60.0), "alpha": (15.0, 45.0), "m": (-0.25, 2.0)},
+        "fixed": {"rho_tip": 0.5, "q": 1.0, "lam": 1.3, **G.ELLIPSE, "collar_w": 3.0, "h_cut": 25.0}},
+    # 第二阶段 = 截面 7 个 + 领宽 + 锥度 2 个（截面不精简）；柄长、插入角、余量取第一阶段的参考设计
+    6: {"vars": {"lam": (1.0, 2.2), "g_ml": (0.35, 0.65), "g_ap": (0.35, 0.65), "n_a": (2.0, 6.0), "n_p": (2.0, 6.0),
+                 "tau_a": (-0.30, 0.30), "tau_p": (-0.30, 0.30), "collar_w": (0.0, 6.0), "rho_tip": (0.10, 0.50), "q": (0.5, 3.0)},
+        "fixed": {"h_cut": 25.0}},
 }
+REF_KEYS = {2: ("L", "alpha", "collar_w", "h_cut"), 6: ("L", "alpha", "m")}     # 第二阶段从参考设计继承的变量
 CONST = {"collar_t": G.COLLAR_T, "cap_h": G.CAP_FLAT}
 FRIC = {"slip_tol": 2.5e-4, "delta": 0.025}
 SED_LIMIT, VM_LIMIT = 30.0, 440.0
@@ -75,10 +85,10 @@ class Phase:
         self.phase, self.space, self.sed = phase, PHASES[phase]["vars"], sed
         self.vars = list(self.space)
         self.fixed = dict(PHASES[phase]["fixed"])
-        if phase == 2:
+        if phase in REF_KEYS:
             if not ref:
-                raise ValueError("phase 2 needs --ref <job_id> (the phase-1 design whose L, alpha, collar_w, h_cut are kept)")
-            self.fixed.update({k: ref[k] for k in ("L", "alpha", "collar_w", "h_cut")})
+                raise ValueError(f"phase {phase} needs --ref <job_id> (the first-stage design whose {REF_KEYS[phase]} are kept)")
+            self.fixed.update({k: ref[k] for k in REF_KEYS[phase]})
         self.ref = ref
 
     # 单位立方体 ↔ 设计
@@ -152,6 +162,11 @@ def record_of(job_id: str, sed: str) -> dict:
     return {"y": [float(v) for v in y], "c": [float(c)], "ok": bool(ok), "ssi_pct": ssi, "g7_mixed_pct": res.get("f2_g7_loss_pct"),
             "vm_p99": res.get("vm_p99"), "f1_all_p95_um": res.get("f1_all_p95_um"), "f1_body_p95_um": res.get("f1_p95_um"),
             "collar_open_frac_load2": res.get("collar_open_frac_load2"), "collar_force_share_load2": res.get("collar_force_share_load2")}
+
+
+def _empty(ph: Phase):
+    n = len(ph.vars)
+    return np.zeros((0, n)), np.zeros((0, 2)), np.zeros((0, 1)), []
 
 
 def dataset(ph: Phase, legacy: bool = False):
@@ -271,7 +286,7 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
        refresh_k: int = 0, refresh_rad: float = 0.08, stop_tol: float = 0.0, stop_rounds: int = 4) -> dict:
     import mobo
     mobo.fit_gp = S._fit_gp_unit
-    X0, Y0, C0, ids0 = dataset(ph, legacy_warm)
+    X0, Y0, C0, ids0 = dataset(ph, legacy_warm) if legacy_warm is not None else _empty(ph)   # None = 不热启动（从零）
     pool, pool_loss = gated_pool(ph, n=n_pool, seed=seed, workers=workers)
     live = J.RESULTS / f"neckopt_p{ph.phase}_pool_live.npz"           # 含邻域补点的池（续跑时用，保证 pool_idx 不变）
     recs, refp, hv_hist, ls_hist = [], None, [], {}
@@ -393,7 +408,7 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
     budget = 本阶段新设计的总数（含已完成的）。停止：最近 stop_window 个完成的超体积改进 < stop_tol，之后只排空不再提交。"""
     import mobo
     mobo.fit_gp = S._fit_gp_unit
-    X0, Y0, C0, ids0 = dataset(ph, legacy_warm)
+    X0, Y0, C0, ids0 = dataset(ph, legacy_warm) if legacy_warm is not None else _empty(ph)   # None = 不热启动（从零）
     pool, pool_loss = gated_pool(ph, n=n_pool, seed=seed, workers=workers)
     live = J.RESULTS / f"neckopt_p{ph.phase}_pool_live.npz"
     out = out_path(ph.phase)
@@ -573,7 +588,7 @@ if __name__ == "__main__":
     ap.add_argument("--q", type=int, default=4)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--workers", type=int, default=6)
-    ap.add_argument("--warm", choices=["family", "legacy"], default="family")
+    ap.add_argument("--warm", choices=["family", "legacy", "none"], default="family", help="none = 从零开始，不用任何已有结果")
     ap.add_argument("--pool", type=int, default=8192, help="候选池 Sobol 点数（阶段 3 建议 32768）")
     ap.add_argument("--refresh", type=int, default=0, help="每轮在前沿各点邻域补的点数（0 = 不补）")
     ap.add_argument("--refresh-rad", type=float, default=0.08)
@@ -598,8 +613,8 @@ if __name__ == "__main__":
     elif a.cmd == "status":
         status(a.phase)
     elif a.cmd == "async":
-        bo_async(ph, a.budget, a.inflight, a.seed, a.workers, a.warm == "legacy", n_pool=a.pool, refresh_k=a.refresh,
+        bo_async(ph, a.budget, a.inflight, a.seed, a.workers, (None if a.warm == "none" else a.warm == "legacy"), n_pool=a.pool, refresh_k=a.refresh,
                  refresh_rad=a.refresh_rad, stop_tol=a.stop_tol, stop_window=a.stop_window, n_cand=a.cand)
     else:
-        bo(ph, a.rounds, a.init, a.q, a.seed, a.workers, a.warm == "legacy", n_pool=a.pool, refresh_k=a.refresh,
+        bo(ph, a.rounds, a.init, a.q, a.seed, a.workers, (None if a.warm == "none" else a.warm == "legacy"), n_pool=a.pool, refresh_k=a.refresh,
            refresh_rad=a.refresh_rad, stop_tol=a.stop_tol, stop_rounds=a.stop_rounds)
