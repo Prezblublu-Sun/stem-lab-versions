@@ -28,7 +28,7 @@ OUT = J.RESULTS / "hsweep"
 
 
 def tip_fixed_length(base: dict, h_new: float) -> float:
-    """柄尖位置不变时的柄长：截骨面沿颈轴下移 Δh，肩部随之移动；柄长减去 Δh 在柄轴上的投影（Δh·u3·d），柄尖基本留在原处。
+    """柄尖位置不变时的柄长：截骨面沿颈轴下移 Δh，肩部随之移动；新柄长 = L + Δh·(u3·d)（u3·d < 0，即缩短 Δh 在柄轴上的投影），柄尖基本留在原处。
     （2026-10-05：柄长不变的扫法里，截骨一加深整根柄被推进更窄的髓腔，号缩到假体颈放不下，深截骨全部不可行。）"""
     import femur_real as FR
     import geom3d as G
@@ -37,7 +37,7 @@ def tip_fixed_length(base: dict, h_new: float) -> float:
     pl = G.template(st, fm)
     d = pl["pose"][1]
     dh = float(h_new) - float(base.get("h_cut", 25.0))
-    return float(base["design"]["L"] - dh * float(fm.u3 @ d))
+    return float(base["design"]["L"] + dh * float(fm.u3 @ d))         # u3 指向股骨头、d 指向远端，u3·d < 0：截骨加深 → 柄变短
 
 
 def specs(mode: str = "fixlen") -> dict:
