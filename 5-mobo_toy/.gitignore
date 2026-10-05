@@ -23,3 +23,6 @@ v2/METHODS_with_reference_methods.pdf
 v2/results/audit3/packages/
 
 v2/data/bath_femur4g/F10_ABAQUS.inp
+
+# demo odb kept for the supervisor deck (2026-10-05)
+v2/demo_odb/

@@ -111,6 +111,12 @@ def push(jid: str, results: dict) -> None:
 
 def cleanup(jid: str) -> None:
     d = LOCAL / jid
+    kj = d / "keep.json"
+    if kj.exists() and json.loads(kj.read_text()).get("keep_odb"):  # 演示作业（2026-10-05）：odb 留在 v2/demo_odb/<作业>/
+        keep = HERE / "demo_odb" / jid
+        keep.mkdir(parents=True, exist_ok=True)
+        for p in d.glob("*.odb"):
+            shutil.move(str(p), str(keep / p.name))
     for p in d.iterdir():
         if p.suffix in (".odb", ".inp", ".mdl", ".stt", ".prt", ".res", ".sim", ".023", ".abq", ".pac", ".sel") or p.is_dir():
             if p.is_dir():

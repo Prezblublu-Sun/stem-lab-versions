@@ -4,6 +4,7 @@
                      variant（2026-09-29）：与 design 同样建模，但不进任何常规数据集。可带
                        cfg        对配置的覆盖，如 {"load": {...}} 或 {"materials": {"titanium": {"E": 55000}}}
                        bond_only  只解粘接模型（应力屏蔽用），不解摩擦模型
+                       bond_collar  粘接模型的领：tied（共节点，默认）/ contact（只受压、可掀起）；见 bond_collar.py
                        intact_job 指定完整股骨参照的作业 id（载荷或网格与标准参照不同时必须给）
                      intact 作业同样可带 cfg；带 cfg 的参照一律用 stage ≠ "ref"，不会被 intact_ref 选中
     READY            .inp 已生成，等待本机求解            ← prep 写
@@ -147,6 +148,9 @@ def prep(jid: str) -> str:
                                 delta=spec.get("delta"), mu=spec.get("mu"), torque=spec.get("torque", True),
                                 E_canc=spec.get("E_canc"), slip_tol=spec.get("slip_tol"), lagrange=spec.get("lagrange"),
                                 interference=spec.get("interference"), cycles=spec.get("cycles"))
+                if spec.get("bond_collar") is not None:          # 粘接模型的领：tied（默认）/ contact（只受压、可掀起），见 bond_collar.py
+                    import bond_collar as BC
+                    info.update(BC.apply(d, spec, fm.cfg))
             else:
                 if st.has_collar:
                     _fail(d, "L1", "prep", "collar is implemented only in the M1 interface model (spec model = m1)")
@@ -161,6 +165,11 @@ def prep(jid: str) -> str:
             if spec.get("bond_only"):
                 (d / "m_fric.inp").unlink()
                 info["bond_only"] = True
+        if spec.get("keep_odb"):                                  # 演示作业：本机 worker 求解后把 odb 留在 v2/demo_odb/<作业>/
+            kj = d / "keep.json"
+            k = json.loads(kj.read_text()) if kj.exists() else {}
+            k["keep_odb"] = True
+            kj.write_text(json.dumps(k))
         info["cfg_override"] = spec.get("cfg")
         info["code_hash"] = code_hash()
         (d / "prep.json").write_text(json.dumps({k: v for k, v in info.items() if k != "slave"}, default=float))
