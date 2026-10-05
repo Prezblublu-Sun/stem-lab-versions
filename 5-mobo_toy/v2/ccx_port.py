@@ -132,12 +132,15 @@ def translate(src: pathlib.Path, dst: pathlib.Path, kind: str, npz: pathlib.Path
             delta = -float(cl[0][1][0].split(",")[1])
         mode = opts["interference"] if delta else "none"
         rec["interference"] = {"mode": mode, "delta": delta}
-        if mode == "offset":                                   # 柄侧孪生节点沿柄外法向移出 δ_i（与 Abaqus offset 法相同）
-            di = m["pair_interf"]
-            for t, v, dd in zip(m["pair_stem"], m["pair_normal"], di):
-                if dd > 0:
-                    nodes[int(t)] = nodes[int(t)] + dd * v
-            rec["interference"]["n_offset"] = int((di > 0).sum())
+        if mode == "offset":
+            off = stem_offsets(m)
+            for n, v in off.items():
+                nodes[n] = nodes[n] + v
+            rec["interference"]["n_offset"] = int((m["pair_interf"] > 0).sum())
+            rec["interference"]["n_nodes_moved"] = len(off)
+            bad = negative_detj(nodes, m["stem_conn"])
+            if bad:
+                raise ValueError(f"offset interference inverts stem elements at integration points: {bad[:10]}")
     out = ["** translated from Abaqus input by v2/ccx_port.py for CalculiX 2.23", "*NODE"]
     out += [f"{n}, {x[0]:.10g}, {x[1]:.10g}, {x[2]:.10g}" for n, x in sorted(nodes.items())]
     lam = opts.get("stick_slope")
@@ -367,6 +370,36 @@ def _dN(xi, eta, zeta):
 _DN = np.stack([_dN(*p) for p in _IP])                                  # (4, 10, 3)
 
 
+_EDGES = ((0, 1), (1, 2), (2, 0), (0, 3), (1, 3), (2, 3))               # C3D10 边中点 5–10 对应的角点
+
+
+def stem_offsets(m: dict) -> dict:
+    """过盈的几何外移量：界面孪生角点沿柄外法向移出 δ_i；所有柄单元的边中点取两端角点外移量的平均（单元内线性，边保持直）。
+    只移界面节点会把连到柄内部的二次单元边掰弯，薄单元在积分点处翻转（2026-10-05 neck3_a81：4 个单元）。"""
+    corner = {int(t): dd * v for t, v, dd in zip(m["pair_stem"], m["pair_normal"], m["pair_interf"]) if dd > 0}
+    conn = m["stem_conn"]
+    off = {}
+    for c in conn:
+        for k, (a, b) in enumerate(_EDGES):
+            va, vb = corner.get(int(c[a])), corner.get(int(c[b]))
+            if va is not None or vb is not None:
+                off[int(c[4 + k])] = 0.5 * ((va if va is not None else 0.0) + (vb if vb is not None else 0.0))
+    for c in conn:                                                       # 角点：只有界面孪生节点
+        for a in range(4):
+            if int(c[a]) in corner:
+                off[int(c[a])] = corner[int(c[a])]
+    return off
+
+
+def negative_detj(X: dict, conn: np.ndarray) -> list[int]:
+    """积分点雅可比 ≤ 0 的单元序号（conn 的行号）。"""
+    Xe = np.stack([np.stack([X[int(n)] for n in c]) for c in conn])
+    neg = np.zeros(len(conn), bool)
+    for q in range(4):
+        neg |= np.linalg.det(np.einsum("eai,aj->eij", Xe, _DN[q])) <= 0
+    return np.where(neg)[0].tolist()
+
+
 def stem_nodal_forces(X: dict, U: np.ndarray, conn: np.ndarray, E: float, nu: float) -> dict:
     """柄单元内力 f = Σ_ip w·detJ·(∂N/∂x)·σ，线弹性。X: 节点号 → 坐标；U: (n+1, 3) 位移表。返回 节点号 → 力。"""
     lam_, G = E * nu / ((1 + nu) * (1 - 2 * nu)), E / (2 * (1 + nu))
@@ -442,9 +475,8 @@ def convert(d: pathlib.Path, name: str, kind: str, rec: dict, mat: dict | None =
                 U = np.zeros((n + 1, 3)); U[u[:, 0].astype(int)] = u[:, 1:4]
                 X = {int(a): b for a, b in zip(m["node_labels"], m["nodes"])}
                 if rec["interference"] and rec["interference"]["mode"] == "offset":
-                    for t, vv, dd in zip(m["pair_stem"], m["pair_normal"], m["pair_interf"]):
-                        if dd > 0:
-                            X[int(t)] = X[int(t)] + dd * vv
+                    for nn, vv in stem_offsets(m).items():
+                        X[nn] = X[nn] + vv
                 fs = stem_nodal_forces(X, U, m["stem_conn"], mat["E"], mat["nu"])
                 rows = []
                 for b, t in zip(m["pair_bone"], m["pair_stem"]):
