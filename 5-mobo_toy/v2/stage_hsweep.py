@@ -3,7 +3,8 @@
 FE 设置与优化时相同（M1、过盈 0.025、滑移容差 2.5e-4、网格 2.0、粘接模型领与骨共节点），kind = variant、stage = hsweep，
 不进任何优化数据集。Linux 上跑。
 
-    python v2/stage_hsweep.py submit      → results/hsweep_ids.json
+    python v2/stage_hsweep.py submit [--mode fixlen|tipfix]   → results/hsweep_ids.json（两种扫法累加）
+        fixlen 柄长不变（柄尖随截骨面下移）；tipfix 柄尖位置不变（柄长减去截骨下移量在柄轴上的投影）
     python v2/stage_hsweep.py status
     python v2/stage_hsweep.py collect     → results/hsweep/summary.json（含固定区 G7 皮质应变能与应力两种口径）
 """
@@ -26,21 +27,44 @@ IDS = J.RESULTS / "hsweep_ids.json"
 OUT = J.RESULTS / "hsweep"
 
 
-def specs() -> dict:
+def tip_fixed_length(base: dict, h_new: float) -> float:
+    """柄尖位置不变时的柄长：截骨面沿颈轴下移 Δh，肩部随之移动；柄长减去 Δh 在柄轴上的投影（Δh·u3·d），柄尖基本留在原处。
+    （2026-10-05：柄长不变的扫法里，截骨一加深整根柄被推进更窄的髓腔，号缩到假体颈放不下，深截骨全部不可行。）"""
+    import femur_real as FR
+    import geom3d as G
+    fm = FR.build().with_cut(float(base.get("h_cut", 25.0)))
+    st = G.Stem3D(**base["design"])
+    pl = G.template(st, fm)
+    d = pl["pose"][1]
+    dh = float(h_new) - float(base.get("h_cut", 25.0))
+    return float(base["design"]["L"] - dh * float(fm.u3 @ d))
+
+
+def specs(mode: str = "fixlen") -> dict:
     out = {}
     for name, job in DESIGNS.items():
         base = json.loads((J.QROOT / job / "spec.json").read_text())
         for h in LEVELS:
-            out[f"{name}_h{h:g}"] = {"kind": "variant", "stage": "hsweep", "tag": f"{name}_h{h:g}", "design": dict(base["design"]),
-                                     "h_int": S.H_PROD, "min_A0": base.get("min_A0", S.MIN_A0), "model": "m1", "h_cut": float(h),
-                                     "slip_tol": base.get("slip_tol", 2.5e-4), "delta": base.get("delta", 0.025), "source_job": job}
+            dsg = dict(base["design"])
+            key = f"{name}_h{h:g}"
+            if mode == "tipfix":
+                if abs(h - float(base.get("h_cut", 25.0))) < 0.6:
+                    continue                                          # 与原截骨深度相同的那一档已在 fixlen 里
+                dsg["L"] = tip_fixed_length(base, h)
+                key = f"{name}_tip_h{h:g}"
+            out[key] = {"kind": "variant", "stage": "hsweep", "tag": key, "design": dsg,
+                        "h_int": S.H_PROD, "min_A0": base.get("min_A0", S.MIN_A0), "model": "m1", "h_cut": float(h),
+                        "slip_tol": base.get("slip_tol", 2.5e-4), "delta": base.get("delta", 0.025), "source_job": job, "sweep_mode": mode}
     return out
 
 
-def submit():
-    ids = {k: J.submit(v) for k, v in specs().items()}
-    IDS.write_text(json.dumps({"jobs": ids, "designs": DESIGNS, "levels": LEVELS, "created": time.strftime("%Y-%m-%d %H:%M:%S")}, indent=1))
-    print(json.dumps(ids, indent=1))
+def submit(mode: str = "fixlen"):
+    old = json.loads(IDS.read_text()) if IDS.exists() else {"jobs": {}}
+    sp = specs(mode)
+    ids = {**old.get("jobs", {}), **{k: J.submit(v) for k, v in sp.items()}}
+    IDS.write_text(json.dumps({"jobs": ids, "designs": DESIGNS, "levels": LEVELS, "created": old.get("created", time.strftime("%Y-%m-%d %H:%M:%S")),
+                               "updated": time.strftime("%Y-%m-%d %H:%M:%S")}, indent=1))
+    print(json.dumps({k: [ids[k], round(sp[k]["design"]["L"], 2)] for k in sp}, indent=1))
 
 
 def status():
@@ -62,7 +86,10 @@ def collect():
     rows = []
     for k, j in meta["jobs"].items():
         name, h = k.rsplit("_h", 1)
-        row = {"design": name, "h_cut": float(h), "job": j, "state": J.state(J.QROOT / j), "source_job": DESIGNS[name]}
+        mode = "tipfix" if name.endswith("_tip") else "fixlen"
+        name = name[:-4] if mode == "tipfix" else name
+        spec = json.loads((J.QROOT / j / "spec.json").read_text())
+        row = {"design": name, "mode": mode, "L": spec["design"]["L"], "h_cut": float(h), "job": j, "state": J.state(J.QROOT / j), "source_job": DESIGNS[name]}
         if row["state"] == "DONE":
             r = J.result(j)
             t, bl = r.get("templating") or {}, r.get("bone_loss") or {}
@@ -94,4 +121,6 @@ if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["submit", "status", "collect"])
-    {"submit": submit, "status": status, "collect": collect}[ap.parse_args().cmd]()
+    ap.add_argument("--mode", choices=["fixlen", "tipfix"], default="fixlen")
+    a = ap.parse_args()
+    submit(a.mode) if a.cmd == "submit" else {"status": status, "collect": collect}[a.cmd]()
