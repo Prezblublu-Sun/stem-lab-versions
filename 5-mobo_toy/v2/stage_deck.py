@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import json
+import math
 import pathlib
 import sys
 import time
@@ -99,7 +100,8 @@ def wrap_fit_design(base: dict) -> dict:
     for _ in range(12):
         mid = 0.5 * (lo + hi)
         (lo, hi) = (mid, hi) if ok(mid) else (lo, mid)
-    return {**d, "collar_w_original": d["collar_w"], "collar_w": round(lo, 3)} if lo > 0.05 else {**d, "collar_w_original": d["collar_w"], "collar_w": 0.0}
+    lo = math.floor(lo * 1000) / 1000                     # 向下取整：四舍五入会越过"放得下"的边界（2026-10-06 neck3_a53：4.938 判不可行）
+    return {**d, "collar_w_original": d["collar_w"], "collar_w": lo} if lo > 0.05 else {**d, "collar_w_original": d["collar_w"], "collar_w": 0.0}
 
 
 def spec_of_job(job: str) -> dict:
