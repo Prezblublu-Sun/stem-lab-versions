@@ -8,6 +8,7 @@
     B  演示重算：完整股骨参照 + FI、FI-0、J1、R1、R2、LA、B2，摩擦模型 + 粘接模型（tied），另各一个 contact 粘接模型；保留 odb
     C  单因素扫描：B1 = FI、B2 = neck5_r10，按清单水平表，每个水平摩擦 + tied 粘接，另一个 contact 粘接（bond_only）
     E  领的新规则 wrap_fit（领包住假体颈、整圈落在骨截面上）：8 个设计，摩擦 + tied 粘接，另一个 contact 粘接
+    BW 演示素材按 wrap_fit 重做（6 个设计，保留 odb）；CW 领宽扫描按 wrap_fit 重算（两个基线 × 2/4/6 mm）
 """
 from __future__ import annotations
 
@@ -94,6 +95,23 @@ def specs(batch: str) -> dict:
             meta = {"kind": "variant", "stage": "collar_rule", "collar_rule": "wrap_fit", "deck_code": c}
             out[c] = {**b, **meta, "tag": c, "bond_collar": "tied"}
             out[f"{c}_contact"] = {**b, **meta, "tag": f"{c}_contact", "bond_only": True, "bond_collar": "contact"}
+    elif batch == "BW":                                         # 演示素材按新领规则重做（用户 2026-10-06）：保留 odb
+        for c in ("FI", "J1", "R1", "R2", "B2", "LA"):
+            b = base_spec(c)
+            if c in E_COLLAR_W:
+                b["design"]["collar_w"] = E_COLLAR_W[c]
+            meta = {"kind": "variant", "stage": "demo_wrap", "collar_rule": "wrap_fit", "keep_odb": True, "deck_code": c}
+            out[c] = {**b, **meta, "tag": c, "bond_collar": "tied"}
+            out[f"{c}_contact"] = {**b, **meta, "tag": f"{c}_contact", "bond_only": True, "bond_collar": "contact"}
+    elif batch == "CW":                                         # 领宽扫描按新领规则重算（无领水平不受规则影响，沿用批次 C）
+        for b, code in (("B1", "FI"), ("B2", "B2")):
+            base = base_spec(code)
+            for w in (2.0, 4.0, 6.0):
+                s_ = ofat_level(base, "collar_w", w)
+                meta = {"kind": "variant", "stage": f"ofatw_{b.lower()}", "collar_rule": "wrap_fit",
+                        "ofat": {"baseline": b, "base_code": code, "factor": "collar_w", "level": w, "rule": "wrap_fit"}}
+                out[f"{b}_collar_w_{w}"] = {**s_, **meta, "tag": f"collar_w_{w}", "bond_collar": "tied"}
+                out[f"{b}_collar_w_{w}_contact"] = {**s_, **meta, "tag": f"collar_w_{w}_contact", "bond_only": True, "bond_collar": "contact"}
     elif batch == "C":
         for b, tab in OFAT.items():
             base = base_spec(tab["base"])
@@ -135,6 +153,6 @@ if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["submit", "status"])
-    ap.add_argument("batch", choices=["A", "B", "C", "E"])
+    ap.add_argument("batch", choices=["A", "B", "C", "E", "BW", "CW"])
     a = ap.parse_args()
     {"submit": submit, "status": status}[a.cmd](a.batch)
