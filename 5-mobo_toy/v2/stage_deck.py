@@ -83,6 +83,18 @@ F1_FRONT = ("neck3_a53_89e60afc", "neck3_a74_e72c4e70", "neck3_a55_639b1448", "n
 F2_CODES = ("J1", "B2", "LA", "S1B", "R1", "FI", "R2", "FI0")
 LOADS = {"iso": {"cfg": {"load": {"resultant_N": 2300.0, "alpha_front_deg": 10.0, "alpha_sagit_deg": 9.0}}, "intact": "ata_intact_h2_iso_S_4a1cdfa6"},
          "high": {"cfg": {"load": {"resultant_N": 3606.0}}, "intact": None}}                 # high = HIGH100 合力，方向同爬楼
+# 批次 G（用户 2026-10-06 18:20："再设计一批，到明天早上"）
+# G1 入口偏移诊断：B1 余量扫描在两种领规则下差 3.9 倍对 1.37 倍，号和领面积相近，只剩入口偏移 e 不同（现行 −2、新规则 0）
+G1_CASES = {"cur_base_e0": (None, -0.25, 0.0), "cur_m1.0_e0": (None, 1.0, 0.0), "cur_m1.5_e0": (None, 1.5, 0.0),
+            "wrap_base_em2": ("wrap_fit", -0.25, -2.0), "wrap_m1.5_em2": ("wrap_fit", 1.5, -2.0)}       # (领规则, 余量 m, 固定的 e)
+# G2 载荷方向分解：爬楼（前 20°、矢 18°）与 ISO 类（10°、9°）之间的两个角，合力都取 2391 N；另补 ISO 角度 × 2391 N 去掉合力差
+G2_CODES = ("FI", "J1", "R2", "B2")
+G2_LOADS = {"front10": {"resultant_N": 2391.0, "alpha_front_deg": 10.0, "alpha_sagit_deg": 18.0},
+            "sag9": {"resultant_N": 2391.0, "alpha_front_deg": 20.0, "alpha_sagit_deg": 9.0},
+            "iso2391": {"resultant_N": 2391.0, "alpha_front_deg": 10.0, "alpha_sagit_deg": 9.0}}
+# G3 重新划网格的噪声：柄长 ±0.002 mm（几何几乎不变，网格重划），与 BW 的原作业一起每个设计 3 个样本
+G3_CODES = ("FI", "J1", "R2", "B2")
+G3_JITTER = (0.002, -0.002)
 
 
 def wrap_fit_design(base: dict) -> dict:
@@ -185,6 +197,36 @@ def specs(batch: str) -> dict:
                 out[f"F3_B1_{factor}_{lv}"] = {**s_, **meta, "tag": f"{factor}_{lv}", "bond_collar": "tied"}
                 if factor != "delta":
                     out[f"F3_B1_{factor}_{lv}_contact"] = {**s_, **meta, "tag": f"{factor}_{lv}_contact", "bond_only": True, "bond_collar": "contact"}
+    elif batch == "G":
+        wf = {"kind": "variant", "collar_rule": "wrap_fit"}
+        base = base_spec("FI")
+        for key, (rule, m, e) in G1_CASES.items():                # G1 入口偏移诊断（B1 = FI）
+            s_ = ofat_level(base, "m", m)
+            meta = {"kind": "variant", "stage": "diag_e", "entry_offset": e, **({"collar_rule": rule} if rule else {}),
+                    "ofat": {"baseline": "B1", "base_code": "FI", "factor": "m", "level": m, "rule": rule or "current", "entry_offset": e}}
+            out[f"G1_{key}"] = {**s_, **meta, "tag": key, "bond_collar": "tied"}
+
+        def wrap_base(c):
+            b_ = base_spec(c)
+            if c in E_COLLAR_W:
+                b_["design"]["collar_w"] = E_COLLAR_W[c]
+            elif b_["design"].get("collar_w"):
+                b_["design"] = wrap_fit_design(b_)
+                b_["design"].pop("collar_w_original", None)
+            return b_
+        for ln, L in G2_LOADS.items():                           # G2 载荷方向分解
+            ref = {"kind": "intact", "h_int": 2.0, "export": "S", "stage": "load_ref", "tag": f"intact_{ln}", "cfg": {"load": L}}
+            out[f"G2_intact_{ln}"] = ref
+            ref_id = J.job_id({**ref, "created": ""})
+            for c in G2_CODES:
+                out[f"G2_{c}_{ln}"] = {**wrap_base(c), **wf, "stage": "load_dir", "tag": f"{c}_{ln}", "cfg": {"load": L}, "intact_job": ref_id,
+                                       "bond_collar": "tied", "deck_code": c, "load_case": ln}
+        for c in G3_CODES:                                       # G3 重新划网格的噪声
+            for dl in G3_JITTER:
+                b_ = wrap_base(c)
+                b_["design"]["L"] = float(b_["design"]["L"]) + dl
+                out[f"G3_{c}_L{dl:+.3f}"] = {**b_, **wf, "stage": "remesh_noise", "tag": f"{c}_L{dl:+.3f}", "bond_collar": "tied", "deck_code": c,
+                                            "jitter": {"L": dl}}
     elif batch == "C":
         for b, tab in OFAT.items():
             base = base_spec(tab["base"])
@@ -205,6 +247,10 @@ def submit(batch: str) -> None:
     f = J.RESULTS / f"deck_{batch}_ids.json"
     old = json.loads(f.read_text())["jobs"] if f.exists() else {}
     sp = specs(batch)
+    clash = {k: (old[k], J.job_id({**v, "created": ""})) for k, v in sp.items() if k in old and old[k] != J.job_id({**v, "created": ""})}
+    if clash:                                                    # 2026-10-06 批次 F：改了建规格的代码后重交，覆盖了已解作业的键
+        raise SystemExit("spec changed for existing keys (job id would change); not resubmitting:\n"
+                         + "\n".join(f"  {k}: {a_} -> {b_}" for k, (a_, b_) in clash.items()))
     ids = {**old, **{k: J.submit(v) for k, v in sp.items()}}
     f.write_text(json.dumps({"jobs": ids, "updated": time.strftime("%Y-%m-%d %H:%M:%S")}, indent=1))
     print(json.dumps(ids, indent=1))
@@ -226,6 +272,6 @@ if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["submit", "status"])
-    ap.add_argument("batch", choices=["A", "B", "C", "E", "BW", "CW", "F"])
+    ap.add_argument("batch", choices=["A", "B", "C", "E", "BW", "CW", "F", "G"])
     a = ap.parse_args()
     {"submit": submit, "status": status}[a.cmd](a.batch)

@@ -139,6 +139,10 @@ def prep(jid: str) -> str:
             if spec.get("collar_rule") == "wrap_fit":              # 领包住假体颈、整圈落在骨截面上（collar_rule.py，只替换本建模进程）
                 import collar_rule as CR
                 CR.install(min_A0=float(spec.get("min_A0", 0.0)))
+            if spec.get("entry_offset") is not None:               # 诊断：入口偏移固定为给定值、不搜索（批次 G1；只替换本建模进程）
+                _tpl, _e = G.template, np.array([float(spec["entry_offset"])])
+                G.template = lambda stem, fem, alphas=None, offsets=None, iters=14, margin=None: \
+                    _tpl(stem, fem, alphas=alphas, offsets=_e, iters=iters, margin=margin)
             st = G.Stem3D(**spec["design"])
             pl = G.template(st, fm, margin=spec.get("margin"))     # None → 设计自带的 m
             if not pl["fit"]:

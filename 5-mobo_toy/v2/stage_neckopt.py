@@ -68,11 +68,17 @@ PHASES = {
     6: {"vars": {"lam": (1.0, 2.2), "g_ml": (0.35, 0.65), "g_ap": (0.35, 0.65), "n_a": (2.0, 6.0), "n_p": (2.0, 6.0),
                  "tau_a": (-0.30, 0.30), "tau_p": (-0.30, 0.30), "collar_w": (0.0, 6.0), "rho_tip": (0.10, 0.50), "q": (0.5, 3.0)},
         "fixed": {}},
+    # 阶段 7（批次 G，2026-10-06 晚）：领的新规则 wrap_fit + 新口径（metric v2）下从零重跑。5 个变量 = 两个目标里最重要的
+    # （柄长、插入角、余量、领宽，领宽在新规则下和选号直接取舍）+ 锥度；截骨固定 25（h_cut 扫描：更深只多去骨、微动不降），
+    # 截面固定椭圆 λ 1.3（单因素扫描里截面影响最小）。
+    7: {"vars": {"L": (20.0, 60.0), "alpha": (15.0, 45.0), "m": (-0.25, 2.0), "collar_w": (0.0, 6.0), "rho_tip": (0.10, 0.50)},
+        "fixed": {"q": 1.0, "lam": 1.3, **G.ELLIPSE, "h_cut": 25.0}, "collar_rule": "wrap_fit", "metric": "v2"},
 }
 REF_KEYS = {2: ("L", "alpha", "collar_w", "h_cut"), 6: ("L", "alpha", "m", "h_cut")}     # 第二阶段从参考设计继承的变量
 CONST = {"collar_t": G.COLLAR_T, "cap_h": G.CAP_FLAT}
 FRIC = {"slip_tol": 2.5e-4, "delta": 0.025}
 SED_LIMIT, VM_LIMIT = 30.0, 440.0
+MM_FLOOR = 2.0              # metric v2：柄身微动 P95 低于 2 µm 是数值下限（v2/M1_VERIFICATION.md），目标里统一记 2
 _FM = {}
 _SSI = {}
 
@@ -86,6 +92,8 @@ class Phase:
         self.phase, self.space, self.sed = phase, PHASES[phase]["vars"], sed
         self.vars = list(self.space)
         self.fixed = dict(PHASES[phase]["fixed"])
+        self.rule = PHASES[phase].get("collar_rule")                    # None = 现行领规则；"wrap_fit" 见 collar_rule.py
+        self.metric = PHASES[phase].get("metric", "v1")                 # v1 = 整界面微动 + 应力屏蔽 ssi；v2 = 柄身微动（2 µm 下限）+ SED 变化
         if phase in REF_KEYS:
             if not ref:
                 raise ValueError(f"phase {phase} needs --ref <job_id> (the first-stage design whose {REF_KEYS[phase]} are kept)")
@@ -110,6 +118,8 @@ class Phase:
         d = spec.get("design") or {}
         if spec.get("model") != "m1" or spec.get("h_int") != S.H_PROD or spec.get("slip_tol") != FRIC["slip_tol"] or spec.get("delta") != FRIC["delta"]:
             return False
+        if spec.get("collar_rule") != self.rule or spec.get("cfg") or spec.get("entry_offset") is not None:   # 领规则不同、换载荷、固定偏移的不混入
+            return False
         if not legacy and (float(d.get("cap_h", -1.0)) != CONST["cap_h"] or not str(spec.get("stage", "")).startswith("neck")):
             return False
         full = {**d, "h_cut": float(spec.get("h_cut", 25.0)), "collar_w": float(d.get("collar_w", 0.0)), "m": float(d.get("m", G.M_LEGACY))}
@@ -120,49 +130,69 @@ class Phase:
 
     def spec_of(self, u, tag: str) -> dict:
         d, h = self.design_of(u)
-        return {**S.design_spec(d, f"neck{self.phase}", tag), "model": "m1", "h_cut": h, **FRIC}
+        rule = {"collar_rule": self.rule} if self.rule else {}
+        return {**S.design_spec(d, f"neck{self.phase}", tag), "model": "m1", "h_cut": h, **FRIC, **rule}
+
+    def template(self, st, fm):
+        if self.rule == "wrap_fit":
+            import collar_rule as CR
+            return CR.template_wrap_fit(st, fm, min_A0=S.MIN_A0)
+        return G.template(st, fm)
 
 
 # ------------------------------------------------------------------------------------------------- 指标
-def calcar_ssi(job_id: str) -> float | None:
-    """固定解剖区 G7、只算皮质的屏蔽指数（%）：1 − 植入 / 完整 的应变能密度均值，设计截骨面以下同一组采样点。"""
+def _calcar(job_id: str) -> tuple[float | None, float | None]:
+    """固定解剖区 G7、只算皮质，设计截骨面以下同一组采样点：(屏蔽指数 ssi %，1 − 植入 / 完整 的应力口径；应变能变化 sed_chg %，负 = 屏蔽)。"""
     if job_id in _SSI:
         return _SSI[job_id]
     try:
         import resorption as RS
         rows, _ = RS.design_rows(job_id)
-        v = next((r.get("ssi_pct") for r in rows if r["scheme"] == "fixed" and r["zone"] == "G7" and r["tissue"] == "cortex"), None)
-        v = None if v is None or not np.isfinite(v) else float(v)
+        g7 = next((r for r in rows if r["scheme"] == "fixed" and r["zone"] == "G7" and r["tissue"] == "cortex"), {})
+        v = tuple(None if g7.get(k) is None or not np.isfinite(g7[k]) else float(g7[k]) for k in ("ssi_pct", "sed_chg_pct"))
     except Exception as e:                                           # noqa: BLE001
-        print(f"[neckopt] calcar_ssi {job_id}: {type(e).__name__}: {str(e)[:120]}", flush=True)
-        v = None
+        print(f"[neckopt] calcar {job_id}: {type(e).__name__}: {str(e)[:120]}", flush=True)
+        v = (None, None)
     _SSI[job_id] = v
     return v
 
 
-def objectives(r: dict | None, sed: str, ssi: float | None) -> tuple[list[float], float, bool]:
+def calcar_ssi(job_id: str) -> float | None:
+    return _calcar(job_id)[0]
+
+
+def objectives(r: dict | None, sed: str, ssi: float | None, metric: str = "v1", sed_chg: float | None = None) -> tuple[list[float], float, bool]:
+    """v1：y1 = log10 整界面微动，股骨距 = ssi（正 = 屏蔽）。v2：y1 = log10 max(柄身微动, 2 µm)，股骨距 = −sed_chg（同样正 = 屏蔽）。"""
     if not r or "failed" in r or "f1_p95_um" not in r:
         return [math.nan, math.nan], math.nan, False
-    f1 = r.get("f1_all_p95_um", r.get("f1_p95_um"))
+    if metric == "v2":
+        f1 = r.get("f1_p95_um")
+        f1 = None if f1 is None else max(float(f1), MM_FLOOR)
+        cal = None if sed_chg is None else -float(sed_chg)
+    else:
+        f1 = r.get("f1_all_p95_um", r.get("f1_p95_um"))
+        cal = ssi
     bl = r.get("bone_loss") or {}
     loss = bl.get("total_mm3")
     if loss is None:
         loss = (r.get("templating") or {}).get("volume")
-    if f1 is None or loss is None or r.get("vm_p99") is None or (sed != "none" and ssi is None):
+    if f1 is None or loss is None or r.get("vm_p99") is None or (sed != "none" and cal is None):
         return [math.nan, math.nan], math.nan, False
     y = [math.log10(max(float(f1), 1e-3)), float(loss)]
     c_vm = (r["vm_p99"] - VM_LIMIT) / VM_LIMIT
-    c_sed = {"one-sided": (ssi - SED_LIMIT) / SED_LIMIT, "abs": (abs(ssi) - SED_LIMIT) / SED_LIMIT, "none": -1.0}[sed] if ssi is not None else -1.0
+    c_sed = {"one-sided": (cal - SED_LIMIT) / SED_LIMIT, "abs": (abs(cal) - SED_LIMIT) / SED_LIMIT, "none": -1.0}[sed] if cal is not None else -1.0
     return y, float(max(c_vm, c_sed)), all(np.isfinite(y))
 
 
-def record_of(job_id: str, sed: str) -> dict:
+def record_of(job_id: str, sed: str, metric: str = "v1") -> dict:
     res = J.result(job_id) or {}
-    ssi = calcar_ssi(job_id) if res and "f1_p95_um" in res else None
-    y, c, ok = objectives(res, sed, ssi)
-    return {"y": [float(v) for v in y], "c": [float(c)], "ok": bool(ok), "ssi_pct": ssi, "g7_mixed_pct": res.get("f2_g7_loss_pct"),
-            "vm_p99": res.get("vm_p99"), "f1_all_p95_um": res.get("f1_all_p95_um"), "f1_body_p95_um": res.get("f1_p95_um"),
-            "collar_open_frac_load2": res.get("collar_open_frac_load2"), "collar_force_share_load2": res.get("collar_force_share_load2")}
+    ssi, sed_chg = _calcar(job_id) if res and "f1_p95_um" in res else (None, None)
+    y, c, ok = objectives(res, sed, ssi, metric, sed_chg)
+    return {"y": [float(v) for v in y], "c": [float(c)], "ok": bool(ok), "metric": metric, "ssi_pct": ssi, "sed_chg_pct": sed_chg,
+            "g7_mixed_pct": res.get("f2_g7_loss_pct"), "vm_p99": res.get("vm_p99"), "f1_all_p95_um": res.get("f1_all_p95_um"),
+            "f1_body_p95_um": res.get("f1_p95_um"), "collar_open_frac_load2": res.get("collar_open_frac_load2"),
+            "collar_force_share_load2": res.get("collar_force_share_load2"), "A0": (res.get("templating") or {}).get("A0"),
+            "entry_offset_e": (res.get("templating") or {}).get("e")}
 
 
 def _empty(ph: Phase):
@@ -186,7 +216,7 @@ def dataset(ph: Phase, legacy: bool = False):
         key = json.dumps({**dsg, "h_cut": h}, sort_keys=True)
         if key in seen:
             continue
-        rec = record_of(d.name, ph.sed)
+        rec = record_of(d.name, ph.sed, ph.metric)
         if not rec["ok"]:
             continue
         seen.add(key)
@@ -203,7 +233,7 @@ def _feasible(args):
     ph = Phase(phase, ref)
     d, h = ph.design_of(u)
     fm = _FM["fm"].with_cut(h)
-    r = G.template(G.Stem3D(**d), fm)
+    r = ph.template(G.Stem3D(**d), fm)
     ok = bool(r["fit"] and r["A0"] >= S.MIN_A0)
     loss = float(fm.resected_volume() + r["volume"]) if ok else math.nan
     return ok, loss
@@ -214,7 +244,7 @@ def gated_pool(ph: Phase, n: int = 8192, seed: int = 0, workers: int = 6) -> tup
     from scipy.stats import qmc
     J.RESULTS.mkdir(parents=True, exist_ok=True)
     key = hashlib.sha1((J.code_hash() + json.dumps(ph.space, sort_keys=True) + json.dumps(ph.fixed, sort_keys=True)
-                        + json.dumps(CONST) + f"{n}_{seed}_v2").encode()).hexdigest()[:8]
+                        + json.dumps(CONST) + f"{n}_{seed}_v2" + (f"_{ph.rule}" if ph.rule else "")).encode()).hexdigest()[:8]
     f = J.RESULTS / "pools" / f"neckopt_p{ph.phase}_n{n}_s{seed}_{key}.npz"
     if f.exists():
         z = np.load(f)
@@ -303,7 +333,7 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
     if recs:
             for r in recs:
                 used[r["pool_idx"]] = True
-                r.update(record_of(r["job_id"], ph.sed))
+                r.update(record_of(r["job_id"], ph.sed, ph.metric))
             refp = np.array(prev["ref_point"]) if prev.get("ref_point") else None
             if prev.get("sed") != ph.sed:  # noqa: SIM102
                 print(f"[neckopt p{ph.phase}] constraint form changed {prev.get('sed')} -> {ph.sed}; feasibility recomputed", flush=True)
@@ -325,7 +355,7 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
         for i, j in zip(idx, ids):
             d, h = ph.design_of(pool[i])
             recs.append({"pool_idx": int(i), "x": pool[i].tolist(), "round": rnd, "job_id": j, "h_cut": h,
-                         "design": {k: d[k] for k in ph.vars if k in d}, **record_of(j, ph.sed)})
+                         "design": {k: d[k] for k in ph.vars if k in d}, **record_of(j, ph.sed, ph.metric)})
         save()
         return np.array([r["ok"] for r in recs[-len(idx):]])
 
@@ -426,11 +456,11 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
     def rec_from(job: str, x, pool_idx, round_):
         d_, h_ = ph.design_of(np.asarray(x, float))
         return {"pool_idx": pool_idx, "x": list(map(float, x)), "round": round_, "job_id": job, "h_cut": h_,
-                "design": {k: d_[k] for k in ph.vars if k in d_}, **record_of(job, ph.sed)}
+                "design": {k: d_[k] for k in ph.vars if k in d_}, **record_of(job, ph.sed, ph.metric)}
 
     known = set()
     for r in recs:
-        known.add(r["job_id"]); r.update(record_of(r["job_id"], ph.sed))
+        known.add(r["job_id"]); r.update(record_of(r["job_id"], ph.sed, ph.metric))
         if r.get("pool_idx") is not None and r["pool_idx"] < len(pool):
             used[r["pool_idx"]] = True
     adopted = 0
@@ -562,7 +592,8 @@ def status(phase: int) -> None:
     feas = [r for r in ok if r["c"][0] <= 0]
     print(f"evaluated {len(recs)}, ok {len(ok)}, feasible {len(feas)}")
     for r in sorted(feas, key=lambda r: r["y"][0])[:8]:
-        print(f"  {10 ** r['y'][0]:6.1f} µm  loss {r['y'][1]:7.0f} mm³  ssi {r['ssi_pct']:+6.1f} %  {r['design']}  h_cut {r['h_cut']:.1f}  {r['job_id']}")
+        cal = f"sed {r['sed_chg_pct']:+6.1f} %" if r.get("metric") == "v2" else f"ssi {r['ssi_pct']:+6.1f} %"
+        print(f"  {10 ** r['y'][0]:6.1f} µm  loss {r['y'][1]:7.0f} mm³  {cal}  {r['design']}  h_cut {r['h_cut']:.1f}  {r['job_id']}")
 
 
 def load_ref(job_id: str) -> dict:
