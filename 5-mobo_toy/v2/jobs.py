@@ -5,6 +5,7 @@
                        cfg        对配置的覆盖，如 {"load": {...}} 或 {"materials": {"titanium": {"E": 55000}}}
                        bond_only  只解粘接模型（应力屏蔽用），不解摩擦模型
                        bond_collar  粘接模型的领：tied（共节点，默认）/ contact（只受压、可掀起）；见 bond_collar.py
+                       collar_rule  wrap_fit = 领包住假体颈、整圈落在骨截面上（放不下就换号或换入口偏移）；见 collar_rule.py
                        intact_job 指定完整股骨参照的作业 id（载荷或网格与标准参照不同时必须给）
                      intact 作业同样可带 cfg；带 cfg 的参照一律用 stage ≠ "ref"，不会被 intact_ref 选中
     READY            .inp 已生成，等待本机求解            ← prep 写
@@ -135,6 +136,9 @@ def prep(jid: str) -> str:
                                   E_canc=spec.get("E_canc"))
             info["templating"] = None
         else:
+            if spec.get("collar_rule") == "wrap_fit":              # 领包住假体颈、整圈落在骨截面上（collar_rule.py，只替换本建模进程）
+                import collar_rule as CR
+                CR.install(min_A0=float(spec.get("min_A0", 0.0)))
             st = G.Stem3D(**spec["design"])
             pl = G.template(st, fm, margin=spec.get("margin"))     # None → 设计自带的 m
             if not pl["fit"]:

@@ -7,6 +7,7 @@
     A  领只受压：7 个设计 × 粘接模型两种领（tied 共节点 / contact 只受压），只解粘接模型（bond_only）
     B  演示重算：完整股骨参照 + FI、FI-0、J1、R1、R2、LA、B2，摩擦模型 + 粘接模型（tied），另各一个 contact 粘接模型；保留 odb
     C  单因素扫描：B1 = FI、B2 = neck5_r10，按清单水平表，每个水平摩擦 + tied 粘接，另一个 contact 粘接（bond_only）
+    E  领的新规则 wrap_fit（领包住假体颈、整圈落在骨截面上）：8 个设计，摩擦 + tied 粘接，另一个 contact 粘接
 """
 from __future__ import annotations
 
@@ -24,9 +25,12 @@ import jobs as J  # noqa: E402
 # 设计代号 → 来源作业（FI / FI-0 来自 10-02 的旧设置作业，按现行设置重建：平端、截深 25，截骨面由现行代码统一）
 SOURCES = {"FI": "collar_neck_w3_36c2bb73", "FI0": "collar_neck_w0_9e92d3e1", "J1": "neck3_a40_967145a2",
            "B2": "neck5_r10_dad61bcd", "S1B": "neck1_r6_102aba81", "LA": "neck5_r7_5df27b13", "R1": "neck5_r3_9f0000eb",
-           "R2": "neck3_a45_639d489d"}
+           "R2": "neck3_a45_639d489d", "P2": "neck3_a48_f9ed1d41", "T2": "neck1_init_3d14a026"}
 A_CODES = ("FI", "J1", "B2", "S1B", "LA", "R1", "R2")
 B_CODES = ("FI", "FI0", "J1", "R1", "R2", "LA", "B2")
+# 批次 E（用户 2026-10-06）：领的新规则 wrap_fit（collar_rule.py）。J1、R2 的原领宽在新规则下放不下，取新规则下能放下的最大领宽
+E_CODES = ("FI", "R1", "J1", "R2", "B2", "LA", "P2", "T2")
+E_COLLAR_W = {"J1": 3.42, "R2": 4.31}
 CURRENT = {"h_int": 2.0, "min_A0": 153.93804002589985, "model": "m1", "slip_tol": 0.00025, "delta": 0.025}
 
 
@@ -82,6 +86,14 @@ def specs(batch: str) -> dict:
             out[c] = {**base_spec(c), "kind": "variant", "stage": "demo", "tag": c, "bond_collar": "tied", "keep_odb": True, "deck_code": c}
             out[f"{c}_contact"] = {**base_spec(c), "kind": "variant", "stage": "demo", "tag": f"{c}_contact", "bond_only": True,
                                    "bond_collar": "contact", "keep_odb": True, "deck_code": c}
+    elif batch == "E":
+        for c in E_CODES:
+            b = base_spec(c)
+            if c in E_COLLAR_W:
+                b["design"]["collar_w"] = E_COLLAR_W[c]
+            meta = {"kind": "variant", "stage": "collar_rule", "collar_rule": "wrap_fit", "deck_code": c}
+            out[c] = {**b, **meta, "tag": c, "bond_collar": "tied"}
+            out[f"{c}_contact"] = {**b, **meta, "tag": f"{c}_contact", "bond_only": True, "bond_collar": "contact"}
     elif batch == "C":
         for b, tab in OFAT.items():
             base = base_spec(tab["base"])
@@ -123,6 +135,6 @@ if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["submit", "status"])
-    ap.add_argument("batch", choices=["A", "B", "C"])
+    ap.add_argument("batch", choices=["A", "B", "C", "E"])
     a = ap.parse_args()
     {"submit": submit, "status": status}[a.cmd](a.batch)
