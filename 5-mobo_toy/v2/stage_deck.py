@@ -74,6 +74,39 @@ def ofat_level(base: dict, factor: str, level) -> dict:
     return s
 
 
+# 批次 F（用户 2026-10-06 中午："再设计一批实验，今天做完"）
+F1_FRONT = ("neck3_a53_89e60afc", "neck3_a74_e72c4e70", "neck3_a55_639b1448", "neck6_r1_b5abb5d4", "neck6_r4_76c23a8e", "neck3_r6_dc9dfb8a",
+            "neck6_r4_a4a804e8", "neck6_r6_2df962ef", "neck3_a54_bbe8444b", "neck3_a41_9cf9f12f", "neck3_r7_408dc339", "neck3_a68_9ec845c7",
+            "neck3_a45_639d489d", "neck3_a81_cb5ce57b", "neck2_r2_cabafb5f", "neck3_a83_4f3a1387", "neck3_a60_ae1a0793", "neck3_a49_fceb10b0",
+            "neck3_a76_26358701", "neck2_r11_8687e375", "neck2_r9_60bd1d12", "neck3_a40_967145a2")   # 新口径（柄身微动 2 µm 截断）前沿，主表 2026-10-06
+F2_CODES = ("J1", "B2", "LA", "S1B", "R1", "FI", "R2", "FI0")
+LOADS = {"iso": {"cfg": {"load": {"resultant_N": 2300.0, "alpha_front_deg": 10.0, "alpha_sagit_deg": 9.0}}, "intact": "ata_intact_h2_iso_S_4a1cdfa6"},
+         "high": {"cfg": {"load": {"resultant_N": 3606.0}}, "intact": None}}                 # high = HIGH100 合力，方向同爬楼
+
+
+def wrap_fit_design(base: dict) -> dict:
+    """新领规则下可行的设计：放不下就把领宽二分到能放下的最大值（记 collar_w_original）。"""
+    import collar_rule as CR
+    d = dict(base["design"])
+    if not d.get("collar_w"):
+        return d
+    fm = J.femur_for(base)
+    ok = lambda w: CR.template_wrap_fit(G.Stem3D(**{**d, "collar_w": float(w)}), fm, margin=base.get("margin"),  # noqa: E731
+                                        min_A0=float(base.get("min_A0", 0.0))).get("fit", False)
+    if ok(d["collar_w"]):
+        return d
+    lo, hi = 0.0, float(d["collar_w"])
+    for _ in range(12):
+        mid = 0.5 * (lo + hi)
+        (lo, hi) = (mid, hi) if ok(mid) else (lo, mid)
+    return {**d, "collar_w_original": d["collar_w"], "collar_w": round(lo, 3)} if lo > 0.05 else {**d, "collar_w_original": d["collar_w"], "collar_w": 0.0}
+
+
+def spec_of_job(job: str) -> dict:
+    src = json.loads((J.QROOT / job / "spec.json").read_text())
+    return {**CURRENT, "design": dict(src["design"]), "h_cut": float(src.get("h_cut", 25.0))}
+
+
 def specs(batch: str) -> dict:
     out = {}
     if batch == "A":
@@ -112,6 +145,44 @@ def specs(batch: str) -> dict:
                         "ofat": {"baseline": b, "base_code": code, "factor": "collar_w", "level": w, "rule": "wrap_fit"}}
                 out[f"{b}_collar_w_{w}"] = {**s_, **meta, "tag": f"collar_w_{w}", "bond_collar": "tied"}
                 out[f"{b}_collar_w_{w}_contact"] = {**s_, **meta, "tag": f"collar_w_{w}_contact", "bond_only": True, "bond_collar": "contact"}
+    elif batch == "F":
+        wf = {"kind": "variant", "collar_rule": "wrap_fit"}
+        for job in F1_FRONT:                                      # F1 前沿复核
+            b = spec_of_job(job)
+            d = wrap_fit_design(b)
+            orig_w = d.pop("collar_w_original", None)
+            if not d.get("collar_w"):
+                d.pop("collar_w", None); d.pop("collar_t", None)
+            meta = {**wf, "stage": "front_wrap", "source_job": job, "collar_w_original": orig_w}
+            out[f"F1_{job}"] = {**b, "design": d, **meta, "tag": job.split("_", 1)[1], "bond_collar": "tied"}
+            if d.get("collar_w"):
+                out[f"F1_{job}_contact"] = {**b, "design": d, **meta, "tag": job.split("_", 1)[1] + "_contact", "bond_only": True, "bond_collar": "contact"}
+        hi_ref = {"kind": "intact", "h_int": 2.0, "export": "S", "stage": "load_ref", "tag": "intact_high", "cfg": LOADS["high"]["cfg"]}
+        out["F2_intact_high"] = hi_ref
+        hi_id = J.job_id({**hi_ref, "created": ""})
+        for c in F2_CODES:                                        # F2 载荷稳健性（新领规则）
+            b = base_spec(c)
+            if c in E_COLLAR_W:
+                b["design"]["collar_w"] = E_COLLAR_W[c]
+            elif b["design"].get("collar_w"):
+                b["design"] = wrap_fit_design(b)
+                b["design"].pop("collar_w_original", None)
+            if c == "S1B":                                        # S1B 的标准载荷基线在 BW / E 里没有，补一个
+                out["F2_S1B_stair"] = {**b, **wf, "stage": "load_wrap", "tag": "S1B_stair", "bond_collar": "tied", "deck_code": c}
+            for ln, L in LOADS.items():
+                ref = L["intact"] or hi_id
+                out[f"F2_{c}_{ln}"] = {**b, **wf, "stage": "load_wrap", "tag": f"{c}_{ln}", "cfg": L["cfg"], "intact_job": ref,
+                                       "bond_collar": "tied", "deck_code": c, "load_case": ln}
+        base = base_spec("FI")                                    # F3 B1 单因素扫描补齐（新领规则）
+        for factor, levels in OFAT["B1"].items():
+            if factor in ("base", "collar_w"):
+                continue
+            for lv in levels:
+                s_ = ofat_level(base, factor, lv)
+                meta = {**wf, "stage": "ofatw_b1", "ofat": {"baseline": "B1", "base_code": "FI", "factor": factor, "level": lv, "rule": "wrap_fit"}}
+                out[f"F3_B1_{factor}_{lv}"] = {**s_, **meta, "tag": f"{factor}_{lv}", "bond_collar": "tied"}
+                if factor != "delta":
+                    out[f"F3_B1_{factor}_{lv}_contact"] = {**s_, **meta, "tag": f"{factor}_{lv}_contact", "bond_only": True, "bond_collar": "contact"}
     elif batch == "C":
         for b, tab in OFAT.items():
             base = base_spec(tab["base"])
@@ -153,6 +224,6 @@ if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["submit", "status"])
-    ap.add_argument("batch", choices=["A", "B", "C", "E", "BW", "CW"])
+    ap.add_argument("batch", choices=["A", "B", "C", "E", "BW", "CW", "F"])
     a = ap.parse_args()
     {"submit": submit, "status": status}[a.cmd](a.batch)
