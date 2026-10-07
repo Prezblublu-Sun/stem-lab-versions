@@ -138,6 +138,48 @@ def template_wrap_fit(stem, fem, alphas=None, offsets=np.arange(-8.0, 8.1, 2.0),
     return best
 
 
+def neck_overhang(st, fm, A0, pose) -> float:
+    """假体颈底面圆伸出柄截口的面积（mm²）。无领时这部分压在截骨面上，M1 会把它当普通界面（带过盈），等于一块小领。"""
+    from shapely.geometry import Point
+    neck = Point(0.0, 0.0).buffer(float(fm.cfg["prosthesis"]["neck_radius_mm"]), quad_segs=32)
+    return float(neck.difference(footprint(st, fm, A0, pose)).area)
+
+
+def template_neck_in_shoulder(stem, fem, alphas=None, offsets=np.arange(-8.0, 8.1, 2.0), iters: int = 14, margin=None,
+                              min_A0: float = 0.0, tol_mm2: float = 2.0):
+    """无领设计的选号（规格选项 collar_rule = "neck_in_shoulder"，用户 2026-10-07 定）：假体颈底面必须整个落在柄截口里
+    （伸出 ≤ tol_mm2；2 mm² ≈ 截口等值线在 0.2 mm 网格上的面积误差），否则颈底会压在截骨面上成为一块小领。截口随号单调变大，所以每个入口偏移只需检查皮质余量允许的最大号；
+    在满足的偏移里取号最大（平手取 |e| 小）。带领设计不用此规则。"""
+    if getattr(stem, "has_collar", False):
+        raise ValueError("collar_rule neck_in_shoulder is for collarless designs only")
+    best, reasons = None, []
+    for e in offsets:
+        r = _ORIG["template"](stem, fem, alphas=alphas, offsets=np.array([e]), iters=iters, margin=margin)
+        if not r.get("fit"):
+            reasons.append(f"e {e:+.0f}: {r.get('reason')}")
+            continue
+        if r["A0"] < max(min_A0, G.A_BOUNDS[0]):
+            reasons.append(f"e {e:+.0f}: shoulder {r['A0']:.0f} mm² < {max(min_A0, G.A_BOUNDS[0]):.0f} mm²")
+            continue
+        ov = neck_overhang(stem, fem, r["A0"], r["pose"])
+        if ov > tol_mm2:
+            reasons.append(f"e {e:+.0f}: neck base overhangs the shoulder by {ov:.1f} mm²")
+            continue
+        if best is None or r["A0"] > best["A0"] * 1.005 or (abs(r["A0"] - best["A0"]) <= best["A0"] * 0.005 and abs(e) < abs(best["e"])):
+            best = {**r, "neck_overhang_mm2": ov}
+    if best is None:
+        return {"fit": False, "reason": "collar_rule neck_in_shoulder: no offset works (" + "; ".join(reasons)[:400] + ")",
+                "margin": stem.m if margin is None else float(margin)}
+    best["collar_rule"] = "neck_in_shoulder"
+    return best
+
+
+def install_neck(min_A0: float = 0.0, tol_mm2: float = 2.0) -> None:
+    """只在当前进程里把 geom3d.template 换成 neck_in_shoulder 版（jobs.prep 对带 collar_rule = "neck_in_shoulder" 的作业调用）。"""
+    G.template = lambda stem, fem, alphas=None, offsets=np.arange(-8.0, 8.1, 2.0), iters=14, margin=None: \
+        template_neck_in_shoulder(stem, fem, alphas=alphas, offsets=offsets, iters=iters, margin=margin, min_A0=min_A0, tol_mm2=tol_mm2)
+
+
 def install(min_A0: float = 0.0) -> None:
     """只在当前进程里替换选号与领外形（jobs.prep 对带 collar_rule = "wrap_fit" 的作业调用）。"""
     G.template = lambda stem, fem, alphas=None, offsets=np.arange(-8.0, 8.1, 2.0), iters=14, margin=None: \

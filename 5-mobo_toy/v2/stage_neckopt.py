@@ -83,11 +83,13 @@ PHASES = {
     # 阶段 9（无领优化，设计见 mechanism_2026-10-07/无领优化设计_2026-10-07.md，2026-10-07 晚拟定、待用户在原会话启动）：
     # 与阶段 8 同一设计空间、同一口径、同一预算，只把领宽固定为 0。目的：(1) 无领能做到的前沿；(2) 领在前沿层面的贡献 = 两条前沿之差；
     # (3) 无领时哪些变量主导（预期是决定柄身压配的 m、号、柄长）。不热启动（已解的真正无领设计只有 4 个），从零开始。
-    # 无领时领规则不起作用，collar_rule 不设，选号仍是"号最大的偏移"（与阶段 8 一致，便于比较）。
+    # 选号（用户 2026-10-07 定，启动前检查后改）：collar_rule = "neck_in_shoulder" —— 假体颈底面（r 7）须整个落在柄截口里，
+    # 在满足的入口偏移里取号最大。原设计不设规则时，阶段 9 设计空间里 58 % 的可行设计颈底伸出截口 > 10 mm²（小号柄全部伸出、中位 35 mm²），
+    # M1 把伸出部分当普通界面（带过盈），等于一块小领，"无领"就不干净了（deck_data/scripts/collarless_neck_check.py）。
     9: {"vars": {"L": (20.0, 60.0), "alpha": (15.0, 45.0), "h_cut": (25.0, 32.0), "m": (-0.25, 2.0),
                  "rho_tip": (0.10, 0.50), "q": (0.5, 3.0), "lam": (1.0, 2.2), "g_ml": (0.35, 0.65), "g_ap": (0.35, 0.65),
                  "n_a": (2.0, 6.0), "n_p": (2.0, 6.0), "tau_a": (-0.30, 0.30), "tau_p": (-0.30, 0.30)},
-        "fixed": {"collar_w": 0.0}, "metric": "v2"},
+        "fixed": {"collar_w": 0.0}, "collar_rule": "neck_in_shoulder", "metric": "v2"},
 }
 MODEL_KEYS = ("mu", "E_canc", "interference", "lagrange", "cycles", "torque", "h_far", "margin")   # 改模型假设的规格键：带了就不进优化数据集
 REF_KEYS = {2: ("L", "alpha", "collar_w", "h_cut"), 6: ("L", "alpha", "m", "h_cut")}     # 第二阶段从参考设计继承的变量
@@ -157,6 +159,9 @@ class Phase:
         if self.rule == "wrap_fit":
             import collar_rule as CR
             return CR.template_wrap_fit(st, fm, min_A0=S.MIN_A0)
+        if self.rule == "neck_in_shoulder":
+            import collar_rule as CR
+            return CR.template_neck_in_shoulder(st, fm, min_A0=S.MIN_A0)
         return G.template(st, fm)
 
 
