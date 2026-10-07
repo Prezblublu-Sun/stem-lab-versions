@@ -73,7 +73,15 @@ PHASES = {
     # 截面固定椭圆 λ 1.3（单因素扫描里截面影响最小）。
     7: {"vars": {"L": (20.0, 60.0), "alpha": (15.0, 45.0), "m": (-0.25, 2.0), "collar_w": (0.0, 6.0), "rho_tip": (0.10, 0.50)},
         "fixed": {"q": 1.0, "lam": 1.3, **G.ELLIPSE, "h_cut": 25.0}, "collar_rule": "wrap_fit", "metric": "v2"},
+    # 阶段 8（用户 2026-10-07 10:50 同意）：阶段 7 固定了 q、λ，前沿被旧前沿（批次 F1 按新规则复核的 22 个设计，全是 q 1.7–3.0）支配。
+    # 这里与阶段 3 相同的 14 个变量全部放开，领规则 wrap_fit + 新口径；热启动 = 阶段 7 的 72 个 + 批次 F1 的 22 个（stage front_wrap，
+    # 同为 wrap_fit、生产设置、标准载荷）。
+    8: {"vars": {"L": (20.0, 60.0), "alpha": (15.0, 45.0), "collar_w": (0.0, 6.0), "h_cut": (25.0, 32.0), "m": (-0.25, 2.0),
+                 "rho_tip": (0.10, 0.50), "q": (0.5, 3.0), "lam": (1.0, 2.2), "g_ml": (0.35, 0.65), "g_ap": (0.35, 0.65),
+                 "n_a": (2.0, 6.0), "n_p": (2.0, 6.0), "tau_a": (-0.30, 0.30), "tau_p": (-0.30, 0.30)},
+        "fixed": {}, "collar_rule": "wrap_fit", "metric": "v2", "warm_stages": ("front_wrap",)},
 }
+MODEL_KEYS = ("mu", "E_canc", "interference", "lagrange", "cycles", "torque", "h_far", "margin")   # 改模型假设的规格键：带了就不进优化数据集
 REF_KEYS = {2: ("L", "alpha", "collar_w", "h_cut"), 6: ("L", "alpha", "m", "h_cut")}     # 第二阶段从参考设计继承的变量
 CONST = {"collar_t": G.COLLAR_T, "cap_h": G.CAP_FLAT}
 FRIC = {"slip_tol": 2.5e-4, "delta": 0.025}
@@ -94,6 +102,7 @@ class Phase:
         self.fixed = dict(PHASES[phase]["fixed"])
         self.rule = PHASES[phase].get("collar_rule")                    # None = 现行领规则；"wrap_fit" 见 collar_rule.py
         self.metric = PHASES[phase].get("metric", "v1")                 # v1 = 整界面微动 + 应力屏蔽 ssi；v2 = 柄身微动（2 µm 下限）+ SED 变化
+        self.warm_stages = tuple(PHASES[phase].get("warm_stages", ()))  # 除 neck* 之外允许热启动的阶段名
         if phase in REF_KEYS:
             if not ref:
                 raise ValueError(f"phase {phase} needs --ref <job_id> (the first-stage design whose {REF_KEYS[phase]} are kept)")
@@ -120,7 +129,10 @@ class Phase:
             return False
         if spec.get("collar_rule") != self.rule or spec.get("cfg") or spec.get("entry_offset") is not None:   # 领规则不同、换载荷、固定偏移的不混入
             return False
-        if not legacy and (float(d.get("cap_h", -1.0)) != CONST["cap_h"] or not str(spec.get("stage", "")).startswith("neck")):
+        if any(spec.get(k) is not None for k in MODEL_KEYS) or spec.get("bond_only"):                       # 改了模型假设的、只解粘接模型的不混入
+            return False
+        stage = str(spec.get("stage", ""))
+        if not legacy and (float(d.get("cap_h", -1.0)) != CONST["cap_h"] or not (stage.startswith("neck") or stage in self.warm_stages)):
             return False
         full = {**d, "h_cut": float(spec.get("h_cut", 25.0)), "collar_w": float(d.get("collar_w", 0.0)), "m": float(d.get("m", G.M_LEGACY))}
         for k, val in self.fixed.items():
