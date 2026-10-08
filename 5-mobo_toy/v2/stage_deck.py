@@ -95,6 +95,13 @@ G2_LOADS = {"front10": {"resultant_N": 2391.0, "alpha_front_deg": 10.0, "alpha_s
 # G3 重新划网格的噪声：柄长 ±0.002 mm（几何几乎不变，网格重划），与 BW 的原作业一起每个设计 3 个样本
 G3_CODES = ("FI", "J1", "R2", "B2")
 G3_JITTER = (0.002, -0.002)
+# 批次 P9D（阶段 9 设计文档第 2.2 节：压配能不能补上领的缺口）：无领前沿与有领前沿各 5 个代表设计（沿前沿按去骨量 0、25、50、75、100 % 位置取），
+# 过盈 0.025 → 0.05 mm，其余与源作业完全相同。kind = variant，δ ≠ 0.025 也不会进任何优化数据集。
+P9D_SOURCES = {"nocollar_1": "neck9_a70_c7ef19ee", "nocollar_2": "neck9_a37_528b7df7", "nocollar_3": "neck9_a44_5d5deeb7",
+               "nocollar_4": "neck9_a71_099d9916", "nocollar_5": "neck9_a96_c888e6c4",
+               "collar_1": "front_wrap_a53_89e60afc_ad3918b3", "collar_2": "neck8_a67_e47ce03b", "collar_3": "front_wrap_a81_cb5ce57b_8404a846",
+               "collar_4": "front_wrap_a60_ae1a0793_cc3f72d5", "collar_5": "front_wrap_a40_967145a2_566aee4e"}
+P9D_DELTA = 0.05
 
 
 def wrap_fit_design(base: dict) -> dict:
@@ -227,6 +234,13 @@ def specs(batch: str) -> dict:
                 b_["design"]["L"] = float(b_["design"]["L"]) + dl
                 out[f"G3_{c}_L{dl:+.3f}"] = {**b_, **wf, "stage": "remesh_noise", "tag": f"{c}_L{dl:+.3f}", "bond_collar": "tied", "deck_code": c,
                                             "jitter": {"L": dl}}
+    elif batch == "P9D":
+        for key, job in P9D_SOURCES.items():
+            src = json.loads((J.QROOT / job / "spec.json").read_text())
+            if not (J.QROOT / job / "DONE").exists():
+                raise SystemExit(f"P9D source {job} is not DONE")
+            s_ = {k: v for k, v in src.items() if k not in ("created", "stage", "tag", "kind", "bond_only")}
+            out[f"P9D_{key}"] = {**s_, "kind": "variant", "stage": "delta05", "tag": key, "delta": P9D_DELTA, "source_job": job}
     elif batch == "C":
         for b, tab in OFAT.items():
             base = base_spec(tab["base"])
@@ -272,6 +286,6 @@ if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["submit", "status"])
-    ap.add_argument("batch", choices=["A", "B", "C", "E", "BW", "CW", "F", "G"])
+    ap.add_argument("batch", choices=["A", "B", "C", "E", "BW", "CW", "F", "G", "P9D"])
     a = ap.parse_args()
     {"submit": submit, "status": status}[a.cmd](a.batch)
