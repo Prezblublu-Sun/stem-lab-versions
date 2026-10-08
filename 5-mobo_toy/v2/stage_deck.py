@@ -234,6 +234,16 @@ def specs(batch: str) -> dict:
                 b_["design"]["L"] = float(b_["design"]["L"]) + dl
                 out[f"G3_{c}_L{dl:+.3f}"] = {**b_, **wf, "stage": "remesh_noise", "tag": f"{c}_L{dl:+.3f}", "bond_collar": "tied", "deck_code": c,
                                             "jitter": {"L": dl}}
+    elif batch == "U":                                           # 用户的外部柄设计（import_stem.py；用户 2026-10-08："把 Part3-1 放在当前骨中计算一遍"）
+        import import_stem as IS
+        for name in IS.PARTS:
+            p = IS.PARTS[name]
+            base = {**CURRENT, "h_cut": 25.0, "import_stem": name, "import_e": 0.0}
+            fm_ = J.femur_for({**base, "design": p["design"]})
+            d = {**p["design"], "alpha": round(IS.neck_angle_deg(fm_), 4)}
+            meta = {"kind": "variant", "stage": "user_part", "deck_code": name}
+            out[f"U_{name}"] = {**base, **meta, "design": d, "tag": name, "bond_collar": "tied"}
+            out[f"U_{name}_contact"] = {**base, **meta, "design": d, "tag": f"{name}_contact", "bond_only": True, "bond_collar": "contact"}
     elif batch == "P9D":
         for key, job in P9D_SOURCES.items():
             src = json.loads((J.QROOT / job / "spec.json").read_text())
@@ -286,6 +296,6 @@ if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["submit", "status"])
-    ap.add_argument("batch", choices=["A", "B", "C", "E", "BW", "CW", "F", "G", "P9D"])
+    ap.add_argument("batch", choices=["A", "B", "C", "E", "BW", "CW", "F", "G", "P9D", "U"])
     a = ap.parse_args()
     {"submit": submit, "status": status}[a.cmd](a.batch)

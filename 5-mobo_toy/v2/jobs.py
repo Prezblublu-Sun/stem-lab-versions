@@ -7,6 +7,7 @@
                        bond_collar  粘接模型的领：tied（共节点，默认）/ contact（只受压、可掀起）；见 bond_collar.py
                        collar_rule  wrap_fit = 领包住假体颈、整圈落在骨截面上（放不下就换号或换入口偏移）；见 collar_rule.py
                                     neck_in_shoulder = 无领：假体颈底面须整个落在柄截口里（阶段 9）
+                       import_stem  外部柄设计（如 "part3_1"），按实测尺寸在 OCC 里重建、同轴放进股骨；见 import_stem.py
                        intact_job 指定完整股骨参照的作业 id（载荷或网格与标准参照不同时必须给）
                      intact 作业同样可带 cfg；带 cfg 的参照一律用 stage ≠ "ref"，不会被 intact_ref 选中
     READY            .inp 已生成，等待本机求解            ← prep 写
@@ -143,6 +144,9 @@ def prep(jid: str) -> str:
             elif spec.get("collar_rule") == "neck_in_shoulder":   # 无领：假体颈底面须整个落在柄截口里（collar_rule.py，阶段 9）
                 import collar_rule as CR
                 CR.install_neck(min_A0=float(spec.get("min_A0", 0.0)))
+            if spec.get("import_stem"):                             # 外部柄设计按实测尺寸重建后放进股骨（import_stem.py；只替换本建模进程）
+                import import_stem as IS
+                IS.install(spec, fm)
             if spec.get("entry_offset") is not None:               # 诊断：入口偏移固定为给定值、不搜索（批次 G1；只替换本建模进程）
                 _tpl, _e = G.template, np.array([float(spec["entry_offset"])])
                 G.template = lambda stem, fem, alphas=None, offsets=None, iters=14, margin=None: \
