@@ -90,7 +90,16 @@ PHASES = {
                  "rho_tip": (0.10, 0.50), "q": (0.5, 3.0), "lam": (1.0, 2.2), "g_ml": (0.35, 0.65), "g_ap": (0.35, 0.65),
                  "n_a": (2.0, 6.0), "n_p": (2.0, 6.0), "tau_a": (-0.30, 0.30), "tau_p": (-0.30, 0.30)},
         "fixed": {"collar_w": 0.0}, "collar_rule": "neck_in_shoulder", "metric": "v2"},
+    # 阶段 10（用户 2026-10-10 会议后）：无领；松质骨不能单独承重，柄要靠近皮质、但不直接接触 —— 皮质余量 m ≥ 0.5 mm（下限暂定）；
+    # 可以接受受压下沉，但必须避免转动。目标 metric v3：(1) 柄相对骨的刚体转动（首次加载，度）最小；(2) 完全接触面积（LOAD2，mm²）最大。
+    # 约束：柄身微动 P95 ≤ 150 µm、柄应力 ≤ 440 MPa、股骨距 |SED 变化| ≤ 30 %。下沉只记录。转动与接触面积由 stability.py 从已有结果算。
+    10: {"vars": {"L": (20.0, 60.0), "alpha": (15.0, 45.0), "h_cut": (25.0, 32.0), "m": (0.5, 2.0),
+                  "rho_tip": (0.10, 0.50), "q": (0.5, 3.0), "lam": (1.0, 2.2), "g_ml": (0.35, 0.65), "g_ap": (0.35, 0.65),
+                  "n_a": (2.0, 6.0), "n_p": (2.0, 6.0), "tau_a": (-0.30, 0.30), "tau_p": (-0.30, 0.30)},
+         "fixed": {"collar_w": 0.0}, "collar_rule": "neck_in_shoulder", "metric": "v3"},
 }
+MM_LIMIT = 150.0            # metric v3：柄身微动 P95 上限（µm，骨长入的经典阈值；会议 2026-10-10）
+ROT_FLOOR = 1e-3            # metric v3：转动的数值下限（度）
 MODEL_KEYS = ("mu", "E_canc", "interference", "lagrange", "cycles", "torque", "h_far", "margin")   # 改模型假设的规格键：带了就不进优化数据集
 REF_KEYS = {2: ("L", "alpha", "collar_w", "h_cut"), 6: ("L", "alpha", "m", "h_cut")}     # 第二阶段从参考设计继承的变量
 CONST = {"collar_t": G.COLLAR_T, "cap_h": G.CAP_FLAT}
@@ -190,6 +199,16 @@ def objectives(r: dict | None, sed: str, ssi: float | None, metric: str = "v1", 
     """v1：y1 = log10 整界面微动，股骨距 = ssi（正 = 屏蔽）。v2：y1 = log10 max(柄身微动, 2 µm)，股骨距 = −sed_chg（同样正 = 屏蔽）。"""
     if not r or "failed" in r or "f1_p95_um" not in r:
         return [math.nan, math.nan], math.nan, False
+    if metric == "v3":
+        stab = r.get("_stability") or {}
+        rot, area, f1, vm = stab.get("rot_first_deg"), stab.get("contact_area_load2_mm2"), r.get("f1_p95_um"), r.get("vm_p99")
+        cal = None if sed_chg is None else -float(sed_chg)
+        if rot is None or area is None or f1 is None or vm is None or (sed != "none" and cal is None):
+            return [math.nan, math.nan], math.nan, False
+        y = [math.log10(max(float(rot), ROT_FLOOR)), -float(area)]
+        c_sed = {"one-sided": (cal - SED_LIMIT) / SED_LIMIT, "abs": (abs(cal) - SED_LIMIT) / SED_LIMIT, "none": -1.0}[sed] if cal is not None else -1.0
+        c = max((float(f1) - MM_LIMIT) / MM_LIMIT, (float(vm) - VM_LIMIT) / VM_LIMIT, c_sed)
+        return y, float(c), all(np.isfinite(y))
     if metric == "v2":
         f1 = r.get("f1_p95_um")
         f1 = None if f1 is None else max(float(f1), MM_FLOOR)
@@ -209,11 +228,31 @@ def objectives(r: dict | None, sed: str, ssi: float | None, metric: str = "v1", 
     return y, float(max(c_vm, c_sed)), all(np.isfinite(y))
 
 
+_STAB = {}
+
+
+def stability_of(job_id: str) -> dict:
+    if job_id not in _STAB:
+        try:
+            import stability as ST
+            _STAB[job_id] = ST.stability(J.QROOT / job_id)
+        except Exception as e:                                       # noqa: BLE001
+            print(f"[neckopt] stability {job_id}: {type(e).__name__}: {str(e)[:120]}", flush=True)
+            _STAB[job_id] = {}
+    return _STAB[job_id]
+
+
 def record_of(job_id: str, sed: str, metric: str = "v1") -> dict:
     res = J.result(job_id) or {}
     ssi, sed_chg = _calcar(job_id) if res and "f1_p95_um" in res else (None, None)
-    y, c, ok = objectives(res, sed, ssi, metric, sed_chg)
+    stab = stability_of(job_id) if (metric == "v3" and res and "f1_p95_um" in res) else {}
+    y, c, ok = objectives({**res, "_stability": stab} if stab else res, sed, ssi, metric, sed_chg)
+    extra = {k: stab.get(k) for k in ("rot_first_deg", "rot_axial_first_deg", "rot_tilt_first_deg", "rot_rev_deg", "subsid_first_um",
+                                      "subsid_perm_um", "lateral_first_um", "slip_axial_p95_um", "slip_circ_p95_um",
+                                      "contact_area_load2_mm2", "contact_frac_load2")} if stab else {}
+    bl = (res.get("bone_loss") or {}).get("total_mm3")
     return {"y": [float(v) for v in y], "c": [float(c)], "ok": bool(ok), "metric": metric, "ssi_pct": ssi, "sed_chg_pct": sed_chg,
+            "bone_mm3": bl, **extra,
             "g7_mixed_pct": res.get("f2_g7_loss_pct"), "vm_p99": res.get("vm_p99"), "f1_all_p95_um": res.get("f1_all_p95_um"),
             "f1_body_p95_um": res.get("f1_p95_um"), "collar_open_frac_load2": res.get("collar_open_frac_load2"),
             "collar_force_share_load2": res.get("collar_force_share_load2"), "A0": (res.get("templating") or {}).get("A0"),
@@ -396,7 +435,7 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
         used[idx] = True
         okn = run_batch(idx, "init", 0)
         print(f"[neckopt p{ph.phase}] init: {int(okn.sum())}/{len(idx)} ok", flush=True)
-    det = {1: det_loss_fn(pool, pool_loss)}
+    det = {1: det_loss_fn(pool, pool_loss)} if ph.metric != "v3" else None
     done_rounds = max([r["round"] for r in recs], default=0)
 
     def front_rows(X, Y, C):
@@ -432,7 +471,7 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
             if len(Un):
                 pool, pool_loss = np.vstack([pool, Un]), np.r_[pool_loss, Ln]
                 used = np.r_[used, np.zeros(len(Un), bool)]
-                det = {1: det_loss_fn(pool, pool_loss)}
+                det = {1: det_loss_fn(pool, pool_loss)} if ph.metric != "v3" else None
                 np.savez(live, U=pool, loss=pool_loss)
             state["pool_size"] = int(len(pool))
             print(f"[neckopt p{ph.phase}] pool refresh: +{len(Un)} feasible around {len(front_rows(X, Y, C))} front points "
@@ -522,7 +561,7 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
         C = np.vstack([C0] + [np.array(r["c"])[None] for r in good]) if good else C0
         return X, Y, C
 
-    det = {1: det_loss_fn(pool, pool_loss)}
+    det = {1: det_loss_fn(pool, pool_loss)} if ph.metric != "v3" else None
     rng = np.random.default_rng(seed + 7)
     n_sub = len(recs) + len(pending)
     since_refresh, stopped = 0, False
@@ -574,7 +613,7 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
             if len(Un):
                 pool, pool_loss = np.vstack([pool, Un]), np.r_[pool_loss, Ln]
                 used = np.r_[used, np.zeros(len(Un), bool)]
-                det = {1: det_loss_fn(pool, pool_loss)}
+                det = {1: det_loss_fn(pool, pool_loss)} if ph.metric != "v3" else None
                 np.savez(live, U=pool, loss=pool_loss)
             since_refresh = 0
             print(f"[neckopt p{ph.phase} async] pool refresh: +{len(Un)} ({time.perf_counter() - t1:.0f} s), pool {len(pool)}", flush=True)
@@ -618,7 +657,10 @@ def status(phase: int) -> None:
     print(f"evaluated {len(recs)}, ok {len(ok)}, feasible {len(feas)}")
     for r in sorted(feas, key=lambda r: r["y"][0])[:8]:
         cal = f"sed {r['sed_chg_pct']:+6.1f} %" if r.get("metric") == "v2" else f"ssi {r['ssi_pct']:+6.1f} %"
-        print(f"  {10 ** r['y'][0]:6.1f} µm  loss {r['y'][1]:7.0f} mm³  {cal}  {r['design']}  h_cut {r['h_cut']:.1f}  {r['job_id']}")
+        if r.get("metric") == "v3":
+            print(f"  rot {10 ** r['y'][0]:.4f}°  contact {-r['y'][1]:7.0f} mm²  {cal}  bone {r.get('bone_mm3') or 0:7.0f} mm³  {r['design']}  {r['job_id']}")
+        else:
+            print(f"  {10 ** r['y'][0]:6.1f} µm  loss {r['y'][1]:7.0f} mm³  {cal}  {r['design']}  h_cut {r['h_cut']:.1f}  {r['job_id']}")
 
 
 def load_ref(job_id: str) -> dict:
