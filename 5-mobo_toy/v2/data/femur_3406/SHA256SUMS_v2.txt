@@ -1,0 +1,3 @@
+9b1bf9494728c3533c9cd04db8669008c97dd88701ffea56cd7e12e6bd8cab1f *3406R_cortical.STEP
+3455b8c9c21bb9f1eae62da357744b4ee1235939c8bc058fb29d0d109c0c7940 *3406R_cancellous_v2.STEP
+source: H:\projects\application\research-log\sawbone_3406_2026-10-23\churun_uncut_export (Churun uncut 3406, SolidWorks 2025 AP214 export 2026-10-23); transform diag(1,1,-1); cancellous v2 = bore filled + ream-and-refill (r + 0.3 mm, ends +4 mm, filler = cylinder - cortical solid)
