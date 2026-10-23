@@ -19,6 +19,18 @@
 代理：高斯过程（输入 = 本阶段变量，归一化）；候选池 Sobol 8192 过模板化；qLogNEHVI，每轮 q 个；超体积参考点在初始批之后固定。
 热启动：只用同一几何族（椭圆 λ 1.3、ρ 0.5、q 1、平端、新截骨面）的已解作业；旧作业不混入（--warm legacy 可包含）。
 
+阶段 11 的几处改动（2026-10-23；计算计划_2026-10-24 §2.2，实验设计与效率_终稿 §6.3 的"20 % 参照"规则；PHASES[11] 只是占位，未启动）
+    * 约束形式可由阶段定义给出（PHASES[p]["sed"]；CLI --sed 仍可覆盖）：阶段 11 为 "none"，不再有 |ΔSED| 约束。
+    * bond_every = 5：每提交 5 个设计，第 5 个带粘接模型（SED、柄 vM 只记录不约束），其余 fric_only（规格键，见 jobs.py：只解摩擦模型）。
+      计数器 n_submitted 持久在阶段状态文件 results/neckopt_p<phase>.json 里，续跑接着数；每条 pending / record 记 bonded。
+    * objectives()：fric_only 记录没有 vm_p99，不再判不可行——vM 项跳过（c_vm = −1）；sed "none" 时 c_sed = −1；有 vm_p99 的记录行为不变。
+      fric_only 记录在 sed abs / one-sided 的阶段仍判 ok=False（没有 SED 可查），所以 fric_only 只配 sed "none" 的阶段。
+    * 数据集规则（in_family）：fric_only 不改摩擦模型，不在 MODEL_KEYS 里，in_family 不排除它；能否进数据集由 objectives 决定——
+      sed "none" 的阶段（11 起）接受 fric_only 记录（阶段 11 自己的 fric_only 设计因此进自己的记录 / 数据集），sed abs / one-sided 的
+      旧阶段因缺 SED 判 ok=False 而自然排除。femur_id 与 margin_check 则必须与阶段一致（不同股骨、不同余量检查 = 不同族）。
+    * femur_id（None = 现在的 CT 股骨）与 margin_check（"sparse" 默认 | "dense"，collar_rule.py）进 spec、in_family 与候选池缓存键；
+      3406 接入后把 PHASES[11]["femur_id"] 改为 "sawbone3406"（jobs.femur_for 按 femur_id 分派，侦察 S3/S7，尚未做）。
+
     python v2/stage_neckopt.py pool --phase 1
     python v2/stage_neckopt.py bo --phase 1 --init 16 --rounds 12 --q 4 --sed abs    → results/neckopt_p1.json（每轮覆盖，可续跑）
     python v2/stage_neckopt.py bo --phase 2 --ref <job_id> ...                        → results/neckopt_p2.json
@@ -98,6 +110,10 @@ PHASES = {
                   "n_a": (2.0, 6.0), "n_p": (2.0, 6.0), "tau_a": (-0.30, 0.30), "tau_p": (-0.30, 0.30)},
          "fixed": {"collar_w": 0.0}, "collar_rule": "neck_in_shoulder", "metric": "v3"},
 }
+# 阶段 11（占位，2026-10-23，未启动）：= 阶段 10 去掉 SED 约束（sed "none"），metric v3 不变；每提交 5 个设计第 5 个带粘接模型
+# （bond_every 5，其余 fric_only：只解摩擦模型，SED / vM 只在那 20 % 上记录、不约束；用户 10-23 决定）；femur_id None = 现在的 CT 股骨，
+# 3406 接入后改为 "sawbone3406"。margin_check（"dense" = 截骨面下每 0.25 mm 一环的严格余量检查）待 B1 重放后定，暂不设（= sparse）。
+PHASES[11] = {**PHASES[10], "sed": "none", "bond_every": 5, "femur_id": None}
 MM_LIMIT = 150.0            # metric v3：柄身微动 P95 上限（µm，骨长入的经典阈值；会议 2026-10-10）
 ROT_FLOOR = 1e-3            # metric v3：转动的数值下限（度）
 MODEL_KEYS = ("mu", "E_canc", "interference", "lagrange", "cycles", "torque", "h_far", "margin")   # 改模型假设的规格键：带了就不进优化数据集
@@ -115,13 +131,17 @@ def out_path(phase: int) -> pathlib.Path:
 
 
 class Phase:
-    def __init__(self, phase: int, ref: dict | None = None, sed: str = "abs"):
-        self.phase, self.space, self.sed = phase, PHASES[phase]["vars"], sed
+    def __init__(self, phase: int, ref: dict | None = None, sed: str | None = None):
+        self.phase, self.space = phase, PHASES[phase]["vars"]
+        self.sed = PHASES[phase].get("sed", "abs") if sed is None else sed   # None = 阶段自带的约束形式（阶段 11 起 "none"）；CLI --sed 覆盖
         self.vars = list(self.space)
         self.fixed = dict(PHASES[phase]["fixed"])
         self.rule = PHASES[phase].get("collar_rule")                    # None = 现行领规则；"wrap_fit" 见 collar_rule.py
         self.metric = PHASES[phase].get("metric", "v1")                 # v1 = 整界面微动 + 应力屏蔽 ssi；v2 = 柄身微动（2 µm 下限）+ SED 变化
         self.warm_stages = tuple(PHASES[phase].get("warm_stages", ()))  # 除 neck* 之外允许热启动的阶段名
+        self.bond_every = PHASES[phase].get("bond_every")               # 每提交 bond_every 个设计第 bond_every 个带粘接模型，其余 fric_only；None = 全带
+        self.femur_id = PHASES[phase].get("femur_id")                   # None = CT 股骨（jobs.femur_for 默认）；进 spec、in_family、候选池键
+        self.margin_check = PHASES[phase].get("margin_check", "sparse")  # 余量检查密度（collar_rule.MARGIN_CHECK）；进 spec、in_family、候选池键
         if phase in REF_KEYS:
             if not ref:
                 raise ValueError(f"phase {phase} needs --ref <job_id> (the first-stage design whose {REF_KEYS[phase]} are kept)")
@@ -150,6 +170,9 @@ class Phase:
             return False
         if any(spec.get(k) is not None for k in MODEL_KEYS) or spec.get("bond_only"):                       # 改了模型假设的、只解粘接模型的不混入
             return False
+        # fric_only 不排除：摩擦模型相同，能否用由 objectives 决定（sed "none" 的阶段接受，abs / one-sided 因缺 SED 判 ok=False）
+        if spec.get("femur_id") != self.femur_id or spec.get("margin_check", "sparse") != self.margin_check:   # 不同股骨 / 余量检查 = 不同族
+            return False
         stage = str(spec.get("stage", ""))
         if not legacy and (float(d.get("cap_h", -1.0)) != CONST["cap_h"] or not (stage.startswith("neck") or stage in self.warm_stages)):
             return False
@@ -159,19 +182,46 @@ class Phase:
                 return False
         return all(self.space[k][0] - 1e-9 <= float(full[k]) <= self.space[k][1] + 1e-9 for k in self.vars)
 
-    def spec_of(self, u, tag: str) -> dict:
+    def spec_of(self, u, tag: str, bonded: bool | None = None) -> dict:
+        """bonded None / True：带粘接模型（原样）；False：fric_only（只解摩擦模型，jobs.py）。femur_id、非默认的 margin_check 一并进 spec。"""
         d, h = self.design_of(u)
-        rule = {"collar_rule": self.rule} if self.rule else {}
-        return {**S.design_spec(d, f"neck{self.phase}", tag), "model": "m1", "h_cut": h, **FRIC, **rule}
+        extra = {"collar_rule": self.rule} if self.rule else {}
+        if self.femur_id:
+            extra["femur_id"] = self.femur_id
+        if self.margin_check != "sparse":
+            extra["margin_check"] = self.margin_check
+        if bonded is False:
+            extra["fric_only"] = True
+        return {**S.design_spec(d, f"neck{self.phase}", tag), "model": "m1", "h_cut": h, **FRIC, **extra}
 
     def template(self, st, fm):
+        """候选池用的模板化 = jobs.prep 对本阶段 spec 会做的模板化（同规则、同余量检查密度）。"""
         if self.rule == "wrap_fit":
             import collar_rule as CR
-            return CR.template_wrap_fit(st, fm, min_A0=S.MIN_A0)
+            return CR.template_wrap_fit(st, fm, min_A0=S.MIN_A0, margin_check=self.margin_check)
         if self.rule == "neck_in_shoulder":
             import collar_rule as CR
-            return CR.template_neck_in_shoulder(st, fm, min_A0=S.MIN_A0)
+            return CR.template_neck_in_shoulder(st, fm, min_A0=S.MIN_A0, margin_check=self.margin_check)
+        if self.margin_check != "sparse":
+            import collar_rule as CR
+            return CR.template_base(st, fm, margin_check=self.margin_check)
         return G.template(st, fm)
+
+
+def next_bonded(state: dict, bond_every: int | None) -> bool:
+    """bond_every 计数器（持久在阶段状态文件的 n_submitted 里）：第 bond_every、2·bond_every … 个提交带粘接模型，其余 fric_only。
+    bond_every 为 None / 0 时全部带粘接模型（阶段 10 及以前的行为）。"""
+    n = int(state.get("n_submitted", 0)) + 1
+    state["n_submitted"] = n
+    return (not bond_every) or n % int(bond_every) == 0
+
+
+def _bonded_of(job_id: str) -> bool | None:
+    """作业是否带粘接模型（按 spec.json 的 fric_only；没有 spec 时 None）。"""
+    p = J.QROOT / job_id / "spec.json"
+    if not p.exists():
+        return None
+    return not json.loads(p.read_text()).get("fric_only")
 
 
 # ------------------------------------------------------------------------------------------------- 指标
@@ -196,18 +246,22 @@ def calcar_ssi(job_id: str) -> float | None:
 
 
 def objectives(r: dict | None, sed: str, ssi: float | None, metric: str = "v1", sed_chg: float | None = None) -> tuple[list[float], float, bool]:
-    """v1：y1 = log10 整界面微动，股骨距 = ssi（正 = 屏蔽）。v2：y1 = log10 max(柄身微动, 2 µm)，股骨距 = −sed_chg（同样正 = 屏蔽）。"""
+    """v1：y1 = log10 整界面微动，股骨距 = ssi（正 = 屏蔽）。v2：y1 = log10 max(柄身微动, 2 µm)，股骨距 = −sed_chg（同样正 = 屏蔽）。
+    fric_only 记录（jobs.py，没有粘接模型）：vm_p99 缺失不判不可行，vM 项取 c_vm = −1；SED 同样缺失，所以只有 sed "none"（c_sed = −1）
+    时才 ok。有 vm_p99 的记录行为不变（缺 vm_p99 仍判 ok=False）。"""
     if not r or "failed" in r or "f1_p95_um" not in r:
         return [math.nan, math.nan], math.nan, False
+    fric_only = bool(r.get("fric_only"))
     if metric == "v3":
         stab = r.get("_stability") or {}
         rot, area, f1, vm = stab.get("rot_first_deg"), stab.get("contact_area_load2_mm2"), r.get("f1_p95_um"), r.get("vm_p99")
         cal = None if sed_chg is None else -float(sed_chg)
-        if rot is None or area is None or f1 is None or vm is None or (sed != "none" and cal is None):
+        if rot is None or area is None or f1 is None or (vm is None and not fric_only) or (sed != "none" and cal is None):
             return [math.nan, math.nan], math.nan, False
         y = [math.log10(max(float(rot), ROT_FLOOR)), -float(area)]
+        c_vm = -1.0 if vm is None else (float(vm) - VM_LIMIT) / VM_LIMIT
         c_sed = {"one-sided": (cal - SED_LIMIT) / SED_LIMIT, "abs": (abs(cal) - SED_LIMIT) / SED_LIMIT, "none": -1.0}[sed] if cal is not None else -1.0
-        c = max((float(f1) - MM_LIMIT) / MM_LIMIT, (float(vm) - VM_LIMIT) / VM_LIMIT, c_sed)
+        c = max((float(f1) - MM_LIMIT) / MM_LIMIT, c_vm, c_sed)
         return y, float(c), all(np.isfinite(y))
     if metric == "v2":
         f1 = r.get("f1_p95_um")
@@ -220,10 +274,10 @@ def objectives(r: dict | None, sed: str, ssi: float | None, metric: str = "v1", 
     loss = bl.get("total_mm3")
     if loss is None:
         loss = (r.get("templating") or {}).get("volume")
-    if f1 is None or loss is None or r.get("vm_p99") is None or (sed != "none" and cal is None):
+    if f1 is None or loss is None or (r.get("vm_p99") is None and not fric_only) or (sed != "none" and cal is None):
         return [math.nan, math.nan], math.nan, False
     y = [math.log10(max(float(f1), 1e-3)), float(loss)]
-    c_vm = (r["vm_p99"] - VM_LIMIT) / VM_LIMIT
+    c_vm = -1.0 if r.get("vm_p99") is None else (r["vm_p99"] - VM_LIMIT) / VM_LIMIT
     c_sed = {"one-sided": (cal - SED_LIMIT) / SED_LIMIT, "abs": (abs(cal) - SED_LIMIT) / SED_LIMIT, "none": -1.0}[sed] if cal is not None else -1.0
     return y, float(max(c_vm, c_sed)), all(np.isfinite(y))
 
@@ -244,7 +298,8 @@ def stability_of(job_id: str) -> dict:
 
 def record_of(job_id: str, sed: str, metric: str = "v1") -> dict:
     res = J.result(job_id) or {}
-    ssi, sed_chg = _calcar(job_id) if res and "f1_p95_um" in res else (None, None)
+    fric_only = bool(res.get("fric_only"))                                   # 没有粘接模型：不算股骨距（resorption 要 m_bond_csv）
+    ssi, sed_chg = _calcar(job_id) if (res and "f1_p95_um" in res and not fric_only) else (None, None)
     stab = stability_of(job_id) if (metric == "v3" and res and "f1_p95_um" in res) else {}
     y, c, ok = objectives({**res, "_stability": stab} if stab else res, sed, ssi, metric, sed_chg)
     extra = {k: stab.get(k) for k in ("rot_first_deg", "rot_axial_first_deg", "rot_tilt_first_deg", "rot_rev_deg", "subsid_first_um",
@@ -252,7 +307,7 @@ def record_of(job_id: str, sed: str, metric: str = "v1") -> dict:
                                       "contact_area_load2_mm2", "contact_frac_load2")} if stab else {}
     bl = (res.get("bone_loss") or {}).get("total_mm3")
     return {"y": [float(v) for v in y], "c": [float(c)], "ok": bool(ok), "metric": metric, "ssi_pct": ssi, "sed_chg_pct": sed_chg,
-            "bone_mm3": bl, **extra,
+            "bone_mm3": bl, "fric_only": fric_only, **extra,
             "g7_mixed_pct": res.get("f2_g7_loss_pct"), "vm_p99": res.get("vm_p99"), "f1_all_p95_um": res.get("f1_all_p95_um"),
             "f1_body_p95_um": res.get("f1_p95_um"), "collar_open_frac_load2": res.get("collar_open_frac_load2"),
             "collar_force_share_load2": res.get("collar_force_share_load2"), "A0": (res.get("templating") or {}).get("A0"),
@@ -303,12 +358,19 @@ def _feasible(args):
     return ok, loss
 
 
+def pool_key(ph: Phase, n: int, seed: int) -> str:
+    """候选池缓存键：代码哈希 + 设计空间 + 固定值 + 常数 + n / seed + 领规则；femur_id 与非默认的 margin_check 另加（默认值不改旧键）。"""
+    s = (J.code_hash() + json.dumps(ph.space, sort_keys=True) + json.dumps(ph.fixed, sort_keys=True) + json.dumps(CONST) + f"{n}_{seed}_v2"
+         + (f"_{ph.rule}" if ph.rule else "") + (f"_{ph.femur_id}" if ph.femur_id else "")
+         + (f"_mc{ph.margin_check}" if ph.margin_check != "sparse" else ""))
+    return hashlib.sha1(s.encode()).hexdigest()[:8]
+
+
 def gated_pool(ph: Phase, n: int = 8192, seed: int = 0, workers: int = 6) -> tuple[np.ndarray, np.ndarray]:
     """返回 (可行候选的单位坐标, 各自的骨量损失 mm³)。"""
     from scipy.stats import qmc
     J.RESULTS.mkdir(parents=True, exist_ok=True)
-    key = hashlib.sha1((J.code_hash() + json.dumps(ph.space, sort_keys=True) + json.dumps(ph.fixed, sort_keys=True)
-                        + json.dumps(CONST) + f"{n}_{seed}_v2" + (f"_{ph.rule}" if ph.rule else "")).encode()).hexdigest()[:8]
+    key = pool_key(ph, n, seed)
     f = J.RESULTS / "pools" / f"neckopt_p{ph.phase}_n{n}_s{seed}_{key}.npz"
     if f.exists():
         z = np.load(f)
@@ -365,8 +427,9 @@ def det_loss_fn(pool: np.ndarray, loss: np.ndarray):
     return fn
 
 
-def evaluate(ph: Phase, U, tag: str):
-    ids = [J.submit(ph.spec_of(u, tag)) for u in U]
+def evaluate(ph: Phase, U, tag: str, state: dict | None = None):
+    """同步版提交；state 给定时按 bond_every 计数器决定每个设计带不带粘接模型（计数器写回 state["n_submitted"]）。"""
+    ids = [J.submit(ph.spec_of(u, tag, bonded=(next_bonded(state, ph.bond_every) if state is not None else None))) for u in U]
     S.wait_for(ids)
     return ids
 
@@ -384,13 +447,13 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
     X0, Y0, C0, ids0 = dataset(ph, legacy_warm) if legacy_warm is not None else _empty(ph)   # None = 不热启动（从零）
     pool, pool_loss = gated_pool(ph, n=n_pool, seed=seed, workers=workers)
     live = J.RESULTS / f"neckopt_p{ph.phase}_pool_live.npz"           # 含邻域补点的池（续跑时用，保证 pool_idx 不变）
-    recs, refp, hv_hist, ls_hist = [], None, [], {}
+    recs, refp, hv_hist, ls_hist, n_submitted_prev = [], None, [], {}, None
     out = out_path(ph.phase)
     if out.exists():                                                     # 续跑：按当前约束形式从作业结果重算
         prev = json.loads(out.read_text())
         if prev.get("space") == {k: list(v) for k, v in ph.space.items()} and prev.get("fixed") == ph.fixed:
             recs = prev["records"]
-            hv_hist, ls_hist = prev.get("hv_hist", []), prev.get("lengthscales", {})
+            hv_hist, ls_hist, n_submitted_prev = prev.get("hv_hist", []), prev.get("lengthscales", {}), prev.get("n_submitted")
             if live.exists():
                 z = np.load(live); pool, pool_loss = z["U"], z["loss"]
     used = np.zeros(len(pool), bool)
@@ -405,7 +468,8 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
              "ref": ph.ref, "n_init": n_init, "q": q, "n_rounds": n_rounds, "warm_start_n": int(len(X0)), "warm_start_ids": ids0,
              "pool_size": int(len(pool)), "records": recs, "ref_point": None if refp is None else refp.tolist(),
              "hv_hist": hv_hist, "lengthscales": ls_hist, "n_pool": n_pool, "refresh_k": refresh_k, "refresh_rad": refresh_rad,
-             "stop_tol": stop_tol, "stop_rounds": stop_rounds}
+             "stop_tol": stop_tol, "stop_rounds": stop_rounds, "femur_id": ph.femur_id, "margin_check": ph.margin_check,
+             "bond_every": ph.bond_every, "n_submitted": int(len(recs) if n_submitted_prev is None else n_submitted_prev)}
 
     def save():
         state["updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -415,10 +479,10 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
           f"pool {len(pool)}; existing records {len(recs)}; sed={ph.sed}", flush=True)
 
     def run_batch(idx, tag, rnd):
-        ids = evaluate(ph, pool[idx], tag)
+        ids = evaluate(ph, pool[idx], tag, state)
         for i, j in zip(idx, ids):
             d, h = ph.design_of(pool[i])
-            recs.append({"pool_idx": int(i), "x": pool[i].tolist(), "round": rnd, "job_id": j, "h_cut": h,
+            recs.append({"pool_idx": int(i), "x": pool[i].tolist(), "round": rnd, "job_id": j, "h_cut": h, "bonded": _bonded_of(j),
                          "design": {k: d[k] for k in ph.vars if k in d}, **record_of(j, ph.sed, ph.metric)})
         save()
         return np.array([r["ok"] for r in recs[-len(idx):]])
@@ -507,19 +571,20 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
     pool, pool_loss = gated_pool(ph, n=n_pool, seed=seed, workers=workers)
     live = J.RESULTS / f"neckopt_p{ph.phase}_pool_live.npz"
     out = out_path(ph.phase)
-    recs, refp, hv_hist, ls_hist, pending = [], None, [], {}, {}
+    recs, refp, hv_hist, ls_hist, pending, n_submitted_prev = [], None, [], {}, {}, None
     if out.exists():
         prev = json.loads(out.read_text())
         if prev.get("space") == {k: list(v) for k, v in ph.space.items()} and prev.get("fixed") == ph.fixed:
             recs, hv_hist, ls_hist, pending = prev["records"], prev.get("hv_hist", []), prev.get("lengthscales", {}), prev.get("pending", {})
             refp = np.array(prev["ref_point"]) if prev.get("ref_point") else None
+            n_submitted_prev = prev.get("n_submitted")
             if live.exists():
                 z = np.load(live); pool, pool_loss = z["U"], z["loss"]
     used = np.zeros(len(pool), bool)
 
     def rec_from(job: str, x, pool_idx, round_):
         d_, h_ = ph.design_of(np.asarray(x, float))
-        return {"pool_idx": pool_idx, "x": list(map(float, x)), "round": round_, "job_id": job, "h_cut": h_,
+        return {"pool_idx": pool_idx, "x": list(map(float, x)), "round": round_, "job_id": job, "h_cut": h_, "bonded": _bonded_of(job),
                 "design": {k: d_[k] for k in ph.vars if k in d_}, **record_of(job, ph.sed, ph.metric)}
 
     known = set()
@@ -548,7 +613,8 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
              "vm_limit": VM_LIMIT, "ref": ph.ref, "inflight": inflight, "budget": budget, "n_cand": n_cand, "warm_start_n": int(len(X0)),
              "warm_start_ids": ids0, "pool_size": int(len(pool)), "records": recs, "pending": pending,
              "ref_point": None if refp is None else refp.tolist(), "hv_hist": hv_hist, "lengthscales": ls_hist, "n_pool": n_pool,
-             "refresh_k": refresh_k, "refresh_rad": refresh_rad, "stop_tol": stop_tol, "stop_window": stop_window}
+             "refresh_k": refresh_k, "refresh_rad": refresh_rad, "stop_tol": stop_tol, "stop_window": stop_window,
+             "femur_id": ph.femur_id, "margin_check": ph.margin_check, "bond_every": ph.bond_every}
 
     def save():
         state["pending"], state["pool_size"], state["updated"] = pending, int(len(pool)), time.strftime("%Y-%m-%d %H:%M:%S")
@@ -564,9 +630,10 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
     det = {1: det_loss_fn(pool, pool_loss)} if ph.metric != "v3" else None
     rng = np.random.default_rng(seed + 7)
     n_sub = len(recs) + len(pending)
+    state["n_submitted"] = int(n_sub if n_submitted_prev is None else n_submitted_prev)   # bond_every 计数器：续跑接着数
     since_refresh, stopped = 0, False
     print(f"[neckopt p{ph.phase} async] warm start {len(X0)}; records {len(recs)} (adopted {adopted}); pending {len(pending)}; pool {len(pool)}; "
-          f"budget {budget}; inflight {inflight}; sed={ph.sed}", flush=True)
+          f"budget {budget}; inflight {inflight}; sed={ph.sed}; bond_every={ph.bond_every} (n_submitted {state['n_submitted']})", flush=True)
     save()
     while True:
         while not stopped and len(pending) < inflight and n_sub < budget:               # 1. 补满在算的设计
@@ -584,12 +651,13 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
             Xp = np.array([p_["x"] for p_ in pending.values()]) if pending else None
             pick = mobo.propose(model, X, refp, pool[cand], 1, 2, 1, (60_000 + ph.phase * 100 + seed) * 1000 + n_sub, X_pending=Xp)
             i = int(cand[pick[0]]); used[i] = True
-            job = J.submit(ph.spec_of(pool[i], f"a{n_sub}"))
-            pending[job] = {"pool_idx": i, "x": pool[i].tolist(), "submitted": time.strftime("%Y-%m-%d %H:%M:%S")}
+            bonded = next_bonded(state, ph.bond_every)                                      # 每 bond_every 个提交第 bond_every 个带粘接模型
+            job = J.submit(ph.spec_of(pool[i], f"a{n_sub}", bonded=bonded))
+            pending[job] = {"pool_idx": i, "x": pool[i].tolist(), "submitted": time.strftime("%Y-%m-%d %H:%M:%S"), "bonded": bonded}
             n_sub += 1
             d_, h_ = ph.design_of(pool[i])
-            print(f"[neckopt p{ph.phase} async] submit #{n_sub} {job} (acq {time.perf_counter() - t0:.0f} s, {len(pending)} in flight, cand {len(cand)}): "
-                  f"{ {k: round(d_[k], 2) for k in ph.vars if k in d_} | {'h': round(h_, 1)} }", flush=True)
+            print(f"[neckopt p{ph.phase} async] submit #{n_sub} {job} ({'bond' if bonded else 'fric_only'}; acq {time.perf_counter() - t0:.0f} s, "
+                  f"{len(pending)} in flight, cand {len(cand)}): { {k: round(d_[k], 2) for k in ph.vars if k in d_} | {'h': round(h_, 1)} }", flush=True)
             save()
         if not pending:
             break
@@ -656,7 +724,8 @@ def status(phase: int) -> None:
     feas = [r for r in ok if r["c"][0] <= 0]
     print(f"evaluated {len(recs)}, ok {len(ok)}, feasible {len(feas)}")
     for r in sorted(feas, key=lambda r: r["y"][0])[:8]:
-        cal = f"sed {r['sed_chg_pct']:+6.1f} %" if r.get("metric") == "v2" else f"ssi {r['ssi_pct']:+6.1f} %"
+        key = "sed_chg_pct" if r.get("metric") in ("v2", "v3") else "ssi_pct"
+        cal = f"{key[:3]}    n/a " if r.get(key) is None else f"{key[:3]} {r[key]:+6.1f} %"      # fric_only 记录没有 SED
         if r.get("metric") == "v3":
             print(f"  rot {10 ** r['y'][0]:.4f}°  contact {-r['y'][1]:7.0f} mm²  {cal}  bone {r.get('bone_mm3') or 0:7.0f} mm³  {r['design']}  {r['job_id']}")
         else:
@@ -681,7 +750,7 @@ if __name__ == "__main__":
     ap.add_argument("cmd", choices=["dataset", "pool", "bo", "async", "status", "selftest"])
     ap.add_argument("--phase", type=int, default=1)
     ap.add_argument("--ref", default=None, help="phase 2: phase-1 job id whose L, alpha, collar_w, h_cut are kept")
-    ap.add_argument("--sed", choices=["one-sided", "abs", "none"], default="abs")
+    ap.add_argument("--sed", choices=["one-sided", "abs", "none"], default=None, help="默认取阶段定义的 sed（PHASES[p]['sed']，没有则 abs）")
     ap.add_argument("--rounds", type=int, default=12)
     ap.add_argument("--init", type=int, default=16)
     ap.add_argument("--q", type=int, default=4)
