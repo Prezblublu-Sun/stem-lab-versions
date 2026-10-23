@@ -68,9 +68,9 @@ def serve(n_prep: int = 5, poll: float = 10.0) -> None:
                     running[d.name] = subprocess.Popen([sys.executable, "-c", PREP_CMD, d.name], cwd=str(HERE.parent),
                                                        stdout=log, stderr=subprocess.STDOUT, preexec_fn=_prep_limits)
             elif s == "SOLVED":
-                # 完整股骨参照必须先 DONE，设计作业的后处理才能进行
+                # 完整股骨参照必须先 DONE，设计作业的后处理才能进行（fric_only 作业不用参照，不等）
                 spec = json.loads((d / "spec.json").read_text())
-                if spec["kind"] in ("design", "variant"):
+                if spec["kind"] in ("design", "variant") and not spec.get("fric_only"):
                     try:
                         J.explicit_ref(spec) or J.intact_ref(spec["h_int"], spec.get("E_canc"))
                     except FileNotFoundError:

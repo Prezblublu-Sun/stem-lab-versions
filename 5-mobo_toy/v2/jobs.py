@@ -9,6 +9,15 @@
                                     neck_in_shoulder = 无领：假体颈底面须整个落在柄截口里（阶段 9）
                        import_stem  外部柄设计（如 "part3_1"），按实测尺寸在 OCC 里重建、同轴放进股骨；见 import_stem.py
                        intact_job 指定完整股骨参照的作业 id（载荷或网格与标准参照不同时必须给）
+                       fric_only  只解摩擦模型（2026-10-23，阶段 11 的 20 % 参照规则：每 5 个设计只有 1 个带粘接模型）：
+                                  prep 建完模后删 m_bond.inp（本机 worker 只打包存在的 .inp，所以不解粘接模型）；post 走
+                                  fric_only_result：微动、接触、（领）载荷、旧口径 CSLIP 微动，全部只读 m_fric_csv + mesh3d.npz，
+                                  不需要粘接模型，也不找完整股骨参照（intact_job / intact_substituted_h = None）。结果里没有
+                                  vm_p99 / sed_gruen* / f2_g*_loss_pct；stability.py 照常可算。只支持 model m1，与 bond_only 互斥。
+                                  下游：stage_neckopt.objectives 对 fric_only 记录跳过 vM 项（c_vm = −1），sed "none" 时 c_sed = −1；
+                                  deck_master.row_of 全部用 .get，缺键为 None。design 作业也可带（阶段 11）。
+                       margin_check  皮质余量检查密度 "sparse"（默认，原样）| "dense"（截骨面下每 0.25 mm 一环的严格检查；collar_rule.py）：
+                                  prep 传给 collar_rule.install_neck / install，无领规则时用 install_margin_check。
                      intact 作业同样可带 cfg；带 cfg 的参照一律用 stage ≠ "ref"，不会被 intact_ref 选中
     READY            .inp 已生成，等待本机求解            ← prep 写
     CLAIMED          本机 worker 已认领（mv READY CLAIMED，原子）
@@ -138,12 +147,19 @@ def prep(jid: str) -> str:
                                   E_canc=spec.get("E_canc"))
             info["templating"] = None
         else:
+            if spec.get("fric_only") and (spec.get("bond_only") or spec.get("model") != "m1"):
+                _fail(d, "L1", "prep", "fric_only needs model m1 and excludes bond_only")
+                return "FAILED"
+            mc = spec.get("margin_check")                            # 余量检查密度：None = sparse（原样）；"dense" 见 collar_rule.py
             if spec.get("collar_rule") == "wrap_fit":              # 领包住假体颈、整圈落在骨截面上（collar_rule.py，只替换本建模进程）
                 import collar_rule as CR
-                CR.install(min_A0=float(spec.get("min_A0", 0.0)))
+                CR.install(min_A0=float(spec.get("min_A0", 0.0)), margin_check=mc)
             elif spec.get("collar_rule") == "neck_in_shoulder":   # 无领：假体颈底面须整个落在柄截口里（collar_rule.py，阶段 9）
                 import collar_rule as CR
-                CR.install_neck(min_A0=float(spec.get("min_A0", 0.0)))
+                CR.install_neck(min_A0=float(spec.get("min_A0", 0.0)), margin_check=mc)
+            elif mc:                                                # 无领规则、只改余量检查密度
+                import collar_rule as CR
+                CR.install_margin_check(mc)
             if spec.get("import_stem"):                             # 外部柄设计按实测尺寸重建后放进股骨（import_stem.py；只替换本建模进程）
                 import import_stem as IS
                 IS.install(spec, fm)
@@ -175,12 +191,16 @@ def prep(jid: str) -> str:
                                delta=spec.get("delta"), mu=spec.get("mu"), torque=spec.get("torque", True),
                                E_canc=spec.get("E_canc"))
             info["templating"] = {k: pl[k] for k in ("alpha", "e", "A0", "contact", "s_bind", "volume", "margin")}
+            info["margin_check"] = pl.get("margin_check", "sparse")
             resected = fm.resected_volume()
             info["bone_loss"] = {"h_cut_mm": fm.cut_from_head_mm, "resected_mm3": resected, "reamed_mm3": pl["volume"],
                                  "total_mm3": resected + pl["volume"]}
             if spec.get("bond_only"):
                 (d / "m_fric.inp").unlink()
                 info["bond_only"] = True
+            if spec.get("fric_only"):                               # 只解摩擦模型：删粘接模型；post 走 fric_only_result（无 SED / vM / 参照）
+                (d / "m_bond.inp").unlink()
+                info["fric_only"] = True
         if spec.get("keep_odb"):                                  # 演示作业：本机 worker 求解后把 odb 留在 v2/demo_odb/<作业>/
             kj = d / "keep.json"
             k = json.loads(kj.read_text()) if kj.exists() else {}
@@ -235,6 +255,15 @@ def intact_ref(h_int: float, E_canc: float | None = None) -> dict:
     return r
 
 
+def fric_only_result(d: pathlib.Path, name: str = "m_fric") -> dict:
+    """fric_only 作业的 QoI：post_m1.evaluate 的摩擦部分（微动、接触统计、领载荷）+ 旧口径 CSLIP 微动，只读 <name>_csv + mesh3d.npz；
+    没有粘接模型的 SED / 柄 vM，也不需要完整股骨参照。"""
+    import post_m1 as PM1
+    old = PM1.qoi3d.micromotion(d, name)
+    return {**PM1.micromotion(d, name), **PM1.contact_stats(d, name), **PM1.collar_load(d, name),
+            "f1_cslip_p95_um": old["f1_p95_um"], "frac_open": old["frac_open"], "model": "m1", "fric_only": True}
+
+
 def post(jid: str) -> str:
     """SOLVED → 算 QoI → DONE（或 FAILED）。"""
     import post as P
@@ -258,14 +287,17 @@ def post(jid: str) -> str:
         elif spec["kind"] == "intact":
             res = P.zone_sed(R, "intact", fm)
         else:
-            ref = explicit_ref(spec) or intact_ref(spec["h_int"], spec.get("E_canc"))
-            if spec.get("bond_only"):
-                zs = P.zone_sed(R, "m_bond", fm)
-                res = {**P.stem_vm(R, "m_bond", fm), "sed_gruen7": zs["gruen7"], "sed_gruen1": zs["gruen1"],
-                       "f2_g7_loss_pct": 100.0 * (1.0 - zs["gruen7"] / ref["gruen7"]),
-                       "f2_g1_loss_pct": 100.0 * (1.0 - zs["gruen1"] / ref["gruen1"]), "bond_only": True}
+            if spec.get("fric_only"):                                 # 只读摩擦结果，不需要粘接模型与完整股骨参照
+                res, ref = fric_only_result(R, "m_fric"), {}
             else:
-                res = PM1.evaluate(R, "m", fm, ref) if spec.get("model") == "m1" else P.evaluate(R, "m", fm, ref)
+                ref = explicit_ref(spec) or intact_ref(spec["h_int"], spec.get("E_canc"))
+                if spec.get("bond_only"):
+                    zs = P.zone_sed(R, "m_bond", fm)
+                    res = {**P.stem_vm(R, "m_bond", fm), "sed_gruen7": zs["gruen7"], "sed_gruen1": zs["gruen1"],
+                           "f2_g7_loss_pct": 100.0 * (1.0 - zs["gruen7"] / ref["gruen7"]),
+                           "f2_g1_loss_pct": 100.0 * (1.0 - zs["gruen1"] / ref["gruen1"]), "bond_only": True}
+                else:
+                    res = PM1.evaluate(R, "m", fm, ref) if spec.get("model") == "m1" else P.evaluate(R, "m", fm, ref)
             res["intact_job"] = ref.get("intact_job")
             res["intact_substituted_h"] = ref.get("intact_substituted_h")
             prep = json.loads((d / "prep.json").read_text())
@@ -284,7 +316,8 @@ def post(jid: str) -> str:
                                  **{k: v for k, v in res.items() if k not in ("spec", "solve")},
                                  "design": spec.get("design"), "h_int": spec.get("h_int"),
                                  "variant": {k: spec.get(k) for k in ("delta", "mu", "torque", "E_canc", "model", "slip_tol", "lagrange",
-                                                                  "interference", "cfg", "bond_only", "h_far", "intact_job")}},
+                                                                  "interference", "cfg", "bond_only", "h_far", "intact_job", "fric_only",
+                                                                  "margin_check")}},
                                 default=float) + "\n")
         # 大文件不再需要：保留 result、spec、prep 与 CSV
         for f in ("m_fric.inp", "m_bond.inp", "intact.inp", "lame_fric.inp"):
