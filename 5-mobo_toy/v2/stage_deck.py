@@ -113,6 +113,29 @@ M_SLIP14 = 0.000357143                           # = 2.5e-4 × 2.0/1.4，与 ver
 M_REF14 = "ref_intact_h1.4_dad6d1ae"
 
 
+# 批次 SB（2026-10-24，用户"按你建议的继续"；计划 计算计划_2026-10-24.md 第 2 节 S8）：Sawbones 3406 上的第一批作业。
+# SB_ref = 3406 完整股骨参照（stage "sb"，jobs.submit 禁止 femur_id 作业用 "ref" / "neck*"）；SB_smoke = 两个冒烟设计，按 Phase(11).spec_of
+# 生成（stage "sb11"，fric_only，不需要参照），设计 = S6 / hcut16 已验证能建模的 a69（L 缩到 35），截骨 16 与 20。参照解完后把 id 填到
+# stage_neckopt.PHASES[11]["intact_job"]，再交一个带粘接模型的冒烟作业（批次 SBb）。
+SB_INTACT = {"kind": "intact", "h_int": 2.0, "stage": "sb", "tag": "intact_h2", "femur_id": "sawbone3406", "neck_axis": "isthmus"}
+SB_SMOKE_DESIGN = "neck10_a69_e394e85c"
+SB_SMOKE_L = 35.0
+SB_SMOKE_H = (16.0, 20.0)
+
+
+def _sb_smoke(bonded: bool) -> dict:
+    import stage_neckopt as SN
+    ph = SN.Phase(11)
+    src = json.loads((J.QROOT / SB_SMOKE_DESIGN / "spec.json").read_text())
+    d = {**src["design"], "L": SB_SMOKE_L}
+    out = {}
+    for h in SB_SMOKE_H:
+        u = ph.to_unit(d, h)
+        tag = f"smoke_{'b' if bonded else 'f'}_h{h:g}"
+        out[f"SB_{tag}"] = {**ph.spec_of(u, tag, bonded=bonded), "source_job": SB_SMOKE_DESIGN}
+    return out
+
+
 def _m_src(job: str) -> dict:
     src = json.loads((J.QROOT / job / "spec.json").read_text())
     if not (J.QROOT / job / "DONE").exists():
@@ -274,6 +297,11 @@ def specs(batch: str) -> dict:
                 raise SystemExit(f"P9D source {job} is not DONE")
             s_ = {k: v for k, v in src.items() if k not in ("created", "stage", "tag", "kind", "bond_only")}
             out[f"P9D_{key}"] = {**s_, "kind": "variant", "stage": "delta05", "tag": key, "delta": P9D_DELTA, "source_job": job}
+    elif batch == "SB":
+        out["SB_intact_h2"] = dict(SB_INTACT)
+        out.update(_sb_smoke(bonded=False))
+    elif batch == "SBb":                                         # 参照填进 PHASES[11]["intact_job"] 之后
+        out.update({k: v for k, v in _sb_smoke(bonded=True).items() if k.endswith("_h20")})
     elif batch == "MI":
         for h in MI_H:
             out[f"MI_h{h:g}"] = {"kind": "intact", "h_int": h, "export": "S", "stage": "mg_ref", "tag": f"intact_h{h:g}"}
@@ -333,6 +361,6 @@ if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["submit", "status"])
-    ap.add_argument("batch", choices=["A", "B", "C", "E", "BW", "CW", "F", "G", "P9D", "U", "MI", "M", "M14"])
+    ap.add_argument("batch", choices=["A", "B", "C", "E", "BW", "CW", "F", "G", "P9D", "U", "MI", "M", "M14", "SB", "SBb"])
     a = ap.parse_args()
     {"submit": submit, "status": status}[a.cmd](a.batch)
