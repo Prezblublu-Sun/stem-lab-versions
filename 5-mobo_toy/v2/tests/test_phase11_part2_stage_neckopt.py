@@ -74,8 +74,9 @@ ok("bond_every None/0 -> always bonded", all(N.next_bonded({}, be) for be in (No
 
 # ---------------------------------------------------------------- PHASES[11] placeholder and Phase defaults
 p10, p11 = N.PHASES[10], N.PHASES[11]
-ok("PHASES[11] = PHASES[10] vars/fixed/rule/metric", p11["vars"] == p10["vars"] and p11["fixed"] == p10["fixed"]
-   and p11["collar_rule"] == p10["collar_rule"] == "neck_in_shoulder" and p11["metric"] == p10["metric"] == "v3")
+ok("PHASES[11] = PHASES[10] vars (except h_cut 16–32, hcut16 2026-10-23)/fixed/rule/metric",
+   {k: v for k, v in p11["vars"].items() if k != "h_cut"} == {k: v for k, v in p10["vars"].items() if k != "h_cut"} and p11["vars"]["h_cut"] == (16.0, 32.0)
+   and p11["fixed"] == p10["fixed"] and p11["collar_rule"] == p10["collar_rule"] == "neck_in_shoulder" and p11["metric"] == p10["metric"] == "v3")
 ok("PHASES[11] sed none, bond_every 5, femur_id None", p11["sed"] == "none" and p11["bond_every"] == 5 and p11.get("femur_id") is None and "femur_id" in p11)
 ph11, ph10 = N.Phase(11), N.Phase(10)
 ok("Phase(11).sed none by default; Phase(10).sed abs; CLI override works", ph11.sed == "none" and ph10.sed == "abs" and N.Phase(11, sed="abs").sed == "abs")
@@ -93,10 +94,12 @@ ok("fric_only changes the job id (new ids, old results untouched)", J.job_id(s_b
 # ---------------------------------------------------------------- in_family rule
 d11, h11 = ph11.design_of(u)
 base = {"kind": "design", "design": d11, "h_int": 2.0, "min_A0": S.MIN_A0, "stage": "neck11", "tag": "x", "model": "m1", "h_cut": h11,
-        "slip_tol": 2.5e-4, "delta": 0.025, "collar_rule": "neck_in_shoulder"}
+        "slip_tol": 2.5e-4, "delta": 0.025, "collar_rule": "neck_in_shoulder",
+        "ref_cut_mm": 16.0, "a_bounds_max": 2000.0}                 # hcut16 (2026-10-23): phase-11 specs carry both keys (test_hcut16_phase11)
+base10 = {**{k: v for k, v in base.items() if k not in ("ref_cut_mm", "a_bounds_max")}, "stage": "neck10", "h_cut": 28.0}   # phase-10 shape
 ok("in_family: phase-11 fric_only spec accepted by Phase(11)", ph11.in_family({**base, "fric_only": True}))
 ok("in_family: phase-11 bonded spec accepted by Phase(11)", ph11.in_family(base))
-ok("in_family: fric_only spec also passes Phase(10).in_family (exclusion happens in objectives via missing SED)", ph10.in_family({**base, "fric_only": True}))
+ok("in_family: fric_only spec also passes Phase(10).in_family (exclusion happens in objectives via missing SED)", ph10.in_family({**base10, "fric_only": True}))
 ok("in_family: femur_id mismatch rejected", not ph11.in_family({**base, "femur_id": "sawbone3406"}))
 ok("in_family: margin_check dense spec rejected by a sparse phase", not ph11.in_family({**base, "margin_check": "dense"}))
 ok("in_family: bond_only still rejected", not ph11.in_family({**base, "bond_only": True}))
@@ -107,7 +110,7 @@ import hashlib  # noqa: E402
 old = hashlib.sha1((J.code_hash() + json.dumps(ph10.space, sort_keys=True) + json.dumps(ph10.fixed, sort_keys=True)
                     + json.dumps(N.CONST) + f"{16384}_{0}_v2" + (f"_{ph10.rule}" if ph10.rule else "")).encode()).hexdigest()[:8]
 ok("pool_key(phase 10, n 16384, seed 0) == old formula (cached Linux pools stay valid)", N.pool_key(ph10, 16384, 0) == old)
-ok("pool_key(phase 11) == pool_key(phase 10) (same space/rule; femur_id None, sparse)", N.pool_key(ph11, 16384, 0) == old)
+ok("pool_key(phase 11) != pool_key(phase 10) (h_cut 16–32, ref_cut_mm 16, a_bounds_max 2000; hcut16 2026-10-23)", N.pool_key(ph11, 16384, 0) != old)
 N.PHASES[11]["margin_check"] = "dense"
 ok("pool_key changes with margin_check dense", N.pool_key(N.Phase(11), 16384, 0) != old)
 N.PHASES[11]["femur_id"] = "sawbone3406"

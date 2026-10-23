@@ -18,6 +18,13 @@
                                   deck_master.row_of 全部用 .get，缺键为 None。design 作业也可带（阶段 11）。
                        margin_check  皮质余量检查密度 "sparse"（默认，原样）| "dense"（截骨面下每 0.25 mm 一环的严格检查；collar_rule.py）：
                                   prep 传给 collar_rule.install_neck / install，无领规则时用 install_margin_check。
+                       a_bounds_max  肩部面积二分上限（mm²；阶段 11 为 2000，stage_neckopt.PHASES[11]；2026-10-23 截骨从 16 mm 起搜索）：
+                                  prep 只在模板化调用期间把 geom3d.A_BOUNDS 换成 (A_BOUNDS[0], a_bounds_max)、之后恢复进入前的值（a_bounds_cap；
+                                  对所有股骨一样，3406 由 femur_3406.install 设的 2000 不受影响）；prep.json 记 a_bounds_max 与模板化时生效的
+                                  A_BOUNDS_templating。没有 = 不改（哈希值 900；3406 作业仍由 install 定 2000）。候选池 stage_neckopt._feasible
+                                  用同一个 a_bounds_cap，两边同一上限。
+                       ref_cut_mm  骨量损失的截骨参照（mm；阶段 11 为 16）：bone_loss.resected_mm3 = fm.resected_volume(ref_cut_mm=…)（cut ≤ 参照记 0），
+                                  记在 bone_loss.ref_cut_mm；没有 = 25（femur_real.resected_volume 的默认，调用原样不带参数）。候选池同口径。
                      intact 作业同样可带 cfg；带 cfg 的参照一律用 stage ≠ "ref"，不会被 intact_ref 选中
     spec.json 可带 femur_id（"sawbone3406"）：换成 Sawbones 3406 的钩子股骨（femur_3406.py，FEMURS 注册表），neck_axis 选颈轴定义；
                      这类作业必须显式给 intact_job（同一 femur_id 的完整股骨），stage 用 "sb…"（不能 "ref" / "neck*"）。
@@ -32,6 +39,7 @@
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import pathlib
@@ -65,6 +73,22 @@ def femur_hook(spec: dict):
     import importlib
     mod = importlib.import_module(FEMURS[fid])
     return mod, mod.install()
+
+
+@contextlib.contextmanager
+def a_bounds_cap(a_max: float | None):
+    """规格键 a_bounds_max：只在 with 块内把 geom3d.A_BOUNDS 的上限换成 a_max（下限不动；geom3d.template / collar_rule 按调用时读取），
+    退出时（含异常）恢复进入前的值——对 3406 作业即 femur_3406.install 设的 (20, 2000)，对 CT 作业即哈希值 (20, 900)。None = 不改。
+    产出块内生效的 (lo, hi)（prep.json 记 A_BOUNDS_templating）。候选池（stage_neckopt._feasible）与 prep 共用，保证两边同一上限。"""
+    prev = tuple(float(x) for x in G.A_BOUNDS)
+    if a_max is None:
+        yield prev
+        return
+    G.A_BOUNDS = (prev[0], float(a_max))
+    try:
+        yield tuple(G.A_BOUNDS)
+    finally:
+        G.A_BOUNDS = prev
 
 
 def code_hash() -> str:
@@ -205,7 +229,8 @@ def prep(jid: str) -> str:
                 G.template = lambda stem, fem, alphas=None, offsets=None, iters=14, margin=None: \
                     _tpl(stem, fem, alphas=alphas, offsets=_e, iters=iters, margin=margin)
             st = G.Stem3D(**spec["design"])
-            pl = G.template(st, fm, margin=spec.get("margin"))     # None → 设计自带的 m
+            with a_bounds_cap(spec.get("a_bounds_max")) as a_bounds:   # 规格键 a_bounds_max（阶段 11：2000）：只在模板化期间换上限，之后恢复
+                pl = G.template(st, fm, margin=spec.get("margin"))     # None → 设计自带的 m
             if not pl["fit"]:
                 _fail(d, "L1", "prep", f"templating: {pl['reason']}")
                 return "FAILED"
@@ -229,9 +254,12 @@ def prep(jid: str) -> str:
                                E_canc=spec.get("E_canc"))
             info["templating"] = {k: pl[k] for k in ("alpha", "e", "A0", "contact", "s_bind", "volume", "margin")}
             info["margin_check"] = pl.get("margin_check", "sparse")
-            resected = fm.resected_volume()
-            info["bone_loss"] = {"h_cut_mm": fm.cut_from_head_mm, "resected_mm3": resected, "reamed_mm3": pl["volume"],
-                                 "total_mm3": resected + pl["volume"]}
+            info["a_bounds_max"] = None if spec.get("a_bounds_max") is None else float(spec["a_bounds_max"])
+            info["A_BOUNDS_templating"] = [float(x) for x in a_bounds]      # 模板化时生效的肩部面积二分区间（事后闸门要查）
+            ref_cut = spec.get("ref_cut_mm")                                # 骨量损失的截骨参照（阶段 11：16）；没有 = 25，调用原样不带参数
+            resected = fm.resected_volume() if ref_cut is None else fm.resected_volume(ref_cut_mm=float(ref_cut))
+            info["bone_loss"] = {"h_cut_mm": fm.cut_from_head_mm, "ref_cut_mm": 25.0 if ref_cut is None else float(ref_cut),
+                                 "resected_mm3": resected, "reamed_mm3": pl["volume"], "total_mm3": resected + pl["volume"]}
             if spec.get("bond_only"):
                 (d / "m_fric.inp").unlink()
                 info["bond_only"] = True

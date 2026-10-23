@@ -30,6 +30,10 @@
       旧阶段因缺 SED 判 ok=False 而自然排除。femur_id 与 margin_check 则必须与阶段一致（不同股骨、不同余量检查 = 不同族）。
     * femur_id（None = 现在的 CT 股骨）与 margin_check（"sparse" 默认 | "dense"，collar_rule.py）进 spec、in_family 与候选池缓存键；
       3406 接入后把 PHASES[11]["femur_id"] 改为 "sawbone3406"（jobs.femur_for 按 femur_id 分派，侦察 S3/S7，尚未做）。
+    * 截骨深度从头心下 16 mm 起搜索（用户 2026-10-23 最终定："那就从16mm开始搜索"）：PHASES[11] 的 h_cut 16–32。随之两个阶段字段
+      ref_cut_mm（骨量损失的截骨参照，阶段 11 为 16；默认 25）与 a_bounds_max（肩部面积二分上限，阶段 11 为 2000；默认 None = 哈希值 900）：
+      spec_of 写进 spec（jobs.prep 按它们算 bone_loss、在模板化期间换上限）、in_family 要求一致、候选池键含之；候选池 _feasible 与 jobs.prep
+      共用 jobs.a_bounds_cap（只在模板化调用期间换上限、之后恢复）与同一 resected_volume(ref_cut_mm) 口径，两边一致。
 
     python v2/stage_neckopt.py pool --phase 1
     python v2/stage_neckopt.py bo --phase 1 --init 16 --rounds 12 --q 4 --sed abs    → results/neckopt_p1.json（每轮覆盖，可续跑）
@@ -110,10 +114,20 @@ PHASES = {
                   "n_a": (2.0, 6.0), "n_p": (2.0, 6.0), "tau_a": (-0.30, 0.30), "tau_p": (-0.30, 0.30)},
          "fixed": {"collar_w": 0.0}, "collar_rule": "neck_in_shoulder", "metric": "v3"},
 }
-# 阶段 11（占位，2026-10-23，未启动）：= 阶段 10 去掉 SED 约束（sed "none"），metric v3 不变；每提交 5 个设计第 5 个带粘接模型
+# 阶段 11（2026-10-23，未启动）：= 阶段 10 去掉 SED 约束（sed "none"），metric v3 不变；每提交 5 个设计第 5 个带粘接模型
 # （bond_every 5，其余 fric_only：只解摩擦模型，SED / vM 只在那 20 % 上记录、不约束；用户 10-23 决定）；femur_id None = 现在的 CT 股骨，
 # 3406 接入后改为 "sawbone3406"。margin_check（"dense" = 截骨面下每 0.25 mm 一环的严格余量检查）待 B1 重放后定，暂不设（= sparse）。
-PHASES[11] = {**PHASES[10], "sed": "none", "bond_every": 5, "femur_id": None}
+# 截骨深度（用户 2026-10-23 最终定："那就从16mm开始搜索"）：h_cut 16–32，从头心下 16 mm 起宽搜索（阶段 10 是 25–32；变量顺序不变）。
+#   h ≥ 16 时假体头（r 14）整个在截骨面以上，HEADN 耦合半径（14）够不到界面，所以不需要头帽钩子。
+#   ref_cut_mm 16：骨量损失的截骨参照（femur_real.resected_volume(ref_cut_mm)：cut ≤ ref 记 0，只数 ref 与 cut 之间的骨；阶段 10 及以前
+#     用默认 25 不变）。进 spec（jobs.prep 的 bone_loss 按它算并记 bone_loss.ref_cut_mm）、in_family（参照不同 = 损失口径不同，不混入）、候选池键。
+#   a_bounds_max 2000：肩部面积二分上限（geom3d.A_BOUNDS 哈希值 (20, 900)，template 按调用时读取）。浅截骨的截口大：CT 股骨 h 10 时 A0 ≈ 508 mm²
+#     （hcut10 扫描），3406 髓腔截面 h25 ≈ 760、h32 ≈ 1370 mm²，上限 900 会判 "canal larger than largest size"。候选池（_feasible）与 jobs.prep
+#     用同一个 jobs.a_bounds_cap 只在模板化调用期间把上限换成 (A_BOUNDS[0], 2000)、之后恢复（对所有股骨一样；3406 的 femur_3406.install 不受影响）。
+#     进 spec、in_family、候选池键。二分 14 次的几何步长随上限略变（900：0.023 %，2000：0.028 %），同一设计的 A0 第 4 位可与阶段 10 不同。
+PHASES[11] = {**PHASES[10], "vars": {**PHASES[10]["vars"], "h_cut": (16.0, 32.0)}, "sed": "none", "bond_every": 5, "femur_id": None,
+              "ref_cut_mm": 16.0, "a_bounds_max": 2000.0}
+REF_CUT_DEFAULT = 25.0      # 骨量损失的截骨参照默认值（= femur_real.resected_volume 的 ref_cut_mm 默认；阶段 10 及以前的 spec 不写这个键）
 MM_LIMIT = 150.0            # metric v3：柄身微动 P95 上限（µm，骨长入的经典阈值；会议 2026-10-10）
 ROT_FLOOR = 1e-3            # metric v3：转动的数值下限（度）
 MODEL_KEYS = ("mu", "E_canc", "interference", "lagrange", "cycles", "torque", "h_far", "margin")   # 改模型假设的规格键：带了就不进优化数据集
@@ -142,6 +156,9 @@ class Phase:
         self.bond_every = PHASES[phase].get("bond_every")               # 每提交 bond_every 个设计第 bond_every 个带粘接模型，其余 fric_only；None = 全带
         self.femur_id = PHASES[phase].get("femur_id")                   # None = CT 股骨（jobs.femur_for 默认）；进 spec、in_family、候选池键
         self.margin_check = PHASES[phase].get("margin_check", "sparse")  # 余量检查密度（collar_rule.MARGIN_CHECK）；进 spec、in_family、候选池键
+        self.ref_cut_mm = float(PHASES[phase].get("ref_cut_mm", REF_CUT_DEFAULT))   # 骨量损失的截骨参照（阶段 11：16；默认 25 不进 spec）
+        a_max = PHASES[phase].get("a_bounds_max")                         # 肩部面积二分上限（阶段 11：2000；None = 哈希值 geom3d.A_BOUNDS[1]）
+        self.a_bounds_max = None if a_max is None else float(a_max)
         if phase in REF_KEYS:
             if not ref:
                 raise ValueError(f"phase {phase} needs --ref <job_id> (the first-stage design whose {REF_KEYS[phase]} are kept)")
@@ -173,6 +190,12 @@ class Phase:
         # fric_only 不排除：摩擦模型相同，能否用由 objectives 决定（sed "none" 的阶段接受，abs / one-sided 因缺 SED 判 ok=False）
         if spec.get("femur_id") != self.femur_id or spec.get("margin_check", "sparse") != self.margin_check:   # 不同股骨 / 余量检查 = 不同族
             return False
+        # 骨量损失参照与选号上限也要一致（阶段 11：16 / 2000；没写 = 25 / None）：参照不同 = 损失口径不同，上限不同 = 同一设计可能选到不同号
+        if abs(float(spec.get("ref_cut_mm", REF_CUT_DEFAULT)) - self.ref_cut_mm) > 1e-9:
+            return False
+        a_max = spec.get("a_bounds_max")
+        if (a_max is None) != (self.a_bounds_max is None) or (a_max is not None and abs(float(a_max) - self.a_bounds_max) > 1e-9):
+            return False
         stage = str(spec.get("stage", ""))
         if not legacy and (float(d.get("cap_h", -1.0)) != CONST["cap_h"] or not (stage.startswith("neck") or stage in self.warm_stages)):
             return False
@@ -183,13 +206,18 @@ class Phase:
         return all(self.space[k][0] - 1e-9 <= float(full[k]) <= self.space[k][1] + 1e-9 for k in self.vars)
 
     def spec_of(self, u, tag: str, bonded: bool | None = None) -> dict:
-        """bonded None / True：带粘接模型（原样）；False：fric_only（只解摩擦模型，jobs.py）。femur_id、非默认的 margin_check 一并进 spec。"""
+        """bonded None / True：带粘接模型（原样）；False：fric_only（只解摩擦模型，jobs.py）。femur_id、非默认的 margin_check、
+        非默认的 ref_cut_mm（阶段 11：16）与设了的 a_bounds_max（阶段 11：2000）一并进 spec；阶段 10 及以前的 spec 逐字不变（作业 id 不变）。"""
         d, h = self.design_of(u)
         extra = {"collar_rule": self.rule} if self.rule else {}
         if self.femur_id:
             extra["femur_id"] = self.femur_id
         if self.margin_check != "sparse":
             extra["margin_check"] = self.margin_check
+        if abs(self.ref_cut_mm - REF_CUT_DEFAULT) > 1e-9:
+            extra["ref_cut_mm"] = self.ref_cut_mm
+        if self.a_bounds_max is not None:
+            extra["a_bounds_max"] = self.a_bounds_max
         if bonded is False:
             extra["fric_only"] = True
         return {**S.design_spec(d, f"neck{self.phase}", tag), "model": "m1", "h_cut": h, **FRIC, **extra}
@@ -352,17 +380,21 @@ def _feasible(args):
     ph = Phase(phase, ref)
     d, h = ph.design_of(u)
     fm = _FM["fm"].with_cut(h)
-    r = ph.template(G.Stem3D(**d), fm)
+    with J.a_bounds_cap(ph.a_bounds_max):                         # 与 jobs.prep 同一个上限补丁（阶段 11：2000），只在模板化期间生效、之后恢复
+        r = ph.template(G.Stem3D(**d), fm)
     ok = bool(r["fit"] and r["A0"] >= S.MIN_A0)
-    loss = float(fm.resected_volume() + r["volume"]) if ok else math.nan
+    loss = float(fm.resected_volume(ref_cut_mm=ph.ref_cut_mm) + r["volume"]) if ok else math.nan   # 截骨参照与 prep 的 bone_loss 同口径
     return ok, loss
 
 
 def pool_key(ph: Phase, n: int, seed: int) -> str:
-    """候选池缓存键：代码哈希 + 设计空间 + 固定值 + 常数 + n / seed + 领规则；femur_id 与非默认的 margin_check 另加（默认值不改旧键）。"""
+    """候选池缓存键：代码哈希 + 设计空间 + 固定值 + 常数 + n / seed + 领规则；femur_id、非默认的 margin_check、非默认的 ref_cut_mm、
+    设了的 a_bounds_max 另加（默认值不改旧键）。"""
     s = (J.code_hash() + json.dumps(ph.space, sort_keys=True) + json.dumps(ph.fixed, sort_keys=True) + json.dumps(CONST) + f"{n}_{seed}_v2"
          + (f"_{ph.rule}" if ph.rule else "") + (f"_{ph.femur_id}" if ph.femur_id else "")
-         + (f"_mc{ph.margin_check}" if ph.margin_check != "sparse" else ""))
+         + (f"_mc{ph.margin_check}" if ph.margin_check != "sparse" else "")
+         + (f"_ref{ph.ref_cut_mm:g}" if abs(ph.ref_cut_mm - REF_CUT_DEFAULT) > 1e-9 else "")
+         + (f"_amax{ph.a_bounds_max:g}" if ph.a_bounds_max is not None else ""))
     return hashlib.sha1(s.encode()).hexdigest()[:8]
 
 
@@ -383,7 +415,8 @@ def gated_pool(ph: Phase, n: int = 8192, seed: int = 0, workers: int = 6) -> tup
     f.parent.mkdir(exist_ok=True)
     np.savez(f, U=U[keep], loss=loss[keep])
     f.with_suffix(".json").write_text(json.dumps({"phase": ph.phase, "n": n, "seed": seed, "feasible": int(keep.sum()), "rate": float(keep.mean()),
-                                                  "space": ph.space, "fixed": ph.fixed, "loss_range_mm3": [float(np.nanmin(loss[keep])), float(np.nanmax(loss[keep]))]}))
+                                                  "space": ph.space, "fixed": ph.fixed, "loss_range_mm3": [float(np.nanmin(loss[keep])), float(np.nanmax(loss[keep]))],
+                                                  "ref_cut_mm": ph.ref_cut_mm, "a_bounds_max": ph.a_bounds_max}))
     print(f"[neckopt p{ph.phase}] pool: {int(keep.sum())}/{n} feasible; bone loss {np.nanmin(loss[keep]):.0f}–{np.nanmax(loss[keep]):.0f} mm³", flush=True)
     return U[keep], loss[keep]
 
@@ -469,6 +502,7 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
              "pool_size": int(len(pool)), "records": recs, "ref_point": None if refp is None else refp.tolist(),
              "hv_hist": hv_hist, "lengthscales": ls_hist, "n_pool": n_pool, "refresh_k": refresh_k, "refresh_rad": refresh_rad,
              "stop_tol": stop_tol, "stop_rounds": stop_rounds, "femur_id": ph.femur_id, "margin_check": ph.margin_check,
+             "ref_cut_mm": ph.ref_cut_mm, "a_bounds_max": ph.a_bounds_max,
              "bond_every": ph.bond_every, "n_submitted": int(len(recs) if n_submitted_prev is None else n_submitted_prev)}
 
     def save():
@@ -614,7 +648,8 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
              "warm_start_ids": ids0, "pool_size": int(len(pool)), "records": recs, "pending": pending,
              "ref_point": None if refp is None else refp.tolist(), "hv_hist": hv_hist, "lengthscales": ls_hist, "n_pool": n_pool,
              "refresh_k": refresh_k, "refresh_rad": refresh_rad, "stop_tol": stop_tol, "stop_window": stop_window,
-             "femur_id": ph.femur_id, "margin_check": ph.margin_check, "bond_every": ph.bond_every}
+             "femur_id": ph.femur_id, "margin_check": ph.margin_check, "ref_cut_mm": ph.ref_cut_mm, "a_bounds_max": ph.a_bounds_max,
+             "bond_every": ph.bond_every}
 
     def save():
         state["pending"], state["pool_size"], state["updated"] = pending, int(len(pool)), time.strftime("%Y-%m-%d %H:%M:%S")
