@@ -73,12 +73,19 @@ def load_fields(d: pathlib.Path) -> dict:
     return out
 
 
-def intact_job(need_s: bool = True) -> pathlib.Path:
+def intact_job(need_s: bool = True, femur_id: str | None = None) -> pathlib.Path:
+    """生产网格、标准材料、无 cfg 覆盖的最新 DONE 完整股骨参照。femur_id=None（CT）只看 ref_intact_h* 且 spec 无 femur_id；
+    给定 femur_id（3406 的参照 stage 是 "sb…"，glob 碰不到）则扫全部作业目录、只收同一 femur_id 的 intact 作业。两边永远不互相串。"""
     cands = []
-    for d in J.QROOT.glob(f"ref_intact_h{S.H_PROD:g}_*"):
-        if not (d / "DONE").exists():
+    pattern = f"ref_intact_h{S.H_PROD:g}_*" if not femur_id else "*"
+    for d in J.QROOT.glob(pattern):
+        if not (d / "DONE").exists() or not (d / "spec.json").exists():
             continue
         sp = json.loads((d / "spec.json").read_text())
+        if sp.get("femur_id") != femur_id:                                 # CT 参照 spec 里没有 femur_id；3406 的有
+            continue
+        if femur_id and (sp.get("kind") != "intact" or sp.get("h_int") != S.H_PROD or sp.get("cfg")):
+            continue
         if sp.get("E_canc") is not None:
             continue
         has_s = (d / "intact_csv" / "LOAD_S.csv").exists()
@@ -86,7 +93,8 @@ def intact_job(need_s: bool = True) -> pathlib.Path:
             continue
         cands.append((d.stat().st_mtime, d))
     if not cands:
-        raise FileNotFoundError("no DONE intact reference" + (" with LOAD_S.csv — run `shielding.py intact` first" if need_s else ""))
+        raise FileNotFoundError(f"no DONE intact reference for femur {femur_id or 'CT'}"
+                                + (" with LOAD_S.csv — run `shielding.py intact` first" if need_s else ""))
     return max(cands)[1]
 
 
@@ -98,14 +106,15 @@ def submit_intact() -> str:
     return jid
 
 
-def design_jobs() -> list[pathlib.Path]:
+def design_jobs(femur_id: str | None = None) -> list[pathlib.Path]:
+    """生产网格、标准假设的 DONE 设计作业，去重；只收同一股骨的（femur_id=None = CT；3406 的设计不混进 CT 的统计，反之亦然）。"""
     out, seen = [], set()
     for d in sorted(J.QROOT.glob("*")):
         sp = d / "spec.json"
         if not sp.exists() or not (d / "DONE").exists():
             continue
         spec = json.loads(sp.read_text())
-        if spec.get("kind") != "design" or spec.get("h_int") != S.H_PROD:
+        if spec.get("kind") != "design" or spec.get("h_int") != S.H_PROD or spec.get("femur_id") != femur_id:
             continue
         if (spec.get("delta") is not None or spec.get("mu") is not None or spec.get("torque", True) is False
                 or spec.get("E_canc") is not None or spec.get("rep") is not None):
@@ -157,6 +166,8 @@ def design_rows(dname: str) -> list[dict]:
         _init()
     d = J.QROOT / dname
     spec = json.loads((d / "spec.json").read_text())
+    if spec.get("femur_id"):                                       # _CTX 只装了 CT 股骨与 CT 参照；3406 的分区统计待 S7（resorption.py 已按股骨分键）
+        raise NotImplementedError(f"shielding zones are CT-only for now; {dname} is femur {spec['femur_id']}")
     res = J.result(dname)
     prep = json.loads((d / "prep.json").read_text()) if (d / "prep.json").exists() else {}
     t = res["templating"]

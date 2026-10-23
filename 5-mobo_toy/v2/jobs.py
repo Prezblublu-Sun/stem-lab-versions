@@ -19,6 +19,9 @@
                        margin_check  皮质余量检查密度 "sparse"（默认，原样）| "dense"（截骨面下每 0.25 mm 一环的严格检查；collar_rule.py）：
                                   prep 传给 collar_rule.install_neck / install，无领规则时用 install_margin_check。
                      intact 作业同样可带 cfg；带 cfg 的参照一律用 stage ≠ "ref"，不会被 intact_ref 选中
+    spec.json 可带 femur_id（"sawbone3406"）：换成 Sawbones 3406 的钩子股骨（femur_3406.py，FEMURS 注册表），neck_axis 选颈轴定义；
+                     这类作业必须显式给 intact_job（同一 femur_id 的完整股骨），stage 用 "sb…"（不能 "ref" / "neck*"）。
+                     没有 femur_id = 现行 CT 股骨，所有路径逐字不变（jobs.py 不计入 code_hash，已有作业 id 不受影响）。
     READY            .inp 已生成，等待本机求解            ← prep 写
     CLAIMED          本机 worker 已认领（mv READY CLAIMED，原子）
     SOLVED           本机已推回 <name>_csv/ 与 solve.json    ← worker 写
@@ -49,6 +52,19 @@ QROOT = pathlib.Path.home() / "mobo_toy_v2" / "queue"
 RESULTS = pathlib.Path.home() / "mobo_toy_v2" / "results"
 KEEP_CSV = {"fric": ["RELEASE_CONTACT.csv", "LOAD_CONTACT.csv"], "bond": ["LOAD_ENER.csv", "LOAD_S.csv"],
             "intact": ["LOAD_ENER.csv"]}
+FEMURS = {"sawbone3406": "femur_3406"}       # spec["femur_id"] → 钩子模块（不计入哈希）。没有 femur_id = CT 股骨（femur_real）
+
+
+def femur_hook(spec: dict):
+    """带 femur_id 的作业：导入钩子模块并在本进程安装（3406：geom3d.A_BOUNDS 上限 2000）。返回 (模块, 安装记录)；无 femur_id → (None, None)。"""
+    fid = spec.get("femur_id")
+    if not fid:
+        return None, None
+    if fid not in FEMURS:
+        raise KeyError(f"femur_id {fid!r}: known femurs are {sorted(FEMURS)}")
+    import importlib
+    mod = importlib.import_module(FEMURS[fid])
+    return mod, mod.install()
 
 
 def code_hash() -> str:
@@ -75,7 +91,12 @@ def state(d: pathlib.Path) -> str:
 
 
 def submit(spec: dict) -> str:
-    """登记一个作业（不建模）；已存在则直接返回其 id。"""
+    """登记一个作业（不建模）；已存在则直接返回其 id。
+    femur_id 作业不得用 stage "ref"（intact_ref / shielding.intact_job 的 glob ref_intact_h*）或 "neck*"（stage_neckopt.in_family 按前缀）；3406 用 "sb…"。"""
+    stage = str(spec.get("stage", ""))
+    if spec.get("femur_id") and (stage == "ref" or stage.startswith("neck")):
+        raise ValueError(f"femur_id {spec['femur_id']!r}: stage {stage!r} is reserved for the CT femur "
+                         "('ref' = intact_ref glob, 'neck*' = stage_neckopt.in_family); use an 'sb…' stage")
     spec = {**spec, "created": time.strftime("%Y-%m-%d %H:%M:%S")}
     jid = job_id(spec)
     d = QROOT / jid
@@ -101,9 +122,11 @@ def _merge(a: dict, b: dict) -> None:
 
 
 def femur_for(spec: dict):
-    """该作业用的股骨对象：截骨高度（V3 设计变量）与配置覆盖（变体作业）。覆盖只作用于本作业的副本。"""
+    """该作业用的股骨对象：截骨高度（V3 设计变量）与配置覆盖（变体作业）。覆盖只作用于本作业的副本。
+    femur_id → 钩子模块的 build（自己的配置、缓存、颈轴 spec["neck_axis"]）；否则 CT 股骨 FR.build()。"""
     import copy
-    fm = FR.build()
+    hook, _ = femur_hook(spec)
+    fm = hook.build(neck_axis=spec.get("neck_axis")) if hook else FR.build()
     if spec.get("h_cut") is not None:
         fm = fm.with_cut(spec["h_cut"])
     if spec.get("cfg"):
@@ -121,10 +144,24 @@ def explicit_ref(spec: dict) -> dict | None:
     p = QROOT / rid / "result.json"
     if not p.exists():
         raise FileNotFoundError(f"intact reference {rid} not DONE")
+    sp = QROOT / rid / "spec.json"
+    rspec = json.loads(sp.read_text()) if sp.exists() else {}
+    if rspec.get("femur_id") != spec.get("femur_id"):                # 3406 的设计不能用 CT 参照，反之亦然
+        raise ValueError(f"intact reference {rid} is for femur {rspec.get('femur_id') or 'CT'}, "
+                         f"job is for {spec.get('femur_id') or 'CT'}")
     r = json.loads(p.read_text())
     r["intact_job"] = rid
     r["intact_substituted_h"] = spec.get("intact_substituted_h")
     return r
+
+
+def ref_for(spec: dict) -> dict:
+    """设计 / 变体作业的完整股骨参照：显式 intact_job 优先（explicit_ref），否则按 h_int / E_canc 自动找（intact_ref）。
+    femur_id 作业没有 intact_job 时 intact_ref 直接抛 ValueError（不自动挑）；CT 作业的调用与从前逐字相同（两个参数）。"""
+    fid = spec.get("femur_id")
+    if fid:
+        return explicit_ref(spec) or intact_ref(spec["h_int"], spec.get("E_canc"), fid)
+    return explicit_ref(spec) or intact_ref(spec["h_int"], spec.get("E_canc"))
 
 
 def prep(jid: str) -> str:
@@ -207,6 +244,12 @@ def prep(jid: str) -> str:
             k["keep_odb"] = True
             kj.write_text(json.dumps(k))
         info["cfg_override"] = spec.get("cfg")
+        info["femur_id"] = spec.get("femur_id")                            # None = CT 股骨
+        if spec.get("femur_id"):
+            _, hook_info = femur_hook(spec)                                # install() 幂等；记录 A_BOUNDS 上限与颈轴（事后闸门要查）
+            info["femur_hook"] = {**hook_info, "neck_axis_spec": spec.get("neck_axis"), "neck_axis": fm.lm.get("neck_axis"),
+                                  "cut_centre_m": np.asarray(fm.C03, float).tolist(), "neck_shaft_deg": fm.lm.get("neck_shaft_deg"),
+                                  "anteversion_deg": fm.lm.get("anteversion_deg")}
         info["code_hash"] = code_hash()
         (d / "prep.json").write_text(json.dumps({k: v for k, v in info.items() if k != "slave"}, default=float))
         (d / "READY").write_text(time.strftime("%Y-%m-%d %H:%M:%S"))
@@ -217,15 +260,21 @@ def prep(jid: str) -> str:
         return "FAILED"
 
 
-def intact_ref(h_int: float, E_canc: float | None = None) -> dict:
+def intact_ref(h_int: float, E_canc: float | None = None, femur_id: str | None = None) -> dict:
     """该网格档的完整股骨 Gruen 区 SED：取同一 h、同一松质骨模量变体的最新 DONE 完整股骨作业。
     E_canc=None 只匹配标准材料的参照；给定 E_canc（敏感性变体）必须有同 h 的同变体参照，不作网格代替。
+    femur_id=None（CT 股骨）只匹配 spec 里没有 femur_id 的参照；带 femur_id 的作业**不自动挑参照**（这里的 glob ref_intact_h*
+    全是 CT 参照），直接抛 ValueError——3406 的设计必须显式给 intact_job（explicit_ref 再核对股骨一致）。
 
     不按全局代码哈希找：建柄模型的修正（退化单元门槛、假体颈起点）会改变哈希，但完整股骨模型（femur_real +
     model3d_v2.build_intact + 配置）没变，结果逐位相同；按哈希找会让新作业卡在等参照。所用参照的 id 写进结果。"""
+    if femur_id:
+        raise ValueError(f"femur_id {femur_id!r}: an explicit intact_job is required "
+                         "(intact_ref only auto-picks ref_intact_h* = CT references)")
+
     def _same_variant(d):
         sp = json.loads((d / "spec.json").read_text()) if (d / "spec.json").exists() else {}
-        return sp.get("E_canc") == E_canc
+        return sp.get("E_canc") == E_canc and sp.get("femur_id") == femur_id
     cands = []
     for d in QROOT.glob(f"ref_intact_h{h_int:g}_*"):
         if (d / "result.json").exists() and _same_variant(d):
@@ -290,7 +339,7 @@ def post(jid: str) -> str:
             if spec.get("fric_only"):                                 # 只读摩擦结果，不需要粘接模型与完整股骨参照
                 res, ref = fric_only_result(R, "m_fric"), {}
             else:
-                ref = explicit_ref(spec) or intact_ref(spec["h_int"], spec.get("E_canc"))
+                ref = ref_for(spec)                                   # femur_id 作业：必须显式 intact_job，且股骨一致
                 if spec.get("bond_only"):
                     zs = P.zone_sed(R, "m_bond", fm)
                     res = {**P.stem_vm(R, "m_bond", fm), "sed_gruen7": zs["gruen7"], "sed_gruen1": zs["gruen1"],
@@ -313,6 +362,7 @@ def post(jid: str) -> str:
         RESULTS.mkdir(parents=True, exist_ok=True)
         with open(RESULTS / "runs_v2a.jsonl", "a") as fh:
             fh.write(json.dumps({"job_id": jid, "stage": spec.get("stage"), "kind": spec["kind"],
+                                 "femur_id": spec.get("femur_id"),
                                  **{k: v for k, v in res.items() if k not in ("spec", "solve")},
                                  "design": spec.get("design"), "h_int": spec.get("h_int"),
                                  "variant": {k: spec.get(k) for k in ("delta", "mu", "torque", "E_canc", "model", "slip_tol", "lagrange",

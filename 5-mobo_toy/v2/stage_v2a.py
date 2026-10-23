@@ -72,9 +72,11 @@ def serve(n_prep: int = 5, poll: float = 10.0) -> None:
                 spec = json.loads((d / "spec.json").read_text())
                 if spec["kind"] in ("design", "variant") and not spec.get("fric_only"):
                     try:
-                        J.explicit_ref(spec) or J.intact_ref(spec["h_int"], spec.get("E_canc"))
+                        J.ref_for(spec)                                  # = explicit_ref or intact_ref（CT 作业的调用不变；femur_id 见 jobs.ref_for）
                     except FileNotFoundError:
-                        continue
+                        continue                                         # 参照还没 DONE：等
+                    except ValueError:
+                        pass                                             # 参照股骨不一致 / femur_id 作业没给 intact_job：让 post 记 FAILED L5，不卡 serve
                 print(f"{time.strftime('%H:%M:%S')} post {d.name}: {J.post(d.name)}", flush=True)
         for k in [k for k, p in running.items() if p.poll() is not None]:
             p = running.pop(k)

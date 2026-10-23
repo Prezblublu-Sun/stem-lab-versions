@@ -13,8 +13,11 @@
 * 总值：7 个区按体积分数加权（论文第 237 页的口径）。
 * 空白对照：完整股骨 1.4 mm 网格对 2.0 mm 网格，两者本应相同，算出的吸收 / 增生比例就是网格与映射造成的本底。
 * 柄应力：柄体（截骨面以下）与假体颈（截骨面以上、头球以外）的 von Mises 最大值与体积加权 P99。
+* 股骨（2026-10-23）：进程内上下文 _CTX 按 femur_id 分键（None = CT 股骨，"sawbone3406" = femur_3406）——采样网格、完整股骨
+  参照（shielding.intact_job(femur_id=…)）都取同一股骨的；design_rows 的股骨按该设计 spec 的 femur_id / neck_axis 取（jobs.femur_for），
+  指定的参照 iname 必须与设计同一股骨。run --femur sawbone3406 只统计 3406 的设计；默认 CT，与从前相同。
 
-    python v2/resorption.py run [--workers 8] [--k 1]
+    python v2/resorption.py run [--workers 8] [--k 1] [--femur sawbone3406]
     python v2/resorption.py null
     python v2/resorption.py figs
 输出：~/mobo_toy_v2/results/resorption/{zones.csv, stem.csv, null.json, summary.json, figs/*.png}
@@ -154,11 +157,34 @@ def scheme_rows(base, scheme, masks, keep, canc, ga, gb):
 
 
 # ------------------------------------------------------------------------------------------------ 逐设计
-def _init(k=1):
-    fm = FR.build()
-    P, canc = build_grid(fm)
-    it = SH.load_fields(SH.intact_job(True))
-    _CTX.update(fm=fm, P=P, canc=canc, gi=to_grid(it, P, canc, k), k=k)
+def _femur_id_of(name: str) -> str | None:
+    sp = J.QROOT / name / "spec.json"
+    return (json.loads(sp.read_text()) if sp.exists() else {}).get("femur_id")
+
+
+def base_femur(femur_id: str | None = None, neck_axis=None):
+    """未截骨的股骨对象，按 (femur_id, neck_axis) 在进程内缓存（FR.build / femur_3406.build 每次都读 npz）。CT 股骨忽略 neck_axis。"""
+    c = _CTX.setdefault("fm", {})
+    key = (femur_id, json.dumps(neck_axis, sort_keys=True) if femur_id else None)
+    if key not in c:
+        c[key] = J.femur_for({"femur_id": femur_id, "neck_axis": neck_axis})     # 无 femur_id → FR.build()，与从前相同
+    return c[key]
+
+
+def _ctx(femur_id: str | None = None) -> dict:
+    """该股骨的采样网格与标准完整股骨参照的采样值；按 femur_id 分键，首次用到时建。"""
+    c = _CTX.setdefault("grid", {})
+    if femur_id not in c:
+        fm = base_femur(femur_id)
+        P, canc = build_grid(fm)
+        it = SH.load_fields(SH.intact_job(True, femur_id))
+        c[femur_id] = {"P": P, "canc": canc, "gi": to_grid(it, P, canc, _CTX.setdefault("k", 1)), "gi_by": {}}
+    return c[femur_id]
+
+
+def _init(k=1, femur_id=None):
+    _CTX["k"] = k
+    _ctx(femur_id)
 
 
 def stem_parts(d: pathlib.Path, fm, pose) -> dict:
@@ -197,34 +223,36 @@ def stem_parts(d: pathlib.Path, fm, pose) -> dict:
     return out
 
 
-def intact_grid(iname: str | None):
-    """指定完整股骨参照的采样值；None = 标准参照（生产网格、标准载荷）。按作业名缓存。"""
+def intact_grid(iname: str | None, femur_id: str | None = None):
+    """指定完整股骨参照的采样值；None = 该股骨的标准参照（生产网格、标准载荷）。按股骨、作业名缓存；参照必须是同一股骨。"""
+    c = _ctx(femur_id)
     if iname is None:
-        return _CTX["gi"]
-    c = _CTX.setdefault("gi_by", {})
-    if iname not in c:
-        c[iname] = to_grid(SH.load_fields(J.QROOT / iname), _CTX["P"], _CTX["canc"], _CTX["k"])
-    return c[iname]
+        return c["gi"]
+    if iname not in c["gi_by"]:
+        if _femur_id_of(iname) != femur_id:
+            raise ValueError(f"intact reference {iname} is for femur {_femur_id_of(iname) or 'CT'}, design is for {femur_id or 'CT'}")
+        c["gi_by"][iname] = to_grid(SH.load_fields(J.QROOT / iname), c["P"], c["canc"], _CTX["k"])
+    return c["gi_by"][iname]
 
 
 def design_rows(dname: str, iname: str | None = None):
-    if "fm" not in _CTX:
-        _init()
     d = J.QROOT / dname
     spec = json.loads((d / "spec.json").read_text())
+    fid = spec.get("femur_id")                                     # None = CT；股骨、网格、参照全按它取
+    ctx = _ctx(fid)
     res = J.result(dname)
     prep = json.loads((d / "prep.json").read_text()) if (d / "prep.json").exists() else {}
     t = res["templating"]
     dsg = G.design_of_spec(spec)
     stem = G.Stem3D(**spec["design"])
     h = float(spec.get("h_cut", 25.0))
-    fm = _CTX["fm"].with_cut(h)
+    fm = base_femur(fid, spec.get("neck_axis")).with_cut(h)
     pose = fm.pose(t["alpha"], t["e"])
-    P, canc, gi = _CTX["P"], _CTX["canc"], intact_grid(iname)
+    P, canc, gi = ctx["P"], ctx["canc"], intact_grid(iname, fid)
     ga = to_grid(SH.load_fields(d), P, canc, _CTX["k"])
     loc = SH.local(P, pose)
     keep = (fm.below_cut(P) & ~G.inside_stem(stem, t["A0"], loc) & np.isfinite(ga["sed"]) & np.isfinite(gi["sed"]) & (gi["sed"] > 0))
-    base = {"job_id": dname, "version": "pre-fix" if prep.get("code_hash") in SH.PRE_FIX else "current",
+    base = {"job_id": dname, "femur_id": fid, "version": "pre-fix" if prep.get("code_hash") in SH.PRE_FIX else "current",
             "L": dsg["L"], "alpha": dsg["alpha"], "m": dsg["m"], "h_cut": h, "A0": t["A0"]}
     Ltot = stem.L + stem.cap_length(t["A0"])
     rows = (scheme_rows(base, "stem", SH.zone_masks(loc, stem.L), keep, canc, ga, gi)
@@ -244,14 +272,14 @@ def _write(path, rows):
         w.writerows(rows)
 
 
-def run(workers=8, k=1):
+def run(workers=8, k=1, femur_id=None):
     OUT.mkdir(parents=True, exist_ok=True)
-    names = [d.name for d in SH.design_jobs()]
-    print(f"[resorption] {len(names)} designs, grid {HG} mm, k = {k}", flush=True)
-    with Pool(workers, initializer=_init, initargs=(k,)) as p:
+    names = [d.name for d in SH.design_jobs(femur_id)]
+    print(f"[resorption] {len(names)} designs, femur {femur_id or 'CT'}, grid {HG} mm, k = {k}", flush=True)
+    with Pool(workers, initializer=_init, initargs=(k, femur_id)) as p:
         res = p.map(design_rows, names, chunksize=4)
     rows = [r for c, _ in res for r in c]
-    tag = "" if k == 1 else f"_k{k}"
+    tag = ("" if k == 1 else f"_k{k}") + (f"_{femur_id}" if femur_id else "")
     _write(OUT / f"zones{tag}.csv", rows)
     _write(OUT / f"stem{tag}.csv", [s for _, s in res])
     print(f"[resorption] zones{tag}.csv {len(rows)} rows", flush=True)
@@ -291,7 +319,7 @@ def read(name):
         rows = list(csv.DictReader(fh))
     for r in rows:
         for kk, v in r.items():
-            if kk not in ("job_id", "version", "scheme", "zone", "tissue"):
+            if kk not in ("job_id", "femur_id", "version", "scheme", "zone", "tissue"):
                 r[kk] = float(v) if v not in ("", "nan", "None") else math.nan
     return rows
 
@@ -380,9 +408,10 @@ if __name__ == "__main__":
     ap.add_argument("cmd", choices=["run", "null", "figs"])
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--k", type=int, default=1)
+    ap.add_argument("--femur", default=None, help="femur_id（如 sawbone3406）；默认 CT 股骨")
     a = ap.parse_args()
     if a.cmd == "run":
-        run(a.workers, a.k)
+        run(a.workers, a.k, a.femur)
     elif a.cmd == "null":
         null()
     else:
