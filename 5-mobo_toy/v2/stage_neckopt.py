@@ -148,7 +148,8 @@ PHASES = {
 #   = femur_3406.DEFAULT_NECK_AXIS，这里显式写死，钩子默认改了阶段定义也不跟着变），intact_job None = 3406 完整股骨参照还没解：
 #   spec 见 S3_done.md（kind intact, h_int 2.0, stage "sb", tag "intact_h2", femur_id, neck_axis "isthmus"）；解完后把 id 填到这里，
 #   check_launch 才放行 bo / bo_async。stage 前缀随 femur_id 变为 "sb11"（Phase.stage）。
-PHASES[11] = {**PHASES[10], "vars": {**PHASES[10]["vars"], "h_cut": (16.0, 32.0)}, "sed": "none", "bond_every": 5, "margin_check": "dense",
+# L ≤ 45（S5 v2 扫描，2026-10-24：3406 上 L ≥ 45 的 1536 个 Sobol 点可行 0 个——柄尖进松质芯底的锥形空洞；只为候选池效率，不丢可行点）。
+PHASES[11] = {**PHASES[10], "vars": {**PHASES[10]["vars"], "L": (20.0, 45.0), "h_cut": (16.0, 32.0)}, "sed": "none", "bond_every": 5, "margin_check": "dense",
               "ref_cut_mm": 16.0, "a_bounds_max": 2000.0,
               "femur_id": "sawbone3406", "neck_axis": "isthmus", "intact_job": None}
 REF_CUT_DEFAULT = 25.0      # 骨量损失的截骨参照默认值（= femur_real.resected_volume 的 ref_cut_mm 默认；阶段 10 及以前的 spec 不写这个键）

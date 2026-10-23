@@ -160,7 +160,8 @@ ok("PHASES[10] untouched: h_cut (25, 32); no ref_cut_mm / a_bounds_max / sed / b
    p10["vars"]["h_cut"] == (25.0, 32.0) and not any(k in p10 for k in ("ref_cut_mm", "a_bounds_max", "sed", "bond_every", "femur_id")))
 ok("PHASES[11]: h_cut (16, 32); the other 12 variables == phase 10; same variable order",
    p11["vars"]["h_cut"] == (16.0, 32.0) and list(p11["vars"]) == list(p10["vars"])
-   and {k: v for k, v in p11["vars"].items() if k != "h_cut"} == {k: v for k, v in p10["vars"].items() if k != "h_cut"})
+   and {k: v for k, v in p11["vars"].items() if k not in ("h_cut", "L")} == {k: v for k, v in p10["vars"].items() if k not in ("h_cut", "L")}
+   and p11["vars"]["L"] == (20.0, 45.0))
 ok("PHASES[11]: fixed / collar_rule / metric as phase 10; sed none; bond_every 5; femur_id None (CT fixture pinned above); ref_cut_mm 16.0; a_bounds_max 2000.0",
    p11["fixed"] == p10["fixed"] and p11["collar_rule"] == p10["collar_rule"] == "neck_in_shoulder" and p11["metric"] == p10["metric"] == "v3"
    and p11["sed"] == "none" and p11["bond_every"] == 5 and p11["femur_id"] is None and p11["ref_cut_mm"] == 16.0 and p11["a_bounds_max"] == 2000.0)

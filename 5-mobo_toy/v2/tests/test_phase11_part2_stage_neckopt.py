@@ -86,7 +86,7 @@ ok("bond_every None/0 -> always bonded", all(N.next_bonded({}, be) for be in (No
 # ---------------------------------------------------------------- PHASES[11] placeholder and Phase defaults
 p10, p11 = N.PHASES[10], N.PHASES[11]
 ok("PHASES[11] = PHASES[10] vars (except h_cut 16–32, hcut16 2026-10-23)/fixed/rule/metric",
-   {k: v for k, v in p11["vars"].items() if k != "h_cut"} == {k: v for k, v in p10["vars"].items() if k != "h_cut"} and p11["vars"]["h_cut"] == (16.0, 32.0)
+   {k: v for k, v in p11["vars"].items() if k not in ("h_cut", "L")} == {k: v for k, v in p10["vars"].items() if k not in ("h_cut", "L")} and p11["vars"]["h_cut"] == (16.0, 32.0) and p11["vars"]["L"] == (20.0, 45.0)
    and p11["fixed"] == p10["fixed"] and p11["collar_rule"] == p10["collar_rule"] == "neck_in_shoulder" and p11["metric"] == p10["metric"] == "v3")
 ok("PHASES[11] sed none, bond_every 5, femur_id None", p11["sed"] == "none" and p11["bond_every"] == 5 and p11.get("femur_id") is None and "femur_id" in p11)
 ph11, ph10 = N.Phase(11), N.Phase(10)
