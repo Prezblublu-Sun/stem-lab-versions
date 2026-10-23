@@ -116,7 +116,7 @@ PHASES = {
 }
 # 阶段 11（2026-10-23，未启动）：= 阶段 10 去掉 SED 约束（sed "none"），metric v3 不变；每提交 5 个设计第 5 个带粘接模型
 # （bond_every 5，其余 fric_only：只解摩擦模型，SED / vM 只在那 20 % 上记录、不约束；用户 10-23 决定）；femur_id None = 现在的 CT 股骨，
-# 3406 接入后改为 "sawbone3406"。margin_check（"dense" = 截骨面下每 0.25 mm 一环的严格余量检查）待 B1 重放后定，暂不设（= sparse）。
+# 3406 接入后改为 "sawbone3406"。margin_check "dense"（截骨面下每 0.25 mm 一环的严格余量检查；B1 重放：候选池 1750 → 1542，用户 2026-10-24 采纳）。
 # 截骨深度（用户 2026-10-23 最终定："那就从16mm开始搜索"）：h_cut 16–32，从头心下 16 mm 起宽搜索（阶段 10 是 25–32；变量顺序不变）。
 #   h ≥ 16 时假体头（r 14）整个在截骨面以上，HEADN 耦合半径（14）够不到界面，所以不需要头帽钩子。
 #   ref_cut_mm 16：骨量损失的截骨参照（femur_real.resected_volume(ref_cut_mm)：cut ≤ ref 记 0，只数 ref 与 cut 之间的骨；阶段 10 及以前
@@ -125,7 +125,7 @@ PHASES = {
 #     （hcut10 扫描），3406 髓腔截面 h25 ≈ 760、h32 ≈ 1370 mm²，上限 900 会判 "canal larger than largest size"。候选池（_feasible）与 jobs.prep
 #     用同一个 jobs.a_bounds_cap 只在模板化调用期间把上限换成 (A_BOUNDS[0], 2000)、之后恢复（对所有股骨一样；3406 的 femur_3406.install 不受影响）。
 #     进 spec、in_family、候选池键。二分 14 次的几何步长随上限略变（900：0.023 %，2000：0.028 %），同一设计的 A0 第 4 位可与阶段 10 不同。
-PHASES[11] = {**PHASES[10], "vars": {**PHASES[10]["vars"], "h_cut": (16.0, 32.0)}, "sed": "none", "bond_every": 5, "femur_id": None,
+PHASES[11] = {**PHASES[10], "vars": {**PHASES[10]["vars"], "h_cut": (16.0, 32.0)}, "sed": "none", "bond_every": 5, "femur_id": None, "margin_check": "dense",
               "ref_cut_mm": 16.0, "a_bounds_max": 2000.0}
 REF_CUT_DEFAULT = 25.0      # 骨量损失的截骨参照默认值（= femur_real.resected_volume 的 ref_cut_mm 默认；阶段 10 及以前的 spec 不写这个键）
 MM_LIMIT = 150.0            # metric v3：柄身微动 P95 上限（µm，骨长入的经典阈值；会议 2026-10-10）

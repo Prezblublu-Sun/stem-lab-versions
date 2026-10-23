@@ -58,5 +58,5 @@
   重导入验收：松质 128616.7 mm³ / 198 面；fragment(皮质, 松质) → 1 + 1 个体，
   共享面 189（v1 147），皮质体积 271529.9（重导入 271529.5，即填充体没有伸进皮质）。
 - 皮质 STEP 不变（SHA256 与 v1 相同，本次只核对，不重写）。校验和在 `SHA256SUMS_v2.txt`；完整报告 `bake_report_v2.json`。
-- **默认仍是 v1**：`femur_3406.py` 的 `SHA256["cancellous"]` 与 `load_cfg()` 的路径未改；切换步骤（改路径 + SHA、换 SHA256SUMS、删哪些缓存）
+- **默认已切到 v2（2026-10-24 00:15，用户采纳；v1 文件保留）**：`femur_3406.py` 的 `SHA256["cancellous"]` 与 `load_cfg()` 的路径未改；切换步骤（改路径 + SHA、换 SHA256SUMS、删哪些缓存）
   见 `H:/projects/application/research-log/sawbone_3406_2026-10-23/integration_2026-10-23/s1_rebake/SWITCHOVER.md`。

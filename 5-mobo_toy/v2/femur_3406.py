@@ -1,7 +1,8 @@
 """Sawbones 3406（Churun 的未切割模型，右侧化烘焙件）接入现有管线的钩子模块。**不计入作业哈希**（jobs.code_hash 只盖
 femur_real / geom3d / fe3d_geom / model3d_v2 / post / config_v2a / model3d_m1 / post_m1），与 collar_rule.py、import_stem.py 同类。
 
-数据：v2/data/femur_3406/3406R_cortical.STEP + 3406R_cancellous.STEP（由 v2/tools/bake_3406.py 烘焙：原生左股骨只把 z 取反，
+数据：v2/data/femur_3406/3406R_cortical.STEP + 3406R_cancellous_v2.STEP（v2 = 导针孔填孔后再同轴扩孔 r+0.3 mm、两端 +4 mm 回填，无盲窝，
+完整股骨才能划网格；v1 文件保留；由 v2/tools/bake_3406.py 烘焙：原生左股骨只把 z 取反，
 diag(1, 1, −1) ⇒ 右股骨、x 内侧、y 后方、z 近端，正是 femur_real.landmarks 假定的约定；来源与校验和见该目录的 PROVENANCE.md）。
 烘焙还填掉了 Churun 松质芯里的一条导针孔（半径 2.3 mm、长 97 mm，沿颈部 120° 轴从外侧皮质界面穿到头部芯表面；
 留着它，距离场会在颈部多一道"墙"，模板化把所有穿过它的柄判成穿透；松质体积 127 952 → 128 494 mm³，两端在皮质下各留 ≤ 6 mm 的盲窝）。
@@ -66,11 +67,11 @@ FEMUR_ID = "sawbone3406"
 DATA = HERE / "data" / "femur_3406"
 CACHE = FR.CACHE
 SHA256 = {"cortical": "9b1bf9494728c3533c9cd04db8669008c97dd88701ffea56cd7e12e6bd8cab1f",       # bake 2026-10-23 16:5x（填孔版）
-          "cancellous": "f478e1b4b5e79c2b52046ae578d377210a9f4e23efa0a1da0444d7c531969318"}
+          "cancellous": "3455b8c9c21bb9f1eae62da357744b4ee1235939c8bc058fb29d0d109c0c7940"}   # v2 2026-10-23：填孔 + 扩孔再填（bake_3406.py --refill）；v1 f478e1b4… 保留作回溯
 A_BOUNDS_CAP = 2000.0                        # mm²，3406 的肩部面积二分上限（哈希值 900；侦察建议 2000）
 E_CANCELLOUS = 155.0                         # MPa，Sawbones 第四代 PCF 20 泡沫（README）
 BOX_MM = [[-45.0, 85.0], [-45.0, 45.0], [-160.0, 110.0]]
-DEFAULT_NECK_AXIS = "detector"               # S0 用户决定后改这里（或在规格里给 neck_axis）
+DEFAULT_NECK_AXIS = "isthmus"                # S0：用户 2026-10-24 采纳建议 c（头心 → 颈最细截面中心）；检测器轴在 neck_in_shoulder 下无可行设计
 # README（A 系 x 内侧、y 前方、z 近端）→ 烘焙系（x, −y_A, z_A）
 README = {"head_c": np.array([49.6099353810299, +1.7912299193830443, 109.59714234641827]),
           "head_r": 25.531883498460367, "head_r_cancellous": 22.199497413426844,
@@ -83,7 +84,7 @@ EXPOSED_GAP_MM = 0.3                         # 松质芯面离皮质面的中位
 def load_cfg(neck_axis=None) -> dict:
     cfg = copy.deepcopy(FR.load_cfg())
     fc = cfg["femur"]
-    fc.update(step_cortical=str(DATA / "3406R_cortical.STEP"), step_cancellous=str(DATA / "3406R_cancellous.STEP"),
+    fc.update(step_cortical=str(DATA / "3406R_cortical.STEP"), step_cancellous=str(DATA / "3406R_cancellous_v2.STEP"),
               sha256_cortical=SHA256["cortical"], sha256_cancellous=SHA256["cancellous"], E_cancellous=E_CANCELLOUS,
               reference_landmarks={"head_r": README["head_r"], "neck_shaft_deg": README["neck_shaft_deg"],
                                    "anteversion_deg": README["anteversion_deg"]},
