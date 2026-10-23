@@ -102,6 +102,29 @@ P9D_SOURCES = {"nocollar_1": "neck9_a70_c7ef19ee", "nocollar_2": "neck9_a37_528b
                "collar_1": "front_wrap_a53_89e60afc_ad3918b3", "collar_2": "neck8_a67_e47ce03b", "collar_3": "front_wrap_a81_cb5ce57b_8404a846",
                "collar_4": "front_wrap_a60_ae1a0793_cc3f72d5", "collar_5": "front_wrap_a40_967145a2_566aee4e"}
 P9D_DELTA = 0.05
+# 批次 MI / M / M14（用户 2026-10-23："现在就开始进行"；计划 research-log/neck_implant_2026-10-02/计算计划_2026-10-24.md 第 1 节）：
+# 方法闸门 —— 6 个参考设计（RS6 = 阶段 10 严格余量下 A0 不变的前沿 4 个 + 中等 a12 + 固定差 e2a）的网格 / 滑移容差变体，其余与源作业相同。
+# kind = variant 且 h_int / slip_tol ≠ 生产值，不进任何优化数据集。MI = 对应网格的完整股骨参照（显式 intact_job，不用 2.0 代替）。
+RS6 = {"a69": "neck10_a69_e394e85c", "a24": "neck10_a24_41b88dd9", "a12": "neck10_a12_b1fbfd1c", "e2a": "neck9_init_e2a68dea",
+       "a36": "neck10_a36_0911f520", "a19": "neck10_a19_c15fe9c6"}
+M_A3 = ("a69", "a24", "a12", "e2a")               # A3 重网格噪声：h_int 1.94 / 2.06（真正重划网格；ΔL 抖动不改界面节点对数）
+MI_H = (1.94, 2.06, 2.5)                         # 需要新参照的网格档；h 1.4 已有 ref_intact_h1.4_dad6d1ae（verify 批用过）
+M_SLIP14 = 0.000357143                           # = 2.5e-4 × 2.0/1.4，与 verify_mesh14 相同的字面值（弹性滑移上限仍 0.5 µm）
+M_REF14 = "ref_intact_h1.4_dad6d1ae"
+
+
+def _m_src(job: str) -> dict:
+    src = json.loads((J.QROOT / job / "spec.json").read_text())
+    if not (J.QROOT / job / "DONE").exists():
+        raise SystemExit(f"M source {job} is not DONE")
+    return {k: v for k, v in src.items() if k not in ("created", "stage", "tag", "kind", "bond_only")}
+
+
+def _mi_ref(h: float) -> str:
+    f = J.RESULTS / "deck_MI_ids.json"
+    if not f.exists():
+        raise SystemExit("submit MI first (deck_MI_ids.json missing)")
+    return json.loads(f.read_text())["jobs"][f"MI_h{h:g}"]
 
 
 def wrap_fit_design(base: dict) -> dict:
@@ -251,6 +274,20 @@ def specs(batch: str) -> dict:
                 raise SystemExit(f"P9D source {job} is not DONE")
             s_ = {k: v for k, v in src.items() if k not in ("created", "stage", "tag", "kind", "bond_only")}
             out[f"P9D_{key}"] = {**s_, "kind": "variant", "stage": "delta05", "tag": key, "delta": P9D_DELTA, "source_job": job}
+    elif batch == "MI":
+        for h in MI_H:
+            out[f"MI_h{h:g}"] = {"kind": "intact", "h_int": h, "export": "S", "stage": "mg_ref", "tag": f"intact_h{h:g}"}
+    elif batch in ("M", "M14"):
+        for key, job in RS6.items():
+            base = {**_m_src(job), "kind": "variant", "source_job": job, "gate": "method"}
+            if batch == "M":
+                if key in M_A3:
+                    for h in (1.94, 2.06):
+                        out[f"M_A3_{key}_h{h:g}"] = {**base, "stage": "mg_remesh", "tag": f"{key}_h{h:g}", "h_int": h, "intact_job": _mi_ref(h)}
+                out[f"M_C3slip_{key}"] = {**base, "stage": "mg_slip", "tag": f"{key}_tol1e-4", "slip_tol": 1e-4}
+                out[f"M_C3coarse_{key}"] = {**base, "stage": "mg_coarse", "tag": f"{key}_h2.5", "h_int": 2.5, "intact_job": _mi_ref(2.5)}
+            else:                                                 # M14 最后提交：页面文件未移出 D: 时只开 2 槽
+                out[f"M14_{key}"] = {**base, "stage": "mg_fine", "tag": f"{key}_h1.4", "h_int": 1.4, "slip_tol": M_SLIP14, "intact_job": M_REF14}
     elif batch == "C":
         for b, tab in OFAT.items():
             base = base_spec(tab["base"])
@@ -296,6 +333,6 @@ if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["submit", "status"])
-    ap.add_argument("batch", choices=["A", "B", "C", "E", "BW", "CW", "F", "G", "P9D", "U"])
+    ap.add_argument("batch", choices=["A", "B", "C", "E", "BW", "CW", "F", "G", "P9D", "U", "MI", "M", "M14"])
     a = ap.parse_args()
     {"submit": submit, "status": status}[a.cmd](a.batch)
