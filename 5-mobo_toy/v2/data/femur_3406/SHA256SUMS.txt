@@ -1,3 +1,3 @@
-d5094fc9da0eb94fd587f59f02c94b60fc47e100cae1882979341f6bd647692f *3406R_cortical.STEP
-5e12e4c5b3ea54730dd248926b0435095fefb831edda5e782f5bf6348bea19ec *3406R_cancellous.STEP
+9b1bf9494728c3533c9cd04db8669008c97dd88701ffea56cd7e12e6bd8cab1f *3406R_cortical.STEP
+f478e1b4b5e79c2b52046ae578d377210a9f4e23efa0a1da0444d7c531969318 *3406R_cancellous.STEP
 source: H:\projects\application\research-log\sawbone_3406_2026-10-23\churun_uncut_export (Churun uncut 3406, SolidWorks 2025 AP214 export 2026-10-23); transform diag(1,1,-1)

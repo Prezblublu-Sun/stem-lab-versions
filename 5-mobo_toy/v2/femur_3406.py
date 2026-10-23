@@ -3,6 +3,8 @@ femur_real / geom3d / fe3d_geom / model3d_v2 / post / config_v2a / model3d_m1 / 
 
 数据：v2/data/femur_3406/3406R_cortical.STEP + 3406R_cancellous.STEP（由 v2/tools/bake_3406.py 烘焙：原生左股骨只把 z 取反，
 diag(1, 1, −1) ⇒ 右股骨、x 内侧、y 后方、z 近端，正是 femur_real.landmarks 假定的约定；来源与校验和见该目录的 PROVENANCE.md）。
+烘焙还填掉了 Churun 松质芯里的一条导针孔（半径 2.3 mm、长 97 mm，沿颈部 120° 轴从外侧皮质界面穿到头部芯表面；
+留着它，距离场会在颈部多一道"墙"，模板化把所有穿过它的柄判成穿透；松质体积 127 952 → 128 494 mm³，两端在皮质下各留 ≤ 6 mm 的盲窝）。
 
 与 CT 股骨（femur_real.py）的差别，以及为什么要自己的 build()
 1. 配置：femur_real.build() 从 config_v2a.yaml 读配置并按 sha1(femur_real.py + cfg['femur']) 缓存；这里 CFG = 深拷贝后覆盖
@@ -63,8 +65,8 @@ import geom3d as G  # noqa: E402
 FEMUR_ID = "sawbone3406"
 DATA = HERE / "data" / "femur_3406"
 CACHE = FR.CACHE
-SHA256 = {"cortical": "d5094fc9da0eb94fd587f59f02c94b60fc47e100cae1882979341f6bd647692f",
-          "cancellous": "5e12e4c5b3ea54730dd248926b0435095fefb831edda5e782f5bf6348bea19ec"}
+SHA256 = {"cortical": "9b1bf9494728c3533c9cd04db8669008c97dd88701ffea56cd7e12e6bd8cab1f",       # bake 2026-10-23 16:5x（填孔版）
+          "cancellous": "f478e1b4b5e79c2b52046ae578d377210a9f4e23efa0a1da0444d7c531969318"}
 A_BOUNDS_CAP = 2000.0                        # mm²，3406 的肩部面积二分上限（哈希值 900；侦察建议 2000）
 E_CANCELLOUS = 155.0                         # MPa，Sawbones 第四代 PCF 20 泡沫（README）
 BOX_MM = [[-45.0, 85.0], [-45.0, 45.0], [-160.0, 110.0]]
