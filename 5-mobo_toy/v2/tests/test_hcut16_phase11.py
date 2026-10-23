@@ -143,6 +143,17 @@ FR.build = lambda verbose=False: FakeFemur()
 F6.build = lambda verbose=False, neck_axis=None: FakeFemur(FID, neck_axis)
 N.Pool = SerialPool
 
+# S7 (2026-10-24): the production PHASES[11] now points at the Sawbones 3406 (femur_id sawbone3406, neck_axis isthmus, intact_job None until the
+# 3406 intact is solved; stage prefix sb11). This file tests the hcut16 fields (h_cut 16–32, ref_cut_mm 16, a_bounds_max 2000) on the CT femur
+# (stage neck11, no femur_id), so after checking the production values once it pins the CT placeholder as its fixture; the 3406 phase-11
+# behaviour is covered by test_s7_phase11_3406.py.
+ok("PHASES[11] production (S7): femur_id sawbone3406, neck_axis isthmus, intact_job None; margin_check dense (f1134dd)",
+   N.PHASES[11]["femur_id"] == "sawbone3406" and N.PHASES[11]["neck_axis"] == "isthmus" and "intact_job" in N.PHASES[11] and N.PHASES[11]["intact_job"] is None
+   and N.PHASES[11]["margin_check"] == "dense")
+# CT fixture for the checks below (stage neck11, margin_check sparse): the margin_check pins were written against the sparse placeholder and were
+# already failing after f1134dd switched PHASES[11] to dense (5 checks at HEAD); the dense path is exercised below by setting it explicitly (pool vs prep).
+N.PHASES[11].update(femur_id=None, neck_axis=None, intact_job=None, margin_check="sparse")
+
 # ================================================================ A. stage_neckopt
 p10, p11 = N.PHASES[10], N.PHASES[11]
 ok("PHASES[10] untouched: h_cut (25, 32); no ref_cut_mm / a_bounds_max / sed / bond_every / femur_id keys",
@@ -150,7 +161,7 @@ ok("PHASES[10] untouched: h_cut (25, 32); no ref_cut_mm / a_bounds_max / sed / b
 ok("PHASES[11]: h_cut (16, 32); the other 12 variables == phase 10; same variable order",
    p11["vars"]["h_cut"] == (16.0, 32.0) and list(p11["vars"]) == list(p10["vars"])
    and {k: v for k, v in p11["vars"].items() if k != "h_cut"} == {k: v for k, v in p10["vars"].items() if k != "h_cut"})
-ok("PHASES[11]: fixed / collar_rule / metric as phase 10; sed none; bond_every 5; femur_id None; ref_cut_mm 16.0; a_bounds_max 2000.0",
+ok("PHASES[11]: fixed / collar_rule / metric as phase 10; sed none; bond_every 5; femur_id None (CT fixture pinned above); ref_cut_mm 16.0; a_bounds_max 2000.0",
    p11["fixed"] == p10["fixed"] and p11["collar_rule"] == p10["collar_rule"] == "neck_in_shoulder" and p11["metric"] == p10["metric"] == "v3"
    and p11["sed"] == "none" and p11["bond_every"] == 5 and p11["femur_id"] is None and p11["ref_cut_mm"] == 16.0 and p11["a_bounds_max"] == 2000.0)
 ph10, ph11, ph1 = N.Phase(10), N.Phase(11), N.Phase(1)

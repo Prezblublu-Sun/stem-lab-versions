@@ -35,6 +35,25 @@
       spec_of 写进 spec（jobs.prep 按它们算 bone_loss、在模板化期间换上限）、in_family 要求一致、候选池键含之；候选池 _feasible 与 jobs.prep
       共用 jobs.a_bounds_cap（只在模板化调用期间换上限、之后恢复）与同一 resected_volume(ref_cut_mm) 口径，两边一致。
 
+阶段 11 在 3406 上跑（S7，2026-10-24；侦察 scout_results f3406 S7、S3_done.md；PHASES[11] 已指向 3406 但 intact_job 未填，仍未启动）
+    * 阶段字段 femur_id "sawbone3406"、neck_axis（默认 = 钩子模块 femur_3406.DEFAULT_NECK_AXIS，阶段 11 显式写 "isthmus"）、
+      intact_job（3406 完整股骨参照的作业 id，20 % 粘接作业的显式参照；None 只在 femur_id 为 None 时允许——femur_id 阶段 None 表示
+      "参照还没解"，Phase() 与 pool 仍可用，但 bo / bo_async（check_launch）与 spec_of(bonded) 拒绝）。
+    * stage 前缀：femur_id 阶段用 "sb<phase>"（阶段 11 → "sb11"；jobs.submit 对 femur_id 作业禁止 "ref" / "neck*"），CT 阶段仍 "neck<phase>"。
+      Phase.stage 是唯一出处：spec_of、dataset 的"本阶段作业不热启动"、bo_async 的收编 glob 都用它；in_family 对 femur_id 阶段接受 "sb*"
+      前缀（对 CT 阶段仍 "neck*"），且要求 spec 的 femur_id 与 neck_axis 都与阶段相同（CT 记录没有 femur_id，永远进不了 3406 阶段；
+      3406 的另一颈轴也进不了）。
+    * spec_of 写进 spec：femur_id、neck_axis（固定显式写——S3：省略与显式写同一值是两个 id）、ref_cut_mm / a_bounds_max / margin_check 照旧，
+      fric_only 按 bond_every。intact_job **只写在粘接作业**（bonded True / None）上：fric_only 作业的 post 不读参照（jobs.fric_only_result），
+      不写就让 80 % 作业的 id 不依赖参照的 id——参照若重解换 id，只有 20 % 粘接作业换 id；in_family 不查 intact_job（metric v3 的
+      y / c 不用参照，SED 只记录）。femur_id 阶段的粘接 spec 在 intact_job 为 None 时 spec_of 抛 ValueError（post 会记 FAILED L5，不如不提交）。
+    * 候选池：_feasible 的股骨按 jobs.femur_for({"femur_id", "neck_axis"}) 取（None → CT 的 FR.build()，与从前相同），按 (femur_id, neck_axis)
+      在进程内缓存，再 with_cut；pool_key 加 neck_axis 项（femur_id 项已有）；池 json 记 femur_id / neck_axis / margin_check。
+    * _calcar：femur_id 记录调 resorption.design_rows(job_id, iname=spec["intact_job"])（S3 已让 design_rows 按 spec 的 femur_id / neck_axis
+      取股骨与网格，intact_grid 核对参照同一股骨）；CT 记录的调用逐字不变。
+    * 启动前检查 check_launch（bo / bo_async 开头）：femur_id 阶段 intact_job 必须非 None、在队列里有 spec.json、kind intact、同一 femur_id、
+      同一 neck_axis、h_int = 生产网格；未 DONE 只警告（serve 的预检会等它）。
+
     python v2/stage_neckopt.py pool --phase 1
     python v2/stage_neckopt.py bo --phase 1 --init 16 --rounds 12 --q 4 --sed abs    → results/neckopt_p1.json（每轮覆盖，可续跑）
     python v2/stage_neckopt.py bo --phase 2 --ref <job_id> ...                        → results/neckopt_p2.json
@@ -125,8 +144,13 @@ PHASES = {
 #     （hcut10 扫描），3406 髓腔截面 h25 ≈ 760、h32 ≈ 1370 mm²，上限 900 会判 "canal larger than largest size"。候选池（_feasible）与 jobs.prep
 #     用同一个 jobs.a_bounds_cap 只在模板化调用期间把上限换成 (A_BOUNDS[0], 2000)、之后恢复（对所有股骨一样；3406 的 femur_3406.install 不受影响）。
 #     进 spec、in_family、候选池键。二分 14 次的几何步长随上限略变（900：0.023 %，2000：0.028 %），同一设计的 A0 第 4 位可与阶段 10 不同。
-PHASES[11] = {**PHASES[10], "vars": {**PHASES[10]["vars"], "h_cut": (16.0, 32.0)}, "sed": "none", "bond_every": 5, "femur_id": None, "margin_check": "dense",
-              "ref_cut_mm": 16.0, "a_bounds_max": 2000.0}
+# 3406（S7，2026-10-24）：femur_id "sawbone3406"（jobs.femur_for → femur_3406.install + build），neck_axis "isthmus"（S0 用户 2026-10-24 采纳；
+#   = femur_3406.DEFAULT_NECK_AXIS，这里显式写死，钩子默认改了阶段定义也不跟着变），intact_job None = 3406 完整股骨参照还没解：
+#   spec 见 S3_done.md（kind intact, h_int 2.0, stage "sb", tag "intact_h2", femur_id, neck_axis "isthmus"）；解完后把 id 填到这里，
+#   check_launch 才放行 bo / bo_async。stage 前缀随 femur_id 变为 "sb11"（Phase.stage）。
+PHASES[11] = {**PHASES[10], "vars": {**PHASES[10]["vars"], "h_cut": (16.0, 32.0)}, "sed": "none", "bond_every": 5, "margin_check": "dense",
+              "ref_cut_mm": 16.0, "a_bounds_max": 2000.0,
+              "femur_id": "sawbone3406", "neck_axis": "isthmus", "intact_job": None}
 REF_CUT_DEFAULT = 25.0      # 骨量损失的截骨参照默认值（= femur_real.resected_volume 的 ref_cut_mm 默认；阶段 10 及以前的 spec 不写这个键）
 MM_LIMIT = 150.0            # metric v3：柄身微动 P95 上限（µm，骨长入的经典阈值；会议 2026-10-10）
 ROT_FLOOR = 1e-3            # metric v3：转动的数值下限（度）
@@ -144,6 +168,21 @@ def out_path(phase: int) -> pathlib.Path:
     return J.RESULTS / f"neckopt_p{phase}.json"
 
 
+def _axis_key(neck_axis) -> str:
+    """颈轴规格的规范字符串（None / 选项名 / [ux, uy, uz] 向量都能比较、能进缓存键）。"""
+    return json.dumps(neck_axis, sort_keys=True, default=float)
+
+
+def femur_default_axis(femur_id: str | None):
+    """femur_id 的钩子模块默认颈轴（femur_3406.DEFAULT_NECK_AXIS）；CT 股骨（None）没有颈轴规格 → None。"""
+    if not femur_id:
+        return None
+    import importlib
+    if femur_id not in J.FEMURS:
+        raise KeyError(f"femur_id {femur_id!r}: known femurs are {sorted(J.FEMURS)}")
+    return getattr(importlib.import_module(J.FEMURS[femur_id]), "DEFAULT_NECK_AXIS", None)
+
+
 class Phase:
     def __init__(self, phase: int, ref: dict | None = None, sed: str | None = None):
         self.phase, self.space = phase, PHASES[phase]["vars"]
@@ -155,6 +194,15 @@ class Phase:
         self.warm_stages = tuple(PHASES[phase].get("warm_stages", ()))  # 除 neck* 之外允许热启动的阶段名
         self.bond_every = PHASES[phase].get("bond_every")               # 每提交 bond_every 个设计第 bond_every 个带粘接模型，其余 fric_only；None = 全带
         self.femur_id = PHASES[phase].get("femur_id")                   # None = CT 股骨（jobs.femur_for 默认）；进 spec、in_family、候选池键
+        # 颈轴规格（只对 femur_id 阶段有意义；None → 钩子模块的默认，阶段 11 显式 "isthmus"）；进 spec（固定显式写）、in_family、候选池键
+        self.neck_axis = (PHASES[phase].get("neck_axis") if PHASES[phase].get("neck_axis") is not None else femur_default_axis(self.femur_id)) \
+            if self.femur_id else None
+        # 粘接作业的显式完整股骨参照 id；femur_id 阶段为 None = 参照还没解（Phase / pool 可用，check_launch 与 spec_of(bonded) 拒绝）
+        self.intact_job = PHASES[phase].get("intact_job")
+        if self.intact_job is not None and not self.femur_id:
+            raise ValueError(f"phase {phase}: intact_job is only for femur_id phases (CT phases auto-pick ref_intact_h*)")
+        self.stage_prefix = "sb" if self.femur_id else "neck"            # femur_id 作业的 stage 不能是 "ref" / "neck*"（jobs.submit）
+        self.stage = f"{self.stage_prefix}{phase}"                       # 本阶段作业的 stage（spec_of、dataset、bo_async 收编都用它）
         self.margin_check = PHASES[phase].get("margin_check", "sparse")  # 余量检查密度（collar_rule.MARGIN_CHECK）；进 spec、in_family、候选池键
         self.ref_cut_mm = float(PHASES[phase].get("ref_cut_mm", REF_CUT_DEFAULT))   # 骨量损失的截骨参照（阶段 11：16；默认 25 不进 spec）
         a_max = PHASES[phase].get("a_bounds_max")                         # 肩部面积二分上限（阶段 11：2000；None = 哈希值 geom3d.A_BOUNDS[1]）
@@ -190,6 +238,8 @@ class Phase:
         # fric_only 不排除：摩擦模型相同，能否用由 objectives 决定（sed "none" 的阶段接受，abs / one-sided 因缺 SED 判 ok=False）
         if spec.get("femur_id") != self.femur_id or spec.get("margin_check", "sparse") != self.margin_check:   # 不同股骨 / 余量检查 = 不同族
             return False
+        if _axis_key(spec.get("neck_axis")) != _axis_key(self.neck_axis):   # 同一股骨的另一颈轴 = 另一截骨面与位姿，不混入（spec_of 固定显式写）
+            return False
         # 骨量损失参照与选号上限也要一致（阶段 11：16 / 2000；没写 = 25 / None）：参照不同 = 损失口径不同，上限不同 = 同一设计可能选到不同号
         if abs(float(spec.get("ref_cut_mm", REF_CUT_DEFAULT)) - self.ref_cut_mm) > 1e-9:
             return False
@@ -197,8 +247,8 @@ class Phase:
         if (a_max is None) != (self.a_bounds_max is None) or (a_max is not None and abs(float(a_max) - self.a_bounds_max) > 1e-9):
             return False
         stage = str(spec.get("stage", ""))
-        if not legacy and (float(d.get("cap_h", -1.0)) != CONST["cap_h"] or not (stage.startswith("neck") or stage in self.warm_stages)):
-            return False
+        if not legacy and (float(d.get("cap_h", -1.0)) != CONST["cap_h"] or not (stage.startswith(self.stage_prefix) or stage in self.warm_stages)):
+            return False                                                 # CT 阶段 "neck*"，femur_id 阶段 "sb*"（+ warm_stages）
         full = {**d, "h_cut": float(spec.get("h_cut", 25.0)), "collar_w": float(d.get("collar_w", 0.0)), "m": float(d.get("m", G.M_LEGACY))}
         for k, val in self.fixed.items():
             if abs(float(full.get(k, -999.0)) - float(val)) > 1e-6:
@@ -207,11 +257,19 @@ class Phase:
 
     def spec_of(self, u, tag: str, bonded: bool | None = None) -> dict:
         """bonded None / True：带粘接模型（原样）；False：fric_only（只解摩擦模型，jobs.py）。femur_id、非默认的 margin_check、
-        非默认的 ref_cut_mm（阶段 11：16）与设了的 a_bounds_max（阶段 11：2000）一并进 spec；阶段 10 及以前的 spec 逐字不变（作业 id 不变）。"""
+        非默认的 ref_cut_mm（阶段 11：16）与设了的 a_bounds_max（阶段 11：2000）一并进 spec；阶段 10 及以前的 spec 逐字不变（作业 id 不变）。
+        femur_id 阶段（S7）：stage = self.stage（"sb<phase>"），固定显式写 neck_axis；intact_job 只写在粘接作业上（fric_only 不读参照，
+        其 id 不依赖参照），粘接作业没有 intact_job 时抛 ValueError（否则 post 记 FAILED L5）。"""
         d, h = self.design_of(u)
         extra = {"collar_rule": self.rule} if self.rule else {}
         if self.femur_id:
             extra["femur_id"] = self.femur_id
+            extra["neck_axis"] = self.neck_axis
+            if bonded is not False:
+                if self.intact_job is None:
+                    raise ValueError(f"phase {self.phase} ({self.femur_id}): a bonded job needs PHASES[{self.phase}]['intact_job'] "
+                                     "(the solved intact reference of this femur); only fric_only jobs can be made without it")
+                extra["intact_job"] = self.intact_job
         if self.margin_check != "sparse":
             extra["margin_check"] = self.margin_check
         if abs(self.ref_cut_mm - REF_CUT_DEFAULT) > 1e-9:
@@ -220,7 +278,7 @@ class Phase:
             extra["a_bounds_max"] = self.a_bounds_max
         if bonded is False:
             extra["fric_only"] = True
-        return {**S.design_spec(d, f"neck{self.phase}", tag), "model": "m1", "h_cut": h, **FRIC, **extra}
+        return {**S.design_spec(d, self.stage, tag), "model": "m1", "h_cut": h, **FRIC, **extra}
 
     def template(self, st, fm):
         """候选池用的模板化 = jobs.prep 对本阶段 spec 会做的模板化（同规则、同余量检查密度）。"""
@@ -234,6 +292,40 @@ class Phase:
             import collar_rule as CR
             return CR.template_base(st, fm, margin_check=self.margin_check)
         return G.template(st, fm)
+
+
+def check_launch(ph: Phase) -> None:
+    """提交作业前的检查（bo / bo_async 开头调用；pool / dataset / status 不调）。CT 阶段什么都不查。
+    femur_id 阶段：intact_job 不能为 None（bond_every 设了 → 每第 bond_every 个是粘接作业；没设 → 全是粘接作业；两种都要参照），
+    且该作业要在队列里（spec.json）、kind intact、同一 femur_id、同一 neck_axis、h_int = 生产网格、无 cfg 覆盖；未 DONE 只警告
+    （stage_v2a.serve 的预检会等参照 DONE 再 post 粘接作业）。不通过抛 ValueError，什么都不提交。"""
+    if not ph.femur_id:
+        return
+    if ph.intact_job is None:
+        raise ValueError(f"phase {ph.phase} ({ph.femur_id}): PHASES[{ph.phase}]['intact_job'] is None — submit and solve the {ph.femur_id} intact "
+                         f"reference first (kind intact, h_int {S.H_PROD:g}, stage 'sb', femur_id, neck_axis {ph.neck_axis!r}), then fill in its id; "
+                         f"bond_every={ph.bond_every} means bonded jobs will be submitted and they need an explicit reference")
+    d = J.QROOT / ph.intact_job
+    sp = d / "spec.json"
+    if not sp.exists():
+        raise ValueError(f"phase {ph.phase}: intact_job {ph.intact_job!r} has no spec.json under {J.QROOT}")
+    spec = json.loads(sp.read_text())
+    bad = []
+    if spec.get("kind") != "intact":
+        bad.append(f"kind {spec.get('kind')!r} != 'intact'")
+    if spec.get("femur_id") != ph.femur_id:
+        bad.append(f"femur_id {spec.get('femur_id')!r} != {ph.femur_id!r}")
+    if _axis_key(spec.get("neck_axis")) != _axis_key(ph.neck_axis):
+        bad.append(f"neck_axis {spec.get('neck_axis')!r} != {ph.neck_axis!r}")
+    if spec.get("h_int") != S.H_PROD:
+        bad.append(f"h_int {spec.get('h_int')!r} != {S.H_PROD!r}")
+    if spec.get("cfg"):
+        bad.append("cfg override present")
+    if bad:
+        raise ValueError(f"phase {ph.phase}: intact_job {ph.intact_job!r} is not this phase's reference: " + "; ".join(bad))
+    st = J.state(d)
+    if st != "DONE":
+        print(f"[neckopt p{ph.phase}] warning: intact_job {ph.intact_job} is {st}, not DONE; bonded jobs will wait for it in serve", flush=True)
 
 
 def next_bonded(state: dict, bond_every: int | None) -> bool:
@@ -254,12 +346,21 @@ def _bonded_of(job_id: str) -> bool | None:
 
 # ------------------------------------------------------------------------------------------------- 指标
 def _calcar(job_id: str) -> tuple[float | None, float | None]:
-    """固定解剖区 G7、只算皮质，设计截骨面以下同一组采样点：(屏蔽指数 ssi %，1 − 植入 / 完整 的应力口径；应变能变化 sed_chg %，负 = 屏蔽)。"""
+    """固定解剖区 G7、只算皮质，设计截骨面以下同一组采样点：(屏蔽指数 ssi %，1 − 植入 / 完整 的应力口径；应变能变化 sed_chg %，负 = 屏蔽)。
+    femur_id 记录（S7）：参照 = 该设计 spec 的 intact_job（resorption.design_rows(iname=…)；股骨与网格 design_rows 自己按 spec 的
+    femur_id / neck_axis 取，intact_grid 核对参照同一股骨）；CT 记录的调用逐字不变（标准 CT 参照）。"""
     if job_id in _SSI:
         return _SSI[job_id]
     try:
         import resorption as RS
-        rows, _ = RS.design_rows(job_id)
+        sp = J.QROOT / job_id / "spec.json"
+        spec = json.loads(sp.read_text()) if sp.exists() else {}
+        if spec.get("femur_id"):
+            if not spec.get("intact_job"):
+                raise ValueError(f"femur_id {spec['femur_id']!r} design without intact_job: no reference for the calcar index")
+            rows, _ = RS.design_rows(job_id, iname=spec["intact_job"])
+        else:
+            rows, _ = RS.design_rows(job_id)
         g7 = next((r for r in rows if r["scheme"] == "fixed" and r["zone"] == "G7" and r["tissue"] == "cortex"), {})
         v = tuple(None if g7.get(k) is None or not np.isfinite(g7[k]) else float(g7[k]) for k in ("ssi_pct", "sed_chg_pct"))
     except Exception as e:                                           # noqa: BLE001
@@ -356,7 +457,7 @@ def dataset(ph: Phase, legacy: bool = False):
         spec = json.loads(sp.read_text())
         if spec.get("kind") not in ("design", "variant") or not ph.in_family(spec, legacy):
             continue
-        if spec.get("stage") == f"neck{ph.phase}":                        # 本阶段自己的作业由 records 续跑接管，不作热启动（否则重复计入）
+        if spec.get("stage") == ph.stage:                                  # 本阶段自己的作业由 records 续跑接管，不作热启动（否则重复计入）
             continue
         dsg = dict(spec["design"])
         h = float(spec.get("h_cut", 25.0))
@@ -373,13 +474,21 @@ def dataset(ph: Phase, legacy: bool = False):
 
 
 # ------------------------------------------------------------------------------------------------- 候选池（含确定的骨量损失）
+def base_femur(ph: Phase):
+    """候选池用的未截骨股骨：jobs.femur_for({"femur_id", "neck_axis"})（None → CT 的 FR.build()，与从前相同；3406 → femur_3406.install +
+    build(neck_axis)，install 把本进程的 geom3d.A_BOUNDS 上限放到 2000，与 jobs.prep 一样）；按 (femur_id, neck_axis) 在进程内缓存
+    （每个池 worker 一份）。"""
+    key = (ph.femur_id, _axis_key(ph.neck_axis))
+    if key not in _FM:
+        _FM[key] = J.femur_for({"femur_id": ph.femur_id, "neck_axis": ph.neck_axis})
+    return _FM[key]
+
+
 def _feasible(args):
     u, phase, ref = args
-    if "fm" not in _FM:
-        _FM["fm"] = FR.build()
     ph = Phase(phase, ref)
     d, h = ph.design_of(u)
-    fm = _FM["fm"].with_cut(h)
+    fm = base_femur(ph).with_cut(h)
     with J.a_bounds_cap(ph.a_bounds_max):                         # 与 jobs.prep 同一个上限补丁（阶段 11：2000），只在模板化期间生效、之后恢复
         r = ph.template(G.Stem3D(**d), fm)
     ok = bool(r["fit"] and r["A0"] >= S.MIN_A0)
@@ -388,10 +497,10 @@ def _feasible(args):
 
 
 def pool_key(ph: Phase, n: int, seed: int) -> str:
-    """候选池缓存键：代码哈希 + 设计空间 + 固定值 + 常数 + n / seed + 领规则；femur_id、非默认的 margin_check、非默认的 ref_cut_mm、
-    设了的 a_bounds_max 另加（默认值不改旧键）。"""
+    """候选池缓存键：代码哈希 + 设计空间 + 固定值 + 常数 + n / seed + 领规则；femur_id（及其 neck_axis）、非默认的 margin_check、
+    非默认的 ref_cut_mm、设了的 a_bounds_max 另加（默认值不改旧键）。"""
     s = (J.code_hash() + json.dumps(ph.space, sort_keys=True) + json.dumps(ph.fixed, sort_keys=True) + json.dumps(CONST) + f"{n}_{seed}_v2"
-         + (f"_{ph.rule}" if ph.rule else "") + (f"_{ph.femur_id}" if ph.femur_id else "")
+         + (f"_{ph.rule}" if ph.rule else "") + (f"_{ph.femur_id}_na{_axis_key(ph.neck_axis)}" if ph.femur_id else "")
          + (f"_mc{ph.margin_check}" if ph.margin_check != "sparse" else "")
          + (f"_ref{ph.ref_cut_mm:g}" if abs(ph.ref_cut_mm - REF_CUT_DEFAULT) > 1e-9 else "")
          + (f"_amax{ph.a_bounds_max:g}" if ph.a_bounds_max is not None else ""))
@@ -416,7 +525,8 @@ def gated_pool(ph: Phase, n: int = 8192, seed: int = 0, workers: int = 6) -> tup
     np.savez(f, U=U[keep], loss=loss[keep])
     f.with_suffix(".json").write_text(json.dumps({"phase": ph.phase, "n": n, "seed": seed, "feasible": int(keep.sum()), "rate": float(keep.mean()),
                                                   "space": ph.space, "fixed": ph.fixed, "loss_range_mm3": [float(np.nanmin(loss[keep])), float(np.nanmax(loss[keep]))],
-                                                  "ref_cut_mm": ph.ref_cut_mm, "a_bounds_max": ph.a_bounds_max}))
+                                                  "ref_cut_mm": ph.ref_cut_mm, "a_bounds_max": ph.a_bounds_max,
+                                                  "femur_id": ph.femur_id, "neck_axis": ph.neck_axis, "margin_check": ph.margin_check}, default=float))
     print(f"[neckopt p{ph.phase}] pool: {int(keep.sum())}/{n} feasible; bone loss {np.nanmin(loss[keep]):.0f}–{np.nanmax(loss[keep]):.0f} mm³", flush=True)
     return U[keep], loss[keep]
 
@@ -475,6 +585,7 @@ def ref_point(Y, C) -> np.ndarray:
 
 def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, legacy_warm: bool, n_pool: int = 8192,
        refresh_k: int = 0, refresh_rad: float = 0.08, stop_tol: float = 0.0, stop_rounds: int = 4) -> dict:
+    check_launch(ph)                                                     # femur_id 阶段：intact_job 必须已填且是同一股骨的参照，否则不提交
     import mobo
     mobo.fit_gp = S._fit_gp_unit
     X0, Y0, C0, ids0 = dataset(ph, legacy_warm) if legacy_warm is not None else _empty(ph)   # None = 不热启动（从零）
@@ -501,8 +612,8 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
              "ref": ph.ref, "n_init": n_init, "q": q, "n_rounds": n_rounds, "warm_start_n": int(len(X0)), "warm_start_ids": ids0,
              "pool_size": int(len(pool)), "records": recs, "ref_point": None if refp is None else refp.tolist(),
              "hv_hist": hv_hist, "lengthscales": ls_hist, "n_pool": n_pool, "refresh_k": refresh_k, "refresh_rad": refresh_rad,
-             "stop_tol": stop_tol, "stop_rounds": stop_rounds, "femur_id": ph.femur_id, "margin_check": ph.margin_check,
-             "ref_cut_mm": ph.ref_cut_mm, "a_bounds_max": ph.a_bounds_max,
+             "stop_tol": stop_tol, "stop_rounds": stop_rounds, "femur_id": ph.femur_id, "neck_axis": ph.neck_axis, "intact_job": ph.intact_job,
+             "stage": ph.stage, "margin_check": ph.margin_check, "ref_cut_mm": ph.ref_cut_mm, "a_bounds_max": ph.a_bounds_max,
              "bond_every": ph.bond_every, "n_submitted": int(len(recs) if n_submitted_prev is None else n_submitted_prev)}
 
     def save():
@@ -599,6 +710,7 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
     求解器里始终保持 inflight 个设计在算；每有一个算完，就用全部已完成结果重拟合代理、选 1 个新点提交（在算的点作 X_pending）。
     与同步版共用记录文件、参考点、候选池，可互相续跑；重启时把本阶段不在记录里的作业收编（已解的进记录，在算的进待定）。
     budget = 本阶段新设计的总数（含已完成的）。停止：最近 stop_window 个完成的超体积改进 < stop_tol，之后只排空不再提交。"""
+    check_launch(ph)                                                     # femur_id 阶段：intact_job 必须已填且是同一股骨的参照，否则不提交
     import mobo
     mobo.fit_gp = S._fit_gp_unit
     X0, Y0, C0, ids0 = dataset(ph, legacy_warm) if legacy_warm is not None else _empty(ph)   # None = 不热启动（从零）
@@ -627,7 +739,7 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
         if r.get("pool_idx") is not None and r["pool_idx"] < len(pool):
             used[r["pool_idx"]] = True
     adopted = 0
-    for d in sorted(J.QROOT.glob(f"neck{ph.phase}_*")):                 # 收编本阶段不在记录里的作业
+    for d in sorted(J.QROOT.glob(f"{ph.stage}_*")):                     # 收编本阶段不在记录里的作业（CT "neck<p>_*"，femur_id 阶段 "sb<p>_*"）
         if d.name in known or not (d / "spec.json").exists():
             continue
         st_ = J.state(d)
@@ -648,7 +760,8 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
              "warm_start_ids": ids0, "pool_size": int(len(pool)), "records": recs, "pending": pending,
              "ref_point": None if refp is None else refp.tolist(), "hv_hist": hv_hist, "lengthscales": ls_hist, "n_pool": n_pool,
              "refresh_k": refresh_k, "refresh_rad": refresh_rad, "stop_tol": stop_tol, "stop_window": stop_window,
-             "femur_id": ph.femur_id, "margin_check": ph.margin_check, "ref_cut_mm": ph.ref_cut_mm, "a_bounds_max": ph.a_bounds_max,
+             "femur_id": ph.femur_id, "neck_axis": ph.neck_axis, "intact_job": ph.intact_job, "stage": ph.stage,
+             "margin_check": ph.margin_check, "ref_cut_mm": ph.ref_cut_mm, "a_bounds_max": ph.a_bounds_max,
              "bond_every": ph.bond_every}
 
     def save():
