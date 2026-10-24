@@ -69,7 +69,8 @@
     * PHASES[12] = {**PHASES[11], metric "v4", pool_phase 11, warm_from {phase 11, rounds [0, -1]}}：stage "sb12"（Phase.stage 自动）、自己的
       状态文件 neckopt_p12.json、自己的 bond_every 计数器、预算与收编 glob（sb12_*）。热启动 = 冻结集（warm_from，见下一条），不是 dataset()。
       in_family 仍接受 "sb*" 前缀，所以 dataset() 是双向的（阶段 11 用 --warm family 时会把 sb12 作业当热启动）——并行两臂里阶段 11 必须用
-      --warm none（只用自己的记录 + 收编 sb11_*），这样 sb12 作业永远进不了阶段 11。
+      --warm none（只用自己的记录 + 收编 sb11_*），这样 sb12 作业永远进不了阶段 11。bo / bo_async 现在强制这一条
+      （check_warm_source：阶段 11 带 --warm family / legacy → ValueError，手工 R.launch 忘了写 --warm none 也启动不了）。
 
 阶段 12 的冻结热启动（warm_from；2026-10-24 审查 wf_6f8fbde1 第 1 条：2 目标与 3 目标两臂从同一个段 A 并行出发、各自预算相同）
     * PHASES[p]["warm_from"] = {"phase": s, "rounds": [...]}：本阶段的热启动只取阶段 s 状态文件里选定的记录，--warm（none / family / legacy）
@@ -96,6 +97,16 @@
       复用时与热启动点重合的池点（段 A 的初始点、段 B 从基础池选的点）标为已用，不会在 sb12 下重解；bo --init 也只取未用的池点
       （阶段 12 按计划不跑 init：热启动代替初始批）。--pool / --seed 另选时阶段 12 用自己的池（种子规则 50000 + 100·12 + seed）。
 
+并行两臂启动前的修补（2026-10-24 审查 wcc2j2fj4 rev；只在原来会崩 / 原来没有的路径上改行为，有可行设计时的选点、参考点与状态文件不变）
+    * 0 个可行设计时的前沿邻域补点：前沿为空 → 跳过这次补点并记一行日志（bo 每轮、bo_async 每 6 个完成；原来 np.vstack([]) 抛错，
+      两臂在第 6 个完成后崩）；refresh_pool 对空的中心集直接返回空数组（不起进程池）。
+    * 参考点：第一次采集时有可行行 → 照旧由当时的数据固定并存进 state["ref_point"]；没有可行行 → 这次采集用临时参考点
+      （ref_point 退回全部行），不存、不固定，日志写明；之后第一次出现可行行时（采集前或某个作业完成时）才固定，日志写明。
+      超体积在固定之前记 nan（与从前 0 个可行时相同）。
+    * 冻结热启动的来源阶段（某个 PHASES[q]["warm_from"]["phase"] == 本阶段，即阶段 11）：bo / bo_async 拒绝 --warm family / legacy
+      （ValueError，建池之前）——in_family 接受任何 "sb*" stage，family 会把阶段 q 的 sb<q>_* 作业当成本阶段的热启动；必须 --warm none。
+    * 状态文件原子重写：先写 <name>.json.tmp 再 os.replace（TERM / OOM 杀在截断与写之间不再留下空的 / 半个文件）。
+
     python v2/stage_neckopt.py pool --phase 1
     python v2/stage_neckopt.py bo --phase 1 --init 16 --rounds 12 --q 4 --sed abs    → results/neckopt_p1.json（每轮覆盖，可续跑）
     python v2/stage_neckopt.py bo --phase 2 --ref <job_id> ...                        → results/neckopt_p2.json
@@ -107,6 +118,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import pathlib
 import sys
 import time
@@ -542,7 +554,8 @@ def dataset(ph: Phase, legacy: bool = False):
 
 # ------------------------------------------------------------------------------------------------- 冻结热启动（warm_from，阶段 12）
 def _read_state_retry(path: pathlib.Path, tries: int = 5, wait_s: float = 2.0) -> dict | None:
-    """读另一个驱动的状态文件（它用 write_text 非原子地重写，可能读到一半）：不存在 → None；JSON 坏 → 等 wait_s 重试，tries 次后抛 ValueError。"""
+    """读另一个驱动的状态文件：不存在 → None；JSON 坏 → 等 wait_s 重试，tries 次后抛 ValueError。现在的 save() 是原子重写（_write_state），
+    重试留给 2026-10-24 之前的代码（write_text 非原子，可能读到一半）写的文件。"""
     for k in range(tries):
         if not path.exists():
             return None
@@ -775,7 +788,10 @@ def gated_pool(ph: Phase, n: int = 8192, seed: int = 0, workers: int = 6) -> tup
 
 
 def refresh_pool(ph: Phase, centres: np.ndarray, k: int = 64, rad: float = 0.08, workers: int = 6, seed: int = 0) -> tuple[np.ndarray, np.ndarray]:
-    """前沿邻域补点：每个中心周围 [x−rad, x+rad]^d 内均匀取 k 个点，过模板化，返回 (可行点, 骨量损失)。离散池的局部加密。"""
+    """前沿邻域补点：每个中心周围 [x−rad, x+rad]^d 内均匀取 k 个点，过模板化，返回 (可行点, 骨量损失)。离散池的局部加密。
+    中心集为空（还没有可行设计）→ 直接返回 (0, d) / (0,) 的空数组，不起进程池（bo / bo_async 在调用前已跳过并记日志，这里只是兜底）。"""
+    if np.asarray(centres, float).size == 0:
+        return np.zeros((0, len(ph.vars))), np.zeros(0)
     rng = np.random.default_rng(seed)
     U = np.clip(np.vstack([c + rng.uniform(-rad, rad, size=(k, len(ph.vars))) for c in np.atleast_2d(centres)]), 0.0, 1.0)
     with Pool(workers) as p:
@@ -919,8 +935,73 @@ def ref_point(Y, C) -> np.ndarray:
     return hi + 0.1 * (hi - lo)
 
 
+def ref_now(refp, Y, C, state: dict, tag: str, where: str, temp: bool = True):
+    """超体积参考点（审查 wcc2j2fj4 rev 第 2 条）→ (固定的参考点或 None, 这一次要用的参考点或 None)。
+    已固定 → 原样。还没固定、数据里有可行行（C ≤ 0）→ 由当前数据固定（ref_point(Y, C)，与从前"第一次采集时固定"相同），写进
+    state["ref_point"] 并记日志。还没有可行行 → temp 为真（采集）时算临时参考点（ref_point 退回全部行）只给这一次采集用，不存、不固定，
+    记日志；temp 为假（作业完成后的检查）时什么都不做，返回 (None, None)。"""
+    if refp is not None:
+        return refp, refp
+    C = np.asarray(C, float).reshape(-1, 1) if len(C) else np.zeros((0, 1))
+    n_feas = int((C[:, 0] <= 0).sum())
+    if n_feas:
+        refp = ref_point(Y, C)
+        state["ref_point"] = refp.tolist()
+        print(f"{tag} ref point frozen at {where} from {n_feas} feasible of {len(C)} rows: {np.round(refp, 4).tolist()}", flush=True)
+        return refp, refp
+    if not temp:
+        return None, None
+    tmp = ref_point(Y, C)
+    print(f"{tag} no feasible row yet ({len(C)} rows): temporary ref point {np.round(tmp, 4).tolist()} for {where} "
+          f"(not stored; frozen once a feasible row exists)", flush=True)
+    return None, tmp
+
+
+def _write_state(out: pathlib.Path, state: dict) -> None:
+    """状态文件的原子重写（审查 wcc2j2fj4 rev 第 7 条）：先写 <name>.json.tmp，再 os.replace 到 <name>.json——读者只会看到旧的或新的
+    完整文件；TERM / OOM 杀在写的中途只留下 .tmp。Windows 上目标正被读者打开时 os.replace 会 PermissionError：短暂重试（Linux 不会）。"""
+    text = json.dumps(state, indent=1, default=float)
+    tmp = out.with_suffix(out.suffix + ".tmp")
+    tmp.write_text(text)
+    for k in range(200):
+        try:
+            os.replace(tmp, out)
+            return
+        except PermissionError:
+            if k == 199:
+                raise
+            time.sleep(0.01)
+
+
+def warm_dependents(ph: Phase) -> list:
+    """以本阶段为冻结热启动来源的阶段（PHASES[q]["warm_from"]["phase"] == ph.phase；阶段 11 → [12]）。"""
+    out = []
+    for q, d in PHASES.items():
+        wf = d.get("warm_from") if isinstance(d, dict) else None
+        if q != ph.phase and isinstance(wf, dict):
+            try:
+                if int(wf.get("phase")) == ph.phase:
+                    out.append(q)
+            except (TypeError, ValueError):
+                continue
+    return sorted(out)
+
+
+def check_warm_source(ph: Phase, legacy_warm) -> None:
+    """bo / bo_async 开头（审查 wcc2j2fj4 rev 第 3 条）：本阶段是别的阶段的冻结热启动来源（阶段 11 → 阶段 12）时只许 --warm none
+    （legacy_warm None）。in_family 接受任何 "sb*" stage，--warm family / legacy 会让 dataset() 把阶段 q 的 sb<q>_* 作业当成本阶段的
+    热启动——并行两臂的比较就被另一臂的数据污染了。拒绝 = ValueError，建池、提交之前。"""
+    deps = warm_dependents(ph)
+    if deps and legacy_warm is not None:
+        flag = "legacy" if legacy_warm else "family"
+        raise ValueError(f"phase {ph.phase} is the frozen warm-start source of phase(s) {deps} (PHASES[q]['warm_from']['phase'] == {ph.phase}); "
+                         f"--warm {flag} would take the jobs of phase(s) {deps} into phase {ph.phase}'s warm start (in_family accepts "
+                         f"any '{ph.stage_prefix}*' stage): run phase {ph.phase} with --warm none")
+
+
 def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, legacy_warm: bool, n_pool: int = 8192,
        refresh_k: int = 0, refresh_rad: float = 0.08, stop_tol: float = 0.0, stop_rounds: int = 4) -> dict:
+    check_warm_source(ph, legacy_warm)                                   # 冻结热启动的来源阶段（11）只许 --warm none（sb12 不进阶段 11）
     check_launch(ph)                                                     # femur_id 阶段：intact_job 必须已填且是同一股骨的参照，否则不提交
     check_state(ph)                                                      # 续用的状态文件：参考点维数 = 目标数（建池之前就拒绝）
     import mobo
@@ -962,7 +1043,7 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
 
     def save():
         state["updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
-        out.write_text(json.dumps(state, indent=1, default=float))
+        _write_state(out, state)                                         # 原子重写（.json.tmp → os.replace）
 
     print(f"[neckopt p{ph.phase}] vars {ph.vars}; warm start {len(X0)} ({int((C0[:, 0] <= 0).sum()) if len(C0) else 0} feasible); "
           f"pool {len(pool)}; existing records {len(recs)}; sed={ph.sed}", flush=True)
@@ -1001,21 +1082,21 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
     for rnd in range(done_rounds + 1, n_rounds + 1):
         t0 = time.perf_counter()
         X, Y, C = stack()
-        if refp is None:                                                 # 参考点在热启动 / 初始批之后固定一次，超体积才可跨轮、跨阶段比较
-            refp = ref_point(Y, C)
-            state["ref_point"] = refp.tolist()
+        # 参考点在热启动 / 初始批之后固定一次，超体积才可跨轮、跨阶段比较；还没有可行行时这一轮用临时参考点，不固定（ref_now）
+        refp, ref_acq = ref_now(refp, Y, C, state, f"[neckopt p{ph.phase}]", f"round {rnd} acquisition")
         det = det_of(ph, pool, pool_loss, det_extra(ph, pool, X0, Y0, recs))   # v1/v2 {1: 池}、v3 None、v4 {2: 池 + 不在池上的基线点}
         model = mobo.fit_models(X, Y, C, det=det)
         ls_hist[str(rnd)] = lengthscales(model, ph)
         free = np.nonzero(~used)[0]
-        pick = mobo.propose(model, X, refp, pool[free], q, ph.n_obj, 1, (50_000 + ph.phase * 100 + seed) * 1000 + rnd)
+        pick = mobo.propose(model, X, ref_acq, pool[free], q, ph.n_obj, 1, (50_000 + ph.phase * 100 + seed) * 1000 + rnd)
         idx = free[pick]
         used[idx] = True
         acq_s = time.perf_counter() - t0
         okn = run_batch(idx, f"r{rnd}", rnd)
         X, Y, C = stack()
+        refp, _ = ref_now(refp, Y, C, state, f"[neckopt p{ph.phase}]", f"round {rnd} (first feasible design)", temp=False)
         feas = Y[C[:, 0] <= 0]
-        hv = float(mobo.hypervolume(feas, refp)) if len(feas) else float("nan")
+        hv = float(mobo.hypervolume(feas, refp)) if len(feas) and refp is not None else float("nan")
         hv_hist.append({"round": rnd, "hv": hv, "n_eval": int(len(recs)), "n_ok": int(sum(r["ok"] for r in recs))})
         last = recs[-len(idx):]
         print(f"[neckopt p{ph.phase}] round {rnd}: +{int(okn.sum())}/{len(idx)} ok; "
@@ -1023,14 +1104,19 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
               f"HV {hv:.4g}; acq {acq_s:.0f} s", flush=True)
         if refresh_k > 0:                                               # 前沿邻域补点（离散池的局部加密）
             t1 = time.perf_counter()
-            Un, Ln = refresh_pool(ph, front_rows(X, Y, C), k=refresh_k, rad=refresh_rad, workers=workers, seed=seed * 1000 + rnd)
-            if len(Un):
-                pool, pool_loss = np.vstack([pool, Un]), np.r_[pool_loss, Ln]
-                used = np.r_[used, np.zeros(len(Un), bool)]
-                np.savez(live, U=pool, loss=pool_loss)                   # det 在下一次拟合前按新池重建
-            state["pool_size"] = int(len(pool))
-            print(f"[neckopt p{ph.phase}] pool refresh: +{len(Un)} feasible around {len(front_rows(X, Y, C))} front points "
-                  f"({time.perf_counter() - t1:.0f} s), pool {len(pool)}", flush=True)
+            centres = front_rows(X, Y, C)
+            if len(centres):
+                Un, Ln = refresh_pool(ph, centres, k=refresh_k, rad=refresh_rad, workers=workers, seed=seed * 1000 + rnd)
+                if len(Un):
+                    pool, pool_loss = np.vstack([pool, Un]), np.r_[pool_loss, Ln]
+                    used = np.r_[used, np.zeros(len(Un), bool)]
+                    np.savez(live, U=pool, loss=pool_loss)               # det 在下一次拟合前按新池重建
+                state["pool_size"] = int(len(pool))
+                print(f"[neckopt p{ph.phase}] pool refresh: +{len(Un)} feasible around {len(centres)} front points "
+                      f"({time.perf_counter() - t1:.0f} s), pool {len(pool)}", flush=True)
+            else:                                                        # 还没有可行设计：前沿为空，没有可加密的邻域（原来 np.vstack([]) 抛错）
+                print(f"[neckopt p{ph.phase}] pool refresh skipped: no feasible design yet ({len(C)} rows, 0 front points); "
+                      f"pool {len(pool)}", flush=True)
         save()
         if stop_tol > 0 and len(hv_hist) > stop_rounds:
             hvs = [h["hv"] for h in hv_hist[-(stop_rounds + 1):]]
@@ -1057,6 +1143,7 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
     与同步版共用记录文件、参考点、候选池，可互相续跑；重启时把本阶段不在记录里的作业收编（已解的进记录，在算的进待定）。
     budget = 本阶段新设计的总数（含已完成的）= len(records) + len(pending)：本阶段自己提交的 + 收编的 <stage>_* 作业（阶段 11：init 记录与
     冒烟作业都算）；热启动行（X0，dataset 或 warm_from 冻结集）不计。停止：最近 stop_window 个完成的超体积改进 < stop_tol，之后只排空不再提交。"""
+    check_warm_source(ph, legacy_warm)                                   # 冻结热启动的来源阶段（11）只许 --warm none（sb12 不进阶段 11）
     check_launch(ph)                                                     # femur_id 阶段：intact_job 必须已填且是同一股骨的参照，否则不提交
     check_state(ph)                                                      # 续用的状态文件：参考点维数 = 目标数（建池之前就拒绝）
     import mobo
@@ -1121,7 +1208,7 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
 
     def save():
         state["pending"], state["pool_size"], state["updated"] = pending, int(len(pool)), time.strftime("%Y-%m-%d %H:%M:%S")
-        out.write_text(json.dumps(state, indent=1, default=float))
+        _write_state(out, state)                                         # 原子重写（.json.tmp → os.replace）
 
     def stack():
         good = [r for r in recs if r["ok"]]
@@ -1141,8 +1228,8 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
         while not stopped and len(pending) < inflight and n_sub < budget:               # 1. 补满在算的设计
             t0 = time.perf_counter()
             X, Y, C = stack()
-            if refp is None:
-                refp = ref_point(Y, C); state["ref_point"] = refp.tolist()
+            # 参考点：有可行行就固定（与从前第一次采集时相同）；还没有可行行 → 这次采集用临时参考点，不存、不固定（ref_now）
+            refp, ref_acq = ref_now(refp, Y, C, state, f"[neckopt p{ph.phase} async]", f"acquisition #{n_sub + 1}")
             det = det_of(ph, pool, pool_loss, det_extra(ph, pool, X0, Y0, recs, pending))   # v1/v2 {1: 池}、v3 None、v4 {2: 池 + 不在池上的点}
             model = mobo.fit_models(X, Y, C, det=det)
             ls_hist[str(n_sub)] = lengthscales(model, ph)
@@ -1152,7 +1239,7 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
             else:
                 cand = free
             Xp = np.array([p_["x"] for p_ in pending.values()]) if pending else None
-            pick = mobo.propose(model, X, refp, pool[cand], 1, ph.n_obj, 1, (60_000 + ph.phase * 100 + seed) * 1000 + n_sub, X_pending=Xp)
+            pick = mobo.propose(model, X, ref_acq, pool[cand], 1, ph.n_obj, 1, (60_000 + ph.phase * 100 + seed) * 1000 + n_sub, X_pending=Xp)
             i = int(cand[pick[0]]); used[i] = True
             bonded = next_bonded(state, ph.bond_every)                                      # 每 bond_every 个提交第 bond_every 个带粘接模型
             job = J.submit(ph.spec_of(pool[i], f"a{n_sub}", bonded=bonded))
@@ -1172,6 +1259,7 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
             p_ = pending.pop(j)
             recs.append(rec_from(j, p_["x"], p_.get("pool_idx"), len(recs) + 1))
         X, Y, C = stack()
+        refp, _ = ref_now(refp, Y, C, state, f"[neckopt p{ph.phase} async]", f"completion {len(recs)} (first feasible design)", temp=False)
         feas = Y[C[:, 0] <= 0]
         hv = float(mobo.hypervolume(feas, refp)) if len(feas) and refp is not None else float("nan")
         hv_hist.append({"n_done": int(len(recs)), "hv": hv, "time": time.strftime("%Y-%m-%d %H:%M:%S")})
@@ -1180,13 +1268,18 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
         since_refresh += len(done_now)
         if refresh_k > 0 and since_refresh >= 6:                                       # 3. 前沿邻域补点
             t1 = time.perf_counter()
-            Un, Ln = refresh_pool(ph, _front_rows(X, Y, C), k=refresh_k, rad=refresh_rad, workers=workers, seed=seed * 1000 + len(recs))
-            if len(Un):
-                pool, pool_loss = np.vstack([pool, Un]), np.r_[pool_loss, Ln]
-                used = np.r_[used, np.zeros(len(Un), bool)]
-                np.savez(live, U=pool, loss=pool_loss)                   # det 在下一次拟合前按新池重建
+            centres = _front_rows(X, Y, C)
+            if len(centres):
+                Un, Ln = refresh_pool(ph, centres, k=refresh_k, rad=refresh_rad, workers=workers, seed=seed * 1000 + len(recs))
+                if len(Un):
+                    pool, pool_loss = np.vstack([pool, Un]), np.r_[pool_loss, Ln]
+                    used = np.r_[used, np.zeros(len(Un), bool)]
+                    np.savez(live, U=pool, loss=pool_loss)               # det 在下一次拟合前按新池重建
+                print(f"[neckopt p{ph.phase} async] pool refresh: +{len(Un)} ({time.perf_counter() - t1:.0f} s), pool {len(pool)}", flush=True)
+            else:                                                        # 还没有可行设计：前沿为空（原来 np.vstack([]) 抛错，两臂在第 6 个完成后崩）
+                print(f"[neckopt p{ph.phase} async] pool refresh skipped: no feasible design yet ({len(C)} rows, 0 front points); "
+                      f"next try after 6 more completions; pool {len(pool)}", flush=True)
             since_refresh = 0
-            print(f"[neckopt p{ph.phase} async] pool refresh: +{len(Un)} ({time.perf_counter() - t1:.0f} s), pool {len(pool)}", flush=True)
         if stop_tol > 0 and not stopped and len(hv_hist) > stop_window:                 # 4. 停止判据（按完成数）
             a_, b_ = hv_hist[-stop_window - 1]["hv"], hv_hist[-1]["hv"]
             if a_ > 0 and (b_ - a_) / a_ < stop_tol:

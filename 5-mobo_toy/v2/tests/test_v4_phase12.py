@@ -26,6 +26,8 @@ H. bo_async(12) end-to-end on synthetic data (real BoTorch): 3 objectives + det 
 I. bo(12) sync: init takes the first UNUSED pool points (skips warm-start pool points), one round q 2 with n_obj 3.
 J. phase 11 unchanged: bo_async(11) and bo(11) with this code vs the synced HEAD 4ca6a57 (git show) on identical fake queues ->
    identical state files (minus timestamps), identical job ids / specs / live pool; plus in_family two-way sharing sb11 <-> sb12 (documented).
+   (2026-10-24 fixdev: these runs use the family warm start, which the new guard check_warm_source refuses for phase 11 while PHASES[12]
+   has warm_from; J therefore runs with warm_from removed from PHASES[12] -- the guard itself is tested in test_arms_p11_p12.py K.)
 """
 import copy
 import importlib.util
@@ -621,6 +623,7 @@ def run_p11(mod, env, mode):
     return scrub(json.loads(N.out_path(11).read_text())), queue_view(), (None if z is None else (z["U"].copy(), z["loss"].copy())), list(SUBMITTED)
 
 
+N.PHASES[12].pop("warm_from", None)                                        # J: family warm start for phase 11 (guard off; see the docstring)
 if OLD is not None:
     for mode in ("async", "sync"):
         t0 = time.perf_counter()
