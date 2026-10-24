@@ -148,15 +148,15 @@ N.Pool = SerialPool
 
 # ================================================================ A. PHASES[11] / Phase fields
 p10, p11 = N.PHASES[10], N.PHASES[11]
-ok("PHASES[11] production: femur_id sawbone3406, neck_axis isthmus, intact_job None (key present); everything else as before",
-   p11["femur_id"] == FID and p11["neck_axis"] == "isthmus" and "intact_job" in p11 and p11["intact_job"] is None
+ok("PHASES[11] production: femur_id sawbone3406, neck_axis isthmus, intact_job = the solved 3406 reference (2026-10-24); everything else as before",
+   p11["femur_id"] == FID and p11["neck_axis"] == "isthmus" and p11.get("intact_job") == "sb_intact_h2_9c9d7fb5"
    and p11["sed"] == "none" and p11["bond_every"] == 5 and p11["margin_check"] == "dense" and p11["ref_cut_mm"] == 16.0 and p11["a_bounds_max"] == 2000.0
    and p11["vars"]["h_cut"] == (16.0, 32.0) and p11["fixed"] == p10["fixed"] and p11["collar_rule"] == "neck_in_shoulder" and p11["metric"] == "v3")
 ok("PHASES[10] untouched: no femur_id / neck_axis / intact_job keys", not any(k in p10 for k in ("femur_id", "neck_axis", "intact_job")))
 ok("PHASES[11].neck_axis == femur_3406.DEFAULT_NECK_AXIS (explicit copy of the S0 decision)", p11["neck_axis"] == F6.DEFAULT_NECK_AXIS == "isthmus")
 ph11, ph10 = N.Phase(11), N.Phase(10)
-ok("Phase(11): femur_id, neck_axis isthmus, intact_job None, stage sb11 / prefix sb, bond_every 5, margin dense, ref 16, amax 2000",
-   ph11.femur_id == FID and ph11.neck_axis == "isthmus" and ph11.intact_job is None and ph11.stage == "sb11" and ph11.stage_prefix == "sb"
+ok("Phase(11): femur_id, neck_axis isthmus, intact_job = 3406 reference, stage sb11 / prefix sb, bond_every 5, margin dense, ref 16, amax 2000",
+   ph11.femur_id == FID and ph11.neck_axis == "isthmus" and ph11.intact_job == "sb_intact_h2_9c9d7fb5" and ph11.stage == "sb11" and ph11.stage_prefix == "sb"
    and ph11.bond_every == 5 and ph11.margin_check == "dense" and ph11.ref_cut_mm == 16.0 and ph11.a_bounds_max == 2000.0)
 ok("Phase(10): femur_id None, neck_axis None, intact_job None, stage neck10 / prefix neck",
    ph10.femur_id is None and ph10.neck_axis is None and ph10.intact_job is None and ph10.stage == "neck10" and ph10.stage_prefix == "neck")
@@ -166,6 +166,7 @@ N.PHASES[11]["neck_axis"] = [0.76, -0.23, 0.60]
 ok("Phase(11) accepts a vector neck_axis", N.Phase(11).neck_axis == [0.76, -0.23, 0.60])
 restore_p11()
 N.PHASES[11]["femur_id"] = None
+N.PHASES[11]["intact_job"] = None
 ok("neck_axis is ignored for a CT phase (femur_id None -> neck_axis None)", N.Phase(11).neck_axis is None)
 N.PHASES[11]["intact_job"] = "ref_intact_h2_x"
 ok("intact_job on a CT phase -> ValueError (CT phases auto-pick ref_intact_h*)", raises(ValueError, N.Phase, 11) is not None)
@@ -182,8 +183,11 @@ ok("spec_of(11, fric_only): stage sb11, femur_id, neck_axis isthmus (explicit), 
    and s_fo["ref_cut_mm"] == 16.0 and s_fo["a_bounds_max"] == 2000.0 and s_fo["margin_check"] == "dense" and s_fo["model"] == "m1"
    and s_fo["slip_tol"] == 2.5e-4 and s_fo["delta"] == 0.025 and s_fo["collar_rule"] == "neck_in_shoulder" and s_fo["h_cut"] == 24.0
    and s_fo["kind"] == "design" and s_fo["h_int"] == S.H_PROD and s_fo["min_A0"] == S.MIN_A0 and s_fo["tag"] == "a0", json.dumps(sorted(s_fo)))
-e_b = raises(ValueError, ph11.spec_of, um, "a4", True)
-e_n = raises(ValueError, ph11.spec_of, um, "a4")
+N.PHASES[11]["intact_job"] = None
+ph_noref = N.Phase(11)
+restore_p11()
+e_b = raises(ValueError, ph_noref.spec_of, um, "a4", True)
+e_n = raises(ValueError, ph_noref.spec_of, um, "a4")
 ok("spec_of(11, bonded True / None) with intact_job None -> ValueError naming PHASES[11]['intact_job']",
    e_b is not None and "intact_job" in e_b and e_n is not None and "intact_job" in e_n, (e_b or "")[:100])
 INTACT = {"kind": "intact", "h_int": 2.0, "stage": "sb", "tag": "intact_h2", "femur_id": FID, "neck_axis": "isthmus"}   # S3_done.md form
@@ -392,7 +396,7 @@ X, Y, C, ids = N.dataset(ph10)
 ok("dataset(10): no 3406 record enters the CT phase 10", ids == [] or all(not i.startswith("sb") for i in ids), str(ids))
 N.record_of = _real_record_of
 restore_p11()
-ok("fixture reset: PHASES[11] back to the production definition", N.PHASES[11] == P11_ORIG and N.Phase(11).intact_job is None)
+ok("fixture reset: PHASES[11] back to the production definition", N.PHASES[11] == P11_ORIG and N.Phase(11).intact_job == "sb_intact_h2_9c9d7fb5")
 
 bad = [k for k, v in checks if not v]
 print(f"\n{len(checks) - len(bad)}/{len(checks)} checks passed" + (f"; FAILED: {bad}" if bad else ""))

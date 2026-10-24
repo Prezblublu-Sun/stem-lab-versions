@@ -151,7 +151,7 @@ PHASES = {
 # L ≤ 45（S5 v2 扫描，2026-10-24：3406 上 L ≥ 45 的 1536 个 Sobol 点可行 0 个——柄尖进松质芯底的锥形空洞；只为候选池效率，不丢可行点）。
 PHASES[11] = {**PHASES[10], "vars": {**PHASES[10]["vars"], "L": (20.0, 45.0), "h_cut": (16.0, 32.0)}, "sed": "none", "bond_every": 5, "margin_check": "dense",
               "ref_cut_mm": 16.0, "a_bounds_max": 2000.0,
-              "femur_id": "sawbone3406", "neck_axis": "isthmus", "intact_job": None}
+              "femur_id": "sawbone3406", "neck_axis": "isthmus", "intact_job": "sb_intact_h2_9c9d7fb5"}   # 3406 完整股骨参照，2026-10-24 01:04 DONE（68 s）
 REF_CUT_DEFAULT = 25.0      # 骨量损失的截骨参照默认值（= femur_real.resected_volume 的 ref_cut_mm 默认；阶段 10 及以前的 spec 不写这个键）
 MM_LIMIT = 150.0            # metric v3：柄身微动 P95 上限（µm，骨长入的经典阈值；会议 2026-10-10）
 ROT_FLOOR = 1e-3            # metric v3：转动的数值下限（度）

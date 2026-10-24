@@ -33,8 +33,8 @@ def ok(name, cond, extra=""):
 # 3406 intact is solved; stage prefix sb11). This file tests the phase-11 *shape* (sed none, bond_every, fric_only, in_family) on the CT femur
 # (stage neck11, no femur_id), so after checking the production values once it pins the CT placeholder as its fixture; the 3406 behaviour is
 # covered by test_s7_phase11_3406.py.
-ok("PHASES[11] production (S7): femur_id sawbone3406, neck_axis isthmus, intact_job None (to be filled once the 3406 intact is solved); margin_check dense (f1134dd)",
-   N.PHASES[11]["femur_id"] == "sawbone3406" and N.PHASES[11]["neck_axis"] == "isthmus" and "intact_job" in N.PHASES[11] and N.PHASES[11]["intact_job"] is None
+ok("PHASES[11] production (S7): femur_id sawbone3406, neck_axis isthmus, intact_job = solved 3406 reference (2026-10-24); margin_check dense",
+   N.PHASES[11]["femur_id"] == "sawbone3406" and N.PHASES[11]["neck_axis"] == "isthmus" and N.PHASES[11].get("intact_job") == "sb_intact_h2_9c9d7fb5"
    and N.PHASES[11]["margin_check"] == "dense")
 # CT fixture for the checks below (stage neck11, margin_check sparse): the margin_check pins were written against the sparse placeholder and were
 # already failing after f1134dd switched PHASES[11] to dense (5 checks at HEAD); the dense path itself is exercised further down by setting it explicitly.
