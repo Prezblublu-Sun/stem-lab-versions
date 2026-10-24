@@ -328,6 +328,21 @@ def specs(batch: str) -> dict:
         s2 = {k: v for k, v in src.items() if k not in ("stage", "tag", "created", "kind", "bond_only", "intact_job")}
         s2["fric_only"] = True
         out["SBdelta_init07cb_d0.1"] = {**s2, **meta, "tag": "delta_init07cb_d0.1", "delta": 0.10, "source_job": "sb11_init_07cbf783"}
+    elif batch == "SBdx":                                        # 2026-10-24 11:05：段 A 30 个设计 δ 0.025 全部 > 150 µm → 8 个设计 × δ 0.10 / 0.20，看排序是否随 δ 保持
+        st = json.loads((J.RESULTS / "neckopt_p11.json").read_text())
+        ok = sorted([r for r in st["records"] if r.get("ok") and r.get("round") == 0], key=lambda r: r.get("f1_body_p95_um") or r.get("f1_p95_um") or 1e9)
+        pick = [ok[i] for i in sorted({0, 1, 2, 7, 14, 21, len(ok) - 1}) if i < len(ok)]
+        best_area = max(ok, key=lambda r: r.get("contact_area_load2_mm2") or 0)
+        if best_area not in pick:
+            pick.append(best_area)
+        meta = {"kind": "variant", "stage": "v3406", "gate": "delta_x_design"}
+        for r in pick:
+            src = json.loads((J.QROOT / r["job_id"] / "spec.json").read_text())
+            s2 = {k: v for k, v in src.items() if k not in ("stage", "tag", "created", "kind", "bond_only", "intact_job")}
+            s2["fric_only"] = True
+            short = r["job_id"].split("_")[2]
+            for dl in (0.10, 0.20):
+                out[f"SBdx_{short}_d{dl:g}"] = {**s2, **meta, "tag": f"dx_{short}_d{dl:g}", "delta": dl, "source_job": r["job_id"]}
     elif batch == "SBb":                                         # 参照填进 PHASES[11]["intact_job"] 之后
         out.update({k: v for k, v in _sb_smoke(bonded=True).items() if k.endswith("_h20")})
     elif batch == "MI":
@@ -389,6 +404,6 @@ if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["submit", "status"])
-    ap.add_argument("batch", choices=["A", "B", "C", "E", "BW", "CW", "F", "G", "P9D", "U", "MI", "M", "M14", "SB", "SBb", "SBd", "V3406", "SBdelta"])
+    ap.add_argument("batch", choices=["A", "B", "C", "E", "BW", "CW", "F", "G", "P9D", "U", "MI", "M", "M14", "SB", "SBb", "SBd", "V3406", "SBdelta", "SBdx"])
     a = ap.parse_args()
     {"submit": submit, "status": status}[a.cmd](a.batch)
