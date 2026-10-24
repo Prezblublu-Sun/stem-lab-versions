@@ -738,10 +738,10 @@ spies(False)
 FEAS_OVERRIDE[0] = False
 first_feas = next((r for r in (st_z11b or {}).get("records", []) if r["ok"] and r["c"][0] <= 0), None)
 ok("bo_async(11) restart, first acquisition still all-infeasible -> 1 temporary ref point; its pick completes feasible -> ref point "
-   "frozen at that completion (logged once) = that row's y (only feasible row)",
+   "frozen at that completion (logged once), strictly worse than the only feasible row (REF_MIN_FEAS margin from all rows)",
    err_z11b is None and log_z11b.count("temporary ref point") == 1 and log_z11b.count("ref point frozen at completion 17") == 1
    and log_z11b.count("ref point frozen") == 1 and first_feas is not None and first_feas["job_id"] == SUBMITTED[0]
-   and st_z11b["ref_point"] == N.ref_point(np.array([first_feas["y"]]), np.array([first_feas["c"]])).tolist()
+   and all(rp > y for rp, y in zip(st_z11b["ref_point"], first_feas["y"]))
    and json.loads(N.out_path(11).read_text())["ref_point"] == st_z11b["ref_point"], err_z11b or str((st_z11b or {}).get("ref_point")))
 ok("after the freeze: the 6 later acquisitions use the frozen ref point; HV defined from the freezing completion on (nan before)",
    st_z11b is not None and len(PROP_LOG) == 7 and not np.array_equal(PROP_LOG[0]["ref"], np.array(st_z11b["ref_point"]))

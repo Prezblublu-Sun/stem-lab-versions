@@ -51,6 +51,7 @@ BASE.mkdir(parents=True)
 
 import jobs as J  # noqa: E402
 import stage_neckopt as N  # noqa: E402
+N.REF_MIN_FEAS = 1   # this file pins phase-11 behaviour to 4ca6a57 (old freeze rule); the few-feasible margin rule is tested in test_arms_p11_p12
 import mobo  # noqa: E402
 import torch  # noqa: E402
 from scipy.stats import qmc  # noqa: E402

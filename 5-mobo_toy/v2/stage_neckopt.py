@@ -561,7 +561,7 @@ def _read_state_retry(path: pathlib.Path, tries: int = 5, wait_s: float = 2.0) -
             return None
         try:
             return json.loads(path.read_text())
-        except ValueError as e:
+        except (ValueError, PermissionError) as e:                    # PermissionError：Windows 上写者正在 os.replace
             if k == tries - 1:
                 raise ValueError(f"{path.name} is unreadable after {tries} tries ({type(e).__name__}: {e})") from e
             time.sleep(wait_s)
@@ -935,6 +935,9 @@ def ref_point(Y, C) -> np.ndarray:
     return hi + 0.1 * (hi - lo)
 
 
+REF_MIN_FEAS = 5           # 参考点固定时可行行少于此数 → 余量取全部行的范围（见 ref_now）
+
+
 def ref_now(refp, Y, C, state: dict, tag: str, where: str, temp: bool = True):
     """超体积参考点（审查 wcc2j2fj4 rev 第 2 条）→ (固定的参考点或 None, 这一次要用的参考点或 None)。
     已固定 → 原样。还没固定、数据里有可行行（C ≤ 0）→ 由当前数据固定（ref_point(Y, C)，与从前"第一次采集时固定"相同），写进
@@ -946,6 +949,11 @@ def ref_now(refp, Y, C, state: dict, tag: str, where: str, temp: bool = True):
     n_feas = int((C[:, 0] <= 0).sum())
     if n_feas:
         refp = ref_point(Y, C)
+        if n_feas < REF_MIN_FEAS:                                     # 审查 wa1rjziqh：只有 1–4 个可行行时，它们自己的范围几乎为零，参考点会
+            Yf = np.asarray(Y, float)[C[:, 0] <= 0]                   # 贴在这几个设计上（超体积退化）。余量改取全部行的范围，至少不比可行行小。
+            span = np.maximum(Yf.max(0) - Yf.min(0), np.asarray(Y, float).max(0) - np.asarray(Y, float).min(0))
+            span = np.where(span > 0, span, 0.1 * np.abs(Yf.max(0)) + 1e-9)
+            refp = Yf.max(0) + 0.1 * span
         state["ref_point"] = refp.tolist()
         print(f"{tag} ref point frozen at {where} from {n_feas} feasible of {len(C)} rows: {np.round(refp, 4).tolist()}", flush=True)
         return refp, refp
