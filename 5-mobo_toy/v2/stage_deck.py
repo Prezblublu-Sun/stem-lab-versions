@@ -318,6 +318,16 @@ def specs(batch: str) -> dict:
         e2a = json.loads((J.QROOT / "neck9_init_e2a68dea" / "spec.json").read_text())["design"]
         for h in (16.0, 25.0):
             out[f"V3406_e2a_h{h:g}"] = {**base, **meta, "design": dict(e2a), "h_cut": h, "tag": f"e2a_h{h:g}", "source_job": "neck9_init_e2a68dea"}
+    elif batch == "SBdelta":                                     # 2026-10-24 03:25：3406 上 δ 0.025 的初始设计全部松动（微动 0.8–2.5 mm、转动 2.6–8.3°）→ 过盈量敏感性
+        base = _sb_smoke(bonded=False)["SB_smoke_f_h16"]
+        base = {k: v for k, v in base.items() if k not in ("stage", "tag")}
+        meta = {"kind": "variant", "stage": "v3406", "gate": "delta_sweep"}
+        for dl in (0.05, 0.10, 0.20):
+            out[f"SBdelta_smoke_h16_d{dl:g}"] = {**base, **meta, "tag": f"delta_smoke_h16_d{dl:g}", "delta": dl}
+        src = json.loads((J.QROOT / "sb11_init_07cbf783" / "spec.json").read_text())
+        s2 = {k: v for k, v in src.items() if k not in ("stage", "tag", "created", "kind", "bond_only", "intact_job")}
+        s2["fric_only"] = True
+        out["SBdelta_init07cb_d0.1"] = {**s2, **meta, "tag": "delta_init07cb_d0.1", "delta": 0.10, "source_job": "sb11_init_07cbf783"}
     elif batch == "SBb":                                         # 参照填进 PHASES[11]["intact_job"] 之后
         out.update({k: v for k, v in _sb_smoke(bonded=True).items() if k.endswith("_h20")})
     elif batch == "MI":
@@ -379,6 +389,6 @@ if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["submit", "status"])
-    ap.add_argument("batch", choices=["A", "B", "C", "E", "BW", "CW", "F", "G", "P9D", "U", "MI", "M", "M14", "SB", "SBb", "SBd", "V3406"])
+    ap.add_argument("batch", choices=["A", "B", "C", "E", "BW", "CW", "F", "G", "P9D", "U", "MI", "M", "M14", "SB", "SBb", "SBd", "V3406", "SBdelta"])
     a = ap.parse_args()
     {"submit": submit, "status": status}[a.cmd](a.batch)
