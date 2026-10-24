@@ -8,10 +8,10 @@ stair load, designs ranked (2-obj rotation x fully-closed contact; 3-obj + bone 
 the 3406 foam phases (PHASES[p]['mm_limit'] None: micromotion recorded and reported only).
 A. definitions: PHASES[13] = {**PHASES[11], fric delta 0.10, pool_phase 11, mm_limit None}, PHASES[14] = {**PHASES[13], metric v4,
    warm_from {13, [0, -1]}}; Phase fields (stage sb13 / sb14, fric, mm_limit, n_obj, pool_phase); phases 10-12 keep mm_limit 150 / FRIC and
-   PHASES[11] / [12] are identical to HEAD; spec_of carries delta 0.1 (different job id from the delta-0.025 twin); in_family isolates
+   PHASES[11] / [12] are identical to 4e7a86d; spec_of carries delta 0.1 (different job id from the delta-0.025 twin); in_family isolates
    delta 0.025 <-> 0.10 both ways (11 / 12 vs 13 / 14) and shares 13 <-> 14; bad fric / mm_limit definitions refused; pool reuse of
    phase 11's pool file (same key, same file name); warm_dependents / check_warm_source for 13 -> 14.
-B. objectives / record_of: default mm_limit bitwise identical to HEAD for v1-v4 on a grid of records and on fake jobs; mm_limit None:
+B. objectives / record_of: default mm_limit bitwise identical to 4e7a86d (pre-change) for v1-v4 on a grid of records and on fake jobs; mm_limit None:
    a 2000 um fric_only record is ok and feasible with c = -1, bonded rows still carry the vM term; f1 missing still not ok; numeric limit.
 C. phase 13 segment A (bo --init, --warm none) and the async arm on a fake queue that also holds delta-0.025 sb11 / sb12 jobs: specs
    delta 0.1, all-loose designs (micromotion 600-2400 um) ok and feasible, state file carries mm_limit null and fric; family / legacy
@@ -109,16 +109,17 @@ def make_env(name):
     return root
 
 
-# ---------------------------------------------------------------- HEAD (committed) stage_neckopt for the byte-identity checks
+# ---------------------------------------------------------------- the pre-phase-13 commit (4e7a86d) for the byte-identity checks
+BASE_REV = "4e7a86d"                                                          # last commit before mm_limit / fric (pinned: HEAD now contains them)
 try:
-    _src = subprocess.run(["git", "-C", str(ROOT), "show", "HEAD:v2/stage_neckopt.py"], capture_output=True, check=True).stdout
+    _src = subprocess.run(["git", "-C", str(ROOT), "show", f"{BASE_REV}:v2/stage_neckopt.py"], capture_output=True, check=True).stdout
     (BASE / "stage_neckopt_head.py").write_bytes(_src)
     _s = importlib.util.spec_from_file_location("stage_neckopt_head", BASE / "stage_neckopt_head.py")
     OLD = importlib.util.module_from_spec(_s)
     _s.loader.exec_module(OLD)
 except Exception as ex_:                                                    # noqa: BLE001
     OLD = None
-    print(f"   cannot load HEAD stage_neckopt: {type(ex_).__name__}: {ex_}")
+    print(f"   cannot load stage_neckopt at {BASE_REV}: {type(ex_).__name__}: {ex_}")
 
 PH11, PH12, PH13, PH14 = N.Phase(11), N.Phase(12), N.Phase(13), N.Phase(14)
 NV = len(PH13.vars)
@@ -251,7 +252,7 @@ ok("Phase.mm_kw: {} for phases 10-12 (record_of called exactly as before, 3 posi
    PH11.mm_kw == {} and PH12.mm_kw == {} and N.Phase(10).mm_kw == {} and PH13.mm_kw == {"mm_limit": None} and PH14.mm_kw == {"mm_limit": None})
 ok("state_extras(13 / 14) = {mm_limit None, fric {...delta 0.1}}", N.state_extras(PH13) == {"mm_limit": None, "fric": PH13.fric}
    and N.state_extras(PH14) == {"mm_limit": None, "fric": PH14.fric})
-ok("PHASES[11] / PHASES[12] identical to HEAD (committed) definitions; HEAD has no PHASES[13]",
+ok("PHASES[11] / PHASES[12] identical to the 4e7a86d definitions; 4e7a86d has no PHASES[13]",
    OLD is not None and OLD.PHASES[11] == N.PHASES[11] and OLD.PHASES[12] == N.PHASES[12] and 13 not in OLD.PHASES)
 u0 = POOL[10]
 s11, s13, s14 = PH11.spec_of(u0, "t", bonded=False), PH13.spec_of(u0, "t", bonded=False), PH14.spec_of(u0, "t", bonded=True)
@@ -320,7 +321,7 @@ for metric in ("v1", "v2", "v3", "v4"):
             c_ = OLD.objectives(r, sed, 5.0, metric, sedc) if OLD is not None else None
             if not (repr(a_) == repr(b_) == repr(c_)):
                 mismatch.append((metric, sed, a_, c_))
-ok(f"objectives: default == explicit MM_LIMIT == HEAD (repr, bitwise) on {len(grid) * 12} record x metric x sed cases", not mismatch and OLD is not None,
+ok(f"objectives: default == explicit MM_LIMIT == 4e7a86d (repr, bitwise) on {len(grid) * 12} record x metric x sed cases", not mismatch and OLD is not None,
    str(mismatch[:2]))
 r2000 = {"f1_p95_um": 2000.0, "fric_only": True, "bone_loss": {"total_mm3": 5000.0}, "_stability": {"rot_first_deg": 0.3, "contact_area_load2_mm2": 900.0}}
 y3, c3, ok3 = N.objectives(r2000, "none", None, "v3", None, None)
@@ -346,7 +347,7 @@ jb = add_job(PH13, POOL[21], "rec_b", bonded=True)
 j11 = add_job(PH11, POOL[22], "rec11", bonded=False)
 same_head = OLD is not None and all(N.record_of(j, s, m) == OLD.record_of(j, s, m) for j in (jf, jb, j11) for s in ("none", "abs")
                                     for m in ("v1", "v2", "v3", "v4"))
-ok("record_of default == HEAD record_of (dict equality) for fric_only / bonded / phase-11 fake jobs, all metrics", same_head)
+ok("record_of default == 4e7a86d record_of (dict equality) for fric_only / bonded / phase-11 fake jobs, all metrics", same_head)
 rf, rf150 = N.record_of(jf, "none", "v3", None), N.record_of(jf, "none", "v3")
 ok("record_of(..., mm_limit None) on a loose fric_only job (micromotion > 600 um): ok, c == -1, f1_body_p95_um still recorded; "
    "the default 150 makes it infeasible", rf["ok"] and rf["c"] == [-1.0] and rf["f1_body_p95_um"] > 600 and rf150["c"][0] > 0
