@@ -54,6 +54,29 @@
     * 启动前检查 check_launch（bo / bo_async 开头）：femur_id 阶段 intact_job 必须非 None、在队列里有 spec.json、kind intact、同一 femur_id、
       同一 neck_axis、h_int = 生产网格；未 DONE 只警告（serve 的预检会等它）。
 
+阶段 12 = 阶段 11 + 第三个目标去骨量（metric v4；计算计划_50h_2026-10-24 §2 段 C、闸门 G1）。阶段 11（v3）的行为、记录与状态文件内容不变：
+下面每一处新路径都只在 metric v4 / 设了 pool_phase 时走。
+    * metric v4：y = [log10 max(rot_first_deg, ROT_FLOOR), −contact_area_load2_mm2, bone_loss.total_mm3]。去骨量 = 截骨（按 spec 的 ref_cut_mm，
+      in_family 保证 = 阶段的 ref_cut_mm）+ 锉骨，即 jobs.prep 的 bone_loss，与候选池 _feasible 同口径；缺任一项 → [nan]*3、ok False。
+      c 与 v3 逐项相同（柄身微动 P95 ≤ 150 µm；有 vm_p99 时 vM ≤ 440 MPa；sed 约束形式）。record_of 对 v3 / v4 都算 stability。
+      Phase.n_obj（v1 / v2 / v3 = 2，v4 = 3）决定 _empty / dataset / stack 的列数与 propose 的 n_obj。
+    * 去骨量是确定的几何量，不建 GP：确定性通道 det = {2: …}（v1 / v2 仍是 {1: …}，v3 None），在每次拟合前按当前池与记录重建（KD 树，毫秒级）。
+      v4 的查表 = 候选池 + 不在池上的基线点（热启动 X0 与收编作业的 x 取记录里的精确 bone；收编后仍在算的待定点取 prep.json 的 bone_loss），
+      NEHVI 基线因此用精确值而不是最近池点的值；pool / pool_loss / pool_idx 不动。v1 / v2 的查表仍只有候选池（行为不变）。
+    * lengthscales：v4 记 rot（0）、area（1）、constraint（n_obj = 3），跳过确定性通道 2；2 目标的阶段照旧（标签 micromotion / constraint）。
+    * 参考点：ref_point() 对任意维数；状态文件里存的参考点维数 ≠ n_obj（例如把已有阶段的 metric 改成 v4）时，bo / bo_async 在建池之前抛 ValueError
+      （要么换阶段号，要么删掉该文件的 ref_point 与 hv_hist——不同目标数的超体积不可比）。
+    * PHASES[12] = {**PHASES[11], metric "v4", pool_phase 11}：stage "sb12"（Phase.stage 自动）、自己的状态文件 neckopt_p12.json、自己的
+      bond_every 计数器、预算与收编 glob（sb12_*）。热启动：in_family 接受 "sb*" 前缀、dataset 只排除本阶段 → 阶段 12 用全部 DONE 的 sb11 作业
+      （段 A + B，含两个冒烟设计）按 v4 重打分作热启动；反过来，阶段 11 若在阶段 12 之后续跑，也会把 sb12 作业当热启动（双向共享：同一族、
+      同一模型，只是目标不同；可接受，这里记下）。
+    * 候选池复用（pool_phase）：pool_key（代码哈希、空间、固定值、常数、n / seed、领规则、股骨、颈轴、余量检查、ref_cut、a_max；不含 metric）
+      与 pool_phase 的阶段相同时，阶段 12 读阶段 11 的池文件 neckopt_p11_n<n>_s<seed>_<key>.npz（不存在时按阶段 11 的 Sobol 种子建同一个池），
+      不再花 ~10 分钟另建；键不同（以后改了阶段 12 的空间等）就退回自己的池（文件名与种子按阶段 12）。要命中阶段 11 的缓存，--pool / --seed
+      必须与阶段 11 相同（计划：--pool 16384 --seed 0）。邻域补点仍写本阶段的 neckopt_p12_pool_live.npz（不碰阶段 11 的 live 池）。
+      复用时与热启动点重合的池点（段 A 的初始点、段 B 从基础池选的点）标为已用，不会在 sb12 下重解；bo --init 也只取未用的池点
+      （阶段 12 按计划不跑 init：热启动代替初始批）。--pool / --seed 另选时阶段 12 用自己的池（种子规则 50000 + 100·12 + seed）。
+
     python v2/stage_neckopt.py pool --phase 1
     python v2/stage_neckopt.py bo --phase 1 --init 16 --rounds 12 --q 4 --sed abs    → results/neckopt_p1.json（每轮覆盖，可续跑）
     python v2/stage_neckopt.py bo --phase 2 --ref <job_id> ...                        → results/neckopt_p2.json
@@ -152,6 +175,12 @@ PHASES = {
 PHASES[11] = {**PHASES[10], "vars": {**PHASES[10]["vars"], "L": (20.0, 45.0), "h_cut": (16.0, 32.0)}, "sed": "none", "bond_every": 5, "margin_check": "dense",
               "ref_cut_mm": 16.0, "a_bounds_max": 2000.0,
               "femur_id": "sawbone3406", "neck_axis": "isthmus", "intact_job": "sb_intact_h2_9c9d7fb5"}   # 3406 完整股骨参照，2026-10-24 01:04 DONE（68 s）
+# 阶段 12（2026-10-24，计算计划_50h 段 C）：= 阶段 11 + 第三个目标去骨量（metric v4：转动 ↓ × 完全接触面积 ↑ × 去骨量 ↓，去骨量确定、不建 GP）。
+#   stage "sb12"；热启动 = 全部 DONE 的 sb11 作业（in_family，按 v4 重打分）；阶段 11 续跑时同样会用 sb12 作业（双向共享，见模块说明）。
+#   pool_phase 11：pool_key 与阶段 11 相同时直接用阶段 11 的池文件（同 --pool / --seed），否则自己建池。
+PHASES[12] = {**PHASES[11], "metric": "v4", "pool_phase": 11}
+METRIC_N_OBJ = {"v1": 2, "v2": 2, "v3": 2, "v4": 3}      # 各口径的目标数（v4 = 转动、接触面积、去骨量）
+DET_INDEX = {"v1": 1, "v2": 1, "v3": None, "v4": 2}       # 确定性目标（去骨量，候选池查表）的下标；v3 没有
 REF_CUT_DEFAULT = 25.0      # 骨量损失的截骨参照默认值（= femur_real.resected_volume 的 ref_cut_mm 默认；阶段 10 及以前的 spec 不写这个键）
 MM_LIMIT = 150.0            # metric v3：柄身微动 P95 上限（µm，骨长入的经典阈值；会议 2026-10-10）
 ROT_FLOOR = 1e-3            # metric v3：转动的数值下限（度）
@@ -192,6 +221,10 @@ class Phase:
         self.fixed = dict(PHASES[phase]["fixed"])
         self.rule = PHASES[phase].get("collar_rule")                    # None = 现行领规则；"wrap_fit" 见 collar_rule.py
         self.metric = PHASES[phase].get("metric", "v1")                 # v1 = 整界面微动 + 应力屏蔽 ssi；v2 = 柄身微动（2 µm 下限）+ SED 变化
+        if self.metric not in METRIC_N_OBJ:
+            raise ValueError(f"phase {phase}: unknown metric {self.metric!r} (known: {sorted(METRIC_N_OBJ)})")
+        self.n_obj = METRIC_N_OBJ[self.metric]                          # 目标数：v1 / v2 / v3 = 2，v4 = 3（转动、接触面积、去骨量）
+        self.pool_phase = PHASES[phase].get("pool_phase")              # 复用该阶段的候选池文件（pool_key 相同时；pool_source）；None = 自己的池
         self.warm_stages = tuple(PHASES[phase].get("warm_stages", ()))  # 除 neck* 之外允许热启动的阶段名
         self.bond_every = PHASES[phase].get("bond_every")               # 每提交 bond_every 个设计第 bond_every 个带粘接模型，其余 fric_only；None = 全带
         self.femur_id = PHASES[phase].get("femur_id")                   # None = CT 股骨（jobs.femur_for 默认）；进 spec、in_family、候选池键
@@ -378,17 +411,22 @@ def calcar_ssi(job_id: str) -> float | None:
 def objectives(r: dict | None, sed: str, ssi: float | None, metric: str = "v1", sed_chg: float | None = None) -> tuple[list[float], float, bool]:
     """v1：y1 = log10 整界面微动，股骨距 = ssi（正 = 屏蔽）。v2：y1 = log10 max(柄身微动, 2 µm)，股骨距 = −sed_chg（同样正 = 屏蔽）。
     fric_only 记录（jobs.py，没有粘接模型）：vm_p99 缺失不判不可行，vM 项取 c_vm = −1；SED 同样缺失，所以只有 sed "none"（c_sed = −1）
-    时才 ok。有 vm_p99 的记录行为不变（缺 vm_p99 仍判 ok=False）。"""
+    时才 ok。有 vm_p99 的记录行为不变（缺 vm_p99 仍判 ok=False）。
+    v3：y = [log10 max(rot, ROT_FLOOR), −接触面积]；v4 = v3 + 第三个目标 bone_loss.total_mm3（去骨量，确定的几何量），c 与 v3 逐项相同；
+    v4 缺去骨量也判 ok=False。失败时 y = [nan] * 目标数（v4 为 3）。"""
+    nan_y = [math.nan] * METRIC_N_OBJ.get(metric, 2)
     if not r or "failed" in r or "f1_p95_um" not in r:
-        return [math.nan, math.nan], math.nan, False
+        return nan_y, math.nan, False
     fric_only = bool(r.get("fric_only"))
-    if metric == "v3":
+    if metric in ("v3", "v4"):
         stab = r.get("_stability") or {}
         rot, area, f1, vm = stab.get("rot_first_deg"), stab.get("contact_area_load2_mm2"), r.get("f1_p95_um"), r.get("vm_p99")
         cal = None if sed_chg is None else -float(sed_chg)
-        if rot is None or area is None or f1 is None or (vm is None and not fric_only) or (sed != "none" and cal is None):
-            return [math.nan, math.nan], math.nan, False
-        y = [math.log10(max(float(rot), ROT_FLOOR)), -float(area)]
+        bone = (r.get("bone_loss") or {}).get("total_mm3") if metric == "v4" else None
+        if rot is None or area is None or f1 is None or (vm is None and not fric_only) or (sed != "none" and cal is None) \
+                or (metric == "v4" and bone is None):
+            return nan_y, math.nan, False
+        y = [math.log10(max(float(rot), ROT_FLOOR)), -float(area)] + ([float(bone)] if metric == "v4" else [])
         c_vm = -1.0 if vm is None else (float(vm) - VM_LIMIT) / VM_LIMIT
         c_sed = {"one-sided": (cal - SED_LIMIT) / SED_LIMIT, "abs": (abs(cal) - SED_LIMIT) / SED_LIMIT, "none": -1.0}[sed] if cal is not None else -1.0
         c = max((float(f1) - MM_LIMIT) / MM_LIMIT, c_vm, c_sed)
@@ -430,7 +468,7 @@ def record_of(job_id: str, sed: str, metric: str = "v1") -> dict:
     res = J.result(job_id) or {}
     fric_only = bool(res.get("fric_only"))                                   # 没有粘接模型：不算股骨距（resorption 要 m_bond_csv）
     ssi, sed_chg = _calcar(job_id) if (res and "f1_p95_um" in res and not fric_only) else (None, None)
-    stab = stability_of(job_id) if (metric == "v3" and res and "f1_p95_um" in res) else {}
+    stab = stability_of(job_id) if (metric in ("v3", "v4") and res and "f1_p95_um" in res) else {}
     y, c, ok = objectives({**res, "_stability": stab} if stab else res, sed, ssi, metric, sed_chg)
     extra = {k: stab.get(k) for k in ("rot_first_deg", "rot_axial_first_deg", "rot_tilt_first_deg", "rot_rev_deg", "subsid_first_um",
                                       "subsid_perm_um", "lateral_first_um", "slip_axial_p95_um", "slip_circ_p95_um",
@@ -446,7 +484,7 @@ def record_of(job_id: str, sed: str, metric: str = "v1") -> dict:
 
 def _empty(ph: Phase):
     n = len(ph.vars)
-    return np.zeros((0, n)), np.zeros((0, 2)), np.zeros((0, 1)), []
+    return np.zeros((0, n)), np.zeros((0, ph.n_obj)), np.zeros((0, 1)), []
 
 
 def dataset(ph: Phase, legacy: bool = False):
@@ -471,7 +509,7 @@ def dataset(ph: Phase, legacy: bool = False):
         seen.add(key)
         X.append(ph.to_unit(dsg, h)); Y.append(rec["y"]); C.append(rec["c"]); ids.append(d.name)
     n = len(ph.vars)
-    return (np.array(X).reshape(-1, n), np.array(Y).reshape(-1, 2), np.array(C).reshape(-1, 1), ids)
+    return (np.array(X).reshape(-1, n), np.array(Y).reshape(-1, ph.n_obj), np.array(C).reshape(-1, 1), ids)
 
 
 # ------------------------------------------------------------------------------------------------- 候选池（含确定的骨量损失）
@@ -508,23 +546,46 @@ def pool_key(ph: Phase, n: int, seed: int) -> str:
     return hashlib.sha1(s.encode()).hexdigest()[:8]
 
 
+def pool_source(ph: Phase, n: int, seed: int) -> int:
+    """候选池文件与 Sobol 种子用哪个阶段的：PHASES[p]["pool_phase"] 设了、且该阶段的 pool_key(n, seed) 与本阶段完全相同（同代码哈希、空间、
+    固定值、常数、领规则、股骨、颈轴、余量检查、ref_cut、a_max——可行性与去骨量都只由这些决定，与 metric 无关）时用它，否则用本阶段自己的。
+    没设 pool_phase 的阶段（11 及以前）直接返回本阶段号，不计算任何键。"""
+    src = ph.pool_phase
+    if src is None or int(src) == ph.phase:
+        return ph.phase
+    src = int(src)
+    try:
+        same = pool_key(Phase(src, ph.ref), n, seed) == pool_key(ph, n, seed)
+    except Exception as e:                                           # noqa: BLE001
+        print(f"[neckopt p{ph.phase}] pool_phase {src}: cannot compare pool keys ({type(e).__name__}: {e}); using the phase's own pool", flush=True)
+        return ph.phase
+    if not same:
+        print(f"[neckopt p{ph.phase}] pool_phase {src}: pool key differs (space / fixed / femur / margin / ref / amax changed); "
+              f"using the phase's own pool", flush=True)
+        return ph.phase
+    return src
+
+
 def gated_pool(ph: Phase, n: int = 8192, seed: int = 0, workers: int = 6) -> tuple[np.ndarray, np.ndarray]:
-    """返回 (可行候选的单位坐标, 各自的骨量损失 mm³)。"""
+    """返回 (可行候选的单位坐标, 各自的骨量损失 mm³)。设了 pool_phase 且键相同时读 / 建该阶段的池文件（pool_source），否则本阶段自己的。"""
     from scipy.stats import qmc
     J.RESULTS.mkdir(parents=True, exist_ok=True)
     key = pool_key(ph, n, seed)
-    f = J.RESULTS / "pools" / f"neckopt_p{ph.phase}_n{n}_s{seed}_{key}.npz"
+    src = pool_source(ph, n, seed)                                   # 阶段 11 及以前 = ph.phase（文件名、种子与从前逐字相同）
+    f = J.RESULTS / "pools" / f"neckopt_p{src}_n{n}_s{seed}_{key}.npz"
     if f.exists():
         z = np.load(f)
+        if src != ph.phase:
+            print(f"[neckopt p{ph.phase}] pool: reusing phase {src}'s pool {f.name} ({len(z['U'])} feasible)", flush=True)
         return z["U"], z["loss"]
-    U = qmc.Sobol(len(ph.vars), scramble=True, seed=50_000 + 100 * ph.phase + seed).random(n)
+    U = qmc.Sobol(len(ph.vars), scramble=True, seed=50_000 + 100 * src + seed).random(n)
     with Pool(workers) as p:
         res = p.map(_feasible, [(u, ph.phase, ph.ref) for u in U], chunksize=32)
     keep = np.array([r[0] for r in res])
     loss = np.array([r[1] for r in res], float)
     f.parent.mkdir(exist_ok=True)
     np.savez(f, U=U[keep], loss=loss[keep])
-    f.with_suffix(".json").write_text(json.dumps({"phase": ph.phase, "n": n, "seed": seed, "feasible": int(keep.sum()), "rate": float(keep.mean()),
+    f.with_suffix(".json").write_text(json.dumps({"phase": src, "n": n, "seed": seed, "feasible": int(keep.sum()), "rate": float(keep.mean()),
                                                   "space": ph.space, "fixed": ph.fixed, "loss_range_mm3": [float(np.nanmin(loss[keep])), float(np.nanmax(loss[keep]))],
                                                   "ref_cut_mm": ph.ref_cut_mm, "a_bounds_max": ph.a_bounds_max,
                                                   "femur_id": ph.femur_id, "neck_axis": ph.neck_axis, "margin_check": ph.margin_check}, default=float))
@@ -543,9 +604,16 @@ def refresh_pool(ph: Phase, centres: np.ndarray, k: int = 64, rad: float = 0.08,
 
 
 def lengthscales(model, ph: Phase) -> dict:
-    """微动 GP 与约束 GP 的 ARD 长度尺度（归一化输入空间；越短越重要）。"""
+    """微动 GP 与约束 GP 的 ARD 长度尺度（归一化输入空间；越短越重要）。2 目标阶段照旧（下标 0 与 2；v3 的下标 0 其实是转动，标签为状态文件兼容不改）；
+    v4：rot（0）、area（1）、constraint（n_obj = 3），跳过确定性通道（去骨量，下标 2，没有 GP）。"""
     out = {}
-    for name, idx in (("micromotion", 0), ("constraint", 2)):
+    if ph.n_obj == 2:
+        names = (("micromotion", 0), ("constraint", 2))
+    else:
+        di = DET_INDEX.get(ph.metric)
+        labels = {0: "rot", 1: "area"} if ph.metric == "v4" else {}
+        names = tuple((labels.get(i, f"obj{i}"), i) for i in range(ph.n_obj) if i != di) + (("constraint", ph.n_obj),)
+    for name, idx in names:
         try:
             gp = model.models[idx]
             ls = gp.covar_module.base_kernel.lengthscale.detach().cpu().numpy().ravel()
@@ -571,6 +639,92 @@ def det_loss_fn(pool: np.ndarray, loss: np.ndarray):
     return fn
 
 
+def _on_pool(pool: np.ndarray, pool_idx, x) -> bool:
+    """记录 / 待定点是否就是候选池里的那个点（pool_idx 有效且坐标逐位相同）。"""
+    if pool_idx is None or not (0 <= int(pool_idx) < len(pool)):
+        return False
+    return bool(np.array_equal(pool[int(pool_idx)], np.asarray(x, float)))
+
+
+def _prep_bone(job_id: str) -> float | None:
+    """还在算的作业的去骨量（prep.json 的 bone_loss.total_mm3，jobs.prep 写；没建模 / 没有该键时 None）。"""
+    p = J.QROOT / job_id / "prep.json"
+    try:
+        v = (json.loads(p.read_text()).get("bone_loss") or {}).get("total_mm3") if p.exists() else None
+    except Exception:                                                # noqa: BLE001
+        v = None
+    return None if v is None else float(v)
+
+
+def det_extra(ph: Phase, pool: np.ndarray, X0: np.ndarray, Y0: np.ndarray, recs: list, pending: dict | None = None):
+    """v4 的确定性查表要追加的"不在候选池上"的点：(X, bone)。热启动 X0 全部（Y0 第 3 列 = 记录里的精确 bone）；ok 记录里不在池上的
+    （收编作业 pool_idx None、或 pool_idx 失效 / 坐标不符）取记录的 y[2]；待定点里不在池上的（收编后仍在算）取 prep.json 的 bone_loss
+    （还没建模的跳过，退回最近池点）。在池上的点由池本身给出精确值（pool_loss 与 prep 的 bone_loss 同口径），不重复加（不制造等距的并列）。
+    v4 以外返回 None（v1 / v2 的查表仍只有候选池，行为不变）。"""
+    di = DET_INDEX.get(ph.metric)
+    if ph.metric != "v4" or di is None:
+        return None
+    Xs, Ls = [], []
+    if len(X0):
+        Xs.append(np.asarray(X0, float)); Ls.append(np.asarray(Y0, float)[:, di])
+    for r in recs:
+        if r.get("ok") and not _on_pool(pool, r.get("pool_idx"), r["x"]):
+            Xs.append(np.asarray(r["x"], float)[None]); Ls.append(np.array([float(r["y"][di])]))
+    for j, p_ in (pending or {}).items():
+        if _on_pool(pool, p_.get("pool_idx"), p_["x"]):
+            continue
+        b = _prep_bone(j)
+        if b is not None:
+            Xs.append(np.asarray(p_["x"], float)[None]); Ls.append(np.array([b]))
+    if not Xs:
+        return np.zeros((0, pool.shape[1])), np.zeros(0)
+    return np.vstack(Xs), np.concatenate(Ls)
+
+
+def det_of(ph: Phase, pool: np.ndarray, pool_loss: np.ndarray, extra=None) -> dict | None:
+    """确定性目标通道：v1 / v2 → {1: 候选池查表}（与从前相同），v3 → None，v4 → {2: (候选池 + extra) 查表}（extra = det_extra(...)）。"""
+    di = DET_INDEX.get(ph.metric)
+    if di is None:
+        return None
+    if extra is not None and len(extra[0]):
+        return {di: det_loss_fn(np.vstack([pool, extra[0]]), np.r_[np.asarray(pool_loss, float), extra[1]])}
+    return {di: det_loss_fn(pool, pool_loss)}
+
+
+def _coincident(pool: np.ndarray, X: np.ndarray, tol: float = 1e-9) -> np.ndarray:
+    """候选池里与 X 的某一行重合（max 坐标差 < tol；to_unit(design_of(u)) 的往返误差 ~1e-15）的点的布尔掩码。"""
+    mask = np.zeros(len(pool), bool)
+    if len(pool) == 0 or X is None or len(X) == 0:
+        return mask
+    from scipy.spatial import cKDTree
+    d, idx = cKDTree(np.asarray(pool, float)).query(np.asarray(X, float), k=1, p=np.inf)
+    mask[idx[d < tol]] = True
+    return mask
+
+
+def _stored_ref_point(ph: Phase, prev: dict) -> np.ndarray | None:
+    """状态文件里存的超体积参考点；维数必须 = 本阶段的目标数，否则抛 ValueError（不让 2 维参考点悄悄配上 3 目标的阶段）。"""
+    rp = prev.get("ref_point")
+    if not rp:
+        return None
+    rp = np.array(rp)
+    if rp.shape != (ph.n_obj,):
+        raise ValueError(f"phase {ph.phase}: the stored ref_point {rp.tolist()} in {out_path(ph.phase).name} has {rp.size} dimension(s) but metric "
+                         f"{ph.metric} has {ph.n_obj} objectives — this state file belongs to another formulation; use a new phase number, or move "
+                         f"the file away (or delete its ref_point and hv_hist: hypervolumes of different objective counts are not comparable)")
+    return rp
+
+
+def check_state(ph: Phase) -> None:
+    """bo / bo_async 开头（建池、热启动扫描之前）：会被续用的状态文件（同空间、同固定值）里的参考点维数要与目标数一致。"""
+    out = out_path(ph.phase)
+    if not out.exists():
+        return
+    prev = json.loads(out.read_text())
+    if prev.get("space") == {k: list(v) for k, v in ph.space.items()} and prev.get("fixed") == ph.fixed:
+        _stored_ref_point(ph, prev)
+
+
 def evaluate(ph: Phase, U, tag: str, state: dict | None = None):
     """同步版提交；state 给定时按 bond_every 计数器决定每个设计带不带粘接模型（计数器写回 state["n_submitted"]）。"""
     ids = [J.submit(ph.spec_of(u, tag, bonded=(next_bonded(state, ph.bond_every) if state is not None else None))) for u in U]
@@ -587,10 +741,12 @@ def ref_point(Y, C) -> np.ndarray:
 def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, legacy_warm: bool, n_pool: int = 8192,
        refresh_k: int = 0, refresh_rad: float = 0.08, stop_tol: float = 0.0, stop_rounds: int = 4) -> dict:
     check_launch(ph)                                                     # femur_id 阶段：intact_job 必须已填且是同一股骨的参照，否则不提交
+    check_state(ph)                                                      # 续用的状态文件：参考点维数 = 目标数（建池之前就拒绝）
     import mobo
     mobo.fit_gp = S._fit_gp_unit
     X0, Y0, C0, ids0 = dataset(ph, legacy_warm) if legacy_warm is not None else _empty(ph)   # None = 不热启动（从零）
     pool, pool_loss = gated_pool(ph, n=n_pool, seed=seed, workers=workers)
+    reuse = pool_source(ph, n_pool, seed) != ph.phase                   # 复用别的阶段的池（阶段 12 → 11）：热启动点可能就是池点
     live = J.RESULTS / f"neckopt_p{ph.phase}_pool_live.npz"           # 含邻域补点的池（续跑时用，保证 pool_idx 不变）
     recs, refp, hv_hist, ls_hist, n_submitted_prev = [], None, [], {}, None
     out = out_path(ph.phase)
@@ -606,9 +762,11 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
             for r in recs:
                 used[r["pool_idx"]] = True
                 r.update(record_of(r["job_id"], ph.sed, ph.metric))
-            refp = np.array(prev["ref_point"]) if prev.get("ref_point") else None
+            refp = _stored_ref_point(ph, prev)
             if prev.get("sed") != ph.sed:  # noqa: SIM102
                 print(f"[neckopt p{ph.phase}] constraint form changed {prev.get('sed')} -> {ph.sed}; feasibility recomputed", flush=True)
+    if reuse:                                                            # 与热启动点重合的池点 = 已在别的阶段解过的设计，不再提交
+        used |= _coincident(pool, X0)
     state = {"phase": ph.phase, "space": ph.space, "fixed": ph.fixed, "const": CONST, "sed": ph.sed, "sed_limit": SED_LIMIT, "vm_limit": VM_LIMIT,
              "ref": ph.ref, "n_init": n_init, "q": q, "n_rounds": n_rounds, "warm_start_n": int(len(X0)), "warm_start_ids": ids0,
              "pool_size": int(len(pool)), "records": recs, "ref_point": None if refp is None else refp.tolist(),
@@ -641,11 +799,11 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
         return X, Y, C
 
     if n_init > 0 and not any(r["round"] == 0 for r in recs):
-        idx = np.arange(min(n_init, len(pool)))                           # Sobol 顺序的前 n_init 个 = 准随机初始点
+        # Sobol 顺序的前 n_init 个 = 准随机初始点（复用别的阶段的池时取前 n_init 个未用的：跳过已作热启动的点）
+        idx = np.nonzero(~used)[0][:n_init] if reuse else np.arange(min(n_init, len(pool)))
         used[idx] = True
         okn = run_batch(idx, "init", 0)
         print(f"[neckopt p{ph.phase}] init: {int(okn.sum())}/{len(idx)} ok", flush=True)
-    det = {1: det_loss_fn(pool, pool_loss)} if ph.metric != "v3" else None
     done_rounds = max([r["round"] for r in recs], default=0)
 
     def front_rows(X, Y, C):
@@ -659,10 +817,11 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
         if refp is None:                                                 # 参考点在热启动 / 初始批之后固定一次，超体积才可跨轮、跨阶段比较
             refp = ref_point(Y, C)
             state["ref_point"] = refp.tolist()
+        det = det_of(ph, pool, pool_loss, det_extra(ph, pool, X0, Y0, recs))   # v1/v2 {1: 池}、v3 None、v4 {2: 池 + 不在池上的基线点}
         model = mobo.fit_models(X, Y, C, det=det)
         ls_hist[str(rnd)] = lengthscales(model, ph)
         free = np.nonzero(~used)[0]
-        pick = mobo.propose(model, X, refp, pool[free], q, 2, 1, (50_000 + ph.phase * 100 + seed) * 1000 + rnd)
+        pick = mobo.propose(model, X, refp, pool[free], q, ph.n_obj, 1, (50_000 + ph.phase * 100 + seed) * 1000 + rnd)
         idx = free[pick]
         used[idx] = True
         acq_s = time.perf_counter() - t0
@@ -681,8 +840,7 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
             if len(Un):
                 pool, pool_loss = np.vstack([pool, Un]), np.r_[pool_loss, Ln]
                 used = np.r_[used, np.zeros(len(Un), bool)]
-                det = {1: det_loss_fn(pool, pool_loss)} if ph.metric != "v3" else None
-                np.savez(live, U=pool, loss=pool_loss)
+                np.savez(live, U=pool, loss=pool_loss)                   # det 在下一次拟合前按新池重建
             state["pool_size"] = int(len(pool))
             print(f"[neckopt p{ph.phase}] pool refresh: +{len(Un)} feasible around {len(front_rows(X, Y, C))} front points "
                   f"({time.perf_counter() - t1:.0f} s), pool {len(pool)}", flush=True)
@@ -712,10 +870,12 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
     与同步版共用记录文件、参考点、候选池，可互相续跑；重启时把本阶段不在记录里的作业收编（已解的进记录，在算的进待定）。
     budget = 本阶段新设计的总数（含已完成的）。停止：最近 stop_window 个完成的超体积改进 < stop_tol，之后只排空不再提交。"""
     check_launch(ph)                                                     # femur_id 阶段：intact_job 必须已填且是同一股骨的参照，否则不提交
+    check_state(ph)                                                      # 续用的状态文件：参考点维数 = 目标数（建池之前就拒绝）
     import mobo
     mobo.fit_gp = S._fit_gp_unit
     X0, Y0, C0, ids0 = dataset(ph, legacy_warm) if legacy_warm is not None else _empty(ph)   # None = 不热启动（从零）
     pool, pool_loss = gated_pool(ph, n=n_pool, seed=seed, workers=workers)
+    reuse = pool_source(ph, n_pool, seed) != ph.phase                   # 复用别的阶段的池（阶段 12 → 11）：热启动点可能就是池点
     live = J.RESULTS / f"neckopt_p{ph.phase}_pool_live.npz"
     out = out_path(ph.phase)
     recs, refp, hv_hist, ls_hist, pending, n_submitted_prev = [], None, [], {}, {}, None
@@ -723,7 +883,7 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
         prev = json.loads(out.read_text())
         if prev.get("space") == {k: list(v) for k, v in ph.space.items()} and prev.get("fixed") == ph.fixed:
             recs, hv_hist, ls_hist, pending = prev["records"], prev.get("hv_hist", []), prev.get("lengthscales", {}), prev.get("pending", {})
-            refp = np.array(prev["ref_point"]) if prev.get("ref_point") else None
+            refp = _stored_ref_point(ph, prev)
             n_submitted_prev = prev.get("n_submitted")
             if live.exists():
                 z = np.load(live); pool, pool_loss = z["U"], z["loss"]
@@ -756,6 +916,8 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
     for p_ in pending.values():
         if p_.get("pool_idx") is not None and p_["pool_idx"] < len(pool):
             used[p_["pool_idx"]] = True
+    if reuse:                                                            # 与热启动点重合的池点 = 已在别的阶段解过的设计，不再提交
+        used |= _coincident(pool, X0)
     state = {"phase": ph.phase, "mode": "async", "space": ph.space, "fixed": ph.fixed, "const": CONST, "sed": ph.sed, "sed_limit": SED_LIMIT,
              "vm_limit": VM_LIMIT, "ref": ph.ref, "inflight": inflight, "budget": budget, "n_cand": n_cand, "warm_start_n": int(len(X0)),
              "warm_start_ids": ids0, "pool_size": int(len(pool)), "records": recs, "pending": pending,
@@ -776,7 +938,6 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
         C = np.vstack([C0] + [np.array(r["c"])[None] for r in good]) if good else C0
         return X, Y, C
 
-    det = {1: det_loss_fn(pool, pool_loss)} if ph.metric != "v3" else None
     rng = np.random.default_rng(seed + 7)
     n_sub = len(recs) + len(pending)
     state["n_submitted"] = int(n_sub if n_submitted_prev is None else n_submitted_prev)   # bond_every 计数器：续跑接着数
@@ -790,6 +951,7 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
             X, Y, C = stack()
             if refp is None:
                 refp = ref_point(Y, C); state["ref_point"] = refp.tolist()
+            det = det_of(ph, pool, pool_loss, det_extra(ph, pool, X0, Y0, recs, pending))   # v1/v2 {1: 池}、v3 None、v4 {2: 池 + 不在池上的点}
             model = mobo.fit_models(X, Y, C, det=det)
             ls_hist[str(n_sub)] = lengthscales(model, ph)
             free = np.nonzero(~used)[0]
@@ -798,7 +960,7 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
             else:
                 cand = free
             Xp = np.array([p_["x"] for p_ in pending.values()]) if pending else None
-            pick = mobo.propose(model, X, refp, pool[cand], 1, 2, 1, (60_000 + ph.phase * 100 + seed) * 1000 + n_sub, X_pending=Xp)
+            pick = mobo.propose(model, X, refp, pool[cand], 1, ph.n_obj, 1, (60_000 + ph.phase * 100 + seed) * 1000 + n_sub, X_pending=Xp)
             i = int(cand[pick[0]]); used[i] = True
             bonded = next_bonded(state, ph.bond_every)                                      # 每 bond_every 个提交第 bond_every 个带粘接模型
             job = J.submit(ph.spec_of(pool[i], f"a{n_sub}", bonded=bonded))
@@ -830,8 +992,7 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
             if len(Un):
                 pool, pool_loss = np.vstack([pool, Un]), np.r_[pool_loss, Ln]
                 used = np.r_[used, np.zeros(len(Un), bool)]
-                det = {1: det_loss_fn(pool, pool_loss)} if ph.metric != "v3" else None
-                np.savez(live, U=pool, loss=pool_loss)
+                np.savez(live, U=pool, loss=pool_loss)                   # det 在下一次拟合前按新池重建
             since_refresh = 0
             print(f"[neckopt p{ph.phase} async] pool refresh: +{len(Un)} ({time.perf_counter() - t1:.0f} s), pool {len(pool)}", flush=True)
         if stop_tol > 0 and not stopped and len(hv_hist) > stop_window:                 # 4. 停止判据（按完成数）
@@ -845,7 +1006,7 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
 
 
 def selftest() -> None:
-    """不提交作业：合成数据检查 确定性目标 + 两个 GP + qLogNEHVI 在候选池上能选点。"""
+    """不提交作业：合成数据检查 确定性目标 + 两个 GP + qLogNEHVI 在候选池上能选点；再跑一次 v4 形状（3 目标、det 下标 2、约束、待定点）。"""
     import mobo
     mobo.fit_gp = S._fit_gp_unit
     rng = np.random.default_rng(0)
@@ -860,6 +1021,20 @@ def selftest() -> None:
     print("selftest picks", pick.tolist(), "loss of picks", [round(float(loss[20:][i])) for i in pick])
     pick1 = mobo.propose(model, X, refp, pool[20:], 1, 2, 1, 124, X_pending=pool[20:][pick])
     print("selftest async pick with 4 pending", pick1.tolist())
+    # v4（阶段 12）：3 个目标（两个 GP + 确定性去骨量，下标 2）+ 1 条约束 + 待定点；查表含不在池上的基线点（精确值）
+    Xoff = rng.random((6, 5))
+    Loff = 3000 + 9000 * Xoff[:, 0] + 2000 * Xoff[:, 4]
+    Xb = np.vstack([Xoff, X])
+    rot = np.log10(0.01 + 0.1 * Xb[:, 1] * (1 - Xb[:, 3]) + 0.01 * rng.random(len(Xb)))
+    Y3 = np.c_[rot, -(1500 + 1000 * Xb[:, 2]), np.r_[Loff, loss[:20]]]
+    C3 = ((np.abs(30 * (Xb[:, 2] - 0.5)) - 30) / 30)[:, None]
+    det3 = {2: det_loss_fn(np.vstack([pool, Xoff]), np.r_[loss, Loff])}
+    model3 = mobo.fit_models(Xb, Y3, C3, det=det3)
+    refp3 = ref_point(Y3, C3)
+    t0 = time.perf_counter()
+    pick3 = mobo.propose(model3, Xb, refp3, pool[20:], 1, 3, 1, 125, X_pending=pool[20:][pick])
+    print("selftest v4 (3 objectives, det index 2, 1 constraint, 4 pending) pick", pick3.tolist(),
+          f"ref {np.round(refp3, 3).tolist()}; {time.perf_counter() - t0:.1f} s")
 
 
 def status(phase: int) -> None:
@@ -873,10 +1048,13 @@ def status(phase: int) -> None:
     feas = [r for r in ok if r["c"][0] <= 0]
     print(f"evaluated {len(recs)}, ok {len(ok)}, feasible {len(feas)}")
     for r in sorted(feas, key=lambda r: r["y"][0])[:8]:
-        key = "sed_chg_pct" if r.get("metric") in ("v2", "v3") else "ssi_pct"
+        key = "sed_chg_pct" if r.get("metric") in ("v2", "v3", "v4") else "ssi_pct"
         cal = f"{key[:3]}    n/a " if r.get(key) is None else f"{key[:3]} {r[key]:+6.1f} %"      # fric_only 记录没有 SED
         if r.get("metric") == "v3":
             print(f"  rot {10 ** r['y'][0]:.4f}°  contact {-r['y'][1]:7.0f} mm²  {cal}  bone {r.get('bone_mm3') or 0:7.0f} mm³  {r['design']}  {r['job_id']}")
+        elif r.get("metric") == "v4":                                     # 第三个目标 = 去骨量（y[2]）
+            print(f"  rot {10 ** r['y'][0]:.4f}°  contact {-r['y'][1]:7.0f} mm²  bone {r['y'][2]:7.0f} mm³  {cal}  {r['design']}  "
+                  f"h_cut {r['h_cut']:.1f}  {r['job_id']}")
         else:
             print(f"  {10 ** r['y'][0]:6.1f} µm  loss {r['y'][1]:7.0f} mm³  {cal}  {r['design']}  h_cut {r['h_cut']:.1f}  {r['job_id']}")
 
