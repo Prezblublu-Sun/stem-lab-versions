@@ -107,6 +107,24 @@
       （ValueError，建池之前）——in_family 接受任何 "sb*" stage，family 会把阶段 q 的 sb<q>_* 作业当成本阶段的热启动；必须 --warm none。
     * 状态文件原子重写：先写 <name>.json.tmp 再 os.replace（TERM / OOM 杀在截断与写之间不再留下空的 / 半个文件）。
 
+阶段 13 / 14（用户 2026-10-24 12:20"按你建议继续"：3406 上暂定松质过盈 δ 0.10 mm、全楼梯载荷，设计只排序）
+    * PHASES[p]["fric"]：覆盖 FRIC（只许 slip_tol、delta 两个键）。Phase.fric 进 spec_of（作业 id 随 δ 变）与 in_family（δ 不同的作业
+      两个方向都不混：阶段 13 / 14 的 δ 0.10 作业进不了阶段 10–12，δ 0.025 的 sb11 / sb12 作业也进不了阶段 13 / 14）。候选池键不含 δ
+      （模板化与去骨量与 δ 无关），所以 pool_phase 11 直接用阶段 11 的池文件；init 取池里前 n 个未用的点 = 与阶段 11 段 A 相同的设计。
+    * PHASES[p]["mm_limit"]：柄身微动 P95 约束的上限（µm，metric v3 / v4 的 c 的微动项）。没写这个键 = MM_LIMIT（150；阶段 10–12 的
+      行为、记录与状态文件逐字不变）；None = 微动不作约束（阶段 13 / 14：150 µm 只作 CT 模型的合格线，3406 泡沫骨上设计只排序；
+      微动照样记在记录的 f1_body_p95_um 里、照样报告）。objectives() / record_of() 的新参数 mm_limit（默认 MM_LIMIT，所以所有旧调用不变）：
+      None 时 c 的微动项取 −1，c = max(−1, c_vm, c_sed)——fric_only 记录（sed "none"）c = −1，2000 µm 的记录也 ok、可行；粘接记录只剩 vM 项。
+      f1_p95_um 仍必须存在（缺了 ok False，与从前相同）。dataset、warm_from_rows、bo / bo_async（记录、续跑重算、收编）都传 Phase.mm_limit
+      （Phase.mm_kw：只在不是 150 时以关键字 mm_limit= 传，阶段 10–12 的调用逐字不变）；
+      阶段 14 的冻结热启动按阶段 14 的设置（metric v4、mm_limit None、sed none）重打分阶段 13 的记录。只对 v3 / v4 有意义：别的 metric
+      的阶段写了 mm_limit → ValueError。状态文件只在 mm_limit ≠ 150 时多一个 "mm_limit" 键、阶段有 fric 覆盖时多一个 "fric" 键
+      （阶段 10–12 的状态文件不变）；续跑时存的 mm_limit 与阶段不同只记一行日志（记录照常按当前设置重算）。
+    * PHASES[13] = {**PHASES[11], fric δ 0.10, pool_phase 11, mm_limit None}：stage "sb13"，2 目标（v3），bond_every 5、intact_job 同阶段 11
+      （完整股骨参照与过盈无关）。它是阶段 14 的冻结热启动来源 → bo / bo_async 只许 --warm none（check_warm_source / warm_dependents 对任何
+      warm_from 来源阶段都成立）。PHASES[14] = {**PHASES[13], metric v4, warm_from {phase 13, rounds [0, -1]}}：stage "sb14"，3 目标，
+      热启动 = 阶段 13 的 init 记录 + 收编的 sb13_*（规则与阶段 12 相同）。
+
     python v2/stage_neckopt.py pool --phase 1
     python v2/stage_neckopt.py bo --phase 1 --init 16 --rounds 12 --q 4 --sed abs    → results/neckopt_p1.json（每轮覆盖，可续跑）
     python v2/stage_neckopt.py bo --phase 2 --ref <job_id> ...                        → results/neckopt_p2.json
@@ -212,6 +230,13 @@ PHASES[11] = {**PHASES[10], "vars": {**PHASES[10]["vars"], "L": (20.0, 45.0), "h
 #   neckopt_p11.json 取、按 v4 重打分，id 存进 neckopt_p12.json 的 warm_start_ids，续跑只用存的 id（阶段 11 臂之后的选点永远不进来）；
 #   --warm 对阶段 12 无效。阶段 11 臂用 --warm none（sb12 作业进不了阶段 11）。规则与拒绝条件见模块说明"阶段 12 的冻结热启动"。
 PHASES[12] = {**PHASES[11], "metric": "v4", "pool_phase": 11, "warm_from": {"phase": 11, "rounds": [0, -1]}}
+# 阶段 13 / 14（用户 2026-10-24 12:20"按你建议继续"）：3406 上 δ 0.025 的 32 个初始设计全部松动（微动 267–2801 µm）；过盈量扫描显示
+#   设计排序在 δ 0.025 / 0.10 / 0.20 下保持 → 暂定松质过盈 δ 0.10 mm（"fric" 覆盖 FRIC，进 spec 与 in_family；与 δ 0.025 的阶段 11 / 12 互不混入），
+#   全楼梯载荷不变；3406 上设计按转动 / 接触（/ 去骨）排序，150 µm 只作 CT 模型的合格线：mm_limit None = 微动不作约束（只记录、报告；
+#   objectives 的微动项取 −1，见模块说明"阶段 13 / 14"）。
+#   候选池沿用阶段 11 的文件（pool_phase 11：模板化与 δ 无关，键相同）；阶段 14 = 3 目标，冻结热启动 = 阶段 13 的初始批 + 收编作业。
+PHASES[13] = {**PHASES[11], "fric": {"delta": 0.10}, "pool_phase": 11, "mm_limit": None}
+PHASES[14] = {**PHASES[13], "metric": "v4", "warm_from": {"phase": 13, "rounds": [0, -1]}}
 METRIC_N_OBJ = {"v1": 2, "v2": 2, "v3": 2, "v4": 3}      # 各口径的目标数（v4 = 转动、接触面积、去骨量）
 DET_INDEX = {"v1": 1, "v2": 1, "v3": None, "v4": 2}       # 确定性目标（去骨量，候选池查表）的下标；v3 没有
 REF_CUT_DEFAULT = 25.0      # 骨量损失的截骨参照默认值（= femur_real.resected_volume 的 ref_cut_mm 默认；阶段 10 及以前的 spec 不写这个键）
@@ -277,6 +302,18 @@ class Phase:
             raise ValueError(f"phase {phase}: intact_job is only for femur_id phases (CT phases auto-pick ref_intact_h*)")
         self.stage_prefix = "sb" if self.femur_id else "neck"            # femur_id 作业的 stage 不能是 "ref" / "neck*"（jobs.submit）
         self.stage = f"{self.stage_prefix}{phase}"                       # 本阶段作业的 stage（spec_of、dataset、bo_async 收编都用它）
+        bad_fric = sorted(set(PHASES[phase].get("fric", {})) - set(FRIC))
+        if bad_fric:
+            raise ValueError(f"phase {phase}: 'fric' may only override {sorted(FRIC)}, got {bad_fric}")
+        self.fric = {**FRIC, **PHASES[phase].get("fric", {})}               # 摩擦模型设置（slip_tol、过盈 delta）；阶段 13 / 14 覆盖 delta 0.10
+        # 柄身微动 P95 约束上限（µm）：没写 = MM_LIMIT（150，阶段 10–12 不变）；None = 不作约束（阶段 13 / 14，c 的微动项 −1；微动照样记录）
+        mm = PHASES[phase].get("mm_limit", MM_LIMIT)
+        if "mm_limit" in PHASES[phase]:
+            if self.metric not in ("v3", "v4"):
+                raise ValueError(f"phase {phase}: mm_limit is the micromotion constraint of metric v3 / v4; metric {self.metric} has none")
+            if mm is not None and not (isinstance(mm, (int, float)) and not isinstance(mm, bool) and math.isfinite(mm) and mm > 0):
+                raise ValueError(f"phase {phase}: mm_limit must be None (no micromotion constraint) or a positive number of µm, got {mm!r}")
+        self.mm_limit = None if mm is None else float(mm)
         self.margin_check = PHASES[phase].get("margin_check", "sparse")  # 余量检查密度（collar_rule.MARGIN_CHECK）；进 spec、in_family、候选池键
         self.ref_cut_mm = float(PHASES[phase].get("ref_cut_mm", REF_CUT_DEFAULT))   # 骨量损失的截骨参照（阶段 11：16；默认 25 不进 spec）
         a_max = PHASES[phase].get("a_bounds_max")                         # 肩部面积二分上限（阶段 11：2000；None = 哈希值 geom3d.A_BOUNDS[1]）
@@ -286,6 +323,12 @@ class Phase:
                 raise ValueError(f"phase {phase} needs --ref <job_id> (the first-stage design whose {REF_KEYS[phase]} are kept)")
             self.fixed.update({k: ref[k] for k in REF_KEYS[phase]})
         self.ref = ref
+
+    @property
+    def mm_kw(self) -> dict:
+        """record_of 的额外关键字：mm_limit 不是默认值（阶段 13 / 14：None）时 {"mm_limit": …}，否则 {}——阶段 10–12 对 record_of 的调用
+        与从前逐字相同（位置参数个数不变，替换了 record_of 的测试桩照常可用）。"""
+        return {} if self.mm_limit == MM_LIMIT else {"mm_limit": self.mm_limit}
 
     # 单位立方体 ↔ 设计
     def design_of(self, u) -> tuple[dict, float]:
@@ -303,7 +346,7 @@ class Phase:
 
     def in_family(self, spec: dict, legacy: bool = False) -> bool:
         d = spec.get("design") or {}
-        if spec.get("model") != "m1" or spec.get("h_int") != S.H_PROD or spec.get("slip_tol") != FRIC["slip_tol"] or spec.get("delta") != FRIC["delta"]:
+        if spec.get("model") != "m1" or spec.get("h_int") != S.H_PROD or spec.get("slip_tol") != self.fric["slip_tol"] or spec.get("delta") != self.fric["delta"]:
             return False
         if spec.get("collar_rule") != self.rule or spec.get("cfg") or spec.get("entry_offset") is not None:   # 领规则不同、换载荷、固定偏移的不混入
             return False
@@ -352,7 +395,7 @@ class Phase:
             extra["a_bounds_max"] = self.a_bounds_max
         if bonded is False:
             extra["fric_only"] = True
-        return {**S.design_spec(d, self.stage, tag), "model": "m1", "h_cut": h, **FRIC, **extra}
+        return {**S.design_spec(d, self.stage, tag), "model": "m1", "h_cut": h, **self.fric, **extra}
 
     def template(self, st, fm):
         """候选池用的模板化 = jobs.prep 对本阶段 spec 会做的模板化（同规则、同余量检查密度）。"""
@@ -448,12 +491,15 @@ def calcar_ssi(job_id: str) -> float | None:
     return _calcar(job_id)[0]
 
 
-def objectives(r: dict | None, sed: str, ssi: float | None, metric: str = "v1", sed_chg: float | None = None) -> tuple[list[float], float, bool]:
+def objectives(r: dict | None, sed: str, ssi: float | None, metric: str = "v1", sed_chg: float | None = None,
+               mm_limit: float | None = MM_LIMIT) -> tuple[list[float], float, bool]:
     """v1：y1 = log10 整界面微动，股骨距 = ssi（正 = 屏蔽）。v2：y1 = log10 max(柄身微动, 2 µm)，股骨距 = −sed_chg（同样正 = 屏蔽）。
     fric_only 记录（jobs.py，没有粘接模型）：vm_p99 缺失不判不可行，vM 项取 c_vm = −1；SED 同样缺失，所以只有 sed "none"（c_sed = −1）
     时才 ok。有 vm_p99 的记录行为不变（缺 vm_p99 仍判 ok=False）。
     v3：y = [log10 max(rot, ROT_FLOOR), −接触面积]；v4 = v3 + 第三个目标 bone_loss.total_mm3（去骨量，确定的几何量），c 与 v3 逐项相同；
-    v4 缺去骨量也判 ok=False。失败时 y = [nan] * 目标数（v4 为 3）。"""
+    v4 缺去骨量也判 ok=False。失败时 y = [nan] * 目标数（v4 为 3）。
+    mm_limit（v3 / v4 的柄身微动 P95 上限，µm；默认 MM_LIMIT = 150，与从前逐字相同）：None = 微动不作约束（阶段 13 / 14），微动项取 −1，
+    c = max(−1, c_vm, c_sed)；f1_p95_um 仍必须存在。v1 / v2 的微动是目标、不是约束，不用 mm_limit。"""
     nan_y = [math.nan] * METRIC_N_OBJ.get(metric, 2)
     if not r or "failed" in r or "f1_p95_um" not in r:
         return nan_y, math.nan, False
@@ -469,7 +515,8 @@ def objectives(r: dict | None, sed: str, ssi: float | None, metric: str = "v1", 
         y = [math.log10(max(float(rot), ROT_FLOOR)), -float(area)] + ([float(bone)] if metric == "v4" else [])
         c_vm = -1.0 if vm is None else (float(vm) - VM_LIMIT) / VM_LIMIT
         c_sed = {"one-sided": (cal - SED_LIMIT) / SED_LIMIT, "abs": (abs(cal) - SED_LIMIT) / SED_LIMIT, "none": -1.0}[sed] if cal is not None else -1.0
-        c = max((float(f1) - MM_LIMIT) / MM_LIMIT, c_vm, c_sed)
+        c_mm = -1.0 if mm_limit is None else (float(f1) - mm_limit) / mm_limit   # None：微动只记录、不约束（阶段 13 / 14）
+        c = max(c_mm, c_vm, c_sed)
         return y, float(c), all(np.isfinite(y))
     if metric == "v2":
         f1 = r.get("f1_p95_um")
@@ -504,12 +551,13 @@ def stability_of(job_id: str) -> dict:
     return _STAB[job_id]
 
 
-def record_of(job_id: str, sed: str, metric: str = "v1") -> dict:
+def record_of(job_id: str, sed: str, metric: str = "v1", mm_limit: float | None = MM_LIMIT) -> dict:
+    """作业 → 记录（y / c / ok 与记录用的指标）。mm_limit 传给 objectives（默认 MM_LIMIT；阶段 13 / 14 传 Phase.mm_limit = None）。"""
     res = J.result(job_id) or {}
     fric_only = bool(res.get("fric_only"))                                   # 没有粘接模型：不算股骨距（resorption 要 m_bond_csv）
     ssi, sed_chg = _calcar(job_id) if (res and "f1_p95_um" in res and not fric_only) else (None, None)
     stab = stability_of(job_id) if (metric in ("v3", "v4") and res and "f1_p95_um" in res) else {}
-    y, c, ok = objectives({**res, "_stability": stab} if stab else res, sed, ssi, metric, sed_chg)
+    y, c, ok = objectives({**res, "_stability": stab} if stab else res, sed, ssi, metric, sed_chg, mm_limit)
     extra = {k: stab.get(k) for k in ("rot_first_deg", "rot_axial_first_deg", "rot_tilt_first_deg", "rot_rev_deg", "subsid_first_um",
                                       "subsid_perm_um", "lateral_first_um", "slip_axial_p95_um", "slip_circ_p95_um",
                                       "contact_area_load2_mm2", "contact_frac_load2")} if stab else {}
@@ -543,7 +591,7 @@ def dataset(ph: Phase, legacy: bool = False):
         key = json.dumps({**dsg, "h_cut": h}, sort_keys=True)
         if key in seen:
             continue
-        rec = record_of(d.name, ph.sed, ph.metric)
+        rec = record_of(d.name, ph.sed, ph.metric, **ph.mm_kw)
         if not rec["ok"]:
             continue
         seen.add(key)
@@ -617,7 +665,7 @@ def warm_from_select(ph: Phase, src_state: dict | None, strict: bool = True) -> 
 
 
 def warm_from_rows(ph: Phase, ids: list):
-    """冻结热启动的数据：按 ids 的顺序，每个 DONE、kind design / variant、在本族、record_of(job, ph.sed, ph.metric) ok 的作业一行；
+    """冻结热启动的数据：按 ids 的顺序，每个 DONE、kind design / variant、在本族、record_of(job, ph.sed, ph.metric, **ph.mm_kw) ok 的作业一行；
     x = to_unit(spec)（与 dataset 相同）。不去重（同一设计的两个作业都保留，与来源阶段自己的记录一致）。
     返回 (X0 (n, d), Y0 (n, n_obj), C0 (n, 1), 用上的 id, {跳过的 id: 原因})。只读。"""
     X, Y, C, used, skipped = [], [], [], [], {}
@@ -635,7 +683,7 @@ def warm_from_rows(ph: Phase, ids: list):
         if spec.get("kind") not in ("design", "variant") or not ph.in_family(spec):
             skipped[j] = "not in this phase's family"
             continue
-        rec = record_of(d.name, ph.sed, ph.metric)
+        rec = record_of(d.name, ph.sed, ph.metric, **ph.mm_kw)
         if not rec["ok"]:
             skipped[j] = f"not ok under metric {ph.metric}"
             continue
@@ -922,6 +970,24 @@ def check_state(ph: Phase) -> None:
         _stored_ref_point(ph, prev)
 
 
+def state_extras(ph: Phase) -> dict:
+    """状态文件的阶段设置附加键（阶段 13 / 14）：mm_limit ≠ MM_LIMIT 时 "mm_limit"（None 存成 null），阶段定义有 fric 覆盖时 "fric"。
+    阶段 10–12 返回 {}（它们的状态文件逐字不变）。arms_gate.py 按 "mm_limit" 键判断 init 闸门是否用"0 个可行"一条。"""
+    out = {}
+    if ph.mm_limit != MM_LIMIT:
+        out["mm_limit"] = ph.mm_limit
+    if "fric" in PHASES[ph.phase]:
+        out["fric"] = dict(ph.fric)
+    return out
+
+
+def _note_mm_change(ph: Phase, prev: dict, tag: str) -> None:
+    """续跑：状态文件存的微动上限（没有键 = MM_LIMIT）与阶段现在的不同 → 记一行（记录照常按当前设置重算）。"""
+    old = prev.get("mm_limit", MM_LIMIT)
+    if old != ph.mm_limit:
+        print(f"{tag} micromotion limit changed {old} -> {ph.mm_limit}; feasibility recomputed", flush=True)
+
+
 def evaluate(ph: Phase, U, tag: str, state: dict | None = None):
     """同步版提交；state 给定时按 bond_every 计数器决定每个设计带不带粘接模型（计数器写回 state["n_submitted"]）。"""
     ids = [J.submit(ph.spec_of(u, tag, bonded=(next_bonded(state, ph.bond_every) if state is not None else None))) for u in U]
@@ -982,7 +1048,7 @@ def _write_state(out: pathlib.Path, state: dict) -> None:
 
 
 def warm_dependents(ph: Phase) -> list:
-    """以本阶段为冻结热启动来源的阶段（PHASES[q]["warm_from"]["phase"] == ph.phase；阶段 11 → [12]）。"""
+    """以本阶段为冻结热启动来源的阶段（PHASES[q]["warm_from"]["phase"] == ph.phase；阶段 11 → [12]，阶段 13 → [14]）。"""
     out = []
     for q, d in PHASES.items():
         wf = d.get("warm_from") if isinstance(d, dict) else None
@@ -1009,7 +1075,7 @@ def check_warm_source(ph: Phase, legacy_warm) -> None:
 
 def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, legacy_warm: bool, n_pool: int = 8192,
        refresh_k: int = 0, refresh_rad: float = 0.08, stop_tol: float = 0.0, stop_rounds: int = 4) -> dict:
-    check_warm_source(ph, legacy_warm)                                   # 冻结热启动的来源阶段（11）只许 --warm none（sb12 不进阶段 11）
+    check_warm_source(ph, legacy_warm)                                   # 冻结热启动的来源阶段（11、13）只许 --warm none（sb12 / sb14 不进来）
     check_launch(ph)                                                     # femur_id 阶段：intact_job 必须已填且是同一股骨的参照，否则不提交
     check_state(ph)                                                      # 续用的状态文件：参考点维数 = 目标数（建池之前就拒绝）
     import mobo
@@ -1031,10 +1097,11 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
     if recs:
             for r in recs:
                 used[r["pool_idx"]] = True
-                r.update(record_of(r["job_id"], ph.sed, ph.metric))
+                r.update(record_of(r["job_id"], ph.sed, ph.metric, **ph.mm_kw))
             refp = _stored_ref_point(ph, prev)
             if prev.get("sed") != ph.sed:  # noqa: SIM102
                 print(f"[neckopt p{ph.phase}] constraint form changed {prev.get('sed')} -> {ph.sed}; feasibility recomputed", flush=True)
+            _note_mm_change(ph, prev, f"[neckopt p{ph.phase}]")
     if reuse:                                                            # 与热启动点重合的池点 = 已在别的阶段解过的设计，不再提交
         used |= _coincident(pool, X0)
     if reuse and wf_info is not None:                                    # 冻结集里没进 X0 的候选（FAILED 的 init 点等）同样已解过
@@ -1046,6 +1113,7 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
              "stop_tol": stop_tol, "stop_rounds": stop_rounds, "femur_id": ph.femur_id, "neck_axis": ph.neck_axis, "intact_job": ph.intact_job,
              "stage": ph.stage, "margin_check": ph.margin_check, "ref_cut_mm": ph.ref_cut_mm, "a_bounds_max": ph.a_bounds_max,
              "bond_every": ph.bond_every, "n_submitted": int(len(recs) if n_submitted_prev is None else n_submitted_prev)}
+    state.update(state_extras(ph))                                       # 阶段 13 / 14：mm_limit None、fric；阶段 10–12 什么都不加
     if wf_info is not None:                                              # warm_from 阶段：冻结集的来源与跳过原因（续跑原样带着）
         state["warm_from"] = wf_info
 
@@ -1063,7 +1131,7 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
         for i, j in zip(idx, ids):
             d, h = ph.design_of(pool[i])
             recs.append({"pool_idx": int(i), "x": pool[i].tolist(), "round": rnd, "job_id": j, "h_cut": h, "bonded": _bonded_of(j),
-                         "design": {k: d[k] for k in ph.vars if k in d}, **record_of(j, ph.sed, ph.metric)})
+                         "design": {k: d[k] for k in ph.vars if k in d}, **record_of(j, ph.sed, ph.metric, **ph.mm_kw)})
         save()
         return np.array([r["ok"] for r in recs[-len(idx):]])
 
@@ -1151,7 +1219,7 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
     与同步版共用记录文件、参考点、候选池，可互相续跑；重启时把本阶段不在记录里的作业收编（已解的进记录，在算的进待定）。
     budget = 本阶段新设计的总数（含已完成的）= len(records) + len(pending)：本阶段自己提交的 + 收编的 <stage>_* 作业（阶段 11：init 记录与
     冒烟作业都算）；热启动行（X0，dataset 或 warm_from 冻结集）不计。停止：最近 stop_window 个完成的超体积改进 < stop_tol，之后只排空不再提交。"""
-    check_warm_source(ph, legacy_warm)                                   # 冻结热启动的来源阶段（11）只许 --warm none（sb12 不进阶段 11）
+    check_warm_source(ph, legacy_warm)                                   # 冻结热启动的来源阶段（11、13）只许 --warm none（sb12 / sb14 不进来）
     check_launch(ph)                                                     # femur_id 阶段：intact_job 必须已填且是同一股骨的参照，否则不提交
     check_state(ph)                                                      # 续用的状态文件：参考点维数 = 目标数（建池之前就拒绝）
     import mobo
@@ -1168,6 +1236,8 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
             recs, hv_hist, ls_hist, pending = prev["records"], prev.get("hv_hist", []), prev.get("lengthscales", {}), prev.get("pending", {})
             refp = _stored_ref_point(ph, prev)
             n_submitted_prev = prev.get("n_submitted")
+            if recs:
+                _note_mm_change(ph, prev, f"[neckopt p{ph.phase} async]")
             if live.exists():
                 z = np.load(live); pool, pool_loss = z["U"], z["loss"]
     used = np.zeros(len(pool), bool)
@@ -1175,11 +1245,11 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
     def rec_from(job: str, x, pool_idx, round_):
         d_, h_ = ph.design_of(np.asarray(x, float))
         return {"pool_idx": pool_idx, "x": list(map(float, x)), "round": round_, "job_id": job, "h_cut": h_, "bonded": _bonded_of(job),
-                "design": {k: d_[k] for k in ph.vars if k in d_}, **record_of(job, ph.sed, ph.metric)}
+                "design": {k: d_[k] for k in ph.vars if k in d_}, **record_of(job, ph.sed, ph.metric, **ph.mm_kw)}
 
     known = set()
     for r in recs:
-        known.add(r["job_id"]); r.update(record_of(r["job_id"], ph.sed, ph.metric))
+        known.add(r["job_id"]); r.update(record_of(r["job_id"], ph.sed, ph.metric, **ph.mm_kw))
         if r.get("pool_idx") is not None and r["pool_idx"] < len(pool):
             used[r["pool_idx"]] = True
     adopted = 0
@@ -1211,6 +1281,7 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
              "femur_id": ph.femur_id, "neck_axis": ph.neck_axis, "intact_job": ph.intact_job, "stage": ph.stage,
              "margin_check": ph.margin_check, "ref_cut_mm": ph.ref_cut_mm, "a_bounds_max": ph.a_bounds_max,
              "bond_every": ph.bond_every}
+    state.update(state_extras(ph))                                       # 阶段 13 / 14：mm_limit None、fric；阶段 10–12 什么都不加
     if wf_info is not None:                                              # warm_from 阶段：冻结集的来源与跳过原因（下面第一次 save 就存下）
         state["warm_from"] = wf_info
 
