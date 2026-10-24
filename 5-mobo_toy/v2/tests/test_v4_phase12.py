@@ -4,7 +4,10 @@ replaced by synthetic stand-ins (submit = register + write a synthetic result.js
 No gmsh, no FE, no Abaqus, no Linux, nothing under ~/mobo_toy_v2 is touched; single process.
 
 metric v4 / PHASES[12] (2026-10-24, 计算计划_50h 段 C, gate G1):
-A. PHASES[12] = {**PHASES[11], metric v4, pool_phase 11}; PHASES[11] untouched; Phase.n_obj (2 / 2 / 2 / 3), stage sb12; unknown metric refused.
+A. PHASES[12] = {**PHASES[11], metric v4, pool_phase 11, warm_from {phase 11, rounds [0, -1]}}; PHASES[11] untouched; Phase.n_obj
+   (2 / 2 / 2 / 3), stage sb12; unknown metric refused.
+   (2026-10-24 armsdev: warm_from added. Sections H / I exercise the generic v4 path with the family warm start (dataset), so they run with
+   warm_from removed from PHASES[12]; the frozen warm_from path is tested in test_arms_p11_p12.py.)
 B. objectives v4: y = [log10 max(rot, floor), -area, bone_loss.total_mm3], c identical to v3 for every record x sed form; failure -> [nan]*3;
    missing bone_loss -> not ok (templating volume is not a substitute); v3 outputs unchanged (2 entries).
 C. record_of v4 on a fake job: stability computed (as for v3), y has 3 entries, bone = bone_loss.total_mm3; v3 on the same job unchanged.
@@ -192,9 +195,10 @@ N._calcar = lambda jid: (None, None)
 
 # ================================================================ A. PHASES[12] / Phase fields
 p11, p12 = N.PHASES[11], N.PHASES[12]
-ok("PHASES[12] == {**PHASES[11], metric 'v4', pool_phase 11} (nothing else differs)",
-   {k: v for k, v in p12.items() if k not in ("metric", "pool_phase")} == {k: v for k, v in p11.items() if k != "metric"}
-   and p12["metric"] == "v4" and p12["pool_phase"] == 11 and set(p12) == set(p11) | {"pool_phase"})
+ok("PHASES[12] == {**PHASES[11], metric 'v4', pool_phase 11, warm_from {phase 11, rounds [0, -1]}} (nothing else differs)",
+   {k: v for k, v in p12.items() if k not in ("metric", "pool_phase", "warm_from")} == {k: v for k, v in p11.items() if k != "metric"}
+   and p12["metric"] == "v4" and p12["pool_phase"] == 11 and p12["warm_from"] == {"phase": 11, "rounds": [0, -1]}
+   and set(p12) == set(p11) | {"pool_phase", "warm_from"})
 ok("PHASES[11] untouched: metric v3, no pool_phase, intact_job / femur / L 20-45 / h_cut 16-32 as synced",
    p11["metric"] == "v3" and "pool_phase" not in p11 and p11["intact_job"] == "sb_intact_h2_9c9d7fb5" and p11["femur_id"] == FID
    and p11["vars"]["L"] == (20.0, 45.0) and p11["vars"]["h_cut"] == (16.0, 32.0) and p11["sed"] == "none" and p11["bond_every"] == 5)
@@ -422,6 +426,9 @@ restore_phases()
 N._feasible, N.Pool = _real_feasible, _real_pool_cls
 
 # ================================================================ H. bo_async(12) end-to-end (real BoTorch)
+# H / I: the generic v4 path with the family warm start (dataset); PHASES[12]'s frozen warm_from is removed here (tested in test_arms_p11_p12.py)
+N.PHASES[12].pop("warm_from", None)
+ph12 = N.Phase(12)
 FIT_LOG, PROP_LOG, DET_LOG = [], [], []
 _real_fit, _real_prop, _real_det_of = mobo.fit_models, mobo.propose, N.det_of
 
@@ -557,6 +564,8 @@ ok("bo(12) det: the 4 warm rows are in the extra table with exact bone; init rec
    # own init records are pool points: the pool value (the fake solver re-derives x via to_unit, so equal to ~1e-12 only)
    and np.allclose(DET_LOG[0]["det"][2](torch.as_tensor(FIT_LOG[0]["X"][4:])).numpy(), FIT_LOG[0]["Y"][4:, 2], rtol=1e-12, atol=0))
 
+restore_phases()
+ph12 = N.Phase(12)
 # ================================================================ J. phase 11 unchanged vs the synced code (HEAD 4ca6a57)
 ref_dir = BASE / f"ref_{REF_COMMIT}"
 ref_dir.mkdir()

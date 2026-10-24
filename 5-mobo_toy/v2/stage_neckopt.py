@@ -66,10 +66,29 @@
     * lengthscales：v4 记 rot（0）、area（1）、constraint（n_obj = 3），跳过确定性通道 2；2 目标的阶段照旧（标签 micromotion / constraint）。
     * 参考点：ref_point() 对任意维数；状态文件里存的参考点维数 ≠ n_obj（例如把已有阶段的 metric 改成 v4）时，bo / bo_async 在建池之前抛 ValueError
       （要么换阶段号，要么删掉该文件的 ref_point 与 hv_hist——不同目标数的超体积不可比）。
-    * PHASES[12] = {**PHASES[11], metric "v4", pool_phase 11}：stage "sb12"（Phase.stage 自动）、自己的状态文件 neckopt_p12.json、自己的
-      bond_every 计数器、预算与收编 glob（sb12_*）。热启动：in_family 接受 "sb*" 前缀、dataset 只排除本阶段 → 阶段 12 用全部 DONE 的 sb11 作业
-      （段 A + B，含两个冒烟设计）按 v4 重打分作热启动；反过来，阶段 11 若在阶段 12 之后续跑，也会把 sb12 作业当热启动（双向共享：同一族、
-      同一模型，只是目标不同；可接受，这里记下）。
+    * PHASES[12] = {**PHASES[11], metric "v4", pool_phase 11, warm_from {phase 11, rounds [0, -1]}}：stage "sb12"（Phase.stage 自动）、自己的
+      状态文件 neckopt_p12.json、自己的 bond_every 计数器、预算与收编 glob（sb12_*）。热启动 = 冻结集（warm_from，见下一条），不是 dataset()。
+      in_family 仍接受 "sb*" 前缀，所以 dataset() 是双向的（阶段 11 用 --warm family 时会把 sb12 作业当热启动）——并行两臂里阶段 11 必须用
+      --warm none（只用自己的记录 + 收编 sb11_*），这样 sb12 作业永远进不了阶段 11。
+
+阶段 12 的冻结热启动（warm_from；2026-10-24 审查 wf_6f8fbde1 第 1 条：2 目标与 3 目标两臂从同一个段 A 并行出发、各自预算相同）
+    * PHASES[p]["warm_from"] = {"phase": s, "rounds": [...]}：本阶段的热启动只取阶段 s 状态文件里选定的记录，--warm（none / family / legacy）
+      对这种阶段无效——bo / bo_async 忽略它并在日志里写一行。rounds 的含义：0 = 段 A 的 init 批（round 0）；-1 = 收编的作业，即不是阶段 s 的
+      驱动自己提交的 sb<s>_*（冒烟作业；记录的 pool_idx 为 None，不论记录的 round 是 -1 还是收编时仍在算、之后才记下的 n+1）。阶段 s 驱动
+      自己的选点（pool_idx 有值）一律不取——包括它在停机期间算完、续跑时也记成 round -1 的那些；其他正整数 = 该轮的选点（同步 bo 用）。
+    * 第一次启动（本阶段状态文件里还没有 warm_from）：读 neckopt_p<s>.json（对方驱动非原子地重写，读到一半时重试），按上面的规则选出作业 id，
+      逐个用 record_of(job, 本阶段 sed, 本阶段 metric = v4) 建 X0 / Y0 / C0（x = to_unit(spec)，与 dataset 相同；不 DONE、不在本族、
+      不 ok 的跳过并记原因；同一设计的两个作业（冒烟的 fric_only / bonded 一对）都保留，与阶段 11 自己的记录一致），把用上的 id 存进本阶段
+      状态文件的 warm_start_ids、来源与跳过原因存进 warm_from（bo_async 在第一次采集前就保存；bo 也立即保存）。拒绝启动（ValueError，
+      什么都不提交、不建池）：neckopt_p<s>.json 不存在 / 没有 round-0 记录；rounds 含 -1 时队列里有阶段 s 还没收编的 sb<s>_* 作业（阶段 s 的
+      async 还没跑过——先启动它，等它第一次保存），或阶段 s 收编后仍在算的作业（等它算完）；一行可用的热启动都没有。
+      复用阶段 s 的候选池时，冻结集的全部候选（含没进 X0 的 FAILED init 点）与池点重合的都标为已用：阶段 s 对自己的 FAILED 记录也是这样，
+      两臂都不会重解段 A 里失败的设计。两臂各自的选点互不知道，同一个池点可能被两臂各解一次（stage 不同 = 作业 id 不同）。
+    * 续跑：只用状态文件里存的 warm_start_ids（不再读阶段 s 的状态文件、不再扫队列），所以阶段 s 之后的选点永远进不了本阶段；某个 id 现在
+      不 ok 了就跳过并警告，warm_start_ids 不改。状态文件有记录 / 待定却没有 warm_from（warm_from 加进来之前跑的）→ ValueError。
+    * 预算：bo_async 的 budget 只数本阶段的 records + pending（含收编的 sb12_*），热启动行（X0）不计——阶段 12 的 --budget 95 = 95 个自有提交；
+      阶段 11 的 budget 含它自己的 init 记录与收编的冒烟作业，所以启动脚本给 init 数 + 收编数 + 95（deck_data/scripts/README_p11_ops.md）。
+    * 只读空跑：python v2/stage_neckopt.py warm --phase 12（打印选中的 id、行数、拒绝原因；不写任何文件）。
     * 候选池复用（pool_phase）：pool_key（代码哈希、空间、固定值、常数、n / seed、领规则、股骨、颈轴、余量检查、ref_cut、a_max；不含 metric）
       与 pool_phase 的阶段相同时，阶段 12 读阶段 11 的池文件 neckopt_p11_n<n>_s<seed>_<key>.npz（不存在时按阶段 11 的 Sobol 种子建同一个池），
       不再花 ~10 分钟另建；键不同（以后改了阶段 12 的空间等）就退回自己的池（文件名与种子按阶段 12）。要命中阶段 11 的缓存，--pool / --seed
@@ -176,9 +195,11 @@ PHASES[11] = {**PHASES[10], "vars": {**PHASES[10]["vars"], "L": (20.0, 45.0), "h
               "ref_cut_mm": 16.0, "a_bounds_max": 2000.0,
               "femur_id": "sawbone3406", "neck_axis": "isthmus", "intact_job": "sb_intact_h2_9c9d7fb5"}   # 3406 完整股骨参照，2026-10-24 01:04 DONE（68 s）
 # 阶段 12（2026-10-24，计算计划_50h 段 C）：= 阶段 11 + 第三个目标去骨量（metric v4：转动 ↓ × 完全接触面积 ↑ × 去骨量 ↓，去骨量确定、不建 GP）。
-#   stage "sb12"；热启动 = 全部 DONE 的 sb11 作业（in_family，按 v4 重打分）；阶段 11 续跑时同样会用 sb12 作业（双向共享，见模块说明）。
-#   pool_phase 11：pool_key 与阶段 11 相同时直接用阶段 11 的池文件（同 --pool / --seed），否则自己建池。
-PHASES[12] = {**PHASES[11], "metric": "v4", "pool_phase": 11}
+#   stage "sb12"；pool_phase 11：pool_key 与阶段 11 相同时直接用阶段 11 的池文件（同 --pool / --seed），否则自己建池。
+#   warm_from（2026-10-24，并行两臂）：热启动冻结为阶段 11 的 init 记录（round 0）+ 收编的作业（-1 = 冒烟作业），第一次启动时从
+#   neckopt_p11.json 取、按 v4 重打分，id 存进 neckopt_p12.json 的 warm_start_ids，续跑只用存的 id（阶段 11 臂之后的选点永远不进来）；
+#   --warm 对阶段 12 无效。阶段 11 臂用 --warm none（sb12 作业进不了阶段 11）。规则与拒绝条件见模块说明"阶段 12 的冻结热启动"。
+PHASES[12] = {**PHASES[11], "metric": "v4", "pool_phase": 11, "warm_from": {"phase": 11, "rounds": [0, -1]}}
 METRIC_N_OBJ = {"v1": 2, "v2": 2, "v3": 2, "v4": 3}      # 各口径的目标数（v4 = 转动、接触面积、去骨量）
 DET_INDEX = {"v1": 1, "v2": 1, "v3": None, "v4": 2}       # 确定性目标（去骨量，候选池查表）的下标；v3 没有
 REF_CUT_DEFAULT = 25.0      # 骨量损失的截骨参照默认值（= femur_real.resected_volume 的 ref_cut_mm 默认；阶段 10 及以前的 spec 不写这个键）
@@ -225,6 +246,13 @@ class Phase:
             raise ValueError(f"phase {phase}: unknown metric {self.metric!r} (known: {sorted(METRIC_N_OBJ)})")
         self.n_obj = METRIC_N_OBJ[self.metric]                          # 目标数：v1 / v2 / v3 = 2，v4 = 3（转动、接触面积、去骨量）
         self.pool_phase = PHASES[phase].get("pool_phase")              # 复用该阶段的候选池文件（pool_key 相同时；pool_source）；None = 自己的池
+        wf = PHASES[phase].get("warm_from")                             # 冻结热启动的来源 {"phase": s, "rounds": [...]}；None = dataset / --warm
+        if wf is not None:
+            if not isinstance(wf, dict) or "phase" not in wf or int(wf["phase"]) == phase or not wf.get("rounds") \
+                    or any(int(r) != r for r in wf["rounds"]):
+                raise ValueError(f"phase {phase}: warm_from must be {{'phase': <another phase>, 'rounds': [ints]}}, got {wf!r}")
+            wf = {"phase": int(wf["phase"]), "rounds": [int(r) for r in wf["rounds"]]}
+        self.warm_from = wf
         self.warm_stages = tuple(PHASES[phase].get("warm_stages", ()))  # 除 neck* 之外允许热启动的阶段名
         self.bond_every = PHASES[phase].get("bond_every")               # 每提交 bond_every 个设计第 bond_every 个带粘接模型，其余 fric_only；None = 全带
         self.femur_id = PHASES[phase].get("femur_id")                   # None = CT 股骨（jobs.femur_for 默认）；进 spec、in_family、候选池键
@@ -512,6 +540,152 @@ def dataset(ph: Phase, legacy: bool = False):
     return (np.array(X).reshape(-1, n), np.array(Y).reshape(-1, ph.n_obj), np.array(C).reshape(-1, 1), ids)
 
 
+# ------------------------------------------------------------------------------------------------- 冻结热启动（warm_from，阶段 12）
+def _read_state_retry(path: pathlib.Path, tries: int = 5, wait_s: float = 2.0) -> dict | None:
+    """读另一个驱动的状态文件（它用 write_text 非原子地重写，可能读到一半）：不存在 → None；JSON 坏 → 等 wait_s 重试，tries 次后抛 ValueError。"""
+    for k in range(tries):
+        if not path.exists():
+            return None
+        try:
+            return json.loads(path.read_text())
+        except ValueError as e:
+            if k == tries - 1:
+                raise ValueError(f"{path.name} is unreadable after {tries} tries ({type(e).__name__}: {e})") from e
+            time.sleep(wait_s)
+    return None
+
+
+def warm_from_select(ph: Phase, src_state: dict | None, strict: bool = True) -> tuple[list, dict]:
+    """第一次启动时选冻结热启动的作业 id（规则见模块说明"阶段 12 的冻结热启动"）：round 0 → init 批；-1 → 收编的作业（pool_idx None，
+    任何 round）；其他正整数 → 该轮的选点。阶段 s 驱动自己的选点（pool_idx 有值、round -1 或不在 rounds 里）不取。
+    rounds 含 -1 时还查：队列里阶段 s 还没收编的 sb<s>_*（不在它的 records / pending 里）与它收编后仍在算的（pending、pool_idx None）。
+    返回 (候选 id 列表（按状态文件的记录顺序），info)；info["problems"] 非空且 strict → ValueError（什么都没写）。只读。"""
+    wf = ph.warm_from
+    src, rounds = wf["phase"], list(wf["rounds"])
+    src_name = out_path(src).name
+    problems = []
+    if src_state is None:
+        problems.append(f"{src_name} does not exist yet (phase {src} has not saved any records; its init batch must finish first)")
+    recs = [r for r in (src_state or {}).get("records", []) if isinstance(r, dict) and r.get("job_id")]
+    pend = {j: p for j, p in ((src_state or {}).get("pending") or {}).items() if isinstance(p, dict)}
+    r0 = [r for r in recs if r.get("round") == 0]
+    if src_state is not None and 0 in rounds and not r0:
+        problems.append(f"{src_name} has no round-0 (init) records yet ({len(recs)} records): the phase-{src} init batch has not finished")
+    cand = []
+    for r in recs:
+        rd = r.get("round")
+        if rd == 0:
+            take = 0 in rounds
+        elif r.get("pool_idx") is None:
+            take = -1 in rounds                                          # 收编的作业（不是阶段 s 的驱动提交的）
+        else:
+            take = rd in rounds and rd not in (0, -1)                     # 阶段 s 的选点：只有显式给了该轮才取（-1 + pool_idx = 停机期间算完的选点）
+        if take and r["job_id"] not in cand:
+            cand.append(r["job_id"])
+    unadopted, inflight = [], []
+    if -1 in rounds and src_state is not None:
+        known = {r["job_id"] for r in recs} | set(pend)
+        unadopted = sorted(d.name for d in J.QROOT.glob(f"{Phase(src).stage}_*") if (d / "spec.json").exists() and d.name not in known)
+        inflight = sorted(j for j, p in pend.items() if p.get("pool_idx") is None)
+        if unadopted:
+            problems.append(f"{len(unadopted)} {Phase(src).stage}_* job(s) are not yet adopted by phase {src} ({', '.join(unadopted[:6])}"
+                            f"{' …' if len(unadopted) > 6 else ''}): start the phase-{src} async driver first and wait for its first save "
+                            f"(its log line 'records N (adopted k)'), then start phase {ph.phase}")
+        if inflight:
+            problems.append(f"phase {src} adopted job(s) still in flight ({', '.join(inflight[:6])}): wait until they are DONE / FAILED, "
+                            f"otherwise the frozen warm start of phase {ph.phase} would miss them")
+    info = {"phase": src, "rounds": rounds, "source": src_name, "frozen": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "source_records": len(recs), "source_round0": len(r0), "source_adopted": sum(1 for r in recs if r.get("pool_idx") is None),
+            "source_pending": len(pend), "source_n_submitted": (src_state or {}).get("n_submitted"),
+            "candidates": cand, "unadopted": unadopted, "inflight_adopted": inflight, "problems": problems}
+    if strict and problems:
+        raise ValueError(f"phase {ph.phase}: cannot freeze the warm start from phase {src} (warm_from rounds {rounds}): " + "; ".join(problems))
+    return cand, info
+
+
+def warm_from_rows(ph: Phase, ids: list):
+    """冻结热启动的数据：按 ids 的顺序，每个 DONE、kind design / variant、在本族、record_of(job, ph.sed, ph.metric) ok 的作业一行；
+    x = to_unit(spec)（与 dataset 相同）。不去重（同一设计的两个作业都保留，与来源阶段自己的记录一致）。
+    返回 (X0 (n, d), Y0 (n, n_obj), C0 (n, 1), 用上的 id, {跳过的 id: 原因})。只读。"""
+    X, Y, C, used, skipped = [], [], [], [], {}
+    for j in ids:
+        d = J.QROOT / str(j)
+        sp = d / "spec.json"
+        if not sp.exists():
+            skipped[j] = "no spec.json"
+            continue
+        st_ = J.state(d)
+        if st_ != "DONE":
+            skipped[j] = st_
+            continue
+        spec = json.loads(sp.read_text())
+        if spec.get("kind") not in ("design", "variant") or not ph.in_family(spec):
+            skipped[j] = "not in this phase's family"
+            continue
+        rec = record_of(d.name, ph.sed, ph.metric)
+        if not rec["ok"]:
+            skipped[j] = f"not ok under metric {ph.metric}"
+            continue
+        X.append(ph.to_unit(spec["design"], float(spec.get("h_cut", 25.0)))); Y.append(rec["y"]); C.append(rec["c"]); used.append(d.name)
+    n = len(ph.vars)
+    return np.array(X).reshape(-1, n), np.array(Y).reshape(-1, ph.n_obj), np.array(C).reshape(-1, 1), used, skipped
+
+
+def _x_of_ids(ph: Phase, ids: list) -> np.ndarray:
+    """作业 id → 单位坐标 to_unit(spec)（没有 spec.json 的跳过）。warm_from 阶段复用池时，冻结集的全部候选（含没进 X0 的 FAILED init 点）
+    与池点重合的标为已用——阶段 11 对自己的 FAILED 记录也是这样（pool_idx 标已用），两臂都不会重解段 A 里失败的设计。"""
+    X = []
+    for j in ids:
+        sp = J.QROOT / str(j) / "spec.json"
+        if sp.exists():
+            spec = json.loads(sp.read_text())
+            X.append(ph.to_unit(spec["design"], float(spec.get("h_cut", 25.0))))
+    return np.array(X, float).reshape(-1, len(ph.vars))
+
+
+def warm_start(ph: Phase, legacy_warm, strict: bool = True, quiet: bool = False):
+    """bo / bo_async 的热启动 → (X0, Y0, C0, ids, info)。没有 warm_from 的阶段：dataset(ph, legacy_warm)，legacy_warm None → _empty（与从前
+    逐字相同），info None。warm_from 阶段：--warm（legacy_warm）被忽略；第一次启动按 warm_from_select 冻结（strict：有问题就 ValueError），
+    续跑用状态文件里的 warm_start_ids。ids = 冻结的 id 列表（续跑时原样返回，即使其中某个现在被跳过）。本函数不写任何文件。"""
+    if not ph.warm_from:
+        X0, Y0, C0, ids0 = dataset(ph, legacy_warm) if legacy_warm is not None else _empty(ph)
+        return X0, Y0, C0, ids0, None
+    wf = ph.warm_from
+    tag = f"[neckopt p{ph.phase}]"
+    say = (lambda s: None) if quiet else (lambda s: print(f"{tag} {s}", flush=True))
+    flag = {None: "none", False: "family", True: "legacy"}.get(legacy_warm, repr(legacy_warm))
+    say(f"warm_from phase {wf['phase']} rounds {wf['rounds']}: the --warm {flag} option is ignored for this phase")
+    out = out_path(ph.phase)
+    prev = _read_state_retry(out)
+    if prev is not None and prev.get("warm_from"):
+        info = prev["warm_from"]
+        if int(info.get("phase", -1)) != wf["phase"] or [int(r) for r in info.get("rounds", [])] != wf["rounds"]:
+            raise ValueError(f"phase {ph.phase}: {out.name} holds a warm start frozen from phase {info.get('phase')} rounds {info.get('rounds')}, "
+                             f"but PHASES[{ph.phase}]['warm_from'] is {wf}; move the state file away to re-freeze")
+        ids = [str(j) for j in (prev.get("warm_start_ids") or [])]
+        X0, Y0, C0, used, skipped = warm_from_rows(ph, ids)
+        say(f"warm start: restart, reusing the {len(ids)} frozen ids in {out.name} (frozen {info.get('frozen')}; phase {wf['phase']}'s "
+            f"state file and the queue are not re-scanned): {len(used)} rows")
+        if skipped:
+            say(f"warning: {len(skipped)} frozen warm-start id(s) are no longer usable and are skipped (warm_start_ids unchanged): {skipped}")
+        return X0, Y0, C0, ids, info
+    if prev is not None and (prev.get("records") or prev.get("pending")):
+        raise ValueError(f"phase {ph.phase}: {out.name} has {len(prev.get('records') or [])} records / {len(prev.get('pending') or {})} pending "
+                         f"but no frozen warm start (it was written before warm_from existed); move it away before starting this phase")
+    src_state = _read_state_retry(out_path(wf["phase"]))
+    cand, info = warm_from_select(ph, src_state, strict=strict)
+    X0, Y0, C0, used, skipped = warm_from_rows(ph, cand)
+    if not used:
+        info["problems"] = list(info["problems"]) + [f"none of the {len(cand)} selected phase-{wf['phase']} jobs is usable ({skipped})"]
+        if strict:
+            raise ValueError(f"phase {ph.phase}: cannot freeze the warm start from phase {wf['phase']}: " + info["problems"][-1])
+    info.update(n_used=len(used), skipped=skipped)
+    say(f"warm start: first start, froze {len(used)} of {len(cand)} selected phase-{wf['phase']} jobs "
+        f"({info['source_round0']} init records, {info['source_adopted']} adopted, of {info['source_records']} records); "
+        f"skipped {len(skipped)}: {skipped}")
+    return X0, Y0, C0, used, info
+
+
 # ------------------------------------------------------------------------------------------------- 候选池（含确定的骨量损失）
 def base_femur(ph: Phase):
     """候选池用的未截骨股骨：jobs.femur_for({"femur_id", "neck_axis"})（None → CT 的 FR.build()，与从前相同；3406 → femur_3406.install +
@@ -566,13 +740,20 @@ def pool_source(ph: Phase, n: int, seed: int) -> int:
     return src
 
 
+def pool_file(ph: Phase, n: int, seed: int, src: int | None = None) -> pathlib.Path:
+    """候选池文件的路径（gated_pool 读 / 写的那个）：results/pools/neckopt_p<src>_n<n>_s<seed>_<pool_key>.npz，src = pool_source（可传入免重算）。
+    只算路径、不建池（g1_regress.py 的只读检查用它找阶段 12 会复用的池文件）。"""
+    if src is None:
+        src = pool_source(ph, n, seed)
+    return J.RESULTS / "pools" / f"neckopt_p{src}_n{n}_s{seed}_{pool_key(ph, n, seed)}.npz"
+
+
 def gated_pool(ph: Phase, n: int = 8192, seed: int = 0, workers: int = 6) -> tuple[np.ndarray, np.ndarray]:
     """返回 (可行候选的单位坐标, 各自的骨量损失 mm³)。设了 pool_phase 且键相同时读 / 建该阶段的池文件（pool_source），否则本阶段自己的。"""
     from scipy.stats import qmc
     J.RESULTS.mkdir(parents=True, exist_ok=True)
-    key = pool_key(ph, n, seed)
     src = pool_source(ph, n, seed)                                   # 阶段 11 及以前 = ph.phase（文件名、种子与从前逐字相同）
-    f = J.RESULTS / "pools" / f"neckopt_p{src}_n{n}_s{seed}_{key}.npz"
+    f = pool_file(ph, n, seed, src)
     if f.exists():
         z = np.load(f)
         if src != ph.phase:
@@ -744,7 +925,7 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
     check_state(ph)                                                      # 续用的状态文件：参考点维数 = 目标数（建池之前就拒绝）
     import mobo
     mobo.fit_gp = S._fit_gp_unit
-    X0, Y0, C0, ids0 = dataset(ph, legacy_warm) if legacy_warm is not None else _empty(ph)   # None = 不热启动（从零）
+    X0, Y0, C0, ids0, wf_info = warm_start(ph, legacy_warm)          # None = 不热启动（从零）；warm_from 阶段：冻结集，--warm 忽略
     pool, pool_loss = gated_pool(ph, n=n_pool, seed=seed, workers=workers)
     reuse = pool_source(ph, n_pool, seed) != ph.phase                   # 复用别的阶段的池（阶段 12 → 11）：热启动点可能就是池点
     live = J.RESULTS / f"neckopt_p{ph.phase}_pool_live.npz"           # 含邻域补点的池（续跑时用，保证 pool_idx 不变）
@@ -767,6 +948,8 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
                 print(f"[neckopt p{ph.phase}] constraint form changed {prev.get('sed')} -> {ph.sed}; feasibility recomputed", flush=True)
     if reuse:                                                            # 与热启动点重合的池点 = 已在别的阶段解过的设计，不再提交
         used |= _coincident(pool, X0)
+    if reuse and wf_info is not None:                                    # 冻结集里没进 X0 的候选（FAILED 的 init 点等）同样已解过
+        used |= _coincident(pool, _x_of_ids(ph, wf_info.get("candidates") or []))
     state = {"phase": ph.phase, "space": ph.space, "fixed": ph.fixed, "const": CONST, "sed": ph.sed, "sed_limit": SED_LIMIT, "vm_limit": VM_LIMIT,
              "ref": ph.ref, "n_init": n_init, "q": q, "n_rounds": n_rounds, "warm_start_n": int(len(X0)), "warm_start_ids": ids0,
              "pool_size": int(len(pool)), "records": recs, "ref_point": None if refp is None else refp.tolist(),
@@ -774,6 +957,8 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
              "stop_tol": stop_tol, "stop_rounds": stop_rounds, "femur_id": ph.femur_id, "neck_axis": ph.neck_axis, "intact_job": ph.intact_job,
              "stage": ph.stage, "margin_check": ph.margin_check, "ref_cut_mm": ph.ref_cut_mm, "a_bounds_max": ph.a_bounds_max,
              "bond_every": ph.bond_every, "n_submitted": int(len(recs) if n_submitted_prev is None else n_submitted_prev)}
+    if wf_info is not None:                                              # warm_from 阶段：冻结集的来源与跳过原因（续跑原样带着）
+        state["warm_from"] = wf_info
 
     def save():
         state["updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -781,6 +966,8 @@ def bo(ph: Phase, n_rounds: int, n_init: int, q: int, seed: int, workers: int, l
 
     print(f"[neckopt p{ph.phase}] vars {ph.vars}; warm start {len(X0)} ({int((C0[:, 0] <= 0).sum()) if len(C0) else 0} feasible); "
           f"pool {len(pool)}; existing records {len(recs)}; sed={ph.sed}", flush=True)
+    if wf_info is not None:                                              # 冻结的热启动 id 立刻存下（init 批阻塞期间被停也不会重新冻结）
+        save()
 
     def run_batch(idx, tag, rnd):
         ids = evaluate(ph, pool[idx], tag, state)
@@ -868,12 +1055,13 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
     """异步版（用户 2026-10-03 21:45：同步版每轮采集 6–7 分钟时求解器空转，4 个设计 3 个槽又拖一个尾巴）：
     求解器里始终保持 inflight 个设计在算；每有一个算完，就用全部已完成结果重拟合代理、选 1 个新点提交（在算的点作 X_pending）。
     与同步版共用记录文件、参考点、候选池，可互相续跑；重启时把本阶段不在记录里的作业收编（已解的进记录，在算的进待定）。
-    budget = 本阶段新设计的总数（含已完成的）。停止：最近 stop_window 个完成的超体积改进 < stop_tol，之后只排空不再提交。"""
+    budget = 本阶段新设计的总数（含已完成的）= len(records) + len(pending)：本阶段自己提交的 + 收编的 <stage>_* 作业（阶段 11：init 记录与
+    冒烟作业都算）；热启动行（X0，dataset 或 warm_from 冻结集）不计。停止：最近 stop_window 个完成的超体积改进 < stop_tol，之后只排空不再提交。"""
     check_launch(ph)                                                     # femur_id 阶段：intact_job 必须已填且是同一股骨的参照，否则不提交
     check_state(ph)                                                      # 续用的状态文件：参考点维数 = 目标数（建池之前就拒绝）
     import mobo
     mobo.fit_gp = S._fit_gp_unit
-    X0, Y0, C0, ids0 = dataset(ph, legacy_warm) if legacy_warm is not None else _empty(ph)   # None = 不热启动（从零）
+    X0, Y0, C0, ids0, wf_info = warm_start(ph, legacy_warm)          # None = 不热启动（从零）；warm_from 阶段：冻结集，--warm 忽略
     pool, pool_loss = gated_pool(ph, n=n_pool, seed=seed, workers=workers)
     reuse = pool_source(ph, n_pool, seed) != ph.phase                   # 复用别的阶段的池（阶段 12 → 11）：热启动点可能就是池点
     live = J.RESULTS / f"neckopt_p{ph.phase}_pool_live.npz"
@@ -918,6 +1106,8 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
             used[p_["pool_idx"]] = True
     if reuse:                                                            # 与热启动点重合的池点 = 已在别的阶段解过的设计，不再提交
         used |= _coincident(pool, X0)
+    if reuse and wf_info is not None:                                    # 冻结集里没进 X0 的候选（FAILED 的 init 点等）同样已解过
+        used |= _coincident(pool, _x_of_ids(ph, wf_info.get("candidates") or []))
     state = {"phase": ph.phase, "mode": "async", "space": ph.space, "fixed": ph.fixed, "const": CONST, "sed": ph.sed, "sed_limit": SED_LIMIT,
              "vm_limit": VM_LIMIT, "ref": ph.ref, "inflight": inflight, "budget": budget, "n_cand": n_cand, "warm_start_n": int(len(X0)),
              "warm_start_ids": ids0, "pool_size": int(len(pool)), "records": recs, "pending": pending,
@@ -926,6 +1116,8 @@ def bo_async(ph: Phase, budget: int, inflight: int, seed: int, workers: int, leg
              "femur_id": ph.femur_id, "neck_axis": ph.neck_axis, "intact_job": ph.intact_job, "stage": ph.stage,
              "margin_check": ph.margin_check, "ref_cut_mm": ph.ref_cut_mm, "a_bounds_max": ph.a_bounds_max,
              "bond_every": ph.bond_every}
+    if wf_info is not None:                                              # warm_from 阶段：冻结集的来源与跳过原因（下面第一次 save 就存下）
+        state["warm_from"] = wf_info
 
     def save():
         state["pending"], state["pool_size"], state["updated"] = pending, int(len(pool)), time.strftime("%Y-%m-%d %H:%M:%S")
@@ -1043,7 +1235,11 @@ def status(phase: int) -> None:
         print("no results yet"); return
     st = json.loads(out.read_text())
     recs = st["records"]
-    print(json.dumps({k: v for k, v in st.items() if k not in ("records", "warm_start_ids")}, indent=1, default=float))
+    print(json.dumps({k: v for k, v in st.items() if k not in ("records", "warm_start_ids", "warm_from")}, indent=1, default=float))
+    if st.get("warm_from"):                                              # 冻结热启动（阶段 12）：只印摘要，不印 id 列表
+        wf = st["warm_from"]
+        print(f"warm_from: phase {wf.get('phase')} rounds {wf.get('rounds')}, frozen {wf.get('frozen')}: {len(st.get('warm_start_ids') or [])} ids "
+              f"of {len(wf.get('candidates') or [])} selected; skipped {wf.get('skipped')}")
     ok = [r for r in recs if r["ok"]]
     feas = [r for r in ok if r["c"][0] <= 0]
     print(f"evaluated {len(recs)}, ok {len(ok)}, feasible {len(feas)}")
@@ -1074,7 +1270,7 @@ if __name__ == "__main__":
     except Exception:                                                    # noqa: BLE001  （Windows 没有 resource）
         pass
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["dataset", "pool", "bo", "async", "status", "selftest"])
+    ap.add_argument("cmd", choices=["dataset", "pool", "bo", "async", "status", "selftest", "warm"])
     ap.add_argument("--phase", type=int, default=1)
     ap.add_argument("--ref", default=None, help="phase 2: phase-1 job id whose L, alpha, collar_w, h_cut are kept")
     ap.add_argument("--sed", choices=["one-sided", "abs", "none"], default=None, help="默认取阶段定义的 sed（PHASES[p]['sed']，没有则 abs）")
@@ -1107,6 +1303,10 @@ if __name__ == "__main__":
         print(U.shape, float(np.nanmin(loss)), float(np.nanmax(loss)))
     elif a.cmd == "status":
         status(a.phase)
+    elif a.cmd == "warm":                                                # 只读空跑：本阶段 bo / async 启动时会用的热启动（不写任何文件）
+        X0w, Y0w, C0w, idsw, infow = warm_start(ph, (None if a.warm == "none" else a.warm == "legacy"), strict=False)
+        print(json.dumps({"n_rows": int(len(X0w)), "Y_shape": list(Y0w.shape), "feasible": int((C0w[:, 0] <= 0).sum()) if len(C0w) else 0,
+                          "ids": idsw, "warm_from": infow}, indent=1, default=float))
     elif a.cmd == "async":
         bo_async(ph, a.budget, a.inflight, a.seed, a.workers, (None if a.warm == "none" else a.warm == "legacy"), n_pool=a.pool, refresh_k=a.refresh,
                  refresh_rad=a.refresh_rad, stop_tol=a.stop_tol, stop_window=a.stop_window, n_cand=a.cand)
