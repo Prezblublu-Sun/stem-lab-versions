@@ -300,6 +300,14 @@ def specs(batch: str) -> dict:
     elif batch == "SB":
         out["SB_intact_h2"] = dict(SB_INTACT)
         out.update(_sb_smoke(bonded=False))
+    elif batch == "SBd":                                         # 2026-10-24 01:35 诊断：3406 冒烟微动 398–522 µm（CT 同类 9 µm），分离材料 / 股骨 / 柄长截骨
+        base = _sb_smoke(bonded=False)["SB_smoke_f_h16"]
+        base = {k: v for k, v in base.items() if k not in ("stage", "tag")}
+        ct = {k: v for k, v in base.items() if k not in ("femur_id", "neck_axis")}
+        meta = {"kind": "variant", "gate": "diag3406"}
+        out["SBd_3406_E400_h16"] = {**base, **meta, "stage": "sbdiag", "tag": "E400_h16", "E_canc": 400.0}
+        out["SBd_CT_L35_h16"] = {**ct, **meta, "stage": "mgdiag", "tag": "ct_L35_h16"}
+        out["SBd_CT_L35_h25"] = {**ct, **meta, "stage": "mgdiag", "tag": "ct_L35_h25", "h_cut": 25.0}
     elif batch == "SBb":                                         # 参照填进 PHASES[11]["intact_job"] 之后
         out.update({k: v for k, v in _sb_smoke(bonded=True).items() if k.endswith("_h20")})
     elif batch == "MI":
@@ -361,6 +369,6 @@ if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["submit", "status"])
-    ap.add_argument("batch", choices=["A", "B", "C", "E", "BW", "CW", "F", "G", "P9D", "U", "MI", "M", "M14", "SB", "SBb"])
+    ap.add_argument("batch", choices=["A", "B", "C", "E", "BW", "CW", "F", "G", "P9D", "U", "MI", "M", "M14", "SB", "SBb", "SBd"])
     a = ap.parse_args()
     {"submit": submit, "status": status}[a.cmd](a.batch)
