@@ -11,8 +11,10 @@
     BW 演示素材按 wrap_fit 重做（6 个设计，保留 odb）；CW 领宽扫描按 wrap_fit 重算（两个基线 × 2/4/6 mm）
     D13 50 h 计划段 D（阶段 13 / 14 两臂跑完后的前沿核查）：设计在提交时从最终状态文件与队列里选（d13_select），见批次 D13 的说明
 
-    python v2/stage_deck.py submit D13 --dry-run [--root <本地副本>]   → 只打印作业表（键、源作业、变体、stage、tag、预期 id），什么都不写
+    python v2/stage_deck.py submit D13 --dry-run [--root <本地副本>]   → 只打印作业表（键、源作业、相对源 spec 的变体、stage、tag、预期 id），什么都不写
     python v2/stage_deck.py submit D13                               → 两臂没跑完（pending / 记录 < budget / 队列里有没算完的 sb13_* sb14_*）就拒绝
+        [--allow-unfinished]  照样提交（D13 作业 d13* 会排在 sb13_* / sb14_* 前面建模、求解，拖慢两臂）
+        [--reselect]          选择里有 deck_D13_ids.json 没有的键时照样提交（过时键与其作业保留）
 """
 from __future__ import annotations
 
@@ -178,40 +180,58 @@ def spec_of_job(job: str) -> dict:
     return {**CURRENT, "design": dict(src["design"]), "h_cut": float(src.get("h_cut", 25.0))}
 
 
-# 批次 D13（2026-10-25；计算计划_50h_2026-10-24.md 第 2 节段 D 与第 7 节修订；p13_3406/snap_2026-10-25_0340_half/角落设计核查_2026-10-25.md）：
+# 批次 D13（2026-10-25；计算计划_50h_2026-10-24.md 第 2 节段 D 与第 7 节修订；p13_3406/snap_2026-10-25_0340_half/角落设计核查_2026-10-25.md；
+# 同日按审查 w5g2teby3 修订：粘接补算全覆盖 + 安全上限 25、跨提交累积、真提交也打印警告、一次调用只选一次；起身改为 3 个对比设计——主会话批准）：
 # 阶段 13 / 14 两臂跑完后的前沿核查，一条命令提交。设计不写死，提交时从最终状态文件 results/neckopt_p13.json / neckopt_p14.json 选
-# （d13_select，纯函数，不读队列）：
+# （d13_select，纯函数，不读队列；prior = 已有 results/deck_D13_ids.json 的 jobs）：
 #   F13 = 阶段 13（2 目标 v3：log10 转动、−完全接触面积）可行记录（ok 且 c ≤ 0）的非支配集；
 #   F14 = 阶段 14（3 目标 v4：再加去骨量）的非支配集，数据 = 自有可行记录 + 冻结热启动行（warm_start_ids 指向的阶段 13 记录，
 #         y = 阶段 13 的 y + bone_mm3，即阶段 14 按 v4 / mm_limit None / sed none 重打分的值；角落设计核查：两个阶段 13 目标同序，
-#         2 目标前沿只有几个点，3 目标集沿去骨量展开）；
+#         2 目标前沿只有几个点，3 目标集沿去骨量展开）。热启动 id 不在阶段 13 的记录里 → SystemExit（两个状态文件不配套）；
 #   两臂可能各解同一个池点：按单位立方体坐标 x 去重（两臂同一设计空间，状态文件的 space / fixed 必须相同），同一设计只出一组变体，
 #   代表作业 = 前沿行里阶段号小、作业号小的那个（源作业进 spec 的 source_job，所以选法固定 = 作业 id 固定）。
-# 1. 应力屏蔽补算（SED / 柄 vM 只记录）：F13 ∪ F14 里还没有粘接结果的设计 → bond_only 变体。"已有" = 该设计在两个状态文件里任一记录
-#    bonded 且 ok（bond_every 5：每 5 个提交第 5 个带粘接模型）。bond_only = 只解粘接模型：jobs.prep 按同一 spec 重新模板化、重新划网格
-#    （不复用摩擦作业的网格；不假设两个作业的节点编号一致——SED / vM 全部来自本作业自己的粘接模型，SED 与完整股骨参照在 resorption 的
-#    规则网格上比较），删 m_fric.inp。显式 intact_job = PHASES[p]["intact_job"]（3406 完整股骨参照；jobs.ref_for 对 femur_id 作业必须有，
-#    且须与状态文件记的相同）；fric_only 去掉（与 bond_only 互斥，jobs.prep 判 L1）。
-#    新作业最多 D13_BOND_CAP 个：F13 的设计全部先入选（按转动），余下名额在其余前沿设计里按去骨量铺开——贪心最远点：锚 = 已有粘接
-#    结果的前沿设计与已选设计的去骨量，每次取离最近锚最远的（并列取去骨量小的）。没选上的列在 dry run 的 left out 里。
-# 2. 起身（sit-to-stand；U6 未定 → 两档都算）：F13 ∪ F14 按转动前 D13_STS_TOP 个 × 合力 {1714, 3839} N，方向 α_front 24° / α_sagit 8°
-#    （Bergmann 2016 表 5 起身；1714 = AVER75 1600 × 2391 / 2232，与现在楼梯载荷同缩放；3839 = HIGH100）。spec 键 cfg = {"load": …}：
-#    jobs.femur_for 把它合并进本作业 fm.cfg 的副本（3406 的 cfg = config_v2a.yaml 的深拷贝，同样的 load 节），model3d_m1 从 fm.cfg["load"]
-#    算头力（model3d_v2.load_vector）——不改任何哈希文件；cfg 进作业 id。torque 不写 = 默认 True（头力全部分量，力矩由头心偏距产生；
-#    B16 的起身 Mts 19.3 / Mbs 46.4 N·m 对上楼 47.0 / 113.1 是常规柄上的值，这里不另加力矩）。只算摩擦（fric_only，不需要参照）。
-# 3. 网格噪声：2 个前沿设计（F13 ∪ F14 里转动最小的 + F14 里去骨量居中的）× h_int {1.94, 2.06}，只算摩擦（与批次 V3406 相同的做法）。
+# 1. 应力屏蔽补算（SED / 柄 vM 只记录）：F13 ∪ F14 里每个还没有可用粘接结果的设计 → bond_only 变体。"可用" = 该设计在两个状态文件里
+#    任一记录 bonded 且 ok，且 sed_chg_pct、vm_p99 都不是 None（bond_every 5：每 5 个提交第 5 个带粘接模型；bonded ok 却缺这两个值之一——
+#    stage_neckopt._calcar 出错时返回 None——→ 警告，该设计按没有粘接结果算）。bond_only = 只解粘接模型：jobs.prep 按同一 spec 重新模板化、
+#    重新划网格（不复用摩擦作业的网格；不假设两个作业的节点编号一致——SED / vM 全部来自本作业自己的粘接模型，SED 与完整股骨参照在
+#    resorption 的规则网格上比较），删 m_fric.inp。显式 intact_job = PHASES[p]["intact_job"]（3406 完整股骨参照；jobs.ref_for 对 femur_id
+#    作业必须有，且须与状态文件记的相同）；fric_only 去掉（与 bond_only 互斥，jobs.prep 判 L1）。
+#    累积：deck_D13_ids.json 里已有的每个 D13_bond_<源作业> 键按源作业的 x（状态文件记录里的单位立方体坐标）对到设计——设计还在前沿上 =
+#    已覆盖，键原样再出（同一 spec = 同一 id，不新建作业）；不在前沿上 = 过时键（不再出，留在 ids 文件里）；两种都计入上限。
+#    源作业不在任何一个状态文件的记录里 → SystemExit。
+#    上限 D13_BOND_CAP = 25 个 D13 bond_only 作业（含以前提交的；安全上限）：放得下就全部覆盖；放不下时 F13 的设计先入选（按转动），
+#    再给 F14 的设计按转动 D13_BOND_ROT_SLOTS = 3 个名额，余下名额在归一化二维（log10 转动、去骨量，各按全部前沿设计的最小 / 最大值归一）
+#    里贪心最远点铺开（锚 = 已覆盖的前沿设计与已选设计；每次取离最近锚最远的，并列取转动小的）；没选上的打印出来（dropped by the cap）。
+# 2. 起身（sit-to-stand；U6 未定 → 两档都算）：3 个对比前沿设计 × 合力 {1714, 3839} N，方向 α_front 24° / α_sagit 8°
+#    （Bergmann 2016 表 5 起身；1714 = AVER75 1600 × 2391 / 2232，与现在楼梯载荷同缩放；3839 = HIGH100）。设计：
+#    (a) F13 ∪ F14 里转动最小的；(b) F14 里（不含 a）去骨量 ≤ D13_STS_BONE_MAX = 6000 mm³ 的转动最小者，没有就取 F14 里转动 < D13_STS_ROT_MAX
+#    = 1° 的去骨量最小者，再没有 → 警告、不出 (b)；(c) F14 里（不含 a、b）去骨量居中的（偶数个取下中位）。原规则"转动前 3 个"选出的是三个
+#    几乎相同的角落设计（04:36：a62 / a70 / a71），回答不了"楼梯载荷下的排序在起身载荷下是否保持"。
+#    spec 键 cfg = {"load": …}：jobs.femur_for 把它合并进本作业 fm.cfg 的副本（3406 的 cfg = config_v2a.yaml 的深拷贝，同样的 load 节），
+#    model3d_m1 从 fm.cfg["load"] 算头力（model3d_v2.load_vector）——不改任何哈希文件；cfg 进作业 id。torque 不写 = 默认 True（头力全部分量，
+#    力矩由头心偏距产生；B16 的起身 Mts 19.3 / Mbs 46.4 N·m 对上楼 47.0 / 113.1 是常规柄上的值，这里不另加力矩）。只算摩擦（fric_only，不需要参照）。
+# 3. 网格噪声：2 个前沿设计（F13 ∪ F14 里转动最小的 + F14 里（不含前者）去骨量居中的）× h_int {1.94, 2.06}，只算摩擦（与批次 V3406 相同的做法）。
 # stage "d13bond" / "d13sts" / "d13mesh"：不以 "sb" / "neck" 开头、不是 "ref"——in_family（femur_id 阶段只收 "sb*"）不收，bo_async 的收编
 # glob（sb13_* / sb14_*）不收；bond_only、cfg、h_int ≠ 2.0 也各自让 in_family 排除。全部 kind variant；_d13_check 对每个 spec 再核对一遍。
+# 一次调用（submit 或 dry run）只读一次状态文件、只选一次（d13_build）：作业表、报告、警告与拒绝理由都来自同一个快照；真提交也打印警告与一行摘要。
 # 提交前（d13_unfinished）：状态文件 pending 非空、记录数 < budget（且没有 stopped_early）、队列里还有没算完的 sb13_* / sb14_*，或有算完
-# 却不在记录里的 → 拒绝提交（--allow-unfinished 才放行）；--dry-run 照样列出并给出这些警告，什么都不写。
+# 却不在记录里的 → 拒绝提交（--allow-unfinished 才放行；代价见 D13_QUEUE_NOTE）；--dry-run 照样列出并给出这些警告，什么都不写。
+# 重复提交：新选择里有 deck_D13_ids.json 没有的键 → 列出新键与过时键并拒绝，--reselect 才提交（新键提交；过时键与其作业留着，不删）。
 D13_PHASES = (13, 14)
-D13_BOND_CAP = 12
-D13_STS_TOP = 3
+D13_BOND_CAP = 25
+D13_BOND_ROT_SLOTS = 3
+D13_BOND_PREFIX = "D13_bond_"
+D13_STS_BONE_MAX = 6000.0
+D13_STS_ROT_MAX = 1.0
 D13_STS = {"F1714": {"resultant_N": 1714.0, "alpha_front_deg": 24.0, "alpha_sagit_deg": 8.0},
            "F3839": {"resultant_N": 3839.0, "alpha_front_deg": 24.0, "alpha_sagit_deg": 8.0}}
 D13_MESH_H = (1.94, 2.06)
 D13_STAGE = {"bond": "d13bond", "sts": "d13sts", "mesh": "d13mesh"}
 D13_DROP = ("created", "stage", "tag", "kind", "bond_only", "fric_only", "intact_job")   # 源 spec 去掉这些，变体自己再写
+# stage_v2a.serve 按 sorted(name) 建模 NEW 作业，solve_worker 按 READY 时间（ls -tr）先来先服务
+D13_QUEUE_NOTE = ("D13 jobs (names d13bond_* / d13sts_* / d13mesh_*) sort before sb13_* / sb14_*: stage_v2a.serve preps NEW jobs in name order "
+                  "and solve_worker takes READY jobs first come first served, so the D13 jobs would be prepped and solved ahead of the "
+                  "arms' jobs and slow the arms down")
 
 
 def _d13_state(p: int) -> dict:
@@ -241,15 +261,32 @@ def _d13_nd(rows: list) -> list:
             if not any(all(a <= b for a, b in zip(Y[j], Y[i])) and any(a < b for a, b in zip(Y[j], Y[i])) for j in range(len(rows)) if j != i)]
 
 
-def _d13_entry(d: dict, r: dict | None = None) -> dict:
-    """列表项：r = 前沿上的那一行（默认 = 该设计的代表作业），fronts / bonded_jobs 是设计层面的。"""
+def _d13_entry(d: dict, r: dict | None = None, **extra) -> dict:
+    """列表项：r = 前沿上的那一行（默认 = 该设计的代表作业），fronts / bonded_jobs / d13_keys 是设计层面的。"""
     r = d["rep"] if r is None else r
     return {"job_id": r["job_id"], "phase": r["phase"], "rot_deg": r["rot_deg"], "area_mm2": r["area_mm2"], "bone_mm3": r["bone_mm3"],
-            "fronts": sorted(d["fronts"]), "bonded_jobs": list(d["bonded_jobs"])}
+            "fronts": sorted(d["fronts"]), "bonded_jobs": list(d["bonded_jobs"]), "d13_keys": list(d.get("prior_keys") or []), **extra}
 
 
-def d13_select(st13: dict, st14: dict, bond_cap: int = D13_BOND_CAP, sts_top: int = D13_STS_TOP) -> dict:
-    """纯函数：阶段 13 / 14 的状态文件 → 前沿与三组选择（bond / sts / mesh），不读队列、不写文件。规则见批次 D13 的说明。"""
+def _d13_usable_bond(r: dict) -> bool:
+    """可用的粘接结果：bonded、ok，且 sed_chg_pct 与 vm_p99 都在（_calcar 出错时 sed_chg_pct 为 None，ok 不要求它）。"""
+    return bool(r["bonded"]) and r["ok"] and r["sed_chg_pct"] is not None and r["vm_p99"] is not None
+
+
+def _d13_farthest(rest: list, anchors: list, n: int, pt) -> tuple:
+    """贪心最远点：从 rest（已按转动排好）里取 n 个，每次取离最近锚最远的（并列取 rest 里靠前的 = 转动小的）。返回 (选中, 余下)。"""
+    rest, anchors, got = list(rest), list(anchors), []
+    while len(got) < n and rest:
+        dist = [min(math.dist(pt(d), a) for a in anchors) if anchors else 0.0 for d in rest]
+        got.append(rest.pop(dist.index(max(dist))))
+        anchors.append(pt(got[-1]))
+    return got, rest
+
+
+def d13_select(st13: dict, st14: dict, bond_cap: int = D13_BOND_CAP, prior: dict | None = None,
+               sts_bone_max: float = D13_STS_BONE_MAX, sts_rot_max: float = D13_STS_ROT_MAX) -> dict:
+    """纯函数：阶段 13 / 14 的状态文件（+ prior = 已有 deck_D13_ids.json 的 jobs）→ 前沿与三组选择（bond / sts / mesh），
+    不读队列、不写文件。规则见批次 D13 的说明。"""
     for p, st in ((13, st13), (14, st14)):
         if st.get("phase") != p:
             raise SystemExit(f"D13: state file for phase {p} holds phase {st.get('phase')!r}")
@@ -262,20 +299,23 @@ def d13_select(st13: dict, st14: dict, bond_cap: int = D13_BOND_CAP, sts_top: in
     bad = [r["job_id"] for r in rows13 if r["ok"] and len(r["y"]) != 2] + [r["job_id"] for r in rows14 if r["ok"] and len(r["y"]) != 3]
     if bad:
         raise SystemExit(f"D13: records with the wrong number of objectives (phase 13 = 2, phase 14 = 3): {bad[:5]}")
-    warm = []
-    for j in st14.get("warm_start_ids") or []:
-        if j not in by13:
-            warn.append(f"phase-14 warm-start id {j} is not a phase-13 record: left out of F14")
-            continue
-        r = by13[j]
-        warm.append(_d13_row(r, 13, list(r["y"])[:2] + [r.get("bone_mm3")]))
+    warm_ids = list(st14.get("warm_start_ids") or [])
+    missing = [j for j in warm_ids if j not in by13]
+    if missing:
+        raise SystemExit(f"D13: {len(missing)} phase-14 warm-start id(s) are not phase-13 records ({', '.join(missing[:5])}); "
+                         "the two state files do not belong together")
+    warm = [_d13_row(by13[j], 13, list(by13[j]["y"])[:2] + [by13[j].get("bone_mm3")]) for j in warm_ids]
     F13 = _d13_nd([r for r in rows13 if r["feasible"]])
     F14 = _d13_nd([r for r in rows14 + warm if r["feasible"]])
-    allrows = {}
+    allrows, by_job = {}, {}
     for r in rows13 + rows14:
         allrows.setdefault(r["key"], []).append(r)
+        by_job.setdefault(r["job_id"], r)
         if r["bonded"] is None and r["ok"]:
             warn.append(f"{r['job_id']}: record has bonded None (spec.json was missing when it was recorded); counted as not bonded")
+        elif r["bonded"] and r["ok"] and not _d13_usable_bond(r):
+            miss = " and ".join(k for k in ("sed_chg_pct", "vm_p99") if r[k] is None)
+            warn.append(f"{r['job_id']}: bonded ok record has no {miss}; its design counts as not bonded")
     designs = {}
     for name, front in (("F13", F13), ("F14", F14)):
         for r in front:
@@ -287,21 +327,67 @@ def d13_select(st13: dict, st14: dict, bond_cap: int = D13_BOND_CAP, sts_top: in
         raise SystemExit("D13: no feasible design on either front")
     for d in designs.values():
         d["rep"] = sorted(d["rows"], key=lambda r: (r["phase"], r["job_id"]))[0]
-        d["bonded_jobs"] = sorted({r["job_id"] for r in allrows.get(d["key"], []) if r["bonded"] and r["ok"]})
-        d["covered"] = bool(d["bonded_jobs"])
+        d["bonded_jobs"] = sorted({r["job_id"] for r in allrows.get(d["key"], []) if _d13_usable_bond(r)})
+        d["prior_keys"] = []
         if d["rep"]["bone_mm3"] is None:
             raise SystemExit(f"D13: front design {d['rep']['job_id']} has no bone_mm3")
+    prior_bond = sorted(k for k in (prior or {}) if k.startswith(D13_BOND_PREFIX))   # 以前提交的 D13 bond_only 作业：按源作业的 x 对到设计
+    stale = []
+    for k in prior_bond:
+        src = k[len(D13_BOND_PREFIX):]
+        r = by_job.get(src)
+        if r is None:
+            raise SystemExit(f"D13: deck_D13_ids.json key {k}: source job {src} is in neither state file's records, so its design cannot be matched by x")
+        if r["key"] in designs:
+            designs[r["key"]]["prior_keys"].append(k)
+        else:
+            stale.append({"key": k, "job_id": src, "phase": r["phase"], "rot_deg": r["rot_deg"], "area_mm2": r["area_mm2"], "bone_mm3": r["bone_mm3"],
+                          "fronts": [], "bonded_jobs": [], "d13_keys": [k]})
     by_rot = sorted(designs.values(), key=lambda d: (d["rep"]["y"][0], d["rep"]["job_id"]))
-    cand = [d for d in by_rot if not d["covered"]]
-    chosen = [d for d in cand if "F13" in d["fronts"]][:bond_cap]                        # 2 目标前沿先全部入选（按转动）
-    rest = sorted([d for d in cand if d not in chosen], key=lambda d: (d["rep"]["bone_mm3"], d["rep"]["job_id"]))
-    anchors = [d["rep"]["bone_mm3"] for d in by_rot if d["covered"]] + [d["rep"]["bone_mm3"] for d in chosen]
-    while len(chosen) < bond_cap and rest:                                              # 余下名额按去骨量铺开（贪心最远点）
-        best = max(rest, key=lambda d: min(abs(d["rep"]["bone_mm3"] - a) for a in anchors) if anchors else 0.0)   # 并列：rest 里靠前的
-        chosen.append(best)
-        rest.remove(best)
-        anchors.append(best["rep"]["bone_mm3"])
-    sts = by_rot[:sts_top]
+    covered = [d for d in by_rot if d["bonded_jobs"]]
+    kept = [d for d in by_rot if d["prior_keys"]]
+    cand = [d for d in by_rot if not d["bonded_jobs"] and not d["prior_keys"]]
+    slots = max(0, bond_cap - len(prior_bond))
+    if len(prior_bond) > bond_cap:
+        warn.append(f"deck_D13_ids.json already holds {len(prior_bond)} D13 bond_only jobs, more than the cap {bond_cap}: no new bond_only job")
+    f13c = [d for d in cand if "F13" in d["fronts"]]
+    if len(cand) <= slots:                                                            # 放得下：全部覆盖（F13 在前，各按转动）
+        chosen, rest = f13c + [d for d in cand if "F13" not in d["fronts"]], []
+    else:                                                                             # 放不下：F13 → F14 按转动 3 个 → 归一化二维最远点
+        chosen = f13c[:slots]
+        rest = [d for d in cand if all(d is not c for c in chosen)]
+        rot_pick = [d for d in rest if "F14" in d["fronts"]][:max(0, min(D13_BOND_ROT_SLOTS, slots - len(chosen)))]
+        chosen = chosen + rot_pick
+        rest = [d for d in rest if all(d is not c for c in rot_pick)]
+        lo = (min(d["rep"]["y"][0] for d in by_rot), min(d["rep"]["bone_mm3"] for d in by_rot))
+        span = tuple((h - l_) or 1.0 for l_, h in zip(lo, (max(d["rep"]["y"][0] for d in by_rot), max(d["rep"]["bone_mm3"] for d in by_rot))))
+
+        def pt(d):
+            return ((d["rep"]["y"][0] - lo[0]) / span[0], (d["rep"]["bone_mm3"] - lo[1]) / span[1])
+        got, rest = _d13_farthest(rest, [pt(d) for d in covered + kept + chosen], slots - len(chosen), pt)
+        chosen = chosen + got
+    # 起身：3 个对比设计
+    a = by_rot[0]
+    f14 = [d for d in by_rot if "F14" in d["fronts"] and d is not a]
+
+    def rot(d):
+        return d["rep"]["rot_deg"] if d["rep"]["rot_deg"] is not None else 10.0 ** d["rep"]["y"][0]
+    b = next((d for d in f14 if d["rep"]["bone_mm3"] <= sts_bone_max), None)
+    b_rule = f"lowest-rotation F14 design with bone removal <= {sts_bone_max:g} mm3"
+    if b is None:
+        low = sorted((d for d in f14 if rot(d) < sts_rot_max), key=lambda d: (d["rep"]["bone_mm3"], d["rep"]["job_id"]))
+        b = low[0] if low else None
+        b_rule = f"lowest-bone F14 design with rotation < {sts_rot_max:g} deg (no F14 design with bone removal <= {sts_bone_max:g} mm3)"
+        if b is None:
+            warn.append(f"sit-to-stand (b): no F14 design other than (a) with bone removal <= {sts_bone_max:g} mm3 or rotation < {sts_rot_max:g} deg; "
+                        "(b) left out")
+    mids = sorted((d for d in f14 if d is not b), key=lambda d: (d["rep"]["bone_mm3"], d["rep"]["job_id"]))
+    c = mids[(len(mids) - 1) // 2] if mids else None
+    if c is None:
+        warn.append("sit-to-stand (c): no F14 design other than (a) and (b); (c) left out")
+    sts = [_d13_entry(a, role="a", rule="lowest rotation on F13 + F14")]
+    sts += [_d13_entry(b, role="b", rule=b_rule)] if b is not None else []
+    sts += [_d13_entry(c, role="c", rule="median bone removal among F14 (excluding a and b)")] if c is not None else []
     mesh = [by_rot[0]]
     mid = sorted([d for d in designs.values() if "F14" in d["fronts"] and d is not by_rot[0]], key=lambda d: (d["rep"]["bone_mm3"], d["rep"]["job_id"]))
     if mid:
@@ -310,10 +396,12 @@ def d13_select(st13: dict, st14: dict, bond_cap: int = D13_BOND_CAP, sts_top: in
         mesh.append(by_rot[1])
     return {"F13": [_d13_entry(designs[r["key"]], r) for r in sorted(F13, key=lambda r: (r["y"][0], r["job_id"]))],
             "F14": [_d13_entry(designs[r["key"]], r) for r in sorted(F14, key=lambda r: (r["y"][2], r["job_id"]))],
-            "covered": [_d13_entry(d) for d in by_rot if d["covered"]],
+            "covered": [_d13_entry(d) for d in covered],
+            "bond_kept": [_d13_entry(d, by_job[k[len(D13_BOND_PREFIX):]], d13_key=k) for d in kept for k in d["prior_keys"]],
+            "bond_stale": stale,
             "bond": [_d13_entry(d) for d in chosen], "bond_left_out": [_d13_entry(d) for d in rest],
-            "sts": [_d13_entry(d) for d in sts], "mesh": [_d13_entry(d) for d in mesh],
-            "n_designs": len(designs), "bond_cap": bond_cap, "warnings": warn}
+            "sts": sts, "mesh": [_d13_entry(d) for d in mesh],
+            "n_designs": len(designs), "bond_cap": bond_cap, "bond_slots": slots, "n_prior_bond": len(prior_bond), "warnings": warn}
 
 
 def d13_unfinished(st13: dict, st14: dict) -> list:
@@ -380,10 +468,13 @@ def _d13_specs(sel: dict) -> dict:
     import stage_neckopt as SN
     out = {}
     meta = {"kind": "variant", "gate": "segD"}
-    for e in sel["bond"]:
+    for e in sel["bond_kept"] + sel["bond"]:                             # 以前提交的（键原样）+ 新选的
         job, p = e["job_id"], e["phase"]
-        out[f"D13_bond_{job}"] = {**_d13_src(job), **meta, "stage": D13_STAGE["bond"], "tag": _d13_tag(job), "bond_only": True,
-                                  "intact_job": SN.PHASES[p]["intact_job"], "source_job": job}
+        k = f"{D13_BOND_PREFIX}{job}"
+        if e.get("d13_key", k) != k:
+            raise SystemExit(f"D13: kept key {e['d13_key']} does not match its source job {job}")
+        out[k] = {**_d13_src(job), **meta, "stage": D13_STAGE["bond"], "tag": _d13_tag(job), "bond_only": True,
+                  "intact_job": SN.PHASES[p]["intact_job"], "source_job": job}
     for e in sel["sts"]:
         job = e["job_id"]
         for ln, L in D13_STS.items():
@@ -398,14 +489,40 @@ def _d13_specs(sel: dict) -> dict:
     return out
 
 
-def d13_specs() -> dict:
-    """批次 D13 的全部 spec：读当前状态文件（J.RESULTS）选设计，源 spec 从 J.QROOT 读。"""
+def _d13_ids() -> dict:
+    f = J.RESULTS / "deck_D13_ids.json"
+    return json.loads(f.read_text())["jobs"] if f.exists() else {}
+
+
+def _d13_prior_warnings(old: dict) -> list:
+    """以前提交的 D13 作业在队列里的状态：FAILED（同一 spec = 同一 id，重交不会重算）或不在队列里 → 警告。"""
+    out = []
+    for k, j in sorted(old.items()):
+        s_ = J.state(J.QROOT / j)
+        if s_ == "FAILED":
+            out.append(f"{k}: earlier D13 job {j} is FAILED; resubmitting gives the same id and does not retry it (see its FAILED.json)")
+        elif s_ == "MISSING":
+            out.append(f"{k}: earlier D13 job {j} (in deck_D13_ids.json) is not in the queue")
+    return out
+
+
+def d13_build(prior: dict | None = None) -> dict:
+    """一次调用 = 读一次状态文件 + 选一次：st13 / st14、sel（d13_select）、specs、probs（d13_unfinished，同一份状态）、
+    prior_warnings（以前 D13 作业的队列状态）。submit 与 dry run 都只用这一份。"""
     st13, st14 = _d13_state(13), _d13_state(14)
     import stage_neckopt as SN
     for p, st in ((13, st13), (14, st14)):
         if st.get("intact_job") != SN.PHASES[p]["intact_job"]:
             raise SystemExit(f"D13: phase {p} state file intact_job {st.get('intact_job')!r} != PHASES[{p}]['intact_job'] {SN.PHASES[p]['intact_job']!r}")
-    return _d13_specs(d13_select(st13, st14))
+    prior = dict(prior or {})
+    sel = d13_select(st13, st14, prior=prior)
+    return {"st13": st13, "st14": st14, "sel": sel, "specs": _d13_specs(sel), "probs": d13_unfinished(st13, st14),
+            "prior_warnings": _d13_prior_warnings(prior)}
+
+
+def d13_specs(prior: dict | None = None) -> dict:
+    """批次 D13 的全部 spec：读当前状态文件（J.RESULTS）选设计，源 spec 从 J.QROOT 读；prior 默认 = 现有的 deck_D13_ids.json。"""
+    return d13_build(_d13_ids() if prior is None else prior)["specs"]
 
 
 def specs(batch: str) -> dict:
@@ -611,8 +728,27 @@ def specs(batch: str) -> dict:
     return out
 
 
-def _variant_of(s: dict) -> str:
-    """dry run 的"变体"列：与优化作业不同的那几个键。"""
+VARIANT_IGNORE = ("created", "stage", "tag", "kind", "gate", "source_job")   # dry run 的"变体"列不比这些键
+
+
+def _flat(d: dict, pre: str = "") -> dict:
+    out = {}
+    for k, v in d.items():
+        if isinstance(v, dict) and v:
+            out.update(_flat(v, f"{pre}{k}."))
+        else:
+            out[pre + k] = v
+    return out
+
+
+def _fmt(v) -> str:
+    if isinstance(v, str):
+        return v
+    return json.dumps(v, sort_keys=True) if isinstance(v, (dict, list)) else repr(v)
+
+
+def _variant_keys(s: dict) -> str:
+    """没有源作业时的"变体"列：与优化作业不同的那几个键。"""
     parts = [k for k in ("bond_only", "fric_only") if s.get(k)]
     if s.get("cfg"):
         parts.append("cfg " + json.dumps(s["cfg"], sort_keys=True))
@@ -622,18 +758,54 @@ def _variant_of(s: dict) -> str:
     return ", ".join(parts)
 
 
-def _d13_report(sel: dict, probs: list) -> None:
+def _variant_of(s: dict) -> str:
+    """dry run 的"变体"列 = 与源作业 spec.json 的差别（键 旧 -> 新；absent = 没有这个键；嵌套键写成 cfg.load.resultant_N），
+    不比 created / stage / tag / kind / gate / source_job。没有 source_job 的作业（参照、冒烟……）列出变体键（_variant_keys）。"""
+    src = s.get("source_job")
+    if not src:
+        return _variant_keys(s)
+    f = J.QROOT / src / "spec.json"
+    if not f.exists():
+        return f"(source spec.json of {src} not found; variant keys) {_variant_keys(s)}"
+    a = _flat({k: v for k, v in json.loads(f.read_text()).items() if k not in VARIANT_IGNORE})
+    b = _flat({k: v for k, v in s.items() if k not in VARIANT_IGNORE})
+    parts = []
+    for k in sorted(set(a) | set(b)):
+        if k not in b:
+            parts.append(f"{k} {_fmt(a[k])} -> absent")
+        elif k not in a:
+            parts.append(f"{k} absent -> {_fmt(b[k])}")
+        elif a[k] != b[k]:
+            parts.append(f"{k} {_fmt(a[k])} -> {_fmt(b[k])}")
+    return ", ".join(parts) or "(same as the source spec)"
+
+
+def _d13_summary(sel: dict) -> str:
+    """一行选择摘要（dry run 与真提交都打印）。"""
+    def ids(es):
+        return ", ".join(e["job_id"] for e in es) or "-"
+    sts = " / ".join(f"{e['role']} {e['job_id']}" for e in sel["sts"])
+    return (f"D13 selection: F13 {len(sel['F13'])}, F14 {len(sel['F14'])}, {sel['n_designs']} distinct designs; already bonded {len(sel['covered'])}; "
+            f"kept from deck_D13_ids.json {len(sel['bond_kept'])}, stale bond keys {len(sel['bond_stale'])}; new bond_only {len(sel['bond'])} "
+            f"(cap {sel['bond_cap']} - {sel['n_prior_bond']} earlier = {sel['bond_slots']} slots); dropped by the cap {len(sel['bond_left_out'])} "
+            f"[{ids(sel['bond_left_out'])}]; sit-to-stand {sts}; mesh {ids(sel['mesh'])}")
+
+
+def _d13_report(d13: dict) -> None:
+    sel, probs = d13["sel"], d13["probs"]
+
     def num(v, fmt):
         return "None" if v is None else format(v, fmt)
 
     def line(e):
+        d13k = f"  D13 {','.join(e['d13_keys'])}" if e.get("d13_keys") else ""
         return (f"    {e['job_id']:<24} rot {num(e['rot_deg'], '.4f'):>7} deg  area {num(e['area_mm2'], '.0f'):>5} mm2  "
-                f"bone {num(e['bone_mm3'], '.0f'):>6} mm3  {'+'.join(e['fronts']):<7}  bonded jobs {','.join(e['bonded_jobs']) or '-'}")
+                f"bone {num(e['bone_mm3'], '.0f'):>6} mm3  {'+'.join(e['fronts']) or '-':<7}  bonded jobs {','.join(e['bonded_jobs']) or '-'}{d13k}")
     if probs:
-        print("WARNING: the phase 13 / 14 arms have not finished (submit would refuse without --allow-unfinished):")
+        print(f"WARNING: the phase 13 / 14 arms have not finished (submit would refuse without --allow-unfinished; {D13_QUEUE_NOTE}):")
         for p in probs:
             print("  " + p)
-    for w in sel["warnings"]:
+    for w in sel["warnings"] + d13["prior_warnings"]:
         print("WARNING: " + w)
     print(f"F13 = phase-13 2-objective non-dominated set ({len(sel['F13'])}), by rotation:")
     for e in sel["F13"]:
@@ -641,33 +813,43 @@ def _d13_report(sel: dict, probs: list) -> None:
     print(f"F14 = phase-14 3-objective non-dominated set incl. its frozen warm-start rows ({len(sel['F14'])}), by bone removal:")
     for e in sel["F14"]:
         print(line(e))
-    print(f"{sel['n_designs']} distinct front designs; already bonded (no new job, every 5th submission): {len(sel['covered'])}")
+    print(f"{sel['n_designs']} distinct front designs; already bonded (a bonded ok record with sed_chg_pct and vm_p99; no new job): {len(sel['covered'])}")
     for e in sel["covered"]:
         print(line(e))
-    print(f"bond_only picks ({len(sel['bond'])} of cap {sel['bond_cap']}; F13 first, then spread over bone removal):")
+    print(f"covered by an earlier D13 submission (key kept, same id, no new job; counted against the cap): {len(sel['bond_kept'])}")
+    for e in sel["bond_kept"]:
+        print(line(e))
+    print(f"stale D13 bond keys (design no longer on F13 / F14; the job stays; counted against the cap): {len(sel['bond_stale'])}")
+    for e in sel["bond_stale"]:
+        print(line(e))
+    rule = ("every uncovered front design fits" if not sel["bond_left_out"] else
+            f"F13 first, then {D13_BOND_ROT_SLOTS} F14 by rotation, then farthest point in normalised (log10 rotation, bone removal)")
+    print(f"bond_only picks ({len(sel['bond'])}; cap {sel['bond_cap']} - {sel['n_prior_bond']} earlier = {sel['bond_slots']} slots; {rule}):")
     for e in sel["bond"]:
         print(line(e))
-    print(f"left out by the cap ({len(sel['bond_left_out'])}):")
+    print(f"dropped by the cap ({len(sel['bond_left_out'])}):")
     for e in sel["bond_left_out"]:
         print(line(e))
-    print(f"sit-to-stand: top {len(sel['sts'])} by rotation x {list(D13_STS)}:")
+    print(f"sit-to-stand: {len(sel['sts'])} contrasting designs x {list(D13_STS)}:")
     for e in sel["sts"]:
-        print(line(e))
+        print(line(e) + f"  ({e['role']}: {e['rule']})")
     print(f"mesh noise: {len(sel['mesh'])} designs (min rotation; F14 median bone removal) x h_int {list(D13_MESH_H)}:")
     for e in sel["mesh"]:
         print(line(e))
+    print(_d13_summary(sel))
 
 
-def dry_run(batch: str, sp: dict, old: dict, clash: dict) -> None:
-    """只打印：键、源作业、变体、stage、tag、预期 id、该 id 在队列里的状态、ids 文件里是否已有。不写任何文件。"""
+def dry_run(batch: str, sp: dict, old: dict, clash: dict, d13: dict | None = None, reselect: bool = False) -> None:
+    """只打印：键、源作业、变体、stage、tag、预期 id、该 id 在队列里的状态、ids 文件里是否已有。不写任何文件。
+    D13：报告与作业表来自同一个 d13_build（同一份状态、同一个选择）。"""
     print(f"dry run: batch {batch}; nothing written (no job directories, no deck_{batch}_ids.json)")
     print(f"queue {J.QROOT}; results {J.RESULTS}; code_hash {J.code_hash()}")
-    if batch == "D13":
-        st13, st14 = _d13_state(13), _d13_state(14)
+    if d13 is not None:
+        st13, st14 = d13["st13"], d13["st14"]
         print(f"state files: phase 13 updated {st13.get('updated')} ({len(st13['records'])} records, budget {st13.get('budget')}), "
               f"phase 14 updated {st14.get('updated')} ({len(st14['records'])} records + {len(st14.get('warm_start_ids') or [])} warm, "
               f"budget {st14.get('budget')})")
-        _d13_report(d13_select(st13, st14), d13_unfinished(st13, st14))
+        _d13_report(d13)
     rows = []
     for k, v in sp.items():
         jid = J.job_id({**v, "created": ""})
@@ -675,33 +857,56 @@ def dry_run(batch: str, sp: dict, old: dict, clash: dict) -> None:
         q = "absent" if q == "MISSING" else q                    # 还不在队列里（提交后才有作业目录）
         rows.append({"key": k, "source_job": v.get("source_job"), "variant": _variant_of(v), "kind": v.get("kind"), "stage": v.get("stage"),
                      "tag": v.get("tag"), "expected_id": jid, "queue": q, "in_ids_file": k in old})
-    print(f"jobs ({len(rows)}): key | source job | variant | stage | tag | expected id | queue state | in ids file")
+    print(f"jobs ({len(rows)}): key | source job | variant (vs the source spec.json) | stage | tag | expected id | queue state | in ids file")
     for r in rows:
         print(f"  {r['key']} | {r['source_job']} | {r['variant']} | {r['stage']} | {r['tag']} | {r['expected_id']} | {r['queue']} | {r['in_ids_file']}")
     if clash:
         print("CLASH (submit would refuse): spec changed for existing keys:\n" + "\n".join(f"  {k}: {a_} -> {b_}" for k, (a_, b_) in clash.items()))
-    stale = sorted(set(old) - set(sp))
+    new_keys, stale = sorted(set(sp) - set(old)), sorted(set(old) - set(sp))
     if stale:
-        print(f"keys in deck_{batch}_ids.json that this selection no longer produces (kept on submit): {stale}")
+        print(f"stale keys in deck_{batch}_ids.json (this selection no longer produces them; kept on submit): {stale}")
+    if batch == "D13" and old and new_keys:
+        print(f"the selection has {len(new_keys)} keys that deck_D13_ids.json does not: a real submit "
+              + ("would submit them (--reselect)" if reselect else "would refuse without --reselect") + f": {new_keys}")
     print("DRY-RUN-JSON")
-    print(json.dumps({"batch": batch, "n_jobs": len(rows), "jobs": rows, "clash": {k: list(v) for k, v in clash.items()}}, indent=1))
+    print(json.dumps({"batch": batch, "n_jobs": len(rows), "jobs": rows, "clash": {k: list(v) for k, v in clash.items()},
+                      "new_keys": new_keys if old else [], "stale_keys": stale}, indent=1))
 
 
-def submit(batch: str, dry: bool = False, allow_unfinished: bool = False) -> None:
+def _d13_gate(d13: dict, sp: dict, old: dict, allow_unfinished: bool, reselect: bool) -> None:
+    """真提交前（与 dry run 同一个选择）：打印警告与一行摘要；两臂没跑完 → 拒绝（--allow-unfinished 放行）；
+    新选择里有 ids 文件没有的键 → 列出新键与过时键并拒绝（--reselect 放行）。过时键总是打印。"""
+    for w in d13["sel"]["warnings"] + d13["prior_warnings"]:
+        print("WARNING: " + w, flush=True)
+    print(_d13_summary(d13["sel"]), flush=True)
+    probs = d13["probs"]
+    if probs and not allow_unfinished:
+        raise SystemExit("D13: the phase 13 / 14 arms have not finished; nothing submitted (look with --dry-run; override with --allow-unfinished, "
+                         f"but {D13_QUEUE_NOTE}):\n" + "\n".join("  " + p for p in probs))
+    if probs:
+        print(f"D13: submitting although the arms have not finished (--allow-unfinished); {D13_QUEUE_NOTE}:\n"
+              + "\n".join("  " + p for p in probs), flush=True)
+    new_keys, stale = sorted(set(sp) - set(old)), sorted(set(old) - set(sp))
+    if stale:
+        print(f"D13: {len(stale)} stale keys in deck_D13_ids.json (not in this selection; they and their jobs stay): {stale}", flush=True)
+    if old and new_keys:
+        msg = f"D13: the selection differs from deck_D13_ids.json: {len(new_keys)} new keys {new_keys}; {len(stale)} stale keys"
+        if not reselect:
+            raise SystemExit(msg + "\nnothing submitted; submit again with --reselect to add the new keys (stale keys and their jobs stay)")
+        print(msg + "\n--reselect: submitting the new keys", flush=True)
+
+
+def submit(batch: str, dry: bool = False, allow_unfinished: bool = False, reselect: bool = False) -> None:
     f = J.RESULTS / f"deck_{batch}_ids.json"
     old = json.loads(f.read_text())["jobs"] if f.exists() else {}
-    if batch == "D13" and not dry:                               # 两臂跑完才提交（前沿要用最终状态）
-        probs = d13_unfinished(_d13_state(13), _d13_state(14))
-        if probs and not allow_unfinished:
-            raise SystemExit("D13: the phase 13 / 14 arms have not finished; nothing submitted (look with --dry-run; override with "
-                             "--allow-unfinished):\n" + "\n".join("  " + p for p in probs))
-        if probs:
-            print("D13: submitting although the arms have not finished (--allow-unfinished):\n" + "\n".join("  " + p for p in probs), flush=True)
-    sp = specs(batch)
+    d13 = d13_build(prior=old) if batch == "D13" else None       # D13：一次调用只读一次状态文件、只选一次
+    sp = d13["specs"] if d13 is not None else specs(batch)
     clash = {k: (old[k], J.job_id({**v, "created": ""})) for k, v in sp.items() if k in old and old[k] != J.job_id({**v, "created": ""})}
     if dry:
-        dry_run(batch, sp, old, clash)
+        dry_run(batch, sp, old, clash, d13=d13, reselect=reselect)
         return
+    if d13 is not None:                                          # 两臂跑完才提交（前沿要用最终状态）；选择变了要 --reselect
+        _d13_gate(d13, sp, old, allow_unfinished, reselect)
     if clash:                                                    # 2026-10-06 批次 F：改了建规格的代码后重交，覆盖了已解作业的键
         raise SystemExit("spec changed for existing keys (job id would change); not resubmitting:\n"
                          + "\n".join(f"  {k}: {a_} -> {b_}" for k, (a_, b_) in clash.items()))
@@ -729,20 +934,24 @@ if __name__ == "__main__":
     ap.add_argument("batch", choices=["A", "B", "C", "E", "BW", "CW", "F", "G", "P9D", "U", "MI", "M", "M14", "SB", "SBb", "SBd", "V3406", "SBdelta", "SBdx",
                                       "D13"])
     ap.add_argument("--dry-run", action="store_true",
-                    help="submit only: print the job list (key, source job, variant, stage, tag, expected id) and write nothing")
+                    help="submit only: print the job list (key, source job, variant vs the source spec, stage, tag, expected id) and write nothing")
     ap.add_argument("--allow-unfinished", action="store_true",
-                    help="submit D13 only: submit although the phase 13 / 14 arms have not finished (pending jobs, records < budget)")
+                    help="submit D13 only: submit although the phase 13 / 14 arms have not finished (pending jobs, records < budget). "
+                         "Caution: " + D13_QUEUE_NOTE)
+    ap.add_argument("--reselect", action="store_true",
+                    help="submit D13 only: submit although the selection has keys that results/deck_D13_ids.json does not "
+                         "(the new keys are submitted; stale keys and their jobs stay)")
     ap.add_argument("--root", help="submit --dry-run only: read <root>/queue and <root>/results instead of ~/mobo_toy_v2 (a local copy of the Linux state)")
     a = ap.parse_args()
     if a.root:
         if not (a.cmd == "submit" and a.dry_run):
             ap.error("--root is only for submit --dry-run (a dry run against a local copy of the queue / results)")
         J.QROOT, J.RESULTS = pathlib.Path(a.root) / "queue", pathlib.Path(a.root) / "results"
-    if a.cmd == "status" and (a.dry_run or a.allow_unfinished):
-        ap.error("--dry-run / --allow-unfinished are submit options")
-    if a.allow_unfinished and a.batch != "D13":
-        ap.error("--allow-unfinished is only for batch D13")
+    if a.cmd == "status" and (a.dry_run or a.allow_unfinished or a.reselect):
+        ap.error("--dry-run / --allow-unfinished / --reselect are submit options")
+    if (a.allow_unfinished or a.reselect) and a.batch != "D13":
+        ap.error("--allow-unfinished / --reselect are only for batch D13")
     if a.cmd == "submit":
-        submit(a.batch, dry=a.dry_run, allow_unfinished=a.allow_unfinished)
+        submit(a.batch, dry=a.dry_run, allow_unfinished=a.allow_unfinished, reselect=a.reselect)
     else:
         status(a.batch)

@@ -5,8 +5,10 @@ No gmsh, no FE, no Abaqus, no Linux, nothing under ~/mobo_toy_v2 is read or writ
 Batch D13 of v2/stage_deck.py = segment D of the 50 h plan (front checks after the phase 13 / 14 arms):
 A. d13_select on a synthetic finished state (phase 13 2-obj records + phase 14 3-obj records + frozen warm-start rows): F13 / F14 non-dominated
    sets, infeasible / failed / no-bone rows excluded, the same design solved by both arms de-duplicated by x, 'already bonded' = a bonded ok
-   record (a FAILED bonded record does not count), F13 first, then greedy farthest-point over bone removal (hand-computed for cap 5), cap 1
-   and cap 12, sit-to-stand = top 3 by rotation, mesh = min rotation + F14 median bone removal.
+   record with sed_chg_pct and vm_p99 (a FAILED bonded record does not count), default cap 25 covers every uncovered design; when the cap
+   bites: F13 first, then 3 F14 by rotation, then greedy farthest point in normalised (log10 rotation, bone removal) (hand-computed for cap 5
+   and cap 7), cap 1; sit-to-stand = (a) min rotation, (b) lowest-rotation F14 design with bone <= 6000 (fallback: lowest-bone F14 design with
+   rotation < 1 deg; none -> warning), (c) F14 median bone excluding a and b; mesh = min rotation + F14 median bone removal.
 B. specs: bond_only specs (bond_only, no fric_only, explicit intact_job = PHASES[p]['intact_job'], everything else = source spec minus
    created / stage / tag / kind / fric_only), accepted by jobs.ref_for against a fake 3406 intact reference and by jobs.prep's fric_only / bond_only
    guard; sit-to-stand specs (fric_only, cfg.load 1714 / 3839 N at 24 / 8 deg, merged into the 3406 cfg by jobs._merge, |F| and angles by
@@ -19,9 +21,19 @@ D. guards: unfinished arms (pending, records < budget, queue job not DONE, DONE 
 E. dry run (function and CLI with --root): prints the job list and the DRY-RUN-JSON block, expected ids = the ids a real submit writes,
    writes nothing (file tree hash identical); CLI option errors (--root without --dry-run, status --dry-run, --allow-unfinished on another batch).
 F. submit on the finished fake state: deck_D13_ids.json + job directories, ids = dry-run ids, re-submit idempotent, clash guard.
-G. real snapshot (fixtures_stage_deck_d13.json, read-only copy of the Linux state at 2026-10-25 04:21, arms still running): the selection
-   reproduces the 22 jobs and ids of the dry run saved that morning; earlier batches SB / SBb / V3406 / SBdelta / MI reproduce the ids in their
-   Linux deck_<batch>_ids.json from the same source specs (the submit / specs refactor did not change any existing id).
+G. real snapshot (fixtures_stage_deck_d13.json, read-only copy of the Linux state at 2026-10-25 04:21, arms still running): the revised rules
+   give snapshot_expected_ids_v2 (27 jobs); every key of the first 04:21 dry run (22 jobs) that they still select keeps its id (18), and the only
+   keys they drop are the sit-to-stand jobs of the near-identical corner designs a70 / a71; earlier batches SB / SBb / V3406 / SBdelta / MI
+   reproduce the ids in their Linux deck_<batch>_ids.json from the same source specs (the submit / specs refactor did not change any existing id).
+H. cap 25 bites (32 uncovered designs): both F13 designs, the 3 lowest-rotation F14 designs, then the farthest-point spread; the 7 dropped
+   designs are printed by the dry run and by the real submit.
+I. cumulative submissions: earlier D13_bond keys are matched to designs by the source job's x (also when the source is the other arm's job of
+   the same design), kept (same key, same id) or stale, and counted against the cap; a source in no state file -> SystemExit; a real submit
+   with new keys refuses without --reselect (prints new and stale keys, writes nothing); --reselect adds them; no design is bonded twice.
+J. warnings and the one-line summary are printed on the real submit path; a warm-start id missing from the phase-13 records -> SystemExit;
+   a bonded ok record without sed_chg_pct / vm_p99 is warned about and its design is not covered.
+K. one submit / dry-run call reads each state file once and selects once.
+L. dry-run 'variant' column = diff vs the source spec.json; the --allow-unfinished help / warning / refusal carry the queue-order note.
 """
 import contextlib
 import copy
@@ -194,15 +206,38 @@ ok("design D: representative = its front row P4 (the 2-obj-dominated D13 is on n
 a_e = next(e for e in sel["bond"] if e["job_id"] == JOB["A13"])
 ok("design A (both arms): one entry, representative sb13 job, fronts F13+F14", a_e["fronts"] == ["F13", "F14"]
    and JOB["P3"] not in ids_of(sel["bond"]), a_e)
-ok("cap 12: all 8 uncovered front designs get a bond_only job, none left out",
-   len(sel["bond"]) == 8 and not sel["bond_left_out"] and not ({JOB["C13"], JOB["D13"], JOB["P4"]} & set(ids_of(sel["bond"]))), ids_of(sel["bond"]))
+ok("default cap 25: all 8 uncovered front designs get a bond_only job (F13 first, then by rotation), none dropped",
+   D.D13_BOND_CAP == 25 and sel["bond_cap"] == 25 and sel["bond_slots"] == 25 and not sel["bond_left_out"]
+   and ids_of(sel["bond"]) == [JOB[k] for k in ("A13", "B13", "P7", "P1", "P9", "W1", "P8", "P2")]
+   and not ({JOB["C13"], JOB["D13"], JOB["P4"]} & set(ids_of(sel["bond"]))), ids_of(sel["bond"]))
+ok("no earlier D13 submission: nothing kept, nothing stale", sel["bond_kept"] == [] and sel["bond_stale"] == [] and sel["n_prior_bond"] == 0)
 s5, _ = captured(D.d13_select, ST13, ST14, bond_cap=5)
-ok("cap 5: F13 first (A, B by rotation), then farthest-point over bone removal: P2 (2500), P9 (5000), P7 (7800)",
-   ids_of(s5["bond"]) == [JOB["A13"], JOB["B13"], JOB["P2"], JOB["P9"], JOB["P7"]], ids_of(s5["bond"]))
-ok("cap 5: left out = P8, W1, P1 (sorted by bone removal)", ids_of(s5["bond_left_out"]) == [JOB["P8"], JOB["W1"], JOB["P1"]], ids_of(s5["bond_left_out"]))
+ok("cap 5: F13 first (A, B by rotation), then 3 F14 designs by rotation: P7 (0.08), P1 (0.10), P9 (0.25)",
+   ids_of(s5["bond"]) == [JOB["A13"], JOB["B13"], JOB["P7"], JOB["P1"], JOB["P9"]], ids_of(s5["bond"]))
+ok("cap 5: dropped = W1, P8, P2 (by rotation)", ids_of(s5["bond_left_out"]) == [JOB["W1"], JOB["P8"], JOB["P2"]], ids_of(s5["bond_left_out"]))
+s7, _ = captured(D.d13_select, ST13, ST14, bond_cap=7)
+# by hand, normalised over the 10 front designs: log10 rot -1.398 (C) .. 0.301 (P2), bone 2500 (P2) .. 9900 (C); anchors C, D, A, B, P7, P1, P9.
+# nearest-anchor distance: P2 0.630 (to P9), P8 0.397, W1 0.323 -> P2; then W1 0.323 (P9), P8 0.271 (P2) -> W1; P8 dropped
+ok("cap 7: the 2 slots after F13 + 3 by rotation go by farthest point in (log10 rotation, bone): P2 then W1; P8 dropped",
+   ids_of(s7["bond"]) == [JOB[k] for k in ("A13", "B13", "P7", "P1", "P9", "P2", "W1")] and ids_of(s7["bond_left_out"]) == [JOB["P8"]],
+   ids_of(s7["bond"]) + ids_of(s7["bond_left_out"]))
 s1, _ = captured(D.d13_select, ST13, ST14, bond_cap=1)
 ok("cap 1: only the lowest-rotation uncovered F13 design (A); 7 left out", ids_of(s1["bond"]) == [JOB["A13"]] and len(s1["bond_left_out"]) == 7)
-ok("sit-to-stand = top 3 by rotation over both fronts, bonded or not: C, A, B", ids_of(sel["sts"]) == [JOB["C13"], JOB["A13"], JOB["B13"]], ids_of(sel["sts"]))
+ok("sit-to-stand = (a) min rotation C13 (bonded or not), (b) lowest-rotation F14 design with bone <= 6000 = D (P4, 0.20 deg, 6000; A / P7 / P1 have "
+   "more bone), (c) F14 median bone removal without a and b = P9 (5000 of 2500..8500, 7 designs)",
+   ids_of(sel["sts"]) == [JOB["C13"], JOB["P4"], JOB["P9"]] and [e["role"] for e in sel["sts"]] == ["a", "b", "c"], ids_of(sel["sts"]))
+sb_, _ = captured(D.d13_select, ST13, ST14, sts_bone_max=2000.0)
+ok("sit-to-stand (b) fallback (no F14 design with bone <= 2000): lowest-bone F14 design with rotation < 1 deg = P8 (2800; P2 2500 has 2 deg); "
+   "(c) = D (median of 7)", ids_of(sb_["sts"]) == [JOB["C13"], JOB["P8"], JOB["P4"]] and "rotation < 1" in sb_["sts"][1]["rule"], ids_of(sb_["sts"]))
+sn_, _ = captured(D.d13_select, ST13, ST14, sts_bone_max=2000.0, sts_rot_max=0.01)
+ok("sit-to-stand without any (b): warned, sit-to-stand = a + c (c = median of the 8 F14 designs = P9)",
+   ids_of(sn_["sts"]) == [JOB["C13"], JOB["P9"]] and [e["role"] for e in sn_["sts"]] == ["a", "c"]
+   and any(w.startswith("sit-to-stand (b)") for w in sn_["warnings"]), ids_of(sn_["sts"]))
+lo14 = copy.deepcopy(ST14)                                                       # (b) never repeats (a): make the min-rotation design a low-bone F14 one
+lo14["records"].append(rec("sb14_a13_pd000013", xvec(), 0.02, 900, 2000, 14))
+s_lo, _ = captured(D.d13_select, ST13, lo14)
+ok("sit-to-stand (a) = a low-bone F14 design (0.02 deg, 2000 mm3) -> (b) is the next F14 design with bone <= 6000, not (a) again",
+   ids_of(s_lo["sts"])[:2] == ["sb14_a13_pd000013", JOB["P4"]] and len(set(ids_of(s_lo["sts"]))) == 3, ids_of(s_lo["sts"]))
 ok("mesh = min rotation (C) + F14 median bone removal (P9, 5000 of 2500..8500)", ids_of(sel["mesh"]) == [JOB["C13"], JOB["P9"]], ids_of(sel["mesh"]))
 ok("no warnings on the clean synthetic state", sel["warnings"] == [], sel["warnings"])
 st13_none = copy.deepcopy(ST13)
@@ -377,8 +412,22 @@ exp_ids = {k: J.job_id({**v, "created": ""}) for k, v in sp.items()}
 ok("dry run (function): 18 rows, expected ids = the spec ids, every row has source job / variant / stage / tag, queue 'absent', writes nothing",
    jd["n_jobs"] == 18 and {r["key"]: r["expected_id"] for r in jd["jobs"]} == exp_ids
    and all(r["source_job"] and r["variant"] and r["stage"] and r["tag"] and r["queue"] == "absent" for r in jd["jobs"]) and tree_hash(DRY) == h0)
-ok("dry run lists F13 / F14 / already bonded / picks / left out / sit-to-stand / mesh sections",
-   all(s_ in out_d for s_ in ("F13 = ", "F14 = ", "already bonded", "bond_only picks", "left out by the cap", "sit-to-stand", "mesh noise")))
+ok("dry run lists F13 / F14 / already bonded / earlier D13 / stale / picks / dropped / sit-to-stand / mesh sections and the summary line",
+   all(s_ in out_d for s_ in ("F13 = ", "F14 = ", "already bonded", "covered by an earlier D13 submission", "stale D13 bond keys", "bond_only picks",
+                              "dropped by the cap", "sit-to-stand: 3 contrasting designs", "mesh noise", "D13 selection: F13 3, F14 8, 10 distinct designs")))
+vrow = {r["key"]: r["variant"] for r in jd["jobs"]}
+ok("variant column, bond_only (source fric_only): diff vs the source spec.json only",
+   vrow[D.D13_BOND_PREFIX + JOB["A13"]] == f"bond_only absent -> True, fric_only True -> absent, intact_job absent -> {INTACT}",
+   vrow[D.D13_BOND_PREFIX + JOB["A13"]])
+ok("variant column, mesh (source fric_only): 'h_int 2.0 -> 1.94' only", vrow[f"D13_mesh_h1.94_{JOB['P9']}"] == "h_int 2.0 -> 1.94",
+   vrow[f"D13_mesh_h1.94_{JOB['P9']}"])
+ok("variant column, mesh on a bonded source (C13): fric_only added, intact_job removed, h_int changed",
+   vrow[f"D13_mesh_h2.06_{JOB['C13']}"] == f"fric_only absent -> True, h_int 2.0 -> 2.06, intact_job {INTACT} -> absent", vrow[f"D13_mesh_h2.06_{JOB['C13']}"])
+ok("variant column, sit-to-stand: the cfg.load keys and load_case only",
+   vrow[f"D13_sts_F1714_{JOB['P9']}"] == ("cfg.load.alpha_front_deg absent -> 24.0, cfg.load.alpha_sagit_deg absent -> 8.0, "
+                                          "cfg.load.resultant_N absent -> 1714.0, load_case absent -> sit_to_stand"), vrow[f"D13_sts_F1714_{JOB['P9']}"])
+ok("variant column ignores created / stage / tag / kind / gate / source_job", not any(w in v for v in vrow.values()
+                                                                                   for w in ("created", "stage", "tag ", "kind", "gate", "source_job")))
 
 
 def cli(argv):
@@ -408,6 +457,10 @@ with contextlib.redirect_stderr(error_buf):
     ok("CLI --allow-unfinished on another batch -> argparse error", rc == 2, rc)
     rc, _ = cli(["submit", "D99"])
     ok("CLI unknown batch -> argparse error", rc == 2, rc)
+    rc, _ = cli(["submit", "SB", "--reselect", "--dry-run", "--root", str(DRY)])
+    ok("CLI --reselect on another batch -> argparse error", rc == 2, rc)
+    rc, _ = cli(["status", "D13", "--reselect"])
+    ok("CLI status --reselect -> argparse error", rc == 2, rc)
 
 # ================================================================ F. submit on the finished state
 SUB = BASE / "submit"
@@ -451,8 +504,18 @@ ok("snapshot 04:21: F13 = a62, a70, a71; F14 17 designs; 20 distinct; 3 already 
    and sorted(ids_of(sel_r["covered"])) == ["sb14_a24_4dd6e4a2", "sb14_a29_6ad70033", "sb14_a34_7ff4db9a"])
 sp_r, _ = captured(D.specs, "D13")
 got = {k: J.job_id({**v, "created": ""}) for k, v in sp_r.items()}
-ok("snapshot 04:21: the 22 jobs and ids of the saved dry run are reproduced", got == FIX["snapshot_expected_ids"],
-   sorted(set(got.items()) ^ set(FIX["snapshot_expected_ids"].items()))[:3])
+v1 = FIX["snapshot_expected_ids"]
+ok("snapshot 04:21, revised rules: 17 bond_only (all uncovered, cap 25, none dropped), sit-to-stand a62 / a29 / a30, mesh a62 / a30",
+   len(sel_r["bond"]) == 17 and not sel_r["bond_left_out"]
+   and ids_of(sel_r["sts"]) == ["sb13_a62_1e4338ee", "sb14_a29_6ad70033", "sb14_a30_023c7221"]
+   and ids_of(sel_r["mesh"]) == ["sb13_a62_1e4338ee", "sb14_a30_023c7221"], (ids_of(sel_r["sts"]), ids_of(sel_r["mesh"])))
+ok("snapshot 04:21, revised rules: the 27 jobs and ids of snapshot_expected_ids_v2", got == FIX["snapshot_expected_ids_v2"] and len(got) == 27,
+   sorted(set(got.items()) ^ set(FIX["snapshot_expected_ids_v2"].items()))[:3])
+ok("id stability: the 18 keys of the first 04:21 dry run that the revised rules still select keep their ids",
+   len(set(got) & set(v1)) == 18 and all(got[k] == v1[k] for k in set(got) & set(v1)))
+ok("the only 04:21 keys the revised rules drop: sit-to-stand of the near-identical corner designs a70 / a71",
+   sorted(set(v1) - set(got)) == sorted(f"D13_sts_{ln}_{j}" for ln in D.D13_STS for j in ("sb13_a70_1a523560", "sb13_a71_bce5f79f")),
+   sorted(set(v1) - set(got)))
 REG = BASE / "regression"
 shutil.rmtree(REG, ignore_errors=True)
 use(REG)
@@ -473,6 +536,162 @@ ok("dry run works for an earlier batch (MI): its 3 Linux ids, writes nothing", {
 _, _ = captured(D.submit, "MI")
 ok("real submit of an earlier batch (MI) in the fake tree writes its ids file exactly as before",
    json.loads((J.RESULTS / "deck_MI_ids.json").read_text())["jobs"] == FIX["regression_ids"]["MI"])
+
+# ================================================================ H. the cap bites: F13 -> 3 F14 by rotation -> farthest point; dropped printed
+BIG13 = [rec("sb13_a1_bg130001", xvec(), 0.030, 2400, 9800, 13), rec("sb13_a2_bg130002", xvec(), 0.035, 2500, 9900, 13)]
+BIG14 = [rec(f"sb14_a{i + 1}_bg{i + 1:06d}", xvec(), 0.05 * 1.2 ** i, 2300 - 60 * i, 9000 - 200 * i, 14) for i in range(30)]   # all on F14
+BST13, BST14 = state(13, BIG13), state(14, BIG14)
+sbig, _ = captured(D.d13_select, BST13, BST14)
+b_ids = ids_of(sbig["bond"])
+f14_by_rot = [r["job_id"] for r in BIG14]                                        # built in rotation order
+ok("32 uncovered designs, cap 25: 25 picks, 7 dropped", len(b_ids) == 25 and len(sbig["bond_left_out"]) == 7 and sbig["n_designs"] == 32,
+   (len(b_ids), len(sbig["bond_left_out"])))
+ok("cap bites: both F13 designs first, then the 3 lowest-rotation F14 designs", b_ids[:5] == ["sb13_a1_bg130001", "sb13_a2_bg130002"] + f14_by_rot[:3],
+   b_ids[:5])
+ok("farthest point reaches the far end of F14 (highest rotation, least bone) first", b_ids[5] == f14_by_rot[-1], b_ids[5])
+dropped = ids_of(sbig["bond_left_out"])
+ok("dropped designs lie inside the F14 run (never the 3 lowest-rotation ones or the far end)",
+   not (set(dropped) & set(f14_by_rot[:3] + f14_by_rot[-1:])) and set(dropped) <= set(f14_by_rot), dropped)
+BIGT = BASE / "big"
+write_tree(BIGT, BST13, BST14)
+_, out_bd = captured(D.submit, "D13", dry=True)
+ok("dry run prints the dropped designs", "dropped by the cap (7):" in out_bd and all(j in out_bd.split("dropped by the cap (7):")[1].split("sit-to-stand")[0]
+                                                                                     for j in dropped))
+_, out_bs = captured(D.submit, "D13")
+ok("real submit prints the summary with the dropped designs; 25 bond_only jobs submitted",
+   f"dropped by the cap 7 [{', '.join(dropped)}]" in out_bs
+   and sum(k.startswith(D.D13_BOND_PREFIX) for k in json.loads((J.RESULTS / "deck_D13_ids.json").read_text())["jobs"]) == 25)
+use(FIN)
+
+# ================================================================ I. cumulative submissions
+PA, PP3, PP5 = (D.D13_BOND_PREFIX + JOB[k] for k in ("A13", "P3", "P5"))
+sc, _ = captured(D.d13_select, ST13, ST14, bond_cap=5, prior={PA: "d13bond_x", PP5: "d13bond_y"})
+ok("earlier D13_bond key of A (on the front) -> kept with its key, not picked again", ids_of(sc["bond_kept"]) == [JOB["A13"]]
+   and sc["bond_kept"][0]["d13_key"] == PA and JOB["A13"] not in ids_of(sc["bond"]))
+ok("earlier D13_bond key of P5 (dominated, on no front) -> stale", [e["key"] for e in sc["bond_stale"]] == [PP5], sc["bond_stale"])
+ok("both earlier keys count against the cap: 5 - 2 = 3 slots -> B (F13), then P7, P1 (F14 by rotation)",
+   sc["n_prior_bond"] == 2 and sc["bond_slots"] == 3 and ids_of(sc["bond"]) == [JOB["B13"], JOB["P7"], JOB["P1"]], ids_of(sc["bond"]))
+sx, _ = captured(D.d13_select, ST13, ST14, prior={PP3: "d13bond_z"})
+ok("matched by x: an earlier key from P3 (= design A solved by the phase-14 arm) covers design A; the kept entry keeps P3 as its source",
+   ids_of(sx["bond_kept"]) == [JOB["P3"]] and sx["bond_kept"][0]["fronts"] == ["F13", "F14"] and JOB["A13"] not in ids_of(sx["bond"])
+   and len(sx["bond"]) == 7, ids_of(sx["bond_kept"]))
+msg = raises(D.d13_select, ST13, ST14, prior={D.D13_BOND_PREFIX + "sb14_a99_zz000099": "d13bond_q"})
+ok("earlier key whose source job is in no state file -> SystemExit", msg and "neither state file" in msg, msg)
+s_over, _ = captured(D.d13_select, ST13, ST14, bond_cap=1, prior={PA: "a", PP5: "b"})
+ok("more earlier bond keys than the cap: warned, no new bond_only job", s_over["bond"] == [] and any("more than the cap" in w for w in s_over["warnings"]))
+CUM = BASE / "cumulative"
+s1_14 = copy.deepcopy(ST14)                                                      # state 1: P8 not solved yet
+s1_14["records"] = [r for r in s1_14["records"] if r["job_id"] != JOB["P8"]]
+s1_14["budget"] = len(s1_14["records"])
+write_tree(CUM, ST13, s1_14)
+_, _ = captured(D.submit, "D13")
+ids1 = json.loads((J.RESULTS / "deck_D13_ids.json").read_text())["jobs"]
+ok("state 1: 7 bond_only (A, B, P1, P2, P7, P9, W1), mesh on D (P4) = the F14 median then",
+   sorted(k for k in ids1 if k.startswith(D.D13_BOND_PREFIX)) == sorted(D.D13_BOND_PREFIX + JOB[k] for k in ("A13", "B13", "P1", "P2", "P7", "P9", "W1"))
+   and f"D13_mesh_h1.94_{JOB['P4']}" in ids1, sorted(ids1))
+p8 = J.QROOT / JOB["P8"]                                                          # state 2: the arm solved P8 (a new front design)
+p8.mkdir()
+(p8 / "spec.json").write_text(json.dumps({**P14.spec_of(X["P8"], "a8", bonded=False), "created": "2026-10-25 01:00:00"}))
+(p8 / "DONE").write_text("x")
+(J.RESULTS / "neckopt_p14.json").write_text(json.dumps(ST14, indent=1))
+h_c = tree_hash(BASE / "cumulative")
+msg = raises(D.submit, "D13")
+new_exp = sorted([D.D13_BOND_PREFIX + JOB["P8"]] + [f"D13_mesh_h{h:g}_{JOB['P9']}" for h in D.D13_MESH_H])
+stale_exp = sorted(f"D13_mesh_h{h:g}_{JOB['P4']}" for h in D.D13_MESH_H)
+ok("state 2: the selection has new keys -> a real submit refuses without --reselect, names new and stale keys, writes nothing",
+   msg and "--reselect" in msg and all(k in msg for k in new_exp) and "2 stale keys" in msg and tree_hash(BASE / "cumulative") == h_c, (msg or "")[:300])
+_, out_c2 = captured(D.submit, "D13", dry=True)
+jc2 = dry_json(out_c2)
+ok("dry run on state 2: lists the new and stale keys and says a real submit would refuse without --reselect",
+   "would refuse without --reselect" in out_c2 and jc2["new_keys"] == new_exp and jc2["stale_keys"] == stale_exp and tree_hash(BASE / "cumulative") == h_c,
+   (jc2["new_keys"], jc2["stale_keys"]))
+ok("state 2: the 7 earlier bond designs are kept (same keys), only P8 is new", ids_of(D.d13_select(ST13, ST14, prior=ids1)["bond"]) == [JOB["P8"]])
+_, out_r = captured(D.submit, "D13", reselect=True)
+ids2 = json.loads((J.RESULTS / "deck_D13_ids.json").read_text())["jobs"]
+ok("--reselect: the new keys are submitted, every earlier key (stale ones included) keeps its id", all(ids2.get(k) == v for k, v in ids1.items())
+   and set(ids2) - set(ids1) == set(new_exp) and all((J.QROOT / ids2[k] / "spec.json").exists() for k in new_exp) and "--reselect" in out_r)
+srcx = [tuple(json.loads((J.QROOT / ids2[k] / "spec.json").read_text())["design"].items()) for k in ids2 if k.startswith(D.D13_BOND_PREFIX)]
+ok("no design gets two D13 bond_only jobs: 8 bond keys for the 8 uncovered designs, 8 distinct designs", len(srcx) == 8 and len(set(srcx)) == 8)
+h_q = tree_hash(J.QROOT)
+_, out_r2 = captured(D.submit, "D13")
+ok("re-submit on state 2 without --reselect: no new keys -> goes ahead, prints the stale keys, ids file and queue unchanged",
+   "2 stale keys in deck_D13_ids.json" in out_r2 and json.loads((J.RESULTS / "deck_D13_ids.json").read_text())["jobs"] == ids2
+   and tree_hash(J.QROOT) == h_q)
+use(FIN)
+
+# ================================================================ J. warnings on the real path, warm-start ids, usable bonded records
+WN = BASE / "warn_submit"
+write_tree(WN, st13_none, ST14)
+_, out_w = captured(D.submit, "D13")
+ok("real submit prints the selection warnings and the one-line summary",
+   f"WARNING: {JOB['B13']}: record has bonded None" in out_w and "D13 selection: F13 3, F14 8, 10 distinct designs" in out_w, out_w[:200])
+bad_w = copy.deepcopy(ST14)
+bad_w["warm_start_ids"].append("sb13_init_99990009")
+msg = raises(D.d13_select, ST13, bad_w)
+ok("phase-14 warm-start id missing from the phase-13 records -> SystemExit", msg and "not phase-13 records" in msg and "sb13_init_99990009" in msg, msg)
+nv13 = copy.deepcopy(ST13)
+next(r for r in nv13["records"] if r["job_id"] == JOB["C13"])["sed_chg_pct"] = None
+nv14 = copy.deepcopy(ST14)
+next(r for r in nv14["records"] if r["job_id"] == JOB["P4"])["vm_p99"] = None
+su, _ = captured(D.d13_select, nv13, nv14)
+ok("bonded ok record without sed_chg_pct (C13) or vm_p99 (P4): warned, its design is not covered and gets a bond_only job",
+   not su["covered"] and {JOB["C13"], JOB["P4"]} <= set(ids_of(su["bond"]))
+   and any(JOB["C13"] in w and "sed_chg_pct" in w for w in su["warnings"]) and any(JOB["P4"] in w and "vm_p99" in w for w in su["warnings"]), su["warnings"])
+use(FIN)
+
+# ================================================================ K. one read of the state files and one selection per call
+ONCE = BASE / "once"
+write_tree(ONCE, ST13, ST14)
+calls = {"state": [], "select": 0}
+_st_fn, _sel_fn = D._d13_state, D.d13_select
+
+
+def _count_state(p):
+    calls["state"].append(p)
+    return _st_fn(p)
+
+
+def _count_select(*a, **k):
+    calls["select"] += 1
+    return _sel_fn(*a, **k)
+
+
+D._d13_state, D.d13_select = _count_state, _count_select
+try:
+    captured(D.submit, "D13", dry=True)
+    c_dry = (sorted(calls["state"]), calls["select"])
+    calls["state"], calls["select"] = [], 0
+    captured(D.submit, "D13")
+    c_sub = (sorted(calls["state"]), calls["select"])
+finally:
+    D._d13_state, D.d13_select = _st_fn, _sel_fn
+ok("one dry run: each state file read once, one selection (report, job table and JSON from the same snapshot)", c_dry == ([13, 14], 1), c_dry)
+ok("one real submit: each state file read once, one selection (unfinished check, warnings and specs from the same snapshot)", c_sub == ([13, 14], 1), c_sub)
+use(FIN)
+
+# ================================================================ L. queue-order note (--allow-unfinished)
+note = " ".join(D.D13_QUEUE_NOTE.split())
+ok("the note says D13 jobs (d13*) would be prepped and solved ahead of sb13_ / sb14_ jobs",
+   all(w in note for w in ("d13bond_*", "d13sts_*", "d13mesh_*", "sb13_*", "ahead of", "prepped and solved")), note)
+ok("--allow-unfinished override warning carries the note", note in " ".join(out_a.split()))
+UN2 = BASE / "unfinished2"
+write_tree(UN2, u13, ST14)
+msg = raises(D.submit, "D13")
+ok("the refusal (arms not finished) carries the note", msg and note in " ".join(msg.split()), (msg or "")[:200])
+buf_h = io.StringIO()
+saved_argv = sys.argv
+sys.argv = ["stage_deck.py", "submit", "D13", "-h"]
+try:
+    with contextlib.redirect_stdout(buf_h):
+        try:
+            runpy.run_path(str(ROOT / "v2" / "stage_deck.py"), run_name="__main__")
+        except SystemExit:
+            pass
+finally:
+    sys.argv = saved_argv
+help_txt = " ".join(buf_h.getvalue().split())
+ok("--allow-unfinished help carries the note; --reselect is documented", note in help_txt and "--reselect" in help_txt, help_txt[-300:])
+use(FIN)
 
 # ================================================================ fixture reset
 J.QROOT, J.RESULTS = REAL_Q, REAL_R
