@@ -415,7 +415,8 @@ def d13_unfinished(st13: dict, st14: dict) -> list:
             probs.append(f"phase {p}: {n} records < budget {b} (the arm is still running, or stopped before its budget)")
         rec_ids = {r["job_id"] for r in st.get("records") or []}
         for d in sorted(J.QROOT.glob(f"{st.get('stage') or f'sb{p}'}_*")):
-            if not (d / "spec.json").exists():
+            if not (d / "spec.json").exists():                          # 正在建或已损坏：不默默跳过（CLAUDE.md §11）
+                probs.append(f"phase {p}: queue dir {d.name} has no spec.json (being created or damaged)")
                 continue
             s_ = J.state(d)
             if s_ not in ("DONE", "FAILED"):
