@@ -188,29 +188,38 @@ def spec_of_job(job: str) -> dict:
 #   F14 = 阶段 14（3 目标 v4：再加去骨量）的非支配集，数据 = 自有可行记录 + 冻结热启动行（warm_start_ids 指向的阶段 13 记录，
 #         y = 阶段 13 的 y + bone_mm3，即阶段 14 按 v4 / mm_limit None / sed none 重打分的值；角落设计核查：两个阶段 13 目标同序，
 #         2 目标前沿只有几个点，3 目标集沿去骨量展开）。热启动 id 不在阶段 13 的记录里 → SystemExit（两个状态文件不配套）；
-#   两臂可能各解同一个池点：按单位立方体坐标 x 去重（两臂同一设计空间，状态文件的 space / fixed 必须相同），同一设计只出一组变体，
-#   代表作业 = 前沿行里阶段号小、作业号小的那个（源作业进 spec 的 source_job，所以选法固定 = 作业 id 固定）。
-# 1. 应力屏蔽补算（SED / 柄 vM 只记录）：F13 ∪ F14 里每个还没有可用粘接结果的设计 → bond_only 变体。"可用" = 该设计在两个状态文件里
+#   P3 = 合起来的 3 目标集（2026-10-25 检查点 3 上午第 7 节：sb13_a78_b0f465da = 两臂合起来去骨 ≤ 8 cm³ 转动最小的设计，不在 F13 也不在
+#         F14 上，原规则不给它补粘接）：两臂全部可行记录 + 共同起点（阶段 14 的冻结热启动行 = 阶段 13 的 round 0 / 收编记录，本来就在阶段 13
+#         的记录里）按 3 目标（log10 转动 ↓、接触面积 ↑、去骨量 ↓）的非支配集。阶段 13 行的去骨量 = 记录的 bone_mm3（= 阶段 14 按 v4 重打分
+#         用的值；阶段 13 / 14 的 sed none、mm_limit None 相同，c 也相同），bone_mm3 为 None 的不可行。先按 x 去重（同一设计的可行行取阶段号小、
+#         作业号小的那一行），再求非支配集。
+#   覆盖集 = F13 ∪ F14 ∪ P3。两臂可能各解同一个池点：按单位立方体坐标 x 去重（两臂同一设计空间，状态文件的 space / fixed 必须相同），
+#   同一设计只出一组变体，代表作业 = F13 / F14 行里阶段号小、作业号小的那个；只在 P3 上的设计 = 它在 P3 上的那一行（源作业进 spec 的
+#   source_job，所以选法固定 = 作业 id 固定；加 P3 不改 F13 / F14 设计的代表作业，已有的键与 id 不变）。
+# 1. 应力屏蔽补算（SED / 柄 vM 只记录）：F13 ∪ F14 ∪ P3 里每个还没有可用粘接结果的设计 → bond_only 变体。"可用" = 该设计在两个状态文件里
 #    任一记录 bonded 且 ok，且 sed_chg_pct、vm_p99 都不是 None（bond_every 5：每 5 个提交第 5 个带粘接模型；bonded ok 却缺这两个值之一——
 #    stage_neckopt._calcar 出错时返回 None——→ 警告，该设计按没有粘接结果算）。bond_only = 只解粘接模型：jobs.prep 按同一 spec 重新模板化、
 #    重新划网格（不复用摩擦作业的网格；不假设两个作业的节点编号一致——SED / vM 全部来自本作业自己的粘接模型，SED 与完整股骨参照在
 #    resorption 的规则网格上比较），删 m_fric.inp。显式 intact_job = PHASES[p]["intact_job"]（3406 完整股骨参照；jobs.ref_for 对 femur_id
 #    作业必须有，且须与状态文件记的相同）；fric_only 去掉（与 bond_only 互斥，jobs.prep 判 L1）。
-#    累积：deck_D13_ids.json 里已有的每个 D13_bond_<源作业> 键按源作业的 x（状态文件记录里的单位立方体坐标）对到设计——设计还在前沿上 =
-#    已覆盖，键原样再出（同一 spec = 同一 id，不新建作业）；不在前沿上 = 过时键（不再出，留在 ids 文件里）；两种都计入上限。
+#    累积：deck_D13_ids.json 里已有的每个 D13_bond_<源作业> 键按源作业的 x（状态文件记录里的单位立方体坐标）对到设计——设计还在覆盖集上 =
+#    已覆盖，键原样再出（同一 spec = 同一 id，不新建作业）；不在覆盖集上 = 过时键（不再出，留在 ids 文件里）；两种都计入上限。
 #    源作业不在任何一个状态文件的记录里 → SystemExit。
 #    上限 D13_BOND_CAP = 25 个 D13 bond_only 作业（含以前提交的；安全上限）：放得下就全部覆盖；放不下时 F13 的设计先入选（按转动），
-#    再给 F14 的设计按转动 D13_BOND_ROT_SLOTS = 3 个名额，余下名额在归一化二维（log10 转动、去骨量，各按全部前沿设计的最小 / 最大值归一）
-#    里贪心最远点铺开（锚 = 已覆盖的前沿设计与已选设计；每次取离最近锚最远的，并列取转动小的）；没选上的打印出来（dropped by the cap）。
-# 2. 起身（sit-to-stand；U6 未定 → 两档都算）：3 个对比前沿设计 × 合力 {1714, 3839} N，方向 α_front 24° / α_sagit 8°
-#    （Bergmann 2016 表 5 起身；1714 = AVER75 1600 × 2391 / 2232，与现在楼梯载荷同缩放；3839 = HIGH100）。设计：
-#    (a) F13 ∪ F14 里转动最小的；(b) F14 里（不含 a）去骨量 ≤ D13_STS_BONE_MAX = 6000 mm³ 的转动最小者，没有就取 F14 里转动 < D13_STS_ROT_MAX
-#    = 1° 的去骨量最小者，再没有 → 警告、不出 (b)；(c) F14 里（不含 a、b）去骨量居中的（偶数个取下中位）。原规则"转动前 3 个"选出的是三个
+#    再给其余（F14 ∪ P3）设计里转动最小的 D13_BOND_ROT_SLOTS = 3 个名额，余下名额在归一化二维（log10 转动、去骨量，各按覆盖集全部设计的
+#    最小 / 最大值归一）里贪心最远点铺开（锚 = 已覆盖的设计与已选设计；每次取离最近锚最远的，并列取转动小的）；没选上的打印出来（dropped by the cap）。
+# 2. 起身（sit-to-stand；U6 未定 → 两档都算）：3 个对比设计 × 合力 {1714, 3839} N，方向 α_front 24° / α_sagit 8°
+#    （Bergmann 2016 表 5 起身；1714 = AVER75 1600 × 2391 / 2232，与现在楼梯载荷同缩放；3839 = HIGH100）。规则不变，(b)、(c) 的候选从 F14 改为
+#    3 目标集 F14 ∪ P3（只在 F13 上的设计不算；2026-10-25 上午）：
+#    (a) 覆盖集里转动最小的（除转动并列外 = F13 ∪ F14 里转动最小的：两臂各自转动最小的可行设计分别在 F13、F14 上）；(b) F14 ∪ P3 里（不含 a）去骨量
+#    ≤ D13_STS_BONE_MAX = 6000 mm³ 的转动最小者，没有就取 F14 ∪ P3 里转动 < D13_STS_ROT_MAX = 1° 的去骨量最小者，再没有 → 警告、不出 (b)；
+#    (c) F14 ∪ P3 里（不含 a、b）去骨量居中的（偶数个取下中位）。原规则"转动前 3 个"选出的是三个
 #    几乎相同的角落设计（04:36：a62 / a70 / a71），回答不了"楼梯载荷下的排序在起身载荷下是否保持"。
 #    spec 键 cfg = {"load": …}：jobs.femur_for 把它合并进本作业 fm.cfg 的副本（3406 的 cfg = config_v2a.yaml 的深拷贝，同样的 load 节），
 #    model3d_m1 从 fm.cfg["load"] 算头力（model3d_v2.load_vector）——不改任何哈希文件；cfg 进作业 id。torque 不写 = 默认 True（头力全部分量，
 #    力矩由头心偏距产生；B16 的起身 Mts 19.3 / Mbs 46.4 N·m 对上楼 47.0 / 113.1 是常规柄上的值，这里不另加力矩）。只算摩擦（fric_only，不需要参照）。
-# 3. 网格噪声：2 个前沿设计（F13 ∪ F14 里转动最小的 + F14 里（不含前者）去骨量居中的）× h_int {1.94, 2.06}，只算摩擦（与批次 V3406 相同的做法）。
+# 3. 网格噪声（规则不变）：2 个设计（覆盖集里转动最小的 + F14 里（不含前者）去骨量居中的；P3 只改 (b)、(c) 的候选，不改这里）
+#    × h_int {1.94, 2.06}，只算摩擦（与批次 V3406 相同的做法）。
 # stage "d13bond" / "d13sts" / "d13mesh"：不以 "sb" / "neck" 开头、不是 "ref"——in_family（femur_id 阶段只收 "sb*"）不收，bo_async 的收编
 # glob（sb13_* / sb14_*）不收；bond_only、cfg、h_int ≠ 2.0 也各自让 in_family 排除。全部 kind variant；_d13_check 对每个 spec 再核对一遍。
 # 一次调用（submit 或 dry run）只读一次状态文件、只选一次（d13_build）：作业表、报告、警告与拒绝理由都来自同一个快照；真提交也打印警告与一行摘要。
@@ -285,7 +294,7 @@ def _d13_farthest(rest: list, anchors: list, n: int, pt) -> tuple:
 
 def d13_select(st13: dict, st14: dict, bond_cap: int = D13_BOND_CAP, prior: dict | None = None,
                sts_bone_max: float = D13_STS_BONE_MAX, sts_rot_max: float = D13_STS_ROT_MAX) -> dict:
-    """纯函数：阶段 13 / 14 的状态文件（+ prior = 已有 deck_D13_ids.json 的 jobs）→ 前沿与三组选择（bond / sts / mesh），
+    """纯函数：阶段 13 / 14 的状态文件（+ prior = 已有 deck_D13_ids.json 的 jobs）→ F13 / F14 / P3、覆盖集与三组选择（bond / sts / mesh），
     不读队列、不写文件。规则见批次 D13 的说明。"""
     for p, st in ((13, st13), (14, st14)):
         if st.get("phase") != p:
@@ -307,6 +316,14 @@ def d13_select(st13: dict, st14: dict, bond_cap: int = D13_BOND_CAP, prior: dict
     warm = [_d13_row(by13[j], 13, list(by13[j]["y"])[:2] + [by13[j].get("bone_mm3")]) for j in warm_ids]
     F13 = _d13_nd([r for r in rows13 if r["feasible"]])
     F14 = _d13_nd([r for r in rows14 + warm if r["feasible"]])
+    # P3：两臂全部可行记录 + 共同起点（冻结热启动行 = 阶段 13 的记录，按作业号去重）按 3 目标；阶段 13 行的第三个目标 = 记录的 bone_mm3
+    # （阶段 14 按 v4 重打分用的值）。先按 x 去重（每个设计取阶段号小、作业号小的可行行），再求非支配集
+    pool3, seen3 = {}, set()
+    for r in [_d13_row(r, 13, list(r["y"])[:2] + [r.get("bone_mm3")]) for r in st13["records"]] + rows14 + warm:
+        if r["feasible"] and r["job_id"] not in seen3:
+            seen3.add(r["job_id"])
+            pool3.setdefault(r["key"], []).append(r)
+    P3 = _d13_nd([sorted(rs, key=lambda r: (r["phase"], r["job_id"]))[0] for rs in pool3.values()])
     allrows, by_job = {}, {}
     for r in rows13 + rows14:
         allrows.setdefault(r["key"], []).append(r)
@@ -317,16 +334,17 @@ def d13_select(st13: dict, st14: dict, bond_cap: int = D13_BOND_CAP, prior: dict
             miss = " and ".join(k for k in ("sed_chg_pct", "vm_p99") if r[k] is None)
             warn.append(f"{r['job_id']}: bonded ok record has no {miss}; its design counts as not bonded")
     designs = {}
-    for name, front in (("F13", F13), ("F14", F14)):
+    for name, front in (("F13", F13), ("F14", F14), ("P3", P3)):
         for r in front:
-            d = designs.setdefault(r["key"], {"key": r["key"], "rows": [], "fronts": set()})
+            d = designs.setdefault(r["key"], {"key": r["key"], "rows": [], "p3_rows": [], "fronts": set()})
             d["fronts"].add(name)
-            if r["job_id"] not in [x["job_id"] for x in d["rows"]]:
-                d["rows"].append(r)
+            lst = d["p3_rows"] if name == "P3" else d["rows"]
+            if r["job_id"] not in [x["job_id"] for x in lst]:
+                lst.append(r)
     if not designs:
-        raise SystemExit("D13: no feasible design on either front")
-    for d in designs.values():
-        d["rep"] = sorted(d["rows"], key=lambda r: (r["phase"], r["job_id"]))[0]
+        raise SystemExit("D13: no feasible design on F13, F14 or P3")
+    for d in designs.values():                       # 代表作业：F13 / F14 行优先（加 P3 不改已有设计的代表作业 = 不改已有的键）；只在 P3 上的 = P3 行
+        d["rep"] = sorted(d["rows"] or d["p3_rows"], key=lambda r: (r["phase"], r["job_id"]))[0]
         d["bonded_jobs"] = sorted({r["job_id"] for r in allrows.get(d["key"], []) if _d13_usable_bond(r)})
         d["prior_keys"] = []
         if d["rep"]["bone_mm3"] is None:
@@ -353,10 +371,10 @@ def d13_select(st13: dict, st14: dict, bond_cap: int = D13_BOND_CAP, prior: dict
     f13c = [d for d in cand if "F13" in d["fronts"]]
     if len(cand) <= slots:                                                            # 放得下：全部覆盖（F13 在前，各按转动）
         chosen, rest = f13c + [d for d in cand if "F13" not in d["fronts"]], []
-    else:                                                                             # 放不下：F13 → F14 按转动 3 个 → 归一化二维最远点
+    else:                                                                             # 放不下：F13 → 其余（F14 ∪ P3）转动最小 3 个 → 归一化二维最远点
         chosen = f13c[:slots]
         rest = [d for d in cand if all(d is not c for c in chosen)]
-        rot_pick = [d for d in rest if "F14" in d["fronts"]][:max(0, min(D13_BOND_ROT_SLOTS, slots - len(chosen)))]
+        rot_pick = [d for d in rest if "F13" not in d["fronts"]][:max(0, min(D13_BOND_ROT_SLOTS, slots - len(chosen)))]
         chosen = chosen + rot_pick
         rest = [d for d in rest if all(d is not c for c in rot_pick)]
         lo = (min(d["rep"]["y"][0] for d in by_rot), min(d["rep"]["bone_mm3"] for d in by_rot))
@@ -366,29 +384,30 @@ def d13_select(st13: dict, st14: dict, bond_cap: int = D13_BOND_CAP, prior: dict
             return ((d["rep"]["y"][0] - lo[0]) / span[0], (d["rep"]["bone_mm3"] - lo[1]) / span[1])
         got, rest = _d13_farthest(rest, [pt(d) for d in covered + kept + chosen], slots - len(chosen), pt)
         chosen = chosen + got
-    # 起身：3 个对比设计
+    # 起身：3 个对比设计；(b)、(c) 从 3 目标集 F14 ∪ P3 里选（只在 F13 上的设计不算）
     a = by_rot[0]
-    f14 = [d for d in by_rot if "F14" in d["fronts"] and d is not a]
+    s3 = [d for d in by_rot if d["fronts"] & {"F14", "P3"} and d is not a]
 
     def rot(d):
         return d["rep"]["rot_deg"] if d["rep"]["rot_deg"] is not None else 10.0 ** d["rep"]["y"][0]
-    b = next((d for d in f14 if d["rep"]["bone_mm3"] <= sts_bone_max), None)
-    b_rule = f"lowest-rotation F14 design with bone removal <= {sts_bone_max:g} mm3"
+    b = next((d for d in s3 if d["rep"]["bone_mm3"] <= sts_bone_max), None)
+    b_rule = f"lowest-rotation F14 + P3 design with bone removal <= {sts_bone_max:g} mm3"
     if b is None:
-        low = sorted((d for d in f14 if rot(d) < sts_rot_max), key=lambda d: (d["rep"]["bone_mm3"], d["rep"]["job_id"]))
+        low = sorted((d for d in s3 if rot(d) < sts_rot_max), key=lambda d: (d["rep"]["bone_mm3"], d["rep"]["job_id"]))
         b = low[0] if low else None
-        b_rule = f"lowest-bone F14 design with rotation < {sts_rot_max:g} deg (no F14 design with bone removal <= {sts_bone_max:g} mm3)"
+        b_rule = (f"lowest-bone F14 + P3 design with rotation < {sts_rot_max:g} deg "
+                  f"(no F14 + P3 design with bone removal <= {sts_bone_max:g} mm3)")
         if b is None:
-            warn.append(f"sit-to-stand (b): no F14 design other than (a) with bone removal <= {sts_bone_max:g} mm3 or rotation < {sts_rot_max:g} deg; "
+            warn.append(f"sit-to-stand (b): no F14 + P3 design other than (a) with bone removal <= {sts_bone_max:g} mm3 or rotation < {sts_rot_max:g} deg; "
                         "(b) left out")
-    mids = sorted((d for d in f14 if d is not b), key=lambda d: (d["rep"]["bone_mm3"], d["rep"]["job_id"]))
+    mids = sorted((d for d in s3 if d is not b), key=lambda d: (d["rep"]["bone_mm3"], d["rep"]["job_id"]))
     c = mids[(len(mids) - 1) // 2] if mids else None
     if c is None:
-        warn.append("sit-to-stand (c): no F14 design other than (a) and (b); (c) left out")
-    sts = [_d13_entry(a, role="a", rule="lowest rotation on F13 + F14")]
+        warn.append("sit-to-stand (c): no F14 + P3 design other than (a) and (b); (c) left out")
+    sts = [_d13_entry(a, role="a", rule="lowest rotation on F13 + F14 + P3")]
     sts += [_d13_entry(b, role="b", rule=b_rule)] if b is not None else []
-    sts += [_d13_entry(c, role="c", rule="median bone removal among F14 (excluding a and b)")] if c is not None else []
-    mesh = [by_rot[0]]
+    sts += [_d13_entry(c, role="c", rule="median bone removal among F14 + P3 (excluding a and b)")] if c is not None else []
+    mesh = [by_rot[0]]                               # 网格：规则不变（第二个 = F14 里去骨居中的；P3 只进 (b)、(c)）
     mid = sorted([d for d in designs.values() if "F14" in d["fronts"] and d is not by_rot[0]], key=lambda d: (d["rep"]["bone_mm3"], d["rep"]["job_id"]))
     if mid:
         mesh.append(mid[(len(mid) - 1) // 2])
@@ -396,6 +415,8 @@ def d13_select(st13: dict, st14: dict, bond_cap: int = D13_BOND_CAP, prior: dict
         mesh.append(by_rot[1])
     return {"F13": [_d13_entry(designs[r["key"]], r) for r in sorted(F13, key=lambda r: (r["y"][0], r["job_id"]))],
             "F14": [_d13_entry(designs[r["key"]], r) for r in sorted(F14, key=lambda r: (r["y"][2], r["job_id"]))],
+            "P3": [_d13_entry(designs[r["key"]], r) for r in sorted(P3, key=lambda r: (r["y"][2], r["job_id"]))],
+            "n_p3_only": sum(d["fronts"] == {"P3"} for d in designs.values()),
             "covered": [_d13_entry(d) for d in covered],
             "bond_kept": [_d13_entry(d, by_job[k[len(D13_BOND_PREFIX):]], d13_key=k) for d in kept for k in d["prior_keys"]],
             "bond_stale": stale,
@@ -786,7 +807,8 @@ def _d13_summary(sel: dict) -> str:
     def ids(es):
         return ", ".join(e["job_id"] for e in es) or "-"
     sts = " / ".join(f"{e['role']} {e['job_id']}" for e in sel["sts"])
-    return (f"D13 selection: F13 {len(sel['F13'])}, F14 {len(sel['F14'])}, {sel['n_designs']} distinct designs; already bonded {len(sel['covered'])}; "
+    return (f"D13 selection: F13 {len(sel['F13'])}, F14 {len(sel['F14'])}, P3 {len(sel['P3'])} ({sel['n_p3_only']} on neither F13 nor F14), "
+            f"{sel['n_designs']} distinct designs; already bonded {len(sel['covered'])}; "
             f"kept from deck_D13_ids.json {len(sel['bond_kept'])}, stale bond keys {len(sel['bond_stale'])}; new bond_only {len(sel['bond'])} "
             f"(cap {sel['bond_cap']} - {sel['n_prior_bond']} earlier = {sel['bond_slots']} slots); dropped by the cap {len(sel['bond_left_out'])} "
             f"[{ids(sel['bond_left_out'])}]; sit-to-stand {sts}; mesh {ids(sel['mesh'])}")
@@ -801,7 +823,7 @@ def _d13_report(d13: dict) -> None:
     def line(e):
         d13k = f"  D13 {','.join(e['d13_keys'])}" if e.get("d13_keys") else ""
         return (f"    {e['job_id']:<24} rot {num(e['rot_deg'], '.4f'):>7} deg  area {num(e['area_mm2'], '.0f'):>5} mm2  "
-                f"bone {num(e['bone_mm3'], '.0f'):>6} mm3  {'+'.join(e['fronts']) or '-':<7}  bonded jobs {','.join(e['bonded_jobs']) or '-'}{d13k}")
+                f"bone {num(e['bone_mm3'], '.0f'):>6} mm3  {'+'.join(e['fronts']) or '-':<10}  bonded jobs {','.join(e['bonded_jobs']) or '-'}{d13k}")
     if probs:
         print(f"WARNING: the phase 13 / 14 arms have not finished (submit would refuse without --allow-unfinished; {D13_QUEUE_NOTE}):")
         for p in probs:
@@ -814,17 +836,23 @@ def _d13_report(d13: dict) -> None:
     print(f"F14 = phase-14 3-objective non-dominated set incl. its frozen warm-start rows ({len(sel['F14'])}), by bone removal:")
     for e in sel["F14"]:
         print(line(e))
-    print(f"{sel['n_designs']} distinct front designs; already bonded (a bonded ok record with sed_chg_pct and vm_p99; no new job): {len(sel['covered'])}")
+    print(f"P3 = 3-objective non-dominated set of all feasible designs of both arms + the shared starting set, de-duplicated by x "
+          f"(bone of phase-13 rows = their bone_mm3, as in phase 14's v4 rescore) ({len(sel['P3'])}; {sel['n_p3_only']} on neither F13 nor F14), "
+          "by bone removal:")
+    for e in sel["P3"]:
+        print(line(e))
+    print(f"{sel['n_designs']} distinct designs on F13 + F14 + P3 (the coverage set); "
+          f"already bonded (a bonded ok record with sed_chg_pct and vm_p99; no new job): {len(sel['covered'])}")
     for e in sel["covered"]:
         print(line(e))
     print(f"covered by an earlier D13 submission (key kept, same id, no new job; counted against the cap): {len(sel['bond_kept'])}")
     for e in sel["bond_kept"]:
         print(line(e))
-    print(f"stale D13 bond keys (design no longer on F13 / F14; the job stays; counted against the cap): {len(sel['bond_stale'])}")
+    print(f"stale D13 bond keys (design no longer on F13 / F14 / P3; the job stays; counted against the cap): {len(sel['bond_stale'])}")
     for e in sel["bond_stale"]:
         print(line(e))
-    rule = ("every uncovered front design fits" if not sel["bond_left_out"] else
-            f"F13 first, then {D13_BOND_ROT_SLOTS} F14 by rotation, then farthest point in normalised (log10 rotation, bone removal)")
+    rule = ("every uncovered design fits" if not sel["bond_left_out"] else
+            f"F13 first, then the {D13_BOND_ROT_SLOTS} lowest-rotation F14 / P3 designs, then farthest point in normalised (log10 rotation, bone removal)")
     print(f"bond_only picks ({len(sel['bond'])}; cap {sel['bond_cap']} - {sel['n_prior_bond']} earlier = {sel['bond_slots']} slots; {rule}):")
     for e in sel["bond"]:
         print(line(e))
