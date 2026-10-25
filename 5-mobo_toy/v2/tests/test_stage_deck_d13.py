@@ -6,16 +6,20 @@ Batch D13 of v2/stage_deck.py = segment D of the 50 h plan (front checks after t
 A. d13_select on a synthetic finished state (phase 13 2-obj records + phase 14 3-obj records + frozen warm-start rows): F13 / F14 non-dominated
    sets, P3 = 3-obj non-dominated set of all feasible designs of both arms + the shared starting set (here P3 = the F14 designs + B, C: no
    design on P3 alone), infeasible / failed / no-bone rows excluded, the same design solved by both arms de-duplicated by x, 'already bonded'
-   = a bonded ok record with sed_chg_pct and vm_p99 (a FAILED bonded record does not count), default cap 25 covers every uncovered design;
+   = a bonded ok record with sed_chg_pct and vm_p99 (a FAILED bonded record does not count), default cap 40 (2026-10-25; was 25) covers every
+   uncovered design;
    when the cap bites: F13 first, then the 3 lowest-rotation F14 / P3 designs, then greedy farthest point in normalised (log10 rotation, bone
    removal) (hand-computed for cap 5 and cap 7), cap 1; sit-to-stand = (a) min rotation, (b) lowest-rotation F14 + P3 design with bone
-   <= 6000 (fallback: lowest-bone F14 + P3 design with rotation < 1 deg; none -> warning), (c) F14 + P3 median bone excluding a and b;
+   <= 6000 (fallback: lowest-bone F14 + P3 design with rotation < 1 deg; none -> warning), (c) P3 median bone excluding a and b;
    mesh = min rotation + F14 median bone removal (rule unchanged).
 M. P3 coverage (2026-10-25 morning checkpoint: sb13_a78_b0f465da, the best design with bone <= 8 cm3 across both arms, is on neither F13 nor
    F14): a phase-13 design on P3 but on neither F13 nor F14 gets a bond_only job; earlier keys keep their ids; the representative of an F13 /
    F14 design does not change; P3 de-duplicates by x (one row per design, the phase-13 row first); phase-13 rows without bone_mm3 are not on
-   P3; when the cap bites the P3 design competes in the lowest-rotation slots; (b) / (c) are drawn from F14 + P3 and never from a design that
-   is only on F13; an earlier D13_bond key of a P3 design is kept while the design is on P3 and stale once it is not.
+   P3; when the cap bites the P3 design competes in the lowest-rotation slots; (b) is drawn from F14 + P3 and never from a design that is only
+   on F13; (c) is drawn from P3 only (a design on F14 that the other arm dominates in 3 objectives is not a candidate; no P3 design left ->
+   warning, no (c)); an earlier D13_bond key of a P3 design is kept while the design is on P3 and stale once it is not.
+N. the default cap 40 on a fresh read-only copy of the live state (fixture live_states, 2026-10-25 09:25, arms still running): nothing is
+   dropped, sb13_a78_b0f465da / sb14_a25_69b437e2 / sb14_a46_6c55ace1 get bond_only picks; cap 25 would drop 9 designs on the same copy.
 B. specs: bond_only specs (bond_only, no fric_only, explicit intact_job = PHASES[p]['intact_job'], everything else = source spec minus
    created / stage / tag / kind / fric_only), accepted by jobs.ref_for against a fake 3406 intact reference and by jobs.prep's fric_only / bond_only
    guard; sit-to-stand specs (fric_only, cfg.load 1714 / 3839 N at 24 / 8 deg, merged into the 3406 cfg by jobs._merge, |F| and angles by
@@ -28,12 +32,14 @@ D. guards: unfinished arms (pending, records < budget, queue job not DONE, DONE 
 E. dry run (function and CLI with --root): prints the job list and the DRY-RUN-JSON block, expected ids = the ids a real submit writes,
    writes nothing (file tree hash identical); CLI option errors (--root without --dry-run, status --dry-run, --allow-unfinished on another batch).
 F. submit on the finished fake state: deck_D13_ids.json + job directories, ids = dry-run ids, re-submit idempotent, clash guard.
-G. real snapshot (fixtures_stage_deck_d13.json, read-only copy of the Linux state at 2026-10-25 04:21, arms still running): the P3 rules
-   give snapshot_expected_ids_v3 (32 jobs: P3 adds 8 phase-13 designs, 3 of them already bonded, so 5 new bond_only jobs; (c) moves from
-   sb14_a30 to sb13_a61); every key of the segD_fix rules (snapshot_expected_ids_v2, 27 jobs) and of the first 04:21 dry run (22 jobs) that the
-   P3 rules still select keeps its id; earlier batches SB / SBb / V3406 / SBdelta / MI reproduce the ids in their Linux deck_<batch>_ids.json
+G. real snapshot (fixtures_stage_deck_d13.json, read-only copy of the Linux state at 2026-10-25 04:21, arms still running): the current rules
+   give snapshot_expected_ids_v4 (32 jobs: P3 adds 8 phase-13 designs, 3 of them already bonded, so 5 new bond_only jobs; (c) = P3 median
+   = sb14_a27, was sb13_a61 under F14 + P3 (v3) and sb14_a30 under F14 (v2)); every key of the P3 rules (v3, 32 jobs), of the segD_fix rules
+   (snapshot_expected_ids_v2, 27 jobs) and of the first 04:21 dry run (22 jobs) that the current rules still select keeps its id;
+   earlier batches SB / SBb / V3406 / SBdelta / MI reproduce the ids in their Linux deck_<batch>_ids.json
    from the same source specs (the submit / specs refactor did not change any existing id).
-H. cap 25 bites (32 uncovered designs): both F13 designs, the 3 lowest-rotation remaining designs, then the farthest-point spread; the 7 dropped
+H. the cap bites (D.D13_BOND_CAP monkeypatched to 25 for this section, so d13_select's default and the submit path use it; with the default
+   40 all 32 uncovered designs fit): both F13 designs, the 3 lowest-rotation remaining designs, then the farthest-point spread; the 7 dropped
    designs are printed by the dry run and by the real submit.
 I. cumulative submissions: earlier D13_bond keys are matched to designs by the source job's x (also when the source is the other arm's job of
    the same design), kept (same key, same id) or stale, and counted against the cap; a source in no state file -> SystemExit; a real submit
@@ -220,8 +226,8 @@ ok("design D: representative = its F14 row P4 (P3 lists its phase-13 twin D13 bu
 a_e = next(e for e in sel["bond"] if e["job_id"] == JOB["A13"])
 ok("design A (both arms): one entry, representative sb13 job, fronts F13+F14+P3", a_e["fronts"] == ["F13", "F14", "P3"]
    and JOB["P3"] not in ids_of(sel["bond"]), a_e)
-ok("default cap 25: all 8 uncovered front designs get a bond_only job (F13 first, then by rotation), none dropped",
-   D.D13_BOND_CAP == 25 and sel["bond_cap"] == 25 and sel["bond_slots"] == 25 and not sel["bond_left_out"]
+ok("default cap 40 (2026-10-25, was 25): all 8 uncovered front designs get a bond_only job (F13 first, then by rotation), none dropped",
+   D.D13_BOND_CAP == 40 and sel["bond_cap"] == 40 and sel["bond_slots"] == 40 and not sel["bond_left_out"]
    and ids_of(sel["bond"]) == [JOB[k] for k in ("A13", "B13", "P7", "P1", "P9", "W1", "P8", "P2")]
    and not ({JOB["C13"], JOB["D13"], JOB["P4"]} & set(ids_of(sel["bond"]))), ids_of(sel["bond"]))
 ok("no earlier D13 submission: nothing kept, nothing stale", sel["bond_kept"] == [] and sel["bond_stale"] == [] and sel["n_prior_bond"] == 0)
@@ -238,14 +244,15 @@ ok("cap 7: the 2 slots after F13 + 3 by rotation go by farthest point in (log10 
 s1, _ = captured(D.d13_select, ST13, ST14, bond_cap=1)
 ok("cap 1: only the lowest-rotation uncovered F13 design (A); 7 left out", ids_of(s1["bond"]) == [JOB["A13"]] and len(s1["bond_left_out"]) == 7)
 ok("sit-to-stand = (a) min rotation C13 (bonded or not), (b) lowest-rotation F14 + P3 design with bone <= 6000 = D (P4, 0.20 deg, 6000; A / B / "
-   "P7 / P1 have more bone), (c) F14 + P3 median bone removal without a and b = P9 (5000 of 2500..9000, 8 designs incl. B)",
+   "P7 / P1 have more bone), (c) P3 median bone removal without a and b = P9 (5000 of 2500..9000, 8 designs incl. B; every F14 design is on P3 "
+   "here)",
    ids_of(sel["sts"]) == [JOB["C13"], JOB["P4"], JOB["P9"]] and [e["role"] for e in sel["sts"]] == ["a", "b", "c"], ids_of(sel["sts"]))
 sb_, _ = captured(D.d13_select, ST13, ST14, sts_bone_max=2000.0)
 ok("sit-to-stand (b) fallback (no F14 + P3 design with bone <= 2000): lowest-bone F14 + P3 design with rotation < 1 deg = P8 (2800; P2 2500 has "
-   "2 deg); (c) = D (median of 8)", ids_of(sb_["sts"]) == [JOB["C13"], JOB["P8"], JOB["P4"]] and "rotation < 1" in sb_["sts"][1]["rule"],
+   "2 deg); (c) = D (median of the 8 P3 designs other than a and b)", ids_of(sb_["sts"]) == [JOB["C13"], JOB["P8"], JOB["P4"]] and "rotation < 1" in sb_["sts"][1]["rule"],
    ids_of(sb_["sts"]))
 sn_, _ = captured(D.d13_select, ST13, ST14, sts_bone_max=2000.0, sts_rot_max=0.01)
-ok("sit-to-stand without any (b): warned, sit-to-stand = a + c (c = median of the 9 F14 + P3 designs other than a: 8 F14 + B -> D, 6000)",
+ok("sit-to-stand without any (b): warned, sit-to-stand = a + c (c = median of the 9 P3 designs other than a: the 8 F14 designs + B -> D, 6000)",
    ids_of(sn_["sts"]) == [JOB["C13"], JOB["P4"]] and [e["role"] for e in sn_["sts"]] == ["a", "c"]
    and any(w.startswith("sit-to-stand (b)") for w in sn_["warnings"]), ids_of(sn_["sts"]))
 lo14 = copy.deepcopy(ST14)                                                       # (b) never repeats (a): make the min-rotation design a low-bone F14 one
@@ -525,21 +532,27 @@ ok("snapshot 04:21: F13 = a62, a70, a71; F14 17; P3 21 (8 phase-13 designs on P3
                                              "sb14_a29_6ad70033", "sb14_a34_7ff4db9a"], (len(sel_r["P3"]), sel_r["n_p3_only"], ids_of(sel_r["covered"])))
 sp_r, _ = captured(D.specs, "D13")
 got = {k: J.job_id({**v, "created": ""}) for k, v in sp_r.items()}
-v1, v2 = FIX["snapshot_expected_ids"], FIX["snapshot_expected_ids_v2"]
-ok("snapshot 04:21, P3 rules: 22 bond_only (the 17 of segD_fix + the 5 unbonded P3-only designs; cap 25, none dropped), sit-to-stand a62 / a29 / "
-   "sb13_a61 ((c) = F14 + P3 median, was sb14_a30), mesh a62 / sb14_a30 (rule unchanged)",
+v1, v2, v3 = FIX["snapshot_expected_ids"], FIX["snapshot_expected_ids_v2"], FIX["snapshot_expected_ids_v3"]
+ok("snapshot 04:21, current rules: 22 bond_only (the 17 of segD_fix + the 5 unbonded P3-only designs; default cap 40, none dropped), "
+   "sit-to-stand a62 / a29 / sb14_a27 ((c) = P3 median: the 10th by bone of the 19 P3 designs other than a and b; was sb13_a61 under "
+   "F14 + P3, sb14_a30 under F14), mesh a62 / sb14_a30 (rule unchanged)",
    len(sel_r["bond"]) == 22 and not sel_r["bond_left_out"]
    and set(ids_of(sel_r["bond"])) == {k[len(D.D13_BOND_PREFIX):] for k in v2 if k.startswith(D.D13_BOND_PREFIX)}
    | {"sb13_a52_0879fc1a", "sb13_a53_23a3f031", "sb13_a57_11e6f80c", "sb13_a58_27b8d290", "sb13_a61_7afcca3a"}
-   and ids_of(sel_r["sts"]) == ["sb13_a62_1e4338ee", "sb14_a29_6ad70033", "sb13_a61_7afcca3a"]
+   and ids_of(sel_r["sts"]) == ["sb13_a62_1e4338ee", "sb14_a29_6ad70033", "sb14_a27_acfc4dca"]
    and ids_of(sel_r["mesh"]) == ["sb13_a62_1e4338ee", "sb14_a30_023c7221"], (ids_of(sel_r["sts"]), ids_of(sel_r["mesh"])))
-ok("snapshot 04:21, P3 rules: the 32 jobs and ids of snapshot_expected_ids_v3", got == FIX["snapshot_expected_ids_v3"] and len(got) == 32,
-   sorted(set(got.items()) ^ set(FIX["snapshot_expected_ids_v3"].items()))[:3])
-ok("id stability vs segD_fix (v2): the 25 v2 keys the P3 rules still select keep their ids; the only v2 keys dropped are the sit-to-stand jobs "
-   "of sb14_a30 ((c) moved to sb13_a61)",
+ok("snapshot 04:21, current rules: the 32 jobs and ids of snapshot_expected_ids_v4", got == FIX["snapshot_expected_ids_v4"] and len(got) == 32,
+   sorted(set(got.items()) ^ set(FIX["snapshot_expected_ids_v4"].items()))[:3])
+ok("id stability vs the P3 rules (v3): the 30 v3 keys still selected keep their ids; the only v3 keys dropped are the sit-to-stand jobs of "
+   "sb13_a61 ((c) moved to sb14_a27, whose sit-to-stand keys are the only new ones)",
+   len(set(got) & set(v3)) == 30 and all(got[k] == v3[k] for k in set(got) & set(v3))
+   and sorted(set(v3) - set(got)) == sorted(f"D13_sts_{ln}_sb13_a61_7afcca3a" for ln in D.D13_STS)
+   and sorted(set(got) - set(v3)) == sorted(f"D13_sts_{ln}_sb14_a27_acfc4dca" for ln in D.D13_STS), (sorted(set(v3) - set(got)), sorted(set(got) - set(v3))))
+ok("id stability vs segD_fix (v2): the 25 v2 keys the current rules still select keep their ids; the only v2 keys dropped are the sit-to-stand "
+   "jobs of sb14_a30 ((c) moved to sb14_a27)",
    len(set(got) & set(v2)) == 25 and all(got[k] == v2[k] for k in set(got) & set(v2))
    and sorted(set(v2) - set(got)) == sorted(f"D13_sts_{ln}_sb14_a30_023c7221" for ln in D.D13_STS), sorted(set(v2) - set(got)))
-ok("id stability vs the first 04:21 dry run (v1): every v1 key the P3 rules still select keeps its id",
+ok("id stability vs the first 04:21 dry run (v1): every v1 key the current rules still select keeps its id",
    len(set(got) & set(v1)) == 18 and all(got[k] == v1[k] for k in set(got) & set(v1)), len(set(got) & set(v1)))
 REG = BASE / "regression"
 shutil.rmtree(REG, ignore_errors=True)
@@ -563,13 +576,20 @@ ok("real submit of an earlier batch (MI) in the fake tree writes its ids file ex
    json.loads((J.RESULTS / "deck_MI_ids.json").read_text())["jobs"] == FIX["regression_ids"]["MI"])
 
 # ================================================================ H. the cap bites: F13 -> 3 lowest-rotation -> farthest point; dropped printed
+# (the default cap is 40; D.D13_BOND_CAP is set to 25 for this section so that d13_select's default and the submit path both use it)
 BIG13 = [rec("sb13_a1_bg130001", xvec(), 0.030, 2400, 9800, 13), rec("sb13_a2_bg130002", xvec(), 0.035, 2500, 9900, 13)]
 BIG14 = [rec(f"sb14_a{i + 1}_bg{i + 1:06d}", xvec(), 0.05 * 1.2 ** i, 2300 - 60 * i, 9000 - 200 * i, 14) for i in range(30)]   # all on F14
 BST13, BST14 = state(13, BIG13), state(14, BIG14)
+s40, _ = captured(D.d13_select, BST13, BST14)
+ok("H: with the default cap 40 all 32 uncovered designs fit (32 picks, nothing dropped)", s40["bond_cap"] == 40 and len(s40["bond"]) == 32
+   and not s40["bond_left_out"], (s40["bond_cap"], len(s40["bond"])))
+CAP0 = D.D13_BOND_CAP
+D.D13_BOND_CAP = 25                                                              # the 'cap bites' path, through the default and submit
 sbig, _ = captured(D.d13_select, BST13, BST14)
 b_ids = ids_of(sbig["bond"])
 f14_by_rot = [r["job_id"] for r in BIG14]                                        # built in rotation order
-ok("32 uncovered designs, cap 25: 25 picks, 7 dropped", len(b_ids) == 25 and len(sbig["bond_left_out"]) == 7 and sbig["n_designs"] == 32,
+ok("32 uncovered designs, cap 25 (module constant set to 25, d13_select called without bond_cap): 25 picks, 7 dropped",
+   sbig["bond_cap"] == 25 and len(b_ids) == 25 and len(sbig["bond_left_out"]) == 7 and sbig["n_designs"] == 32,
    (len(b_ids), len(sbig["bond_left_out"])))
 ok("cap bites: both F13 designs first, then the 3 lowest-rotation F14 designs", b_ids[:5] == ["sb13_a1_bg130001", "sb13_a2_bg130002"] + f14_by_rot[:3],
    b_ids[:5])
@@ -586,6 +606,8 @@ _, out_bs = captured(D.submit, "D13")
 ok("real submit prints the summary with the dropped designs; 25 bond_only jobs submitted",
    f"dropped by the cap 7 [{', '.join(dropped)}]" in out_bs
    and sum(k.startswith(D.D13_BOND_PREFIX) for k in json.loads((J.RESULTS / "deck_D13_ids.json").read_text())["jobs"]) == 25)
+D.D13_BOND_CAP = CAP0
+ok("H: D13_BOND_CAP restored to the default 40 after the section", D.D13_BOND_CAP == 40, D.D13_BOND_CAP)
 use(FIN)
 
 # ================================================================ I. cumulative submissions
@@ -611,8 +633,8 @@ s1_14["budget"] = len(s1_14["records"])
 write_tree(CUM, ST13, s1_14)
 _, _ = captured(D.submit, "D13")
 ids1 = json.loads((J.RESULTS / "deck_D13_ids.json").read_text())["jobs"]
-ok("state 1: 7 bond_only (A, B, P1, P2, P7, P9, W1), mesh on D (P4) = the F14 median then, sit-to-stand (c) on P1 = the F14 + P3 median then "
-   "(7 designs other than a and b, B included)",
+ok("state 1: 7 bond_only (A, B, P1, P2, P7, P9, W1), mesh on D (P4) = the F14 median then, sit-to-stand (c) on P1 = the P3 median then "
+   "(7 P3 designs other than a and b, B included)",
    sorted(k for k in ids1 if k.startswith(D.D13_BOND_PREFIX)) == sorted(D.D13_BOND_PREFIX + JOB[k] for k in ("A13", "B13", "P1", "P2", "P7", "P9", "W1"))
    and f"D13_mesh_h1.94_{JOB['P4']}" in ids1 and f"D13_sts_F1714_{JOB['P1']}" in ids1, sorted(ids1))
 p8 = J.QROOT / JOB["P8"]                                                          # state 2: the arm solved P8 (a new front design)
@@ -743,8 +765,9 @@ ok("M: it is covered: default cap -> a bond_only pick (F13 first: A, B; then by 
 ok("M: F13 / F14 / already bonded unchanged; 11 designs; P7 (now 3-obj dominated by the phase-13 design) leaves P3 but stays covered via F14",
    ids_of(sm["F13"]) == ids_of(sel["F13"]) and ids_of(sm["F14"]) == ids_of(sel["F14"]) and ids_of(sm["covered"]) == ids_of(sel["covered"])
    and sm["n_designs"] == 11 and JOB["P7"] not in ids_of(sm["P3"]) and next(e for e in sm["bond"] if e["job_id"] == JOB["P7"])["fronts"] == ["F14"])
-ok("M: sit-to-stand (b) still D; (c) = median bone of the 9 F14 + P3 designs other than a and b = P1 (6500; the P3 design's 7500 joins the pool)",
-   ids_of(sm["sts"]) == [JOB["C13"], JOB["P4"], JOB["P1"]], ids_of(sm["sts"]))
+ok("M: sit-to-stand (b) still D; (c) = median bone of the 8 P3 designs other than a and b (P2, P8, W1, P9, P1, the P3 design, A, B) = P9 "
+   "(5000); P7 (on F14, 3-obj dominated by the P3 design) is not a (c) candidate - with it (the F14 + P3 rule) the median would be P1",
+   ids_of(sm["sts"]) == [JOB["C13"], JOB["P4"], JOB["P9"]] and sm["sts"][2]["fronts"] == ["F14", "P3"], ids_of(sm["sts"]))
 ok("M: mesh unchanged (rule unchanged: F14 median bone removal) = C13, P9", ids_of(sm["mesh"]) == [JOB["C13"], JOB["P9"]], ids_of(sm["mesh"]))
 sm5, _ = captured(D.d13_select, m13, ST14, bond_cap=5)
 ok("M, cap 5: F13 (A, B), then the 3 lowest-rotation remaining designs incl. the P3 one: it (0.07), P7 (0.08), P1 (0.10); dropped P9, W1, P8, P2",
@@ -755,10 +778,8 @@ write_tree(MT, m13, ST14)
 sp_m, _ = captured(D.specs, "D13")
 ids_m = {k: J.job_id({**v, "created": ""}) for k, v in sp_m.items()}
 new_m, gone_m = sorted(set(ids_m) - set(exp_ids)), sorted(set(exp_ids) - set(ids_m))
-ok("M: specs: every base key still selected keeps its id; new keys = the P3 design's bond_only job + sit-to-stand of the new (c) P1; "
-   "gone = sit-to-stand of P9", all(ids_m[k] == exp_ids[k] for k in set(ids_m) & set(exp_ids))
-   and new_m == sorted([D.D13_BOND_PREFIX + JM] + [f"D13_sts_{ln}_{JOB['P1']}" for ln in D.D13_STS])
-   and gone_m == sorted(f"D13_sts_{ln}_{JOB['P9']}" for ln in D.D13_STS), (new_m, gone_m))
+ok("M: specs: every base key keeps its id; the only new key = the P3 design's bond_only job ((c) stays P9); no key gone",
+   all(ids_m[k] == exp_ids[k] for k in set(ids_m) & set(exp_ids)) and new_m == [D.D13_BOND_PREFIX + JM] and gone_m == [], (new_m, gone_m))
 bm = sp_m[D.D13_BOND_PREFIX + JM]
 ok("M: its bond_only spec = its own phase-13 source spec + bond_only + intact_job PHASES[13], stage d13bond, tag p13_a8_mmmm0008, no fric_only",
    bm["source_job"] == JM and bm["bond_only"] is True and bm["intact_job"] == N.PHASES[13]["intact_job"] and bm["stage"] == "d13bond"
@@ -776,8 +797,8 @@ ok("M: real submit writes the P3 design's bond_only job (ids = the spec ids)", i
    and (J.QROOT / ids_ms[D.D13_BOND_PREFIX + JM] / "spec.json").exists())
 pk = {D.D13_BOND_PREFIX + JM: "d13bond_p13_a8_mmmm0008_x"}
 sk, _ = captured(D.d13_select, m13, ST14, prior=pk)
-ok("M: an earlier D13_bond key of the P3 design is kept while the design is on P3 (not picked again, counted against the cap)",
-   ids_of(sk["bond_kept"]) == [JM] and JM not in ids_of(sk["bond"]) and not sk["bond_stale"] and sk["bond_slots"] == 24)
+ok("M: an earlier D13_bond key of the P3 design is kept while the design is on P3 (not picked again, counted against the cap: 40 - 1 = 39 slots)",
+   ids_of(sk["bond_kept"]) == [JM] and JM not in ids_of(sk["bond"]) and not sk["bond_stale"] and sk["bond_slots"] == 39)
 m13c = copy.deepcopy(m13)
 m13c["records"].append(rec("sb13_a9_mmmm0009", xm(), 0.065, 2150, 7400, 13))     # dominates JM in all 3 objectives
 sk2, _ = captured(D.d13_select, m13c, ST14, prior=pk)
@@ -797,7 +818,35 @@ fo2 = next(e for e in so["bond"] if e["job_id"] == "sb13_a2_ff000002")
 ok("M: (b) / (c) never come from a design that is only on F13: sb13_a2 (0.02 deg, 5000 mm3; F13 only, 3-obj dominated by sb14_a1) would win "
    "(b) on the rotation tie by job id; (b) = sb14_a1, (c) = sb14_a3 (median of sb14_a2 / a3); sb13_a2 still gets its bond_only job (F13)",
    fo2["fronts"] == ["F13"] and ids_of(so["sts"]) == ["sb13_a1_ff000001", "sb14_a1_ff000011", "sb14_a3_ff000013"], ids_of(so["sts"]))
+NC13 = state(13, [rec("sb13_a1_nc000001", xm(), 0.01, 3000, 3000, 13)])                # dominates both phase-14 designs in 3 objectives
+NC14 = state(14, [rec("sb14_a1_nc000011", xm(), 0.5, 1000, 5000, 14), rec("sb14_a2_nc000012", xm(), 1.0, 500, 4000, 14)])
+snc, _ = captured(D.d13_select, NC13, NC14)
+ok("M: no P3 design other than a and b: (c) left out with a warning; sb14_a2 (on F14, 3-obj dominated by sb13_a1) is not taken; "
+   "(b) = sb14_a1 (F14, bone <= 6000) as before",
+   ids_of(snc["sts"]) == ["sb13_a1_nc000001", "sb14_a1_nc000011"] and [e["role"] for e in snc["sts"]] == ["a", "b"]
+   and [e["job_id"] for e in snc["P3"]] == ["sb13_a1_nc000001"] and any(w.startswith("sit-to-stand (c): no P3 design") for w in snc["warnings"]),
+   (ids_of(snc["sts"]), snc["warnings"]))
+c_all = [s_["sts"][-1] for s_ in (sel, sb_, sn_, s_lo, s7, sm, so, sel_r)]
+ok("M: every sit-to-stand (c) selected in this test is on P3 and carries the P3 rule string",
+   all(e["role"] == "c" and "P3" in e["fronts"] and e["rule"] == "median bone removal on P3 (excluding a and b)" for e in c_all),
+   [(e["job_id"], e["fronts"]) for e in c_all if "P3" not in e["fronts"]])
 use(FIN)
+
+# ================================================================ N. the default cap 40 on a fresh read-only copy of the live state
+LV = FIX["live_states"]                                                         # 2026-10-25 09:25 GMT, arms still running (2 pending each)
+sl, _ = captured(D.d13_select, LV["13"], LV["14"])
+MUST = {"sb13_a78_b0f465da", "sb14_a25_69b437e2", "sb14_a46_6c55ace1"}
+ok("N: the default D13_BOND_CAP is 40, and on the fresh live copy (09:25) nothing is dropped: 44 designs, 10 already bonded, 34 bond_only "
+   "picks incl. sb13_a78_b0f465da (P3 only), sb14_a25_69b437e2 and sb14_a46_6c55ace1 (F14)",
+   D.D13_BOND_CAP == 40 and sl["bond_cap"] == 40 and sl["bond_left_out"] == [] and sl["n_designs"] == 44 and len(sl["covered"]) == 10
+   and len(sl["bond"]) == 34 and MUST <= set(ids_of(sl["bond"])), (sl["bond_cap"], ids_of(sl["bond_left_out"]), sorted(MUST - set(ids_of(sl["bond"])))))
+s25l, _ = captured(D.d13_select, LV["13"], LV["14"], bond_cap=25)
+ok("N: the old cap 25 would bite on the same copy: 9 dropped, sb14_a46_6c55ace1 among them",
+   len(s25l["bond_left_out"]) == 9 and "sb14_a46_6c55ace1" in ids_of(s25l["bond_left_out"]), ids_of(s25l["bond_left_out"]))
+ok("N: live sit-to-stand a sb13_a82 (lowest rotation), b sb14_a29 (bone <= 6000), c sb13_a78_b0f465da (16th by bone of the 32 P3 designs "
+   "other than a and b; on P3 only); mesh sb13_a82 + sb14_a27 (F14 median, rule unchanged)",
+   ids_of(sl["sts"]) == ["sb13_a82_cd8c77ad", "sb14_a29_6ad70033", "sb13_a78_b0f465da"] and sl["sts"][2]["fronts"] == ["P3"]
+   and ids_of(sl["mesh"]) == ["sb13_a82_cd8c77ad", "sb14_a27_acfc4dca"], (ids_of(sl["sts"]), ids_of(sl["mesh"])))
 
 # ================================================================ fixture reset
 J.QROOT, J.RESULTS = REAL_Q, REAL_R

@@ -181,7 +181,8 @@ def spec_of_job(job: str) -> dict:
 
 
 # 批次 D13（2026-10-25；计算计划_50h_2026-10-24.md 第 2 节段 D 与第 7 节修订；p13_3406/snap_2026-10-25_0340_half/角落设计核查_2026-10-25.md；
-# 同日按审查 w5g2teby3 修订：粘接补算全覆盖 + 安全上限 25、跨提交累积、真提交也打印警告、一次调用只选一次；起身改为 3 个对比设计——主会话批准）：
+# 同日按审查 w5g2teby3 修订：粘接补算全覆盖 + 安全上限、跨提交累积、真提交也打印警告、一次调用只选一次；起身改为 3 个对比设计——主会话批准；
+# 同日上午检查点第 7 节：覆盖集加 P3；同日主会话决定：上限 25 → 40，起身 (c) 只从 P3 选）：
 # 阶段 13 / 14 两臂跑完后的前沿核查，一条命令提交。设计不写死，提交时从最终状态文件 results/neckopt_p13.json / neckopt_p14.json 选
 # （d13_select，纯函数，不读队列；prior = 已有 results/deck_D13_ids.json 的 jobs）：
 #   F13 = 阶段 13（2 目标 v3：log10 转动、−完全接触面积）可行记录（ok 且 c ≤ 0）的非支配集；
@@ -205,20 +206,23 @@ def spec_of_job(job: str) -> dict:
 #    累积：deck_D13_ids.json 里已有的每个 D13_bond_<源作业> 键按源作业的 x（状态文件记录里的单位立方体坐标）对到设计——设计还在覆盖集上 =
 #    已覆盖，键原样再出（同一 spec = 同一 id，不新建作业）；不在覆盖集上 = 过时键（不再出，留在 ids 文件里）；两种都计入上限。
 #    源作业不在任何一个状态文件的记录里 → SystemExit。
-#    上限 D13_BOND_CAP = 25 个 D13 bond_only 作业（含以前提交的；安全上限）：放得下就全部覆盖；放不下时 F13 的设计先入选（按转动），
+#    上限 D13_BOND_CAP = 40 个 D13 bond_only 作业（含以前提交的；安全上限。2026-10-25 主会话决定由 25 提到 40：bond_only 只解粘接模型，
+#    求解约 0.6 min / 个；加 P3 之后 25 在 08:15 / 08:35 的实况上已放不下，丢掉 F14 上的 sb14_a25 / sb14_a46）：放得下就全部覆盖；
+#    放不下时（优先顺序不变）F13 的设计先入选（按转动），
 #    再给其余（F14 ∪ P3）设计里转动最小的 D13_BOND_ROT_SLOTS = 3 个名额，余下名额在归一化二维（log10 转动、去骨量，各按覆盖集全部设计的
 #    最小 / 最大值归一）里贪心最远点铺开（锚 = 已覆盖的设计与已选设计；每次取离最近锚最远的，并列取转动小的）；没选上的打印出来（dropped by the cap）。
 # 2. 起身（sit-to-stand；U6 未定 → 两档都算）：3 个对比设计 × 合力 {1714, 3839} N，方向 α_front 24° / α_sagit 8°
-#    （Bergmann 2016 表 5 起身；1714 = AVER75 1600 × 2391 / 2232，与现在楼梯载荷同缩放；3839 = HIGH100）。规则不变，(b)、(c) 的候选从 F14 改为
-#    3 目标集 F14 ∪ P3（只在 F13 上的设计不算；2026-10-25 上午）：
+#    （Bergmann 2016 表 5 起身；1714 = AVER75 1600 × 2391 / 2232，与现在楼梯载荷同缩放；3839 = HIGH100）。(b) 的规则不变，候选从 F14 改为
+#    3 目标集 F14 ∪ P3（只在 F13 上的设计不算；2026-10-25 上午）；(c) 只从 P3 选（2026-10-25 主会话决定：对比设计要在两臂合起来的 3 目标
+#    集上不被支配；F14 ∪ P3 的中位在 08:15 的实况上是 sb14_a26——在 F14 上，却被 sb13_a53 在 3 个目标上都支配）：
 #    (a) 覆盖集里转动最小的（除转动并列外 = F13 ∪ F14 里转动最小的：两臂各自转动最小的可行设计分别在 F13、F14 上）；(b) F14 ∪ P3 里（不含 a）去骨量
 #    ≤ D13_STS_BONE_MAX = 6000 mm³ 的转动最小者，没有就取 F14 ∪ P3 里转动 < D13_STS_ROT_MAX = 1° 的去骨量最小者，再没有 → 警告、不出 (b)；
-#    (c) F14 ∪ P3 里（不含 a、b）去骨量居中的（偶数个取下中位）。原规则"转动前 3 个"选出的是三个
+#    (c) P3 里（不含 a、b）去骨量居中的（偶数个取下中位；只在 F14 上、被另一臂的设计支配的不算；没有 → 警告、不出 (c)）。原规则"转动前 3 个"选出的是三个
 #    几乎相同的角落设计（04:36：a62 / a70 / a71），回答不了"楼梯载荷下的排序在起身载荷下是否保持"。
 #    spec 键 cfg = {"load": …}：jobs.femur_for 把它合并进本作业 fm.cfg 的副本（3406 的 cfg = config_v2a.yaml 的深拷贝，同样的 load 节），
 #    model3d_m1 从 fm.cfg["load"] 算头力（model3d_v2.load_vector）——不改任何哈希文件；cfg 进作业 id。torque 不写 = 默认 True（头力全部分量，
 #    力矩由头心偏距产生；B16 的起身 Mts 19.3 / Mbs 46.4 N·m 对上楼 47.0 / 113.1 是常规柄上的值，这里不另加力矩）。只算摩擦（fric_only，不需要参照）。
-# 3. 网格噪声（规则不变）：2 个设计（覆盖集里转动最小的 + F14 里（不含前者）去骨量居中的；P3 只改 (b)、(c) 的候选，不改这里）
+# 3. 网格噪声（规则不变）：2 个设计（覆盖集里转动最小的 + F14 里（不含前者）去骨量居中的；P3 只改起身 (b)、(c) 的候选，不改这里）
 #    × h_int {1.94, 2.06}，只算摩擦（与批次 V3406 相同的做法）。
 # stage "d13bond" / "d13sts" / "d13mesh"：不以 "sb" / "neck" 开头、不是 "ref"——in_family（femur_id 阶段只收 "sb*"）不收，bo_async 的收编
 # glob（sb13_* / sb14_*）不收；bond_only、cfg、h_int ≠ 2.0 也各自让 in_family 排除。全部 kind variant；_d13_check 对每个 spec 再核对一遍。
@@ -227,7 +231,7 @@ def spec_of_job(job: str) -> dict:
 # 却不在记录里的 → 拒绝提交（--allow-unfinished 才放行；代价见 D13_QUEUE_NOTE）；--dry-run 照样列出并给出这些警告，什么都不写。
 # 重复提交：新选择里有 deck_D13_ids.json 没有的键 → 列出新键与过时键并拒绝，--reselect 才提交（新键提交；过时键与其作业留着，不删）。
 D13_PHASES = (13, 14)
-D13_BOND_CAP = 25
+D13_BOND_CAP = 40                                  # 2026-10-25 主会话：25 → 40（bond_only 求解约 0.6 min / 个）
 D13_BOND_ROT_SLOTS = 3
 D13_BOND_PREFIX = "D13_bond_"
 D13_STS_BONE_MAX = 6000.0
@@ -292,10 +296,11 @@ def _d13_farthest(rest: list, anchors: list, n: int, pt) -> tuple:
     return got, rest
 
 
-def d13_select(st13: dict, st14: dict, bond_cap: int = D13_BOND_CAP, prior: dict | None = None,
+def d13_select(st13: dict, st14: dict, bond_cap: int | None = None, prior: dict | None = None,
                sts_bone_max: float = D13_STS_BONE_MAX, sts_rot_max: float = D13_STS_ROT_MAX) -> dict:
     """纯函数：阶段 13 / 14 的状态文件（+ prior = 已有 deck_D13_ids.json 的 jobs）→ F13 / F14 / P3、覆盖集与三组选择（bond / sts / mesh），
-    不读队列、不写文件。规则见批次 D13 的说明。"""
+    不读队列、不写文件。规则见批次 D13 的说明。bond_cap None = 调用时的 D13_BOND_CAP（不在定义时绑定：改模块常量即改上限）。"""
+    bond_cap = D13_BOND_CAP if bond_cap is None else int(bond_cap)
     for p, st in ((13, st13), (14, st14)):
         if st.get("phase") != p:
             raise SystemExit(f"D13: state file for phase {p} holds phase {st.get('phase')!r}")
@@ -384,7 +389,7 @@ def d13_select(st13: dict, st14: dict, bond_cap: int = D13_BOND_CAP, prior: dict
             return ((d["rep"]["y"][0] - lo[0]) / span[0], (d["rep"]["bone_mm3"] - lo[1]) / span[1])
         got, rest = _d13_farthest(rest, [pt(d) for d in covered + kept + chosen], slots - len(chosen), pt)
         chosen = chosen + got
-    # 起身：3 个对比设计；(b)、(c) 从 3 目标集 F14 ∪ P3 里选（只在 F13 上的设计不算）
+    # 起身：3 个对比设计；(b) 从 3 目标集 F14 ∪ P3 里选（只在 F13 上的设计不算），(c) 只从 P3 里选
     a = by_rot[0]
     s3 = [d for d in by_rot if d["fronts"] & {"F14", "P3"} and d is not a]
 
@@ -400,13 +405,13 @@ def d13_select(st13: dict, st14: dict, bond_cap: int = D13_BOND_CAP, prior: dict
         if b is None:
             warn.append(f"sit-to-stand (b): no F14 + P3 design other than (a) with bone removal <= {sts_bone_max:g} mm3 or rotation < {sts_rot_max:g} deg; "
                         "(b) left out")
-    mids = sorted((d for d in s3 if d is not b), key=lambda d: (d["rep"]["bone_mm3"], d["rep"]["job_id"]))
+    mids = sorted((d for d in s3 if "P3" in d["fronts"] and d is not b), key=lambda d: (d["rep"]["bone_mm3"], d["rep"]["job_id"]))
     c = mids[(len(mids) - 1) // 2] if mids else None
     if c is None:
-        warn.append("sit-to-stand (c): no F14 + P3 design other than (a) and (b); (c) left out")
+        warn.append("sit-to-stand (c): no P3 design other than (a) and (b); (c) left out")
     sts = [_d13_entry(a, role="a", rule="lowest rotation on F13 + F14 + P3")]
     sts += [_d13_entry(b, role="b", rule=b_rule)] if b is not None else []
-    sts += [_d13_entry(c, role="c", rule="median bone removal among F14 + P3 (excluding a and b)")] if c is not None else []
+    sts += [_d13_entry(c, role="c", rule="median bone removal on P3 (excluding a and b)")] if c is not None else []
     mesh = [by_rot[0]]                               # 网格：规则不变（第二个 = F14 里去骨居中的；P3 只进 (b)、(c)）
     mid = sorted([d for d in designs.values() if "F14" in d["fronts"] and d is not by_rot[0]], key=lambda d: (d["rep"]["bone_mm3"], d["rep"]["job_id"]))
     if mid:
