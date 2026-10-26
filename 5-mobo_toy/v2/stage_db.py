@@ -1,8 +1,8 @@
-"""3406 数据库（db3406）的批量提交器 v1.2（D1 = v0 + 审查修正 + 采纳 CD-0 种子 + 第二轮审查修正；D2 = 批次 b2 + 并行喂料）。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
+"""3406 数据库（db3406）的批量提交器 v1.3（D1 = v0 + 审查修正 + 采纳 CD-0 种子 + 第二轮审查修正；D2 = 批次 b2 + 并行喂料；v1.3 = 批次 b1b）。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
 （第 1.3 / 1.4 节分层与无偏集、第 1.6 节命名 / 查重 / 版本陷阱、第 1.8 节检查 13 / 14、第 2.1–2.7 节、第 3.2 节 CR-T；用户 2026-10-25 批准两天部分）。
 不改 8 个哈希文件（code_hash 必须是 6d7af243d0）、不改 jobs.py / stage_neckopt.py / stage_deck.py / stage_v2a.py / tpl_record.py；提交只走 jobs.submit。
 
-    python v2/stage_db.py dry-run b1|b2 [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
+    python v2/stage_db.py dry-run b1|b2|b1b [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
                                                           预期 id、查重结果（hash8 / 物理键）、种子采纳、参照与参照核对；末尾 DRY-RUN-JSON。什么都不写
                                                           （b2 另印 G2 核对、CR-1 / CR-T 选点、放宽计数、槽时估计、b1 优先级的当前判断）
     python v2/stage_db.py feed b1|b2 [--once] [--poll 60] 喂料器（只在 Linux 上跑；b1 与 b2 可以同时跑，见"并行喂料"）：
@@ -11,6 +11,12 @@
     python v2/stage_db.py status b1|b2 [--root …]         只读：清单 results/db_manifest_<批次>.json + 队列里的状态
     python v2/stage_db.py select b2 [--root …]            写 results/db_crt_selection.json（CR-1 / CR-T 名单，冻结）与 results/db_widened_counts.json；
                                                           不提交（feed b2 第一次启动时也会写选点文件；已有且不同 → 拒绝）
+
+批次 b1b（v1.3，2026-10-26）= 粗网格先导换到 h 2.4：b1 的 REF_h2.5 建模失败（L3，松质里 2 个退化四面体；h 2.45 / 2.5 / 2.55 都失败、
+    2.4 正常，探针 deck/meshprobe），b1 的 24 行 FD-0 h2.5 被挡住。b1b = REF h 2.4（主会话已提交 db_ref_intact_h2.4_cae476c7，本批采纳；
+    results/db_presubmit_REF_h2.4.json）+ 同样 24 个先导设计 × h_int 2.4，带粘接，参照 REF h 2.4（层 "FD-0 h2.4"，source fid_h24）。
+    h 2.0 一侧的粘接结果 = 队列里已有的，或 b1 的 BD h2.0 补算（没有就记 WARNING，不补）。b1 的行不变（build 里 full = batch == "b1"）。
+    python v2/stage_db.py feed b1b：cd ~/mobo_toy_v2/code && nohup taskset -c 4-11 nice -n 19 ../run.sh v2/stage_db.py feed b1b >> ../logs/db_feed_b1b.out 2>&1 < /dev/null &
 
 批次 b1 = 规划第 2.4 节的第一批（"首批 95 个"；只粘接补算的个数由队列决定，见下：84 行）。全部 kind variant（参照 kind intact），stage db_*：
     REF   db_ref  完整股骨参照 h_int 1.94 / 2.06 / 2.5 / 1.4 = sb_intact_h2_9c9d7fb5 的 spec 只改 h_int（3406 参照就是
@@ -207,7 +213,7 @@ REF_PRIORITY_CAP = 1                        # 参照优先期间其他未领取 
 GATE_MIN_FAILED = 2                         # 按层失败闸门：未确认的 FAILED ≥ 2 …
 GATE_MAX_RATE = 0.05                        # … 且失败率 > 5 %
 FIRST_N, FIRST_N_MAX_FAILED = 10, 2         # 本批最先完成的 10 个喂料器自己提交的行里 FAILED > 2 → 每层都停（规划 G1）
-SLOW_START_LAYERS = ("NZ-1", "FD-0 h2.5", "FD-0 h1.4", "BD mesh", "BD h2.0", "SF-1", "CR-1")   # 新层慢启动（REF 串行、CD-0 是种子：不在内）
+SLOW_START_LAYERS = ("NZ-1", "FD-0 h2.5", "FD-0 h1.4", "BD mesh", "BD h2.0", "SF-1", "CR-1", "FD-0 h2.4")   # 新层慢启动（REF 串行、CD-0 是种子：不在内）
 SLOW_START_CAP = 2                          # … DONE 不到 SLOW_START_DONE 行之前，该层在飞（NEW / READY / CLAIMED / SOLVED）最多 2 行
 SLOW_START_DONE = 2
 WAIT_EVERY = 10                             # 没有提交时：第 1 轮及之后每 10 轮记一行 WAIT
@@ -263,9 +269,11 @@ NOISE_H2_SOURCE = "sb11_smoke_f_h16_898709ba"
 NOISE_MESH = ("v3406_noise_smoke_h16_hint1.94_1de5bb9e", "v3406_noise_smoke_h16_hint2.06_73a2c8bf")
 NOISE_H2_TAG = "v3406_noise_smoke_h16_hint2"
 LAYER_SOURCE = {"REF": "intact_ref", "CD-0": "cond_anchor", "NZ-1": "noise", "FD-0 h2.5": "fid_h25", "FD-0 h1.4": "fid_h14",
-                "BD mesh": "bond_partner", "BD h2.0": "bond_partner", "SF-1": "sf", "CR-1": "corner"}
+                "BD mesh": "bond_partner", "BD h2.0": "bond_partner", "SF-1": "sf", "CR-1": "corner", "FD-0 h2.4": "fid_h24"}
 LAYER_SELECTION = {"REF": "reference", "SF-1": "iid"}   # 其余层 stratum（tools/db_export.DB_STAGE_RULES：db_sf = sf / iid，db_cr = corner / stratum）
-BATCHES = ("b1", "b2")
+BATCHES = ("b1", "b2", "b1b")
+B1B_H = 2.4                                 # b1b 的粗网格档（h 2.5 的完整股骨建模失败，见模块说明"批次 b1b"）
+B1B_LAYER = "FD-0 h2.4"
 SEEDS = {"b1": ("db_seed_CD0.json",)}      # 主会话已提交的种子（results/ 下）：每个种子作业必须被本批一行 1:1 采纳；文件缺失 = 问题（b2 没有种子）
 
 # ---------------------------------------------------------------- 批次 b2（规划 1.3 / 1.4、2.2 D2、2.4 SF-1 / CR-1、3.2 CR-T、2.5 放宽计数）
@@ -830,48 +838,52 @@ def build(batch: str = "b1") -> dict:
         r = rec.get(jobs_of[c]) or {}
         return {"pool_idx": r.get("pool_idx"), "rot_first_deg_h2": r.get("rot_first_deg")}
 
+    full = batch == "b1"                                # b1b：只有 REF h 2.4 与 FD-0 h 2.4（b1 的其余层不建）
     # REF：sb_intact_h2_9c9d7fb5 的 spec 只改 h_int
     ref_src = load_source(REF_H2, "intact", qspecs)
     ref_phys = _phys(ref_src, REF_H2)
     ref_id, ref_key_of = {H_PROD: REF_H2}, {}
-    for h in REF_H:
+    for h in (REF_H if full else (B1B_H,)):
         spec = {**copy.deepcopy(ref_phys), "kind": "intact", "h_int": h, "stage": "db_ref", "tag": f"intact_h{h:g}"}
         k = f"REF_h{h:g}"
         rows.append(_row(k, "REF", spec, REF_H2))
         ref_id[h] = resolve(spec, by_h8, qspecs, by_phys)[0]
         ref_key_of[h] = k
     # CD-0 δ（只解摩擦）
-    for c in CD_PAIR_CODES:
+    for c in (CD_PAIR_CODES if full else ()):
         for dl in CD_DELTA_PAIR:
             spec = _variant(phys[c], "db_cd", f"{_tag_of(jobs_of[c])}_d{dl:g}", "fric", delta=dl)
             rows.append(_row(f"CD0_d{dl:g}_{c}", "CD-0", spec, jobs_of[c], c, extra=info(c)))
-    for c in CD_ALL_CODES:
+    for c in (CD_ALL_CODES if full else ()):
         spec = _variant(phys[c], "db_cd", f"{_tag_of(jobs_of[c])}_d{CD_DELTA_ALL:g}", "fric", delta=CD_DELTA_ALL)
         rows.append(_row(f"CD0_d{CD_DELTA_ALL:g}_{c}", "CD-0", spec, jobs_of[c], c, extra=info(c)))
     # CD-0 起身（只解摩擦；cfg.load = stage_deck.D13_STS 原样）
-    for c in STS_CODES:
+    for c in (STS_CODES if full else ()):
         for ln, L in STS_LOADS.items():
             spec = _variant(phys[c], "db_cd", f"{_tag_of(jobs_of[c])}_{ln}", "fric", cfg={"load": dict(L)})
             rows.append(_row(f"CD0_sts{ln[1:]}_{c}", "CD-0", spec, jobs_of[c], c, extra=info(c)))
     # NZ-1（带粘接，同网格参照）
-    for c in NZ_CODES:
+    for c in (NZ_CODES if full else ()):
         for h in NZ_H:
             spec = _variant(phys[c], "db_nz", f"{_tag_of(jobs_of[c])}_h{h:g}", "full", intact_job=ref_id[h], h_int=h)
             rows.append(_row(f"NZ1_h{h:g}_{c}", "NZ-1", spec, jobs_of[c], c, ref_key=ref_key_of[h], extra=info(c)))
     # FD-0 h 2.5 先导（24）与 h 1.4（2），带粘接
     fd25 = list(FD25_CODES) + list(PILOT16)
-    for c in fd25:
+    for c in (fd25 if full else ()):
         spec = _variant(phys[c], "db_fd", f"{_tag_of(jobs_of[c])}_h2.5", "full", intact_job=ref_id[2.5], h_int=2.5)
         rows.append(_row(f"FD0_h2.5_{c}", "FD-0 h2.5", spec, jobs_of[c], c, ref_key=ref_key_of[2.5], extra=info(c)))
-    for c in FD14_CODES:
+    for c in (() if full else fd25):                     # b1b：同样 24 个先导设计 × h 2.4，带粘接，参照 REF h 2.4
+        spec = _variant(phys[c], "db_fd", f"{_tag_of(jobs_of[c])}_h{B1B_H:g}", "full", intact_job=ref_id[B1B_H], h_int=B1B_H)
+        rows.append(_row(f"FD0_h{B1B_H:g}_{c}", B1B_LAYER, spec, jobs_of[c], c, ref_key=ref_key_of[B1B_H], extra=info(c)))
+    for c in (FD14_CODES if full else ()):
         spec = _variant(phys[c], "db_fd", f"{_tag_of(jobs_of[c])}_h1.4", "full", intact_job=ref_id[1.4], h_int=1.4, slip_tol=H14_SLIP_TOL)
         rows.append(_row(f"FD0_h1.4_{c}", "FD-0 h1.4", spec, jobs_of[c], c, ref_key=ref_key_of[1.4], extra=info(c)))
     # BD (i)：现有只解摩擦的网格变体的同网格 bond_only（stage db_bo）
     others = sorted(n for n, sp in qspecs.items() if sp and not n.startswith("db_") and sp.get("femur_id") == FEMUR_ID and sp.get("fric_only")
                     and sp.get("kind") in ("design", "variant") and sp.get("h_int") != H_PROD and n not in MESH_SOURCES)
-    if others:
+    if others and full:
         warn.append(f"fric_only 3406 mesh variants in the queue that MESH_SOURCES does not cover (no bond_only partner in this batch): {others}")
-    for j in MESH_SOURCES:
+    for j in (MESH_SOURCES if full else ()):
         s_ = load_source(j, "mesh", qspecs)
         h = float(s_["h_int"])
         if h not in ref_id:
@@ -879,7 +891,7 @@ def build(batch: str = "b1") -> dict:
         spec = _variant(_phys(s_, j), "db_bo", _tag_of(j), "bond", intact_job=ref_id[h])
         rows.append(_row(f"BD_mesh_{_tag_of(j)}", "BD mesh", spec, j, None, ref_key=ref_key_of[h], extra={"partner_of": j}))
     # BD (i')：v3406 噪声设计的 h 2.0 bond_only（源 = h 2.0 只解摩擦孪生；物理 spec 必须 = 两个噪声网格源只改 h_int）
-    if NOISE_H2_PARTNER:
+    if full and NOISE_H2_PARTNER:
         tw = load_source(NOISE_H2_SOURCE, "h2twin", qspecs)
         tw_phys = _phys(tw, NOISE_H2_SOURCE)
         for j in NOISE_MESH:
@@ -892,8 +904,18 @@ def build(batch: str = "b1") -> dict:
     # BD (ii)：先导设计 h 2.0 一侧没有可用粘接结果的 → h 2.0 bond_only（参照 sb_intact_h2_9c9d7fb5）
     partner_info = {}
     idents = {n: _ident(sp) for n, sp in qspecs.items() if sp is not None}
+    b1_ids = {} if full else recorded_ids("b1")[0]       # b1b：h 2.0 一侧也可以是 b1 的 BD h2.0 补算（db_bo，usable_bonded_h2 不看 db_*）
     for c in fd25:
         have = usable_bonded_h2(src[c], qspecs, warn, idents)
+        if not full:
+            bo = b1_ids.get(f"BD_h2_{c}")
+            if bo and J.state(J.QROOT / bo) == "DONE":
+                have = list(have) + [bo]
+            partner_info[c] = have
+            if not have:
+                warn.append(f"FD0_h{B1B_H:g}_{c}: the h 2.0 side has no bonded result (no usable job, no DONE b1 BD_h2_{c}); "
+                            "its SED / vM pair is missing (not added here)")
+            continue
         partner_info[c] = have
         if not have:
             spec = _variant(phys[c], "db_bo", f"{_tag_of(jobs_of[c])}_h2", "bond", intact_job=REF_H2)
@@ -921,7 +943,7 @@ def build(batch: str = "b1") -> dict:
     if rec_err:
         warn.append(rec_err)
     for r in rows:
-        problems += [f"{r['key']}: {p}" for p in row_problems(r, lambda j: refs_in_batch.get(j) or _spec_of(j, qspecs), h14_ref=ref_id[1.4])]
+        problems += [f"{r['key']}: {p}" for p in row_problems(r, lambda j: refs_in_batch.get(j) or _spec_of(j, qspecs), h14_ref=ref_id.get(1.4))]
         r["ack_failed"] = None
         if r["dedup"] != "new":
             pr, notes, r["ack_failed"] = hit_checks(r["key"], r["id"], _spec_of(r["id"], qspecs), recorded=recorded.get(r["key"]) == r["id"])
