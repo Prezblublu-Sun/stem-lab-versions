@@ -1,12 +1,16 @@
-"""3406 数据库（db3406）的批量提交器 v1.1（D1 = v0 + 审查修正 + 采纳 CD-0 种子 + 第二轮审查修正）。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
-（第 1.6 节命名 / 查重 / 版本陷阱、第 1.8 节检查 13 / 14、第 2.1–2.7 节；用户 2026-10-25 批准两天部分）。
-不改 8 个哈希文件（code_hash 必须是 6d7af243d0）、不改 jobs.py / stage_neckopt.py / stage_deck.py / stage_v2a.py；提交只走 jobs.submit。
+"""3406 数据库（db3406）的批量提交器 v1.2（D1 = v0 + 审查修正 + 采纳 CD-0 种子 + 第二轮审查修正；D2 = 批次 b2 + 并行喂料）。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
+（第 1.3 / 1.4 节分层与无偏集、第 1.6 节命名 / 查重 / 版本陷阱、第 1.8 节检查 13 / 14、第 2.1–2.7 节、第 3.2 节 CR-T；用户 2026-10-25 批准两天部分）。
+不改 8 个哈希文件（code_hash 必须是 6d7af243d0）、不改 jobs.py / stage_neckopt.py / stage_deck.py / stage_v2a.py / tpl_record.py；提交只走 jobs.submit。
 
-    python v2/stage_db.py dry-run b1 [--root <只读副本>]   只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
+    python v2/stage_db.py dry-run b1|b2 [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
                                                           预期 id、查重结果（hash8 / 物理键）、种子采纳、参照与参照核对；末尾 DRY-RUN-JSON。什么都不写
-    python v2/stage_db.py feed b1 [--once] [--poll 60]    喂料器（只在 Linux 上跑）：
+                                                          （b2 另印 G2 核对、CR-1 / CR-T 选点、放宽计数、槽时估计、b1 优先级的当前判断）
+    python v2/stage_db.py feed b1|b2 [--once] [--poll 60] 喂料器（只在 Linux 上跑；b1 与 b2 可以同时跑，见"并行喂料"）：
         cd ~/mobo_toy_v2/code && nohup taskset -c 4-11 nice -n 19 ../run.sh v2/stage_db.py feed b1 >> ../logs/db_feed.out 2>&1 < /dev/null &
-    python v2/stage_db.py status b1 [--root …]            只读：清单 results/db_manifest_b1.json + 队列里的状态
+        cd ~/mobo_toy_v2/code && nohup taskset -c 4-11 nice -n 19 ../run.sh v2/stage_db.py feed b2 >> ../logs/db_feed_b2.out 2>&1 < /dev/null &
+    python v2/stage_db.py status b1|b2 [--root …]         只读：清单 results/db_manifest_<批次>.json + 队列里的状态
+    python v2/stage_db.py select b2 [--root …]            写 results/db_crt_selection.json（CR-1 / CR-T 名单，冻结）与 results/db_widened_counts.json；
+                                                          不提交（feed b2 第一次启动时也会写选点文件；已有且不同 → 拒绝）
 
 批次 b1 = 规划第 2.4 节的第一批（"首批 95 个"；只粘接补算的个数由队列决定，见下：84 行）。全部 kind variant（参照 kind intact），stage db_*：
     REF   db_ref  完整股骨参照 h_int 1.94 / 2.06 / 2.5 / 1.4 = sb_intact_h2_9c9d7fb5 的 spec 只改 h_int（3406 参照就是
@@ -105,6 +109,53 @@
         同一时刻只能有一个喂料器（logs/db_feed.lock）。全部行 DONE / FAILED / blocked（没有 held、没有 pending）后退出（有 blocked → 退出码 3）。
 默认（用户批准的规划 2.1）：空芯股骨记 femur_model_version 3406R_v1_hollowcore、hollow_core 真；网格变体全部带粘接、用同网格参照；
 δ 与载荷是条件变量；求解端 3 槽 × 5 核不变（不归这里管）。
+
+批次 b2 = 规划第 2.4 节的 SF-1 128 + CR-1 32（160 行），基线条件 = PHASES[13]（δ 0.10、楼梯、h_int 2.0、neck_in_shoulder、dense、
+ref_cut 16、a_max 2000、3406 isthmus），spec = Phase(13).spec_of(u) 的物理键 + kind variant + stage db_sf / db_cr（不用 sb13：会被阶段 13 收编）。
+    SF-1  db_sf  候选池 results/pools/neckopt_p11_n16384_s0_115ae6b5.npz（= gated_pool(Phase(13), 16384, 0)，Sobol 种子 51100）的可行行
+                 pool_idx 32..159（Sobol 顺序；0..31 = 32 个初始设计）。source sf、selection iid。层内第 5、10、… 行带粘接（25 行），
+                 intact_job sb_intact_h2_9c9d7fb5，其余只解摩擦。采纳：两臂（sb13_a* / sb14_a*）里与某 SF 点"同一设计、同一条件，只差带不带
+                 粘接"的作业 → 该行改用那个作业的模型（fric_only 或带粘接），于是物理键查重 existing → 记成那个作业，不再算 FE；
+                 manifest 记 sf_bo_overlap 真、bo_twins、adopted_role_from、bonded_planned（原定是否带粘接）；unbiased 假（设计在排除集 E 里，
+                 规划 1.4：只进 A3 测试）。两臂状态文件里 pool_idx 落在 32..159 的记录必须正好是被采纳的作业（x 逐位等于池点），否则问题。
+    CR-1  db_cr  角落子盒 L 38–45、α 40–45、h_cut 16–18、m 0.5–0.8（其余 9 个全范围）的 4096 个 scrambled Sobol 点（种子 52101，
+                 cr_points()：u = a + s·w，阶段 13 的单位坐标），由 tpl_record（0 FE；Linux：tpl_record.py batch --phase 13 --workers 2）
+                 模板化为 results/db_pool/db_cr4096_s52101.npz（核对：u13 逐位 = cr_points()、全部算完、0 error、code_hash、选号规则 = 阶段 13）。
+                 选点规则 CR_RULE：可行点里离任何已有设计（队列里全部 3406 设计作业 + 本批 SF-1，阶段 13 单位立方体欧氏距离、不截断）
+                 ≥ 0.02 的，贪心最大最小，e* = 0 / ≠ 0 交替各 16（第一个点 = e* = 0 组 Sobol 下标最小的候选）。source corner、selection
+                 stratum、unbiased 假（在 E 里）。层内第 5、10、… 行带粘接（6 行）。
+    CR-T  （不提交）同一贪心最大最小接着选 15 + 15：CR-1 与全部已有设计预先放进"已选"，每次取离它们（和已选的 CR-T）最远的候选；
+                 下限 0.02。字面的"离 CR-1 与已有设计都 ≥ CR-1 间距（CR-1 两两最小距离）"在 13 维里是装箱极限、可以一个候选都没有：
+                 照算并报告（crt_literal_candidates），不当作选点条件。名单写 results/db_crt_selection.json（select b2，或 feed b2 第一次启动时；
+                 同一个文件还冻结 CR-1 名单与当时的"已有设计"清单及其 sha256：重启时按冻结清单重算，名单必须逐项相同；已有 b2 清单而选点
+                 文件丢了 → 拒绝，因为从现在的队列重算会把本批自己的作业也当成已有设计）。
+    放宽  只做 0-FE 计数（给用户定边界）：α 15–55、m 0.25–2.0（其余同阶段 13）的 4096 个 Sobol 点（种子 52201，wide_points()），两个单 worker
+                 进程各算一半（db_wide4096_s52201_a / _b.npz；进程内把 PHASES[99] = 阶段 13 换 α、m 的范围，tpl_record.batch(phase 99)；
+                 x13 = wide_physical(u) 核对）。按区域（旧盒内 / 只 α > 45 / 只 m < 0.5 / 两者）与角落（L 38–45、h_cut 16–18、α 40–55、
+                 m 0.25–0.8：旧角落子盒内 / 超出旧边界）给 n、可行数、可行率（Wilson 95 %）、e* = 0 占比、A0* 中位，写 results/db_widened_counts.json。
+    G2（dry run 与 select 都做；任一条不过 → 问题）：重建 Sobol(13, seed 51100).random(16384)，候选池的 2169 行都逐位在其中、下标递增；
+                 6.5 万点池 results/db_pool/pool65k_s51100.npz 在就再核：前 16384 行 u13 = 重建的点，可行下标集合 = 候选池的下标集合；
+                 同一种子重放：再生成一次池点、子盒点，再选一次 CR-1 / CR-T，名单逐项相同；CR-T 与 CR-1 不相交。
+    顺序（确定、重启幂等）：SF-1 按 pool_idx、CR-1 按最大最小的选择顺序，再按比例交错（SF 第 i 个在 (i+1)/128、CR 第 j 个在 (j+1)/32，
+                 相同时 SF 在前）：SF 4 个、CR 1 个、……；键 SF1_p<pool_idx 4 位>、CR1_c<子盒下标 4 位>。清单另记 pool / 模板化文件 /
+                 冻结清单的 sha256，重启时不同 → 拒绝。
+    槽时（规划成本模型）：新作业 SF 30.75 min、CR 23.25 min，带粘接再加 0.6 min（采纳的不计）；墙钟 = 槽时 ÷ (3 × 85 %)。规划的 30.75 / 23.25
+                 已把 20 % × 0.6 摊进去，所以另报一个"粘接在单价里"的口径。
+
+并行喂料（b1 与 b2 同时跑）
+    锁：每批一个（b1 = logs/db_feed.lock，与正在跑的 b1 相同；b2 = logs/db_feed_b2.lock）；日志 logs/db_feed.log / logs/db_feed_b2.log；
+        STOP_DB_FEED 停全部，STOP_DB_FEED_<批次> 只停那一批。
+    全局深度上限：未领取的 db_*（任何批次，NEW + READY）≤ 6，本来就按全部 db_* 数。
+    全局提交互斥锁 logs/db_submit.lock：每轮"快照 → 闸门 → 提交 → 写清单"在锁内（120 s 拿不到 → 本轮跳过，记 WARNING）。2026-10-26 01:24 UTC
+        起跑的 b1 喂料器是旧代码、不拿这把锁；所以低优先级批次（b2）每轮最多提交 1 个，提交前重新扫一次队列，再核深度与优先级（窗口毫秒级）。
+    b1 优先（PRIORITY = {b2: (b1,)}）：b2 每轮先读 b1 的清单（results/db_manifest_b1.json，只读；没有 = b1 还没启动，按 b1 的作业表现建），
+        状态按队列刷新，在副本上跑 b1 的 feed_pass(probe=True)（不提交、不写；同一套闸门：深度、参照、重作业、独占、慢启动、参照优先、h 1.4
+        操作员文件）。b1 此刻有可提交的行、b1 的独占行在飞、或 b1 只剩独占行（与依赖它的 h ≤ 1.4 行）且队列一空它就会提交 → b2 本轮不提交
+        （最后一种 = 让队列排空，REF_h1.4 才能单独跑）；b1 清单读不了 / 与作业表不符 / 探查会停 → b2 也不提交（WAIT 里有原因）。
+        b1 全部 DONE / FAILED / blocked 后不再探查。b1 的 held 行不算可提交。原因变化时记一行 PRIORITY。
+    同样的闸门：慢启动（SF-1、CR-1 在 SLOW_START_LAYERS 里）、按层失败闸门与"最先 10 行"（每批各自；DB_RELEASE_SF-1 / DB_RELEASE_CR-1 /
+        DB_RELEASE_b2，DB_RELEASE_ALL 对所有批次）、磁盘、aux md5、HEARTBEAT、FAILED 行记录。b2 没有重作业、没有独占行。
+    两批里同一物理计算的行 → b2 启动时拒绝（dry run 列为问题）。
 """
 from __future__ import annotations
 
@@ -156,7 +207,7 @@ REF_PRIORITY_CAP = 1                        # 参照优先期间其他未领取 
 GATE_MIN_FAILED = 2                         # 按层失败闸门：未确认的 FAILED ≥ 2 …
 GATE_MAX_RATE = 0.05                        # … 且失败率 > 5 %
 FIRST_N, FIRST_N_MAX_FAILED = 10, 2         # 本批最先完成的 10 个喂料器自己提交的行里 FAILED > 2 → 每层都停（规划 G1）
-SLOW_START_LAYERS = ("NZ-1", "FD-0 h2.5", "FD-0 h1.4", "BD mesh", "BD h2.0")   # 新层慢启动（REF 串行、CD-0 是种子：不在内）
+SLOW_START_LAYERS = ("NZ-1", "FD-0 h2.5", "FD-0 h1.4", "BD mesh", "BD h2.0", "SF-1", "CR-1")   # 新层慢启动（REF 串行、CD-0 是种子：不在内）
 SLOW_START_CAP = 2                          # … DONE 不到 SLOW_START_DONE 行之前，该层在飞（NEW / READY / CLAIMED / SOLVED）最多 2 行
 SLOW_START_DONE = 2
 WAIT_EVERY = 10                             # 没有提交时：第 1 轮及之后每 10 轮记一行 WAIT
@@ -212,9 +263,38 @@ NOISE_H2_SOURCE = "sb11_smoke_f_h16_898709ba"
 NOISE_MESH = ("v3406_noise_smoke_h16_hint1.94_1de5bb9e", "v3406_noise_smoke_h16_hint2.06_73a2c8bf")
 NOISE_H2_TAG = "v3406_noise_smoke_h16_hint2"
 LAYER_SOURCE = {"REF": "intact_ref", "CD-0": "cond_anchor", "NZ-1": "noise", "FD-0 h2.5": "fid_h25", "FD-0 h1.4": "fid_h14",
-                "BD mesh": "bond_partner", "BD h2.0": "bond_partner"}
-BATCHES = ("b1",)
-SEEDS = {"b1": ("db_seed_CD0.json",)}      # 主会话已提交的种子（results/ 下）：每个种子作业必须被本批一行 1:1 采纳；文件缺失 = 问题
+                "BD mesh": "bond_partner", "BD h2.0": "bond_partner", "SF-1": "sf", "CR-1": "corner"}
+LAYER_SELECTION = {"REF": "reference", "SF-1": "iid"}   # 其余层 stratum（tools/db_export.DB_STAGE_RULES：db_sf = sf / iid，db_cr = corner / stratum）
+BATCHES = ("b1", "b2")
+SEEDS = {"b1": ("db_seed_CD0.json",)}      # 主会话已提交的种子（results/ 下）：每个种子作业必须被本批一行 1:1 采纳；文件缺失 = 问题（b2 没有种子）
+
+# ---------------------------------------------------------------- 批次 b2（规划 1.3 / 1.4、2.2 D2、2.4 SF-1 / CR-1、3.2 CR-T、2.5 放宽计数）
+B2_PHASE = 13                               # 基线条件 = PHASES[13]（δ 0.10、楼梯、h_int 2.0、neck_in_shoulder、dense、ref_cut 16、a_max 2000）
+POOL_N, POOL_SEED_ARG = 16384, 0            # 候选池 = stage_neckopt.gated_pool(Phase(13), 16384, 0) 的文件（pool_phase 11）
+POOL_NAME = "neckopt_p11_n16384_s0_115ae6b5.npz"   # results/pools/ 下；= SN.pool_file(Phase(13), 16384, 0).name（build 核对）
+POOL_SOBOL_SEED = 51100                     # = 50 000 + 100 × 11 + 0（stage_neckopt.gated_pool 的种子规则）
+POOL65K = "db_pool/pool65k_s51100.npz"      # 6.5 万点模板化池（tpl_record，同一种子）：在就用它的前 16384 行再核一次可行性（只读）
+N_INIT = 32                                 # pool_idx 0..31 = 阶段 13 的 32 个初始设计
+SF1_RANGE = (32, 160)                       # SF-1 = 可行行 pool_idx 32..159（128 个，Sobol 顺序）
+BOND_EVERY = 5                              # 每层按层内顺序第 5、10、… 个带粘接（= stage_neckopt.next_bonded，用户 10-23 的 20 % 规则）
+ARM_PREFIXES = ("sb13_a", "sb14_a")         # 两臂的 BO 作业：SF 点与它们物理相同（只差粘接与否）→ 采纳，sf_bo_overlap
+CR_BOX = {"L": (38.0, 45.0), "alpha": (40.0, 45.0), "h_cut": (16.0, 18.0), "m": (0.5, 0.8)}   # 角落子盒；其余 9 个变量全范围
+CR_N, CR_SOBOL_SEED = 4096, 52101           # 子盒 Sobol（scrambled）点数与种子（独立种子，不由数据决定）
+CR_TPL = "db_pool/db_cr4096_s52101.npz"     # results/ 下：tpl_record batch --phase 13 对 cr_points() 的输出（0 FE）
+CR1_QUOTA = (16, 16)                        # CR-1：e* = 0 / e* ≠ 0 各 16
+CRT_QUOTA = (15, 15)                        # CR-T：同一规则 15 / 15（30 个，第 1 周的留出角落测试集，b2 不提交）
+CR_EXCL_R = 0.02                            # 候选离任何已有设计（单位坐标欧氏距离）< 0.02 → 去掉（近重复）
+WIDE_BOX = {"alpha": (15.0, 55.0), "m": (0.25, 2.0)}   # 放宽边界（其余同阶段 13）：只做 0-FE 计数，给用户定边界
+WIDE_N, WIDE_SOBOL_SEED = 4096, 52201
+WIDE_TPL = "db_pool/db_wide4096_s52201.npz"  # results/ 下：tpl_record 对 wide_points() 的输出（放宽空间的单位坐标；x13 = 物理值）
+CRT_FILE = "db_crt_selection.json"          # results/ 下：CR-1 / CR-T 名单与冻结的"已有设计"清单（select / feed 第一次启动写）
+WIDE_COUNTS_FILE = "db_widened_counts.json"  # results/ 下：放宽边界的分区计数（select 写）
+COST_MIN = {"SF-1": 30.75, "CR-1": 23.25}   # 规划成本模型：每个作业的槽时（min）；带粘接再加 BOND_MIN
+BOND_MIN = 0.6
+SLOTS, UPTIME = 3, 0.85                     # 墙钟 = 槽时 ÷ (3 槽 × 85 %)
+PRIORITY = {"b2": ("b1",)}                  # b2 只在 b1 此刻没有可提交的行时提交（见模块说明"并行喂料"）
+LOW_MAX_SUBMIT = 1                          # 低优先级批次每轮最多提交 1 个，提交前重新核对深度与优先级
+SUBMIT_LOCK_TIMEOUT_S = 120.0               # 全局提交互斥锁 logs/db_submit.lock 的等待上限（拿不到 → 本轮跳过，记 WARNING）
 if {L.replace(" ", "_") for L in LAYER_SOURCE} & {RELEASE_ALL, *BATCHES}:      # DB_RELEASE_ALL / DB_RELEASE_<批次> 不能与某层的放行文件同名
     raise RuntimeError("a layer slug equals a batch-wide release name")
 
@@ -606,7 +686,7 @@ def usable_bonded_h2(src: dict, qspecs: dict, warn: list, idents: dict | None = 
 
 def _row(key, layer, spec, source_job, code=None, ref_key=None, extra=None) -> dict:
     return {"key": key, "layer": layer, "stage": spec["stage"], "source": LAYER_SOURCE[layer],
-            "selection": "reference" if layer == "REF" else "stratum", "design_code": code, "source_job": source_job,
+            "selection": LAYER_SELECTION.get(layer, "stratum"), "design_code": code, "source_job": source_job,
             "condition_id": cond_id(spec), "bonded": model_set(spec) in ("fric+bond", "bond"), "model_set": model_set(spec),
             "intact_job": spec.get("intact_job"), "ref_key": ref_key, "heavy": is_heavy(spec), "exclusive": key in EXCLUSIVE,
             "femur_model_version": FEMUR_MODEL_VERSION, "hollow_core": HOLLOW_CORE, "seed": None, "spec": spec, **(extra or {})}
@@ -722,6 +802,8 @@ def build(batch: str = "b1") -> dict:
     结构性问题（源作业缺失 / 没 DONE / 未分类的键 / 查重碰撞 / 批内重复 id）→ SystemExit；逐行检查与种子的问题收进 problems。"""
     if batch not in BATCHES:
         raise SystemExit(f"unknown batch {batch!r} (known: {list(BATCHES)})")
+    if batch == "b2":
+        return build_b2()
     unreadable = []
     qspecs = scan_queue(unreadable)
     by_h8 = _by_h8(qspecs)
@@ -848,13 +930,675 @@ def build(batch: str = "b1") -> dict:
     seeds, seed_probs = check_seeds(batch, rows, qspecs)
     problems += seed_probs
     ids = {r["id"] for r in rows} | {r["expected_id"] for r in rows}
-    stray = sorted(n for n in qspecs if n.startswith("db_") and n not in ids)
+    other = set()                                       # 别的批次清单里记下的作业（b2 的 db_sf / db_cr）不算"不是本批的 db_* 目录"
+    for ob in BATCHES:
+        if ob != batch:
+            other |= {v for v in recorded_ids(ob)[0].values() if v}
+    stray = sorted(n for n in qspecs if n.startswith("db_") and n not in ids and n not in other and not n.startswith(("db_sf_", "db_cr_")))
     if stray:
         warn.append(f"db_* queue dirs that are not rows of batch {batch}: {stray}")
     n_partner = sum(r["layer"] == "BD h2.0" for r in rows)
     return {"batch": batch, "rows": rows, "problems": problems, "warnings": warn, "code_hash": J.code_hash(), "init_median": med,
             "pilot16": pilot16, "ref_id": {f"{h:g}": v for h, v in ref_id.items()}, "partners": partner_info, "n_partner": n_partner,
             "seeds": seeds, "queue_root": str(J.QROOT), "n_queue_dirs": len(qspecs)}
+
+
+# ================================================================ 批次 b2：点集（Sobol 种子 → 单位坐标；与 tpl_record 的输入逐位相同）
+def _np():
+    import numpy as np
+    return np
+
+
+def sobol(n: int, seed: int, d: int = 13):
+    """scipy.stats.qmc.Sobol(d, scramble=True, seed=seed).random(n)（= stage_neckopt.gated_pool 的取法）。"""
+    from scipy.stats import qmc
+    return qmc.Sobol(d, scramble=True, seed=seed).random(n)
+
+
+def b2_phase():
+    return SN.Phase(B2_PHASE)
+
+
+def _box_affine(space: dict, box: dict, vars_: list):
+    """子盒 box（物理范围，没写的变量 = 全范围）在 space 的单位坐标里的 u = a + s·w（全范围的变量 a = 0、w = 1：u 就是 s 本身）。"""
+    np = _np()
+    a, w = np.zeros(len(vars_)), np.ones(len(vars_))
+    for i, k in enumerate(vars_):
+        if k in box:
+            lo, hi = space[k]
+            blo, bhi = box[k]
+            if not (lo - 1e-12 <= blo < bhi <= hi + 1e-12):
+                raise SystemExit(f"sub-box {k} {box[k]} is not inside the phase range {space[k]}")
+            a[i], w[i] = (blo - lo) / (hi - lo), (bhi - blo) / (hi - lo)
+    return a, w
+
+
+def cr_points():
+    """角落子盒的 CR_N 个 scrambled Sobol 点（种子 CR_SOBOL_SEED），换成阶段 13 的单位坐标（列序 = Phase(13).vars）。"""
+    ph = b2_phase()
+    a, w = _box_affine(ph.space, CR_BOX, ph.vars)
+    return a + sobol(CR_N, CR_SOBOL_SEED, len(ph.vars)) * w
+
+
+def wide_space() -> dict:
+    """放宽后的设计空间：阶段 13 的变量，α、m 换成 WIDE_BOX。"""
+    return {**b2_phase().space, **WIDE_BOX}
+
+
+def wide_points():
+    """放宽空间的 WIDE_N 个 scrambled Sobol 点（种子 WIDE_SOBOL_SEED；放宽空间的单位坐标，列序 = Phase(13).vars）。"""
+    return sobol(WIDE_N, WIDE_SOBOL_SEED, len(b2_phase().vars))
+
+
+def wide_physical(U):
+    """放宽空间的单位坐标 → 物理值（N × 13，列序 = Phase(13).vars；= 把 WIDE_BOX 代进 PHASES 后 Phase.design_of 的换算）。"""
+    np = _np()
+    ws, vars_ = wide_space(), b2_phase().vars
+    lo = np.array([ws[k][0] for k in vars_])
+    hi = np.array([ws[k][1] for k in vars_])
+    return lo + np.asarray(U, float) * (hi - lo)
+
+
+WIDE_PARTS = ((WIDE_TPL.replace(".npz", "_a.npz"), 0, 2048), (WIDE_TPL.replace(".npz", "_b.npz"), 2048, 4096))   # 两个进程各算一半（≤ 2 个 worker）
+
+
+def _sha256_path(p: pathlib.Path) -> str:
+    return hashlib.sha256(p.read_bytes()).hexdigest()
+
+
+# ---------------------------------------------------------------- b2：候选池与 G2 核对
+def load_pool() -> dict:
+    """阶段 13 的候选池文件（= gated_pool(Phase(13), 16384, 0) 读的那个）：可行行（Sobol 顺序）的单位坐标与去骨量。
+    文件名与 SN.pool_file 不同 / 文件缺失 / 旁边的 json 与 npz 不符 → SystemExit。"""
+    np = _np()
+    ph = b2_phase()
+    want = SN.pool_file(ph, POOL_N, POOL_SEED_ARG)
+    if want.name != POOL_NAME:
+        raise SystemExit(f"pool: stage_neckopt.pool_file(Phase(13), {POOL_N}, {POOL_SEED_ARG}) is {want.name}, not the pinned {POOL_NAME} "
+                         "(pool key changed: code hash, space or phase settings); refusing")
+    p = J.RESULTS / "pools" / POOL_NAME
+    if not p.exists():
+        raise SystemExit(f"pool file {p} is missing (SF-1 takes its feasible rows in Sobol order)")
+    with np.load(p, allow_pickle=False) as z:
+        U, loss = np.asarray(z["U"], float), np.asarray(z["loss"], float)
+    meta, err = _read_json(p.with_suffix(".json"))
+    if not isinstance(meta, dict):
+        raise SystemExit(f"pool meta {p.with_suffix('.json')} unreadable ({err or 'missing'})")
+    bad = [f"{k} {meta.get(k)!r} != {v!r}" for k, v in (("phase", 11), ("n", POOL_N), ("seed", POOL_SEED_ARG), ("feasible", len(U)))
+           if meta.get(k) != v]
+    if bad or U.shape != (len(U), len(ph.vars)) or len(loss) != len(U):
+        raise SystemExit(f"pool {p.name}: meta / arrays do not match ({'; '.join(bad) or 'array shapes'})")
+    if len(U) < SF1_RANGE[1]:
+        raise SystemExit(f"pool {p.name}: {len(U)} feasible rows < {SF1_RANGE[1]} (SF-1 needs pool_idx {SF1_RANGE[0]}..{SF1_RANGE[1] - 1})")
+    return {"U": U, "loss": loss, "file": p.name, "sha256": _sha256_path(p), "meta": meta}
+
+
+def g2_pool_check(pool: dict) -> dict:
+    """G2（规划 2.2 D2 / 2.7）：按种子 POOL_SOBOL_SEED 重建 16384 个 Sobol 点，候选池的每个可行行必须逐位等于其中一点，且下标严格递增
+    （= 可行行按 Sobol 顺序）；6.5 万点模板化池（POOL65K，在就核）的前 16384 行 u13 必须逐位等于重建的点，其可行行的下标集合必须等于
+    候选池的那些下标（两次独立的模板化给出同一个可行集）。返回 {"ok", "problems", ...}。"""
+    np = _np()
+    D = sobol(POOL_N, POOL_SOBOL_SEED, pool["U"].shape[1])
+    idx = {D[i].tobytes(): i for i in range(len(D))}
+    pos = [idx.get(np.ascontiguousarray(u).tobytes()) for u in pool["U"]]
+    missing = [i for i, q in enumerate(pos) if q is None]
+    incr = not missing and all(pos[i] < pos[i + 1] for i in range(len(pos) - 1))
+    probs = []
+    if missing:
+        probs.append(f"G2: {len(missing)} pool rows are not bit-identical to any point of the regenerated Sobol draw (seed {POOL_SOBOL_SEED}); "
+                     f"first pool_idx {missing[:5]}")
+    elif not incr:
+        probs.append("G2: the pool rows are not in Sobol order (their indices in the regenerated draw are not increasing)")
+    out = {"seed": POOL_SOBOL_SEED, "n_draw": POOL_N, "n_pool": len(pos), "all_found": not missing, "increasing": incr,
+           "sobol_index_of_pool_idx0": pos[0] if pos else None, "sobol_index_of_last": pos[-1] if pos else None,
+           "sobol_index_sf1": [pos[SF1_RANGE[0]], pos[SF1_RANGE[1] - 1]] if not missing else None}
+    f65 = J.RESULTS / POOL65K
+    if f65.exists():
+        try:
+            with np.load(f65, allow_pickle=False) as z:
+                u65, feas, done, errf = z["u13"][:POOL_N], z["feasible"][:POOL_N], z["done"][:POOL_N], z["error"][:POOL_N]
+                meta65 = json.loads(str(z["meta_json"]))
+        except (OSError, ValueError, KeyError) as e:
+            probs.append(f"G2: {f65} unreadable ({type(e).__name__}: {e})")
+        else:
+            same_u = bool(np.array_equal(u65, D))
+            fp = np.flatnonzero(feas & done & ~errf).tolist()
+            same_f = (not missing) and fp == pos
+            out["pool65k"] = {"file": POOL65K, "complete": meta65.get("complete"), "n": meta65.get("n"), "prefix_u13_equal": same_u,
+                              "n_done_prefix": int(done.sum()), "n_error_prefix": int(errf.sum()), "feasible_prefix": len(fp),
+                              "feasible_index_set_equal": same_f,
+                              "only_in_pool": len(set(p_ for p_ in pos if p_ is not None) - set(fp)), "only_in_65k": len(set(fp) - set(pos))}
+            if not same_u:
+                probs.append(f"G2: {POOL65K} rows 0..{POOL_N - 1} are not the regenerated Sobol draw (seed {POOL_SOBOL_SEED})")
+            elif not done.all() or errf.any():
+                probs.append(f"G2: {POOL65K} prefix has {int((~done).sum())} rows not done and {int(errf.sum())} error rows")
+            elif not same_f:
+                probs.append(f"G2: {POOL65K} feasible rows in the first {POOL_N} ({len(fp)}) differ from the pool's {len(pos)} "
+                             f"({out['pool65k']['only_in_pool']} only in the pool, {out['pool65k']['only_in_65k']} only in the 65k file)")
+    else:
+        out["pool65k"] = {"file": POOL65K, "present": False}
+    out["ok"] = not probs
+    out["problems"] = probs
+    return out
+
+
+# ---------------------------------------------------------------- b2：tpl_record 文件
+def _tpl_rule_expect() -> dict:
+    ph = b2_phase()
+    import stage_v2a as S2
+    return {"femur_id": ph.femur_id, "neck_axis": ph.neck_axis, "margin_check": ph.margin_check, "a_bounds_max": ph.a_bounds_max,
+            "ref_cut_mm": float(ph.ref_cut_mm), "min_A0": float(S2.MIN_A0)}
+
+
+def load_tpl(rel: str, U_expect, phys_expect=None, rows: tuple | None = None) -> dict:
+    """tpl_record batch 的输出（results/<rel>）。核对：工具与格式、全部算完、没有 error 行、code_hash、选号规则（= 阶段 13）、
+    变量顺序、u13 逐位等于 U_expect（由种子重建的点）、x13 = phys_expect（给了时；放宽空间的物理值）。不符 → SystemExit。"""
+    np = _np()
+    p = J.RESULTS / rel
+    if not p.exists():
+        raise SystemExit(f"templating file {p} is missing (0-FE tpl_record run; see the module docstring 'b2 inputs')")
+    try:
+        with np.load(p, allow_pickle=False) as z:
+            d = {k: z[k] for k in z.files}
+        meta = json.loads(str(d.pop("meta_json")))
+    except (OSError, ValueError, KeyError) as e:
+        raise SystemExit(f"templating file {p} unreadable ({type(e).__name__}: {e})") from None
+    why = []
+    if meta.get("tool") != "tpl_record" or meta.get("format") != 2:
+        why.append(f"tool / format {meta.get('tool')}/{meta.get('format')} (want tpl_record/2)")
+    if not meta.get("complete") or not bool(np.all(d["done"])):
+        why.append(f"incomplete ({int(np.sum(d['done']))}/{len(d['done'])} done)")
+    if bool(np.any(d["error"])):
+        why.append(f"{int(np.sum(d['error']))} error rows")
+    prov = meta.get("provenance") or {}
+    if prov.get("code_hash") != DB_CODE_HASH:
+        why.append(f"provenance code_hash {prov.get('code_hash')!r} != {DB_CODE_HASH}")
+    rule = meta.get("rule") or {}
+    exp = _tpl_rule_expect()
+    rd = [f"{k} {rule.get(k)!r} != {v!r}" for k, v in exp.items() if _norm(rule.get(k)) != _norm(v)]
+    if rd:
+        why.append("rule differs from phase 13: " + "; ".join(rd))
+    if list(map(str, d["var_names"])) != list(b2_phase().vars):
+        why.append(f"var_names {list(map(str, d['var_names']))} != Phase(13).vars")
+    if d["u13"].shape != np.shape(U_expect) or not np.array_equal(d["u13"], U_expect):
+        why.append("u13 is not the point list regenerated from the seed" + (f" (rows {rows[0]}..{rows[1] - 1})" if rows else ""))
+    if phys_expect is not None and (d["x13"].shape != np.shape(phys_expect) or not np.allclose(d["x13"], phys_expect, rtol=0, atol=1e-9)):
+        why.append("x13 (physical values) differ from the widened-box mapping")
+    if why:
+        raise SystemExit(f"templating file {p}: " + "; ".join(why))
+    d.update(meta=meta, file=rel, sha256=_sha256_path(p))
+    return d
+
+
+# ---------------------------------------------------------------- b2：已有设计、距离、最大最小选点
+def unit13(design: dict, h_cut: float, space: dict | None = None) -> list:
+    """设计 → 阶段 13 的单位坐标（不截断：盒外的设计照实给出 < 0 或 > 1 的值）。缺变量 → KeyError。"""
+    ph = b2_phase()
+    sp = space or ph.space
+    out = []
+    for k in ph.vars:
+        v = float(h_cut) if k == "h_cut" else float(design[k])
+        lo, hi = sp[k]
+        out.append((v - lo) / (hi - lo))
+    return out
+
+
+def evaluated_designs(qspecs: dict, warn: list) -> list:
+    """队列里所有 3406 设计作业（kind design / variant、femur_id sawbone3406、有 design、不是 import_stem；任何 stage、任何状态，失败的也算）
+    的不同设计：[{"u13": [...], "jobs": [...]}]（按 u13 排序，确定）。"""
+    by = {}
+    for n in sorted(qspecs):
+        sp = qspecs[n]
+        if sp is None or sp.get("kind") not in ("design", "variant") or sp.get("femur_id") != FEMUR_ID or sp.get("import_stem"):
+            continue
+        d = sp.get("design")
+        if not isinstance(d, dict):
+            continue
+        try:
+            u = tuple(unit13(d, float(sp.get("h_cut", 25.0))))
+        except (KeyError, TypeError, ValueError) as e:
+            warn.append(f"evaluated designs: {n} has no 13-variable design ({type(e).__name__}: {e}); not used for the CR distances")
+            continue
+        by.setdefault(u, []).append(n)
+    return [{"u13": list(u), "jobs": js} for u, js in sorted(by.items())]
+
+
+def _dist_to(A, B, chunk: int = 256):
+    """A (n × d) 每行到 B (m × d) 的最近欧氏距离（m = 0 → inf）；按块算（内存 ≤ chunk × m × d）。"""
+    np = _np()
+    A, B = np.asarray(A, float), np.asarray(B, float)
+    if len(B) == 0:
+        return np.full(len(A), np.inf)
+    out = np.empty(len(A))
+    for i in range(0, len(A), chunk):
+        out[i:i + chunk] = np.sqrt(((A[i:i + chunk, None, :] - B[None, :, :]) ** 2).sum(-1)).min(1)
+    return out
+
+
+def maximin_select(U, idx: list, group, quota: tuple, pre=None) -> list:
+    """贪心最大最小（规则见 CR_RULE）：候选 idx（升序 = Sobol 顺序），两组（group[i] = 0 → e* = 0，1 → e* ≠ 0）按 0, 1, 0, 1 … 交替
+    （一组配额满了就只取另一组）；每一步在该组的候选里取"到已选点（与预先放好的点 pre）的最近距离"最大的那个（平手取下标小的）；
+    没有 pre 时第一个点 = 第 0 组下标最小的候选。某组候选不够 → SystemExit。返回选中的下标（选择顺序）。"""
+    np = _np()
+    U = np.asarray(U, float)
+    idx = sorted(int(i) for i in idx)
+    cand = {0: [i for i in idx if group[i] == 0], 1: [i for i in idx if group[i] == 1]}
+    for g in (0, 1):
+        if len(cand[g]) < quota[g]:
+            raise SystemExit(f"maximin: group {g} ({'e* = 0' if g == 0 else 'e* != 0'}) has {len(cand[g])} candidates < quota {quota[g]}")
+    need = list(quota)
+    sel = []
+    has_pre = pre is not None and len(pre) > 0
+    dmin = {g: (_dist_to(U[cand[g]], pre) if has_pre and len(cand[g]) else np.full(len(cand[g]), np.inf)) for g in (0, 1)}
+    taken = {g: np.zeros(len(cand[g]), bool) for g in (0, 1)}
+    turn = 0
+    while need[0] + need[1] > 0:
+        g = turn if need[turn] > 0 else 1 - turn
+        turn = 1 - turn
+        if not sel and not has_pre:
+            j = 0
+        else:
+            score = np.where(taken[g], -1.0, dmin[g])
+            j = int(np.argmax(score))
+        i = cand[g][j]
+        taken[g][j] = True
+        need[g] -= 1
+        sel.append(i)
+        for h in (0, 1):
+            if len(cand[h]):
+                dmin[h] = np.minimum(dmin[h], np.sqrt(((U[cand[h]] - U[i]) ** 2).sum(1)))
+    return sel
+
+
+def min_pairwise(U) -> float:
+    np = _np()
+    U = np.asarray(U, float)
+    if len(U) < 2:
+        return math.inf
+    D = np.sqrt(((U[:, None, :] - U[None, :, :]) ** 2).sum(-1))
+    return float(D[np.triu_indices(len(U), 1)].min())
+
+
+CR_RULE = ("CR candidates = feasible rows (tpl_record feasible, no error) of the CR_N-point scrambled Sobol sample of the corner sub-box "
+           "(seed CR_SOBOL_SEED), whose Euclidean distance in the phase-13 unit cube (13 columns = Phase(13).vars, all designs unclipped) "
+           "to every evaluated design (each 3406 design job in the queue, any stage / state, plus the SF-1 designs of this batch) is >= "
+           "CR_EXCL_R. CR-1 = greedy maximin among them, groups e* == 0 / e* != 0 alternating 0, 1, 0, 1, ... (16 + 16); each step takes the "
+           "candidate of the group with the largest distance to the points already chosen (ties: lowest Sobol index); the first point is the "
+           "lowest-index candidate of group 0. CR-1 spacing = min pairwise distance in CR-1. CR-T = the same greedy maximin (15 + 15, "
+           "alternating) continued on the remaining feasible rows with CR-1 and every evaluated design pre-placed: each CR-T point is the "
+           "candidate farthest from CR-1, the evaluated designs and the CR-T points already chosen; hard floor CR_EXCL_R to CR-1 and to the "
+           "evaluated designs. The literal requirement 'distance >= the CR-1 spacing to CR-1 and to every evaluated design' is checked and "
+           "reported (crt_literal_candidates); in 13 dimensions it is a packing limit and can have no candidate at all.")
+
+
+def cr_select(tpl: dict, evaluated_u, U=None) -> dict:
+    """CR-1 与 CR-T（规则 CR_RULE）。evaluated_u：已有设计的单位坐标（含本批 SF-1）。返回名单与统计（纯计算，不写文件）。"""
+    np = _np()
+    U = np.asarray(tpl["u13"] if U is None else U, float)
+    feas = np.asarray(tpl["feasible"], bool) & ~np.asarray(tpl["error"], bool)
+    e = np.asarray(tpl["e_star"], float)
+    group = np.where(e == 0.0, 0, 1)
+    E = np.asarray(evaluated_u, float).reshape(-1, U.shape[1])
+    d_ev = _dist_to(U, E)
+    fe = np.flatnonzero(feas)
+    near = fe[d_ev[fe] < CR_EXCL_R]
+    c1 = fe[d_ev[fe] >= CR_EXCL_R]
+    cr1 = maximin_select(U, c1.tolist(), group, CR1_QUOTA)
+    spacing = min_pairwise(U[cr1])
+    d_c1 = _dist_to(U, U[cr1])
+    rest = np.array(sorted(set(fe.tolist()) - set(cr1)), int)
+    ok_t = rest[(d_c1[rest] >= CR_EXCL_R) & (d_ev[rest] >= CR_EXCL_R)] if len(rest) else rest
+    lit = rest[(d_c1[rest] >= spacing) & (d_ev[rest] >= spacing)] if len(rest) else rest
+    stats = {"n": int(len(U)), "feasible": int(feas.sum()), "feasible_e0": int((feas & (group == 0)).sum()),
+             "feasible_e_ne0": int((feas & (group == 1)).sum()), "excluded_near_evaluated": int(len(near)),
+             "excluded_near_jobs_idx": near.tolist(), "cr1_candidates": int(len(c1)), "cr1_candidates_e0": int((group[c1] == 0).sum()),
+             "cr1_spacing": spacing, "crt_candidates": int(len(ok_t)), "crt_candidates_e0": int((group[ok_t] == 0).sum()) if len(ok_t) else 0,
+             "crt_literal_candidates": int(len(lit)), "crt_literal_candidates_e0": int((group[lit] == 0).sum()) if len(lit) else 0,
+             "crt_literal_feasible": bool((group[lit] == 0).sum() >= CRT_QUOTA[0] and (group[lit] == 1).sum() >= CRT_QUOTA[1]) if len(lit) else False,
+             "n_evaluated": int(len(E))}
+    try:
+        crt = maximin_select(U, ok_t.tolist(), group, CRT_QUOTA, pre=np.vstack([U[cr1], E]))
+        crt_err = None
+    except SystemExit as ex:
+        crt, crt_err = [], f"CR-T: {ex.code} (candidates at distance >= {CR_EXCL_R} from CR-1 and from every evaluated design)"
+    stats.update(crt_spacing_own=min_pairwise(U[crt]) if crt else None,
+                 crt_min_dist_cr1=float(d_c1[crt].min()) if crt else None, crt_min_dist_evaluated=float(d_ev[crt].min()) if crt else None,
+                 crt_min_dist_ratio_to_cr1_spacing=float(min(d_c1[crt].min(), d_ev[crt].min()) / spacing) if crt else None,
+                 cr1_min_dist_evaluated=float(d_ev[cr1].min()), crt_overlap_cr1=sorted(set(crt) & set(cr1)))
+    return {"cr1": cr1, "crt": crt, "crt_error": crt_err, "stats": stats, "group": group, "d_ev": d_ev, "d_c1": d_c1}
+
+
+def _wilson(k: int, n: int, z: float = 1.96) -> list | None:
+    if n == 0:
+        return None
+    p = k / n
+    den = 1 + z * z / n
+    c = (p + z * z / (2 * n)) / den
+    h = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den
+    return [round(c - h, 4), round(c + h, 4)]
+
+
+def widened_counts(parts: list) -> dict:
+    """放宽边界的分区计数（0 FE，只是几何 / 模板化，不含力学）：区域按物理值 α、m 划分；另报角落子盒放宽后的部分。"""
+    np = _np()
+    X = np.vstack([p_["x13"] for p_ in parts])
+    feas = np.concatenate([np.asarray(p_["feasible"], bool) & ~np.asarray(p_["error"], bool) for p_ in parts])
+    e = np.concatenate([np.asarray(p_["e_star"], float) for p_ in parts])
+    A0 = np.concatenate([np.asarray(p_["A0_star"], float) for p_ in parts])
+    bone = np.concatenate([np.asarray(p_["bone_mm3"], float) for p_ in parts])
+    v = b2_phase().vars
+    col = {k: X[:, v.index(k)] for k in v}
+    a_hi, m_lo = col["alpha"] > 45.0, col["m"] < 0.5
+
+    def summ(mask):
+        n, k = int(mask.sum()), int((mask & feas).sum())
+        f = mask & feas
+        return {"n": n, "feasible": k, "rate": round(k / n, 4) if n else None, "rate_ci95": _wilson(k, n),
+                "e_star_0_share": round(float((e[f] == 0).mean()), 4) if k else None,
+                "A0_star_median_mm2": round(float(np.median(A0[f])), 2) if k else None,
+                "bone_median_mm3": round(float(np.median(bone[f])), 1) if k else None}
+
+    corner = (col["L"] >= 38.0) & (col["L"] <= 45.0) & (col["h_cut"] >= 16.0) & (col["h_cut"] <= 18.0) \
+        & (col["alpha"] >= 40.0) & (col["m"] <= 0.8)
+    regions = {"all": summ(np.ones(len(X), bool)), "inside_old_box": summ(~a_hi & ~m_lo), "alpha_gt_45_only": summ(a_hi & ~m_lo),
+               "m_lt_0.5_only": summ(~a_hi & m_lo), "alpha_gt_45_and_m_lt_0.5": summ(a_hi & m_lo),
+               "alpha_gt_45_any_m": summ(a_hi), "m_lt_0.5_any_alpha": summ(m_lo)}
+    corner_r = {"box": {"L": [38.0, 45.0], "h_cut": [16.0, 18.0], "alpha": [40.0, 55.0], "m": [0.25, 0.8]},
+                "all": summ(corner), "old_corner_subbox": summ(corner & ~a_hi & ~m_lo), "beyond_old_bounds": summ(corner & (a_hi | m_lo)),
+                "alpha_gt_45": summ(corner & a_hi), "m_lt_0.5": summ(corner & m_lo)}
+    return {"regions": regions, "corner": corner_r}
+
+
+# ---------------------------------------------------------------- b2：作业表
+def _rolefree(spec: dict) -> str:
+    """物理键去掉 fric_only / intact_job（同一设计、同一条件，只差带不带粘接模型）。bond_only 留着（只粘接的作业没有摩擦结果）。"""
+    v = _phys_view(spec)
+    for k in ("fric_only", "intact_job"):
+        v.pop(k, None)
+    return json.dumps(v, sort_keys=True)
+
+
+def _sf_cr_spec(ph, u, stage: str, tag: str, bonded: bool, intact_job: str | None = None) -> dict:
+    """Phase(13).spec_of(u, tag, bonded) 的物理键 + 本层的 stage / tag / kind variant（不直接用 spec_of：它的 stage 是 "sb13"，会被
+    阶段 13 的收编 glob 吃进去）。bonded → intact_job（默认 = PHASES[13] 的参照）。"""
+    sp = ph.spec_of(u, tag, bonded=bonded)
+    phys = _phys(sp, f"{stage} {tag}")
+    if bonded:
+        return _variant(phys, stage, tag, "full", intact_job=intact_job or sp["intact_job"])
+    return _variant(phys, stage, tag, "fric")
+
+
+def interleave(a: list, b: list) -> list:
+    """按比例交错（a 的第 i 个位置 (i + 1) / len(a)，b 的第 j 个 (j + 1) / len(b)，相同时 a 在前）：SF 4 个、CR 1 个、……"""
+    from fractions import Fraction
+    items = [(Fraction(i + 1, len(a)), 0, k) for i, k in enumerate(a)] + [(Fraction(j + 1, len(b)), 1, k) for j, k in enumerate(b)]
+    return [k for _, _, k in sorted(items)]
+
+
+def crt_file_path() -> pathlib.Path:
+    return J.RESULTS / CRT_FILE
+
+
+def _sel_doc(b: dict) -> dict:
+    """db_crt_selection.json 的内容（CR-1 与 CR-T 名单、规则、种子、冻结的已有设计清单）。"""
+    s = b["cr"]
+    return {"tool": "stage_db", "batch": "b2", "code_hash": b["code_hash"], "rule": CR_RULE, "seed": CR_SOBOL_SEED, "n": CR_N,
+            "box": CR_BOX, "excl_r": CR_EXCL_R, "metric": "Euclidean distance in the phase-13 unit cube (columns = Phase(13).vars)",
+            "quota_cr1": list(CR1_QUOTA), "quota_crt": list(CRT_QUOTA), "tpl_file": b["cr_tpl"],
+            "evaluated": b["evaluated"], "evaluated_sf1": b["sf1_u13_keys"], "evaluated_sha256": b["evaluated_sha256"],
+            "stats": {k: v for k, v in s["stats"].items() if k != "excluded_near_jobs_idx"},
+            "cr1": s["cr1_list"], "crt": s["crt_list"], "crt_submitted_in_b2": False}
+
+
+def _ev_sha(evaluated: list) -> str:
+    return hashlib.sha256(json.dumps(evaluated, sort_keys=True, default=float).encode()).hexdigest()
+
+
+def build_b2() -> dict:
+    """批次 b2 的作业表（SF-1 128 + CR-1 32，交错）+ 查重（hash8 + 物理键 + 两臂同一设计的采纳）+ CR-T 选点 + G2 + 放宽计数（只算不写）。
+    读队列、阶段 13 / 14 状态文件、候选池、tpl_record 文件与（在就读的）results/db_crt_selection.json；不写任何东西。"""
+    np = _np()
+    unreadable = []
+    qspecs = scan_queue(unreadable)
+    by_h8 = _by_h8(qspecs)
+    by_phys = {}
+    for n, sp in qspecs.items():
+        if sp is not None:
+            by_phys.setdefault(phys_key(sp), []).append(n)
+    warn, problems = [], []
+    if unreadable:
+        warn.append(f"queue dirs with an unreadable spec.json (treated as having no spec; a hash8 hit on one refuses): {unreadable}")
+    ph = b2_phase()
+    if ph.intact_job != REF_H2 or ph.femur_id != FEMUR_ID or ph.fric.get("delta") != 0.10 or ph.bond_every != BOND_EVERY:
+        raise SystemExit(f"PHASES[13] changed (intact_job {ph.intact_job}, femur {ph.femur_id}, fric {ph.fric}, bond_every {ph.bond_every})")
+    st13, st14 = _state_file(13), _state_file(14)
+    pool = load_pool()
+    g2 = g2_pool_check(pool)
+    problems += g2["problems"]
+    # ---- SF-1：候选池可行行 pool_idx 32..159，基线条件，每第 5 个带粘接；两臂已算过的同一设计 → 采纳
+    arm = {}
+    for n, sp in qspecs.items():
+        if sp is not None and n.startswith(ARM_PREFIXES) and sp.get("kind") in ("design", "variant") and not sp.get("bond_only"):
+            arm.setdefault(_rolefree(sp), []).append(n)
+    recs = [r for st in (st13, st14) for r in st["records"]]
+    rows, sf_keys = [], []
+    for pos, pi in enumerate(range(*SF1_RANGE), start=1):
+        u = pool["U"][pi]
+        planned = pos % BOND_EVERY == 0
+        tag = f"p{pi}"
+        spec = _sf_cr_spec(ph, u, "db_sf", tag, planned)
+        twins = sorted(arm.get(_rolefree(spec), []))
+        extra = {"pool_idx": pi, "layer_pos": pos, "bonded_planned": planned, "sf_bo_overlap": bool(twins), "bo_twins": twins,
+                 "u13": [float(x) for x in u], "pool_loss_mm3": float(pool["loss"][pi])}
+        if twins:
+            t = _pick(twins)
+            tsp = qspecs[t]
+            tb = not tsp.get("fric_only")
+            if tb != planned:
+                spec = _sf_cr_spec(ph, u, "db_sf", tag, tb, intact_job=tsp.get("intact_job"))
+            extra["adopted_role_from"] = t
+        r = _row(f"SF1_p{pi:04d}", "SF-1", spec, None, None, extra=extra)
+        r.update(unbiased=not twins, in_E=bool(twins))
+        rows.append(r)
+        sf_keys.append(r["key"])
+    for rc in recs:                                     # 两臂记录里 pool_idx 落在 SF-1 的：必须正好是被采纳的那一行
+        pi = rc.get("pool_idx")
+        if pi is None or not (SF1_RANGE[0] <= int(pi) < SF1_RANGE[1]):
+            continue
+        r = rows[int(pi) - SF1_RANGE[0]]
+        if not np.array_equal(np.asarray(rc.get("x"), float), pool["U"][int(pi)]):
+            problems.append(f"{r['key']}: arm record {rc['job_id']} has pool_idx {pi} but its x differs from the pool row (pool changed?)")
+        elif rc["job_id"] not in r["bo_twins"]:
+            problems.append(f"{r['key']}: arm record {rc['job_id']} (pool_idx {pi}) is not found as a same-physics twin in the queue")
+    # ---- CR-1 / CR-T：子盒 4096 个 Sobol 点的模板化记录 → 最大最小选点（冻结的已有设计清单在就用它）
+    U_cr = cr_points()
+    tpl = load_tpl(CR_TPL, U_cr)
+    sel_prev, sel_err = _read_json(crt_file_path())
+    if sel_err or (sel_prev is not None and not isinstance(sel_prev, dict)):
+        raise SystemExit(f"{crt_file_path()} unreadable ({sel_err or 'not a JSON object'}); restore it (it freezes the CR-1 / CR-T selection)")
+    if sel_prev is None and manifest_path("b2").exists():
+        raise SystemExit(f"{manifest_path('b2')} exists but {crt_file_path()} is missing: the CR selection was frozen in it at the first start; "
+                         "restore it (recomputing from the current queue would see this batch's own jobs as evaluated designs)")
+    if sel_prev is not None:
+        evaluated = sel_prev.get("evaluated") or []
+        ev_src = f"frozen in {CRT_FILE} ({len(evaluated)} designs)"
+        if _ev_sha(evaluated) != sel_prev.get("evaluated_sha256"):
+            raise SystemExit(f"{crt_file_path()}: the evaluated-design list does not match its sha256 (edited?)")
+    else:
+        evaluated = evaluated_designs(qspecs, warn)
+        ev_src = f"the queue now ({len(evaluated)} designs)"
+    sf_u = [r["u13"] for r in rows]
+    s = cr_select(tpl, [e_["u13"] for e_ in evaluated] + sf_u, U_cr)
+    if s["crt_error"]:
+        problems.append(s["crt_error"])
+    if s["stats"]["crt_overlap_cr1"]:
+        problems.append(f"CR-T overlaps CR-1: {s['stats']['crt_overlap_cr1']}")
+
+    def lst(sel, d_other):
+        out = []
+        for rank, ci in enumerate(sel, start=1):
+            d_, h_ = ph.design_of(U_cr[ci])
+            out.append({"rank": rank, "cr_idx": int(ci), "group": "e*=0" if s["group"][ci] == 0 else "e*!=0", "e_star": float(tpl["e_star"][ci]),
+                        "A0_star": float(tpl["A0_star"][ci]), "e_margin": float(tpl["e_margin"][ci]), "e_margin_eff": float(tpl["e_margin_eff"][ci]),
+                        "bone_mm3": float(tpl["bone_mm3"][ci]), "u13": [float(x) for x in U_cr[ci]],
+                        "x13": [float(h_) if k == "h_cut" else float(d_[k]) for k in ph.vars],
+                        "min_dist_evaluated": float(s["d_ev"][ci]), **({"min_dist_cr1": float(d_other[ci])} if d_other is not None else {})})
+        return out
+    s["cr1_list"], s["crt_list"] = lst(s["cr1"], None), lst(s["crt"], s["d_c1"])
+    cr_keys = []
+    for rank, ci in enumerate(s["cr1"], start=1):
+        planned = rank % BOND_EVERY == 0
+        spec = _sf_cr_spec(ph, U_cr[ci], "db_cr", f"c{ci}", planned)
+        extra = {"cr_idx": int(ci), "layer_pos": rank, "bonded_planned": planned, "sf_bo_overlap": False, "bo_twins": [],
+                 "e_star": float(tpl["e_star"][ci]), "e_group": "e*=0" if s["group"][ci] == 0 else "e*!=0", "u13": [float(x) for x in U_cr[ci]]}
+        r = _row(f"CR1_c{ci:04d}", "CR-1", spec, None, None, extra=extra)
+        r.update(unbiased=False, in_E=True)
+        rows.append(r)
+        cr_keys.append(r["key"])
+    order = interleave(sf_keys, cr_keys)
+    by_key = {r["key"]: r for r in rows}
+    rows = [by_key[k] for k in order]
+    # ---- 查重 + 批内重复 + 检查（同 b1）
+    seen, taken = {}, {}
+    for r in rows:
+        r["expected_id"] = expected_id(r["spec"])
+        r["id"], r["dedup"], r["dedup_hits"], r["dedup_via"] = resolve(r["spec"], by_h8, qspecs, by_phys)
+        if r["expected_id"] in seen:
+            raise SystemExit(f"batch b2: keys {seen[r['expected_id']]} and {r['key']} give the same job id {r['expected_id']}")
+        seen[r["expected_id"]] = r["key"]
+        r["source_spec"] = _spec_of(r["source_job"], qspecs) if r["source_job"] else None
+        if r["dedup"] != "new":
+            if r["id"] in taken:
+                raise SystemExit(f"batch b2: keys {taken[r['id']]} and {r['key']} both resolve to queue job {r['id']}")
+            taken[r["id"]] = r["key"]
+        if r["layer"] == "SF-1" and r["sf_bo_overlap"] and not (r["dedup"] == "existing" and r["id"] in r["bo_twins"]):
+            problems.append(f"{r['key']}: same design as arm job(s) {r['bo_twins']} but not adopted (dedup {r['dedup']} -> {r['id']})")
+        if r["dedup"] != "new" and r["layer"] == "CR-1":
+            warn.append(f"{r['key']}: CR-1 design already in the queue ({r['dedup']} via {r['dedup_via']}: {r['id']})")
+    if J.code_hash() != DB_CODE_HASH:
+        problems.append(f"code_hash {J.code_hash()} != {DB_CODE_HASH} (one of the 8 hashed files changed; every expected id differs)")
+    recorded, rec_err = recorded_ids("b2")
+    if rec_err:
+        warn.append(rec_err)
+    for r in rows:
+        problems += [f"{r['key']}: {p}" for p in row_problems(r, lambda j: _spec_of(j, qspecs))]
+        r["ack_failed"] = None
+        if r["dedup"] != "new":
+            pr, notes, r["ack_failed"] = hit_checks(r["key"], r["id"], _spec_of(r["id"], qspecs), recorded=recorded.get(r["key"]) == r["id"])
+            problems += pr
+            warn += notes
+    b = {"batch": "b2", "rows": rows, "problems": problems, "warnings": warn, "code_hash": J.code_hash(), "ref_id": {},
+         "seeds": [], "queue_root": str(J.QROOT), "n_queue_dirs": len(qspecs), "g2": g2,
+         "pool": {"file": pool["file"], "sha256": pool["sha256"], "n_feasible": len(pool["U"]), "meta": pool["meta"]},
+         "cr_tpl": {"file": CR_TPL, "sha256": tpl["sha256"], "n": int(len(tpl["u13"])), "provenance_code_hash": tpl["meta"]["provenance"]["code_hash"],
+                    "tpl_femur_geom_key": tpl["meta"]["provenance"].get("femur_geom_key"), "host": tpl["meta"]["provenance"].get("host"),
+                    "started_utc": tpl["meta"].get("started_utc"), "updated_utc": tpl["meta"].get("updated_utc")},
+         "cr": s, "evaluated": evaluated, "evaluated_source": ev_src, "evaluated_sha256": _ev_sha(evaluated),
+         "sf1_u13_keys": [r["key"] for r in rows if r["layer"] == "SF-1"], "sel_prev": sel_prev}
+    if sel_prev is not None:                            # 冻结的名单必须与重算的一致
+        for k, mine in (("cr1", s["cr1_list"]), ("crt", s["crt_list"])):
+            if [x["cr_idx"] for x in sel_prev.get(k) or []] != [x["cr_idx"] for x in mine]:
+                problems.append(f"{CRT_FILE}: frozen {k} list {[x['cr_idx'] for x in sel_prev.get(k) or []][:6]}... differs from the recomputed "
+                                f"{[x['cr_idx'] for x in mine][:6]}... (same frozen evaluated list); not feeding")
+        if sel_prev.get("tpl_file", {}).get("sha256") != tpl["sha256"]:
+            problems.append(f"{CRT_FILE}: frozen with templating file sha256 {sel_prev.get('tpl_file', {}).get('sha256')} != current {tpl['sha256']}")
+    # ---- 放宽边界计数（只算；select 写 results/db_widened_counts.json）
+    try:
+        W = wide_points()
+        parts = [load_tpl(rel, W[a:z_], wide_physical(W[a:z_]), rows=(a, z_)) for rel, a, z_ in WIDE_PARTS]
+        b["wide"] = {"files": [{"file": rel, "rows": [a, z_], "sha256": p_["sha256"]} for (rel, a, z_), p_ in zip(WIDE_PARTS, parts)],
+                     **widened_counts(parts)}
+    except SystemExit as ex:
+        b["wide"] = None
+        warn.append(f"widened-box counts not available: {ex.code}")
+    b["cost"] = cost_estimate(rows)
+    ids = {r["id"] for r in rows} | {r["expected_id"] for r in rows}
+    other = set()
+    for ob in BATCHES:
+        if ob != "b2":
+            other |= set(recorded_ids(ob)[0].values())
+    stray = sorted(n for n in qspecs if n.startswith(("db_sf_", "db_cr_")) and n not in ids and n not in other)
+    if stray:
+        warn.append(f"db_sf_* / db_cr_* queue dirs that are not rows of batch b2: {stray}")
+    return b
+
+
+def b2_manifest_info(b: dict) -> dict:
+    """清单里记下的 b2 输入（重启时逐项核对）：候选池与子盒模板化文件的 sha256、冻结的已有设计清单的 sha256、交错规则。"""
+    return {"pool": b["pool"]["file"], "pool_sha256": b["pool"]["sha256"], "cr_tpl": CR_TPL, "cr_tpl_sha256": b["cr_tpl"]["sha256"],
+            "crt_file": CRT_FILE, "evaluated_sha256": b["evaluated_sha256"], "cr_seed": CR_SOBOL_SEED, "pool_sobol_seed": POOL_SOBOL_SEED,
+            "order": "interleave SF-1 (pool_idx order) and CR-1 (maximin order) by fractional position (SF i at (i+1)/128, CR j at (j+1)/32; "
+                     "ties SF first): 4 SF then 1 CR; bonded = every 5th row of each layer by its own order (adopted SF rows keep the arm job's model)",
+            "g2": {k: v for k, v in b["g2"].items() if k != "problems"}}
+
+
+def _sel_essence(doc: dict) -> str:
+    """选点文件里决定名单的部分：种子、点数、子盒、配额、下限、模板化文件 sha256、冻结清单 sha256、CR-1 / CR-T 的下标序列。"""
+    return json.dumps({"seed": doc.get("seed"), "n": doc.get("n"), "box": doc.get("box"), "excl_r": doc.get("excl_r"),
+                       "quota_cr1": doc.get("quota_cr1"), "quota_crt": doc.get("quota_crt"),
+                       "tpl_sha256": (doc.get("tpl_file") or {}).get("sha256"), "evaluated_sha256": doc.get("evaluated_sha256"),
+                       "cr1": [x.get("cr_idx") for x in doc.get("cr1") or []], "crt": [x.get("cr_idx") for x in doc.get("crt") or []]},
+                      sort_keys=True, default=float)
+
+
+def _same_doc(a: dict, b: dict, ignore=("created_utc",)) -> bool:
+    return json.dumps({k: v for k, v in a.items() if k not in ignore}, sort_keys=True, default=float) == \
+        json.dumps({k: v for k, v in b.items() if k not in ignore}, sort_keys=True, default=float)
+
+
+def write_selection(b: dict, log=None) -> str:
+    """results/db_crt_selection.json：不存在 → 写（冻结 CR-1 / CR-T 名单与"已有设计"清单）；存在且内容相同 → 不动；不同 → SystemExit。"""
+    p = crt_file_path()
+    doc = {**_sel_doc(b), "created_utc": _utc()}
+    old, err = _read_json(p)
+    if err:
+        raise SystemExit(f"{p} unreadable ({err})")
+    if old is not None:
+        if _sel_essence(old) == _sel_essence(doc):
+            return f"{p} already holds this selection (unchanged)"
+        raise SystemExit(f"{p} exists with a different CR selection; not overwriting (it freezes CR-1 / CR-T; move it away only if no b2 "
+                         "manifest exists)")
+    _write_json(p, doc)
+    return f"wrote {p}: CR-1 {len(doc['cr1'])} + CR-T {len(doc['crt'])} designs, {len(doc['evaluated'])} evaluated designs frozen"
+
+
+def write_widened(b: dict) -> str:
+    p = J.RESULTS / WIDE_COUNTS_FILE
+    if not b.get("wide"):
+        raise SystemExit("widened-box templating files missing or invalid (see the warnings); nothing written")
+    doc = {"tool": "stage_db", "batch": "b2", "created_utc": _utc(), "code_hash": b["code_hash"], "seed": WIDE_SOBOL_SEED, "n": WIDE_N,
+           "space": wide_space(), "old_box": {"alpha": list(b2_phase().space["alpha"]), "m": list(b2_phase().space["m"])},
+           "note": "0 FE: templating feasibility only (tpl_record, phase-13 rule), no mechanics; rates with Wilson 95 % intervals; the corner "
+                   "region holds few points of a full-box sample", **b["wide"],
+           "pool_rate_old_box_16384": round(b["pool"]["n_feasible"] / POOL_N, 4)}
+    old, err = _read_json(p)
+    if old is not None and not _same_doc(old, doc):
+        raise SystemExit(f"{p} exists with different counts; not overwriting")
+    if old is None:
+        _write_json(p, doc)
+        return f"wrote {p}"
+    return f"{p} already holds these counts (unchanged)"
+
+
+def cost_estimate(rows: list) -> dict:
+    """规划成本模型的槽时：每层 新作业数 × COST_MIN[层] + 新作业里带粘接的 × BOND_MIN（采纳的已有作业不计）；墙钟 = 槽时 ÷ (3 × 85 %)。
+    另给"粘接已摊进 COST_MIN"的口径（规划的 30.75 / 23.25 = 求解 + 20 s 空闲 + 20 % × 0.6）。"""
+    out, tot, tot_in = {}, 0.0, 0.0
+    for L in COST_MIN:
+        rs = [r for r in rows if r["layer"] == L]
+        new = [r for r in rs if r["dedup"] == "new"]
+        nb = sum(r["bonded"] for r in new)
+        sh = (len(new) * COST_MIN[L] + nb * BOND_MIN) / 60.0
+        sh_in = len(new) * COST_MIN[L] / 60.0
+        out[L] = {"rows": len(rs), "new": len(new), "adopted": len(rs) - len(new), "new_bonded": nb, "bonded_all_rows": sum(r["bonded"] for r in rs),
+                  "slot_h": round(sh, 2), "slot_h_bond_in_rate": round(sh_in, 2)}
+        tot += sh
+        tot_in += sh_in
+    out["total"] = {"slot_h": round(tot, 2), "wall_h": round(tot / (SLOTS * UPTIME), 1), "slot_h_bond_in_rate": round(tot_in, 2),
+                    "wall_h_bond_in_rate": round(tot_in / (SLOTS * UPTIME), 1),
+                    "model": f"slot-min per new job SF {COST_MIN['SF-1']} / CR {COST_MIN['CR-1']} + {BOND_MIN} if bonded; wall = slot-h / "
+                             f"({SLOTS} slots x {UPTIME:.0%}); 'bond_in_rate' = the plan's per-job figure already averaging the 20 % bonded share"}
+    return out
 
 
 # ================================================================ 检查
@@ -889,7 +1633,10 @@ def row_problems(row: dict, ref_spec_of, h14_ref: str | None = None) -> list:
         p.append(f"stage {st!r} is not a database stage {DB_STAGES}")
     if st.startswith(("sb", "neck")) or st == "ref":
         p.append(f"stage {st!r} starts with sb / neck or is 'ref' (optimisation / CT-reference namespaces)")
-    for jid in {row.get("expected_id") or expected_id(s), row.get("id") or expected_id(s)}:
+    ids = {row.get("expected_id") or expected_id(s), row.get("id") or expected_id(s)}
+    if row.get("sf_bo_overlap") and row.get("id") in (row.get("bo_twins") or []):
+        ids.discard(row["id"])                          # b2：SF 行采纳两臂已算过的同一设计（那个作业本来就是 sb13_ / sb14_ 的，不新提交）
+    for jid in ids:
         if jid.startswith(("sb13_", "sb14_")):
             p.append(f"job id {jid} starts with sb13_ / sb14_ (the arms' adoption globs)")
     fam = [ph for ph in CHECK_PHASES if SN.Phase(ph).in_family(s)]
@@ -941,8 +1688,138 @@ def check_code() -> None:
 
 
 # ================================================================ dry run
+def replay_b2(b: dict) -> dict:
+    """G2"同一种子重放"：从种子重新生成候选池的 Sobol 点、子盒点，重新选 CR-1 / CR-T（同一冻结的已有设计清单），与 b 的名单逐项比。"""
+    np = _np()
+    U2 = cr_points()
+    U3 = cr_points()
+    same_pts = bool(np.array_equal(U2, U3))
+    tpl = load_tpl(CR_TPL, U2)
+    sf_u = [r["u13"] for r in b["rows"] if r["layer"] == "SF-1"]
+    s2 = cr_select(tpl, [e_["u13"] for e_ in b["evaluated"]] + sf_u, U2)
+    pool = load_pool()
+    D1, D2 = sobol(POOL_N, POOL_SOBOL_SEED), sobol(POOL_N, POOL_SOBOL_SEED)
+    sf_same = [r["u13"] for r in b["rows"] if r["layer"] == "SF-1"] == [[float(x) for x in pool["U"][i]] for i in range(*SF1_RANGE)]
+    return {"cr_points_identical": same_pts, "pool_draw_identical": bool(np.array_equal(D1, D2)), "sf1_rows_identical": sf_same,
+            "cr1_identical": s2["cr1"] == b["cr"]["cr1"], "crt_identical": s2["crt"] == b["cr"]["crt"],
+            "ok": same_pts and bool(np.array_equal(D1, D2)) and sf_same and s2["cr1"] == b["cr"]["cr1"] and s2["crt"] == b["cr"]["crt"]}
+
+
+def dry_run_b2() -> int:
+    """b2 的 dry run：只打印（不建作业目录、不写清单 / 日志 / 选点文件 / 计数文件）。退出码 0 = 没有问题，1 = 有问题。"""
+    b = build("b2")
+    rows = b["rows"]
+    gk = femur_geom_key()
+    aux = aux_md5()
+    rp = replay_b2(b)
+    if not rp["ok"]:
+        b["problems"].append(f"G2 replay: the same seeds do not give the same lists ({rp})")
+    hi = {}
+    snap0 = queue_snapshot()
+    try:
+        hi["b1"] = build("b1")
+        dups = cross_batch_dups(b, hi)
+        b["problems"] += dups
+        pr = priority_wait("b2", hi, snap0)
+    except SystemExit as e:
+        pr = f"(b1 could not be built here: {e.code})"
+        b["warnings"].append(f"b1 build for the priority probe failed: {e.code}")
+    depth_now = f"unclaimed db_* now {len(snap0['unclaimed_db'])} of {MAX_UNCLAIMED}"
+    s, st = b["cr"], b["cr"]["stats"]
+    g2 = b["g2"]
+    print("dry run: batch b2; nothing written (no job directories, manifest, log, selection or counts file)")
+    print(f"queue {J.QROOT} ({b['n_queue_dirs']} dirs); results {J.RESULTS}; code_hash {b['code_hash']} (required {DB_CODE_HASH}); "
+          f"femur_geom_key {gk['key']}; femur_model_version {FEMUR_MODEL_VERSION}")
+    print(f"aux files (md5 on this host): {json.dumps(aux)}")
+    print(f"pool {b['pool']['file']} sha256 {b['pool']['sha256'][:16]}..: {b['pool']['n_feasible']} feasible of {POOL_N}")
+    print(f"G2 pool: regenerated Sobol({POOL_N}, seed {g2['seed']}) contains every pool row bit-identically: {g2['all_found']}; in Sobol order: "
+          f"{g2['increasing']}; pool_idx 0 = Sobol index {g2['sobol_index_of_pool_idx0']}, SF-1 pool_idx {SF1_RANGE[0]}..{SF1_RANGE[1] - 1} = "
+          f"Sobol indices {g2['sobol_index_sf1']}")
+    print(f"G2 pool65k ({POOL65K}): {json.dumps(g2.get('pool65k'))}")
+    print(f"G2 replay (same seeds again): {json.dumps(rp)}")
+    print(f"CR templating {CR_TPL} sha256 {b['cr_tpl']['sha256'][:16]}.. (tpl_record code_hash {b['cr_tpl']['provenance_code_hash']}, host "
+          f"{b['cr_tpl']['host']}, {b['cr_tpl']['started_utc']} .. {b['cr_tpl']['updated_utc']})")
+    print(f"evaluated designs for the CR distances: {b['evaluated_source']} + {SF1_RANGE[1] - SF1_RANGE[0]} SF-1 designs; sha256 "
+          f"{b['evaluated_sha256'][:16]}..")
+    print(f"CR rule: {CR_RULE}")
+    print(f"CR sub-box {json.dumps(CR_BOX)}, seed {CR_SOBOL_SEED}, n {CR_N}: feasible {st['feasible']} ({st['feasible_e0']} e*=0, "
+          f"{st['feasible_e_ne0']} e*!=0); within {CR_EXCL_R} of an evaluated design: {st['excluded_near_evaluated']}; CR-1 candidates "
+          f"{st['cr1_candidates']} ({st['cr1_candidates_e0']} e*=0)")
+    print(f"CR-1: {len(s['cr1'])} designs, spacing (min pairwise) {st['cr1_spacing']:.4f}, min distance to evaluated {st['cr1_min_dist_evaluated']:.4f}")
+    print(f"CR-T: literal rule (>= the CR-1 spacing {st['cr1_spacing']:.4f} from CR-1 and from every evaluated design): "
+          f"{st['crt_literal_candidates']} candidates ({st['crt_literal_candidates_e0']} e*=0) -> feasible {st['crt_literal_feasible']}; used "
+          f"rule: maximin continued with CR-1 + evaluated pre-placed, floor {CR_EXCL_R}: {st['crt_candidates']} candidates "
+          f"({st['crt_candidates_e0']} e*=0); selected {len(s['crt'])}; own spacing {st['crt_spacing_own']}; min distance to CR-1 "
+          f"{st['crt_min_dist_cr1']}; to evaluated {st['crt_min_dist_evaluated']} (= {st['crt_min_dist_ratio_to_cr1_spacing']} x CR-1 spacing); "
+          f"overlap with CR-1 {st['crt_overlap_cr1']} -> disjoint {not st['crt_overlap_cr1'] and bool(s['crt'])}"
+          f"{' -- ' + s['crt_error'] if s['crt_error'] else ''}")
+    print(f"CR-T list (would be written to results/{CRT_FILE} by 'select b2' or at the first feed start; NOT submitted in b2): "
+          + ", ".join(f"c{x['cr_idx']}({x['group']})" for x in s["crt_list"]))
+    print(f"jobs ({len(rows)}; interleaved 4 SF : 1 CR): key | layer | stage | pool_idx / cr_idx | bonded (planned) | expected id | dedup")
+    for r in rows:
+        dd = r["dedup"] if r["dedup"] != "existing" else f"existing ({r['dedup_via']}) -> {r['id']}"
+        ix = f"p{r['pool_idx']}" if r["layer"] == "SF-1" else f"c{r['cr_idx']} {r['e_group']}"
+        print(f"  {r['key']} | {r['layer']} | {r['stage']} | {ix} | {r['model_set']} ({'bonded' if r['bonded_planned'] else 'fric'} planned) | "
+              f"{r['expected_id']} | {dd}{' | sf_bo_overlap ' + ','.join(r['bo_twins']) if r['sf_bo_overlap'] else ''}")
+    c = b["cost"]
+    for L in COST_MIN:
+        print(f"{L}: {c[L]['rows']} rows = {c[L]['new']} new + {c[L]['adopted']} adopted (no FE); bonded rows {c[L]['bonded_all_rows']} "
+              f"(new bonded {c[L]['new_bonded']}); {c[L]['slot_h']} slot-h ({c[L]['slot_h_bond_in_rate']} if the bonded share is already in the "
+              "per-job rate)")
+    print(f"total: {c['total']['slot_h']} slot-h, {c['total']['wall_h']} h wall ({c['total']['slot_h_bond_in_rate']} / "
+          f"{c['total']['wall_h_bond_in_rate']} h with the bonded share inside the rate); {c['total']['model']}")
+    if b.get("wide"):
+        print("widened box (alpha 15-55, m 0.25-2.0; 0 FE; would be written to results/" + WIDE_COUNTS_FILE + " by 'select b2'):")
+        for k, v in {**b["wide"]["regions"], **{f"corner {k2}": v2 for k2, v2 in b["wide"]["corner"].items() if k2 != "box"}}.items():
+            print(f"    {k:<28} n {v['n']:>5}  feasible {v['feasible']:>5}  rate {v['rate']}  CI95 {v['rate_ci95']}  e*=0 share "
+                  f"{v['e_star_0_share']}  A0* median {v['A0_star_median_mm2']}")
+    print(f"concurrency with b1: per-batch lock {lock_path('b2')} / log {log_path('b2')}; stop {', '.join(str(x) for x in stop_files('b2'))}; "
+          f"global depth cap {MAX_UNCLAIMED}; b1 priority now: {pr or 'clear (b1 has no row submittable right now)'}; {depth_now}")
+    lay = [L for L in SLOW_START_LAYERS if any(r["layer"] == L for r in rows)]
+    print(f"slow start: layers {lay} keep at most {SLOW_START_CAP} rows in flight until {SLOW_START_DONE} of their rows are DONE; failure holds "
+          f"per layer (release {RELEASE_PREFIX}SF-1 / {RELEASE_PREFIX}CR-1, first-10: {RELEASE_PREFIX}{RELEASE_ALL} or {RELEASE_PREFIX}b2)")
+    for w in b["warnings"]:
+        print("WARNING: " + w)
+    if b["problems"]:
+        print(f"PROBLEMS ({len(b['problems'])}; feed would refuse):")
+        for p in b["problems"]:
+            print("  " + p)
+    else:
+        print("checks: all rows pass (stage prefix, job id prefix, not in any phase 11-14 family, role keys, reference match, adoption, G2)")
+    nl = {L: sum(r["layer"] == L for r in rows) for L in COST_MIN}
+    print("DRY-RUN-JSON")
+    print(json.dumps({"batch": "b2", "n_jobs": len(rows), "per_layer": nl, "problems": b["problems"], "warnings": b["warnings"],
+                      "code_hash": b["code_hash"], "femur_geom_key": gk["key"], "aux_md5": aux, "g2": {k: v for k, v in g2.items()},
+                      "replay": rp, "cost": c, "cr_stats": {k: v for k, v in st.items() if k != "excluded_near_jobs_idx"},
+                      "cr1": s["cr1_list"], "crt": s["crt_list"], "crt_error": s["crt_error"], "wide": b.get("wide"),
+                      "b1_priority_now": pr, "unclaimed_db_now": len(snap0["unclaimed_db"]), "evaluated_source": b["evaluated_source"],
+                      "jobs": [{k: r.get(k) for k in ("key", "layer", "stage", "source", "selection", "pool_idx", "cr_idx", "e_group", "layer_pos",
+                                                      "bonded_planned", "bonded", "model_set", "intact_job", "sf_bo_overlap", "bo_twins",
+                                                      "adopted_role_from", "unbiased", "in_E", "expected_id", "id", "dedup", "dedup_via")}
+                               for r in rows]}, indent=1, default=float))
+    return 1 if b["problems"] else 0
+
+
+def select_b2() -> int:
+    """写 results/db_crt_selection.json 与 results/db_widened_counts.json（不提交任何作业）。有问题 → 不写，退出码 1。"""
+    b = build("b2")
+    rp = replay_b2(b)
+    if not rp["ok"]:
+        b["problems"].append(f"G2 replay: the same seeds do not give the same lists ({rp})")
+    if b["problems"]:
+        print(f"PROBLEMS ({len(b['problems'])}); nothing written:")
+        for p in b["problems"]:
+            print("  " + p)
+        return 1
+    print(write_selection(b))
+    print(write_widened(b))
+    return 0
+
+
 def dry_run(batch: str = "b1") -> int:
     """只打印，不写任何文件（不建作业目录、不写清单、不写日志）。返回退出码：0 = 没有问题，1 = 有问题（列在 PROBLEMS）。"""
+    if batch == "b2":
+        return dry_run_b2()
     b = build(batch)
     gk = femur_geom_key()
     aux = aux_md5()
@@ -1000,7 +1877,8 @@ def dry_run(batch: str = "b1") -> int:
     print(f"heavy rows (one at a time): {[r['key'] for r in rows if r['heavy']]}; exclusive (idle queue only, holds every other db "
           f"submission while in flight): {list(EXCLUSIVE)}; FD0_h1.4_* also wait for the operator file {H14_OK_NAME}; FD-0 h1.4 mode now: "
           f"{h14why}")
-    print(f"slow start: layers {list(SLOW_START_LAYERS)} keep at most {SLOW_START_CAP} rows in flight (NEW / READY / CLAIMED / SOLVED) until "
+    lay = [L for L in SLOW_START_LAYERS if any(r["layer"] == L for r in rows)]          # 本批的层（b1：NZ-1 … BD h2.0）
+    print(f"slow start: layers {lay} keep at most {SLOW_START_CAP} rows in flight (NEW / READY / CLAIMED / SOLVED) until "
           f"{SLOW_START_DONE} of their rows are DONE")
     print(f"operator files (under {J.QROOT.parent}): {H14_OK_NAME} (FD0_h1.4_* may go); {H14_EXCL_NAME} or the word 'exclusive' in "
           f"{H14_OK_NAME} (FD0_h1.4_* exclusive like REF_h1.4); {RELEASE_PREFIX}<layer, spaces as _> (release that layer's hold); "
@@ -1026,7 +1904,7 @@ def dry_run(batch: str = "b1") -> int:
                       "n_existing": n_ex_h8 + n_ex_ph, "n_existing_physics": n_ex_ph, "seeds": b["seeds"], "problems": b["problems"],
                       "warnings": b["warnings"], "code_hash": b["code_hash"], "femur_geom_key": gk["key"], "aux_md5": aux,
                       "init_median": m["job_id"], "h14_mode": "exclusive" if h14x else "heavy",
-                      "slow_start": {"layers": list(SLOW_START_LAYERS), "cap": SLOW_START_CAP, "until_done": SLOW_START_DONE},
+                      "slow_start": {"layers": lay, "cap": SLOW_START_CAP, "until_done": SLOW_START_DONE},
                       "jobs": [{k: r[k] for k in ("key", "layer", "stage", "source", "selection", "design_code", "source_job", "condition_id",
                                                   "bonded", "model_set", "intact_job", "ref_key", "heavy", "exclusive", "femur_model_version",
                                                   "hollow_core", "expected_id", "id", "dedup", "dedup_via", "seed", "ack_failed")}
@@ -1043,7 +1921,16 @@ def _write_json(p: pathlib.Path, obj) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_name(p.name + f".tmp{os.getpid()}")
     tmp.write_text(json.dumps(obj, indent=1, default=float))
-    os.replace(tmp, p)
+    for i in range(6):
+        try:
+            os.replace(tmp, p)
+            return
+        except PermissionError:
+            # Windows only（测试机）：目标文件正被别的句柄打开（杀毒 / 索引扫描刚写的文件）时 os.replace 报 WinError 5；短暂重试，
+            # 6 次都不行照样抛出。Linux 上 rename 是原子的、不会这样失败：立即抛出（行为不变）
+            if os.name == "posix" or i == 5:
+                raise
+            time.sleep(0.2 * (i + 1))
 
 
 class _Log:
@@ -1110,7 +1997,12 @@ def _man_row(r: dict) -> dict:
             "partner_of": r.get("partner_of"), "expected_id": r["expected_id"], "id": r["id"], "dedup": r["dedup"],
             "dedup_via": r["dedup_via"], "seed": r["seed"], "ack_failed": r.get("ack_failed"),
             "status": "existing" if r["dedup"] == "existing" else ("submitted" if r["dedup"] == "queued" else "pending"),
-            "state": None, "submitted_utc": None, "times_utc": {}, "finished_ts": None, "held_reason": None, "failed_logged": False}
+            "state": None, "submitted_utc": None, "times_utc": {}, "finished_ts": None, "held_reason": None, "failed_logged": False,
+            **({k: r.get(k) for k in B2_ROW_FIELDS} if r["layer"] in B2_LAYERS else {})}
+
+
+B2_LAYERS = ("SF-1", "CR-1")
+B2_ROW_FIELDS = ("cr_idx", "layer_pos", "bonded_planned", "sf_bo_overlap", "bo_twins", "adopted_role_from", "unbiased", "in_E", "e_star", "e_group")
 
 
 def open_manifest(batch: str, b: dict, gk: dict, log, aux: dict | None = None) -> dict:
@@ -1119,10 +2011,14 @@ def open_manifest(batch: str, b: dict, gk: dict, log, aux: dict | None = None) -
     rows = b["rows"]
     aux = aux_md5() if aux is None else aux
     if not p.exists():
-        return {"batch": batch, "created_utc": _utc(), "updated_utc": None, "code_hash": b["code_hash"], "femur_geom_key": gk,
-                "aux_md5": aux, "aux_root": str(CODE_ROOT), "femur_model_version": FEMUR_MODEL_VERSION, "hollow_core": HOLLOW_CORE,
-                "init_median": b["init_median"]["job_id"], "init_median_rule": INIT_MEDIAN_RULE, "seeds": b["seeds"],
-                "order": [r["key"] for r in rows], "rows": {r["key"]: _man_row(r) for r in rows}, "gates": {}, "events": []}
+        man = {"batch": batch, "created_utc": _utc(), "updated_utc": None, "code_hash": b["code_hash"], "femur_geom_key": gk,
+               "aux_md5": aux, "aux_root": str(CODE_ROOT), "femur_model_version": FEMUR_MODEL_VERSION, "hollow_core": HOLLOW_CORE,
+               "seeds": b["seeds"], "order": [r["key"] for r in rows], "rows": {r["key"]: _man_row(r) for r in rows}, "gates": {}, "events": []}
+        if "init_median" in b:
+            man.update(init_median=b["init_median"]["job_id"], init_median_rule=INIT_MEDIAN_RULE)
+        if batch == "b2":
+            man["b2"] = b2_manifest_info(b)
+        return man
     man, err = _read_json(p)
     if not isinstance(man, dict):
         raise SystemExit(f"{p} is unreadable ({err or 'not a JSON object'}); not feeding (restore it from the job dirs or start a new batch name)")
@@ -1145,6 +2041,11 @@ def open_manifest(batch: str, b: dict, gk: dict, log, aux: dict | None = None) -
         diff.append(f"manifest femur_geom_key {(man.get('femur_geom_key') or {}).get('key')} != current {gk['key']}")
     if "aux_md5" in man and man["aux_md5"] != aux:
         diff.append("aux file md5 changed since the manifest was written: " + "; ".join(aux_changes(man["aux_md5"], aux)))
+    if batch == "b2":
+        old_i, new_i = man.get("b2") or {}, b2_manifest_info(b)
+        for k in ("pool_sha256", "cr_tpl_sha256", "evaluated_sha256", "order"):
+            if old_i.get(k) != new_i.get(k):
+                diff.append(f"b2 input {k} changed since the manifest was written ({str(old_i.get(k))[:40]} -> {str(new_i.get(k))[:40]})")
     if diff:
         raise SystemExit(f"{p}: the batch changed since the manifest was written; not feeding (start a new batch name, or restore the code):\n"
                          + "\n".join("  " + d for d in diff))
@@ -1390,18 +2291,30 @@ def exclusive_keys(b: dict, h14_exclusive: bool) -> list:
     return list(EXCLUSIVE) + ([r["key"] for r in b["rows"] if r["layer"] == H14_LAYER] if h14_exclusive else [])
 
 
+class ProbeHalt(Exception):
+    """探查（probe）时 feed_pass 走到了会停喂料器的地方（_halt）：不写清单，只把原因交给调用方。"""
+
+
 def feed_pass(b: dict, man: dict, snap: dict, log, max_unclaimed: int = MAX_UNCLAIMED, waits: dict | None = None,
-              h14_exclusive: bool | None = None) -> list:
+              h14_exclusive: bool | None = None, probe: bool = False, gate=None, max_submit: int | None = None) -> list:
     """一轮提交（规则见模块说明）：按作业表顺序；独占行在飞 → 整轮不提交；未领取 db_* ≥ max_unclaimed 就停；等参照 / 重作业 / 参照优先 /
     独占 / 操作员文件 / 慢启动的行跳过（不挡后面的行）。waits：{原因键: {"text", "keys"}}（本轮各行等待的原因，给 WAIT 日志）。
     h14_exclusive：FD0_h1.4_* 是否独占（None = 现读 h14_mode()）。提交前对活队列再查一次重：命中的核对（hit_checks）出问题、或 REF 行
-    查重到与建表时不同的 id → 写清单并停止（_halt）。返回这轮提交的键。"""
+    查重到与建表时不同的 id → 写清单并停止（_halt）。返回这轮提交的键。
+    probe = True（并行喂料的优先级探查，man 是清单的副本）：不提交、不写清单、不记日志（log 照调，调用方给空函数），会停的地方抛
+    ProbeHalt；返回"此刻会提交"的键。gate：提交每一行之前调用，返回 None = 可以，否则 = 原因（本轮不再提交，记进 waits["gate"]）。
+    max_submit：本轮最多提交几行（None = 不限）。"""
     rows = {r["key"]: r for r in b["rows"]}
     waits = {} if waits is None else waits
     mp = manifest_path(b["batch"])
     if h14_exclusive is None:
         h14_exclusive = h14_mode()[0]
     excl = exclusive_keys(b, h14_exclusive)
+
+    def halt(msg):
+        if probe:
+            raise ProbeHalt(msg)
+        _halt(man, mp, msg)
 
     def wait(rk, text, key):
         w = waits.setdefault(rk, {"text": text, "keys": []})
@@ -1493,14 +2406,14 @@ def feed_pass(b: dict, man: dict, snap: dict, log, max_unclaimed: int = MAX_UNCL
             want = b["ref_id"].get(f"{float(s['h_int']):g}")
             if jid != want:
                 deps = [k for k in order if rows[k]["spec"].get("intact_job") == want]
-                _halt(man, mp, f"{key}: at feed time this reference resolves to {jid} ({status} via {via}), not to {want}, the intact_job "
-                               f"its {len(deps)} dependents were built with ({', '.join(deps[:4])}{', ...' if len(deps) > 4 else ''}); they would "
-                               f"wait for {want} forever. Stopped: an identical intact spec ({jid}) entered the queue after this batch was built; "
-                               "check it, then start a new batch name (a restart is refused: the dependents' expected ids change)")
+                halt(f"{key}: at feed time this reference resolves to {jid} ({status} via {via}), not to {want}, the intact_job "
+                     f"its {len(deps)} dependents were built with ({', '.join(deps[:4])}{', ...' if len(deps) > 4 else ''}); they would "
+                     f"wait for {want} forever. Stopped: an identical intact spec ({jid}) entered the queue after this batch was built; "
+                     "check it, then start a new batch name (a restart is refused: the dependents' expected ids change)")
         if status != "new":
             probs, notes, ack = hit_checks(key, jid, _spec_of(jid))
             if probs:
-                _halt(man, mp, "feed-time dedup: " + "; ".join(probs) + "; stopped before submitting (the manifest is written)")
+                halt("feed-time dedup: " + "; ".join(probs) + "; stopped before submitting (the manifest is written)")
             m.update(id=jid, dedup=status, dedup_via=via, status="existing" if status == "existing" else "submitted", ack_failed=ack,
                      state=J.state(J.QROOT / jid))
             log(f"{key}: found in the queue before submitting ({status} via {via}: {jid}); not submitted again")
@@ -1513,12 +2426,22 @@ def feed_pass(b: dict, man: dict, snap: dict, log, max_unclaimed: int = MAX_UNCL
             mm = ref_mismatch(s, _spec_of(s["intact_job"]))
             if mm:
                 raise SystemExit(f"{key}: intact_job {s['intact_job']} does not match: " + "; ".join(mm))
-        got = J.submit(s)
-        if got != m["expected_id"]:
-            raise SystemExit(f"{key}: jobs.submit returned {got}, expected {m['expected_id']}")
-        m.update(status="submitted", id=got, submitted_utc=_utc())
-        snap["by_h8"].setdefault(_h8(got), []).append(got)
-        snap["by_phys"].setdefault(phys_key(s), []).append(got)
+        if gate is not None and not probe:
+            why = gate()
+            if why:
+                for p in order[i:]:
+                    if man["rows"][p]["status"] == "pending":
+                        wait("gate", why, p)
+                break
+        if probe:                                               # 探查：不提交、不动 snap（调用方的快照）
+            got = m["expected_id"]
+        else:
+            got = J.submit(s)
+            if got != m["expected_id"]:
+                raise SystemExit(f"{key}: jobs.submit returned {got}, expected {m['expected_id']}")
+            m.update(status="submitted", id=got, submitted_utc=_utc())
+            snap["by_h8"].setdefault(_h8(got), []).append(got)
+            snap["by_phys"].setdefault(phys_key(s), []).append(got)
         unclaimed.append(got)
         busy.append(got)
         if r["heavy"]:
@@ -1526,9 +2449,16 @@ def feed_pass(b: dict, man: dict, snap: dict, log, max_unclaimed: int = MAX_UNCL
         if L in SLOW_START_LAYERS:
             ss_fly[L] = ss_fly.get(L, 0) + 1
         out.append(key)
-        log(f"submit {key} -> {got} ({L}, {r['model_set']}{', heavy' if r['heavy'] else ''}{', exclusive' if key in excl else ''})")
+        if not probe:
+            log(f"submit {key} -> {got} ({L}, {r['model_set']}{', heavy' if r['heavy'] else ''}{', exclusive' if key in excl else ''})")
         if key in excl:
-            log(f"{key} is exclusive: no other db submission until {got} is DONE / FAILED")
+            if not probe:
+                log(f"{key} is exclusive: no other db submission until {got} is DONE / FAILED")
+            break
+        if max_submit is not None and len(out) >= max_submit:
+            rest = [p for p in order[i + 1:] if man["rows"][p]["status"] == "pending"]
+            for p in rest:
+                wait("per_pass", f"at most {max_submit} submission(s) per pass for a lower-priority batch", p)
             break
     return out
 
@@ -1604,6 +2534,185 @@ def _halt(man: dict, mp: pathlib.Path, msg: str) -> None:
     raise SystemExit(msg)
 
 
+# ================================================================ 并行喂料（b1 与 b2 同时跑；模块说明"并行喂料"）
+def lock_path(batch: str) -> pathlib.Path:
+    """每批一个喂料器锁：b1 沿用 logs/db_feed.lock（正在跑的 b1 喂料器用的就是它），其他批 logs/db_feed_<批次>.lock。"""
+    return J.QROOT.parent / "logs" / ("db_feed.lock" if batch == "b1" else f"db_feed_{batch}.lock")
+
+
+def log_path(batch: str) -> pathlib.Path:
+    return J.QROOT.parent / "logs" / ("db_feed.log" if batch == "b1" else f"db_feed_{batch}.log")
+
+
+def stop_files(batch: str) -> list:
+    """STOP_DB_FEED（全部喂料器）与 STOP_DB_FEED_<批次>（只这一批）。"""
+    root = J.QROOT.parent
+    return [root / STOP_NAME, root / f"{STOP_NAME}_{batch}"]
+
+
+def submit_lock_path() -> pathlib.Path:
+    return J.QROOT.parent / "logs" / "db_submit.lock"
+
+
+@contextlib.contextmanager
+def submit_mutex(path: pathlib.Path | None = None, timeout: float | None = None):
+    """全局提交互斥锁（logs/db_submit.lock）：一轮的"快照 → 提交 → 写清单"在锁内做，两个喂料器的提交不会交错（全局深度上限不会被
+    同时越过）。等不到 timeout 秒 → yield False（调用方本轮跳过并记 WARNING）。注意：2026-10-26 01:24 起跑的 b1 喂料器是旧代码，不拿这把锁；
+    低优先级批次因此在每次提交前再扫一次队列、再探查一次优先级（窗口只剩毫秒级）。"""
+    path = path or submit_lock_path()
+    timeout = SUBMIT_LOCK_TIMEOUT_S if timeout is None else timeout
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(path, "a+b")
+    got = False
+    t0 = time.monotonic()
+    try:
+        while True:
+            try:
+                if os.name == "posix":
+                    import fcntl
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                else:
+                    import msvcrt
+                    fh.seek(0)
+                    msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+                got = True
+                break
+            except OSError:
+                if time.monotonic() - t0 >= timeout:
+                    break
+                time.sleep(0.05)
+        yield got
+    finally:
+        if got:
+            with contextlib.suppress(OSError):
+                if os.name == "posix":
+                    import fcntl
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+                else:
+                    import msvcrt
+                    fh.seek(0)
+                    msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+        fh.close()
+
+
+def _null_log(_msg: str) -> None:
+    return None
+
+
+def hi_manifest(h: str, bh: dict) -> tuple[dict | None, str | None]:
+    """高优先级批次 h 的清单副本（只读；状态按队列刷新）。没有清单 = 它的喂料器还没启动：按 bh 现建一个（全部按建表时的查重：多半是 pending）。
+    清单读不了、或它的键 / 预期 id 与 bh 不同 → (None, 原因)。"""
+    p = manifest_path(h)
+    man, err = _read_json(p)
+    if man is None and err is None:
+        man = {"batch": h, "order": [r["key"] for r in bh["rows"]], "rows": {r["key"]: _man_row(r) for r in bh["rows"]}, "gates": {},
+               "events": [], "_absent": True}
+    elif not isinstance(man, dict) or not isinstance(man.get("rows"), dict) or not isinstance(man.get("order"), list):
+        return None, f"manifest {p} unreadable ({err or 'not a manifest'})"
+    else:
+        man = copy.deepcopy(man)
+        want = {r["key"]: r["expected_id"] for r in bh["rows"]}
+        got = {k: (m or {}).get("expected_id") for k, m in man["rows"].items()}
+        if got != want or list(man["order"]) != [r["key"] for r in bh["rows"]]:
+            return None, f"manifest {p} does not match batch {h} as built now (keys / order / expected ids differ)"
+    refresh(man)
+    return man, None
+
+
+def _finished(man: dict) -> bool:
+    return all(m["status"] == "blocked" or (m["status"] in ("submitted", "existing") and m.get("state") in ("DONE", "FAILED"))
+               for m in man["rows"].values())
+
+
+def probe_pass(bh: dict, man: dict, snap: dict) -> tuple[list | None, dict, str | None]:
+    """高优先级批次此刻会提交哪些行（feed_pass(probe=True) 在清单副本上跑；不提交、不写）。返回 (键, waits, 探查不了的原因)。"""
+    waits = {}
+    try:
+        keys = feed_pass(bh, copy.deepcopy(man), snap, _null_log, MAX_UNCLAIMED, waits, probe=True)
+    except ProbeHalt as e:
+        return None, waits, f"its feeder would stop here: {e}"
+    except SystemExit as e:
+        return None, waits, f"its feed pass would refuse: {e.code}"
+    return keys, waits, None
+
+
+def exclusive_due(bh: dict, man: dict, snap: dict) -> str | None:
+    """高优先级批次只剩独占行（与依赖它的 h ≤ 1.4 行）待提交、且队列一空它就会提交独占行 → 返回那一行（低优先级批次停下来让队列排空）。"""
+    excl = exclusive_keys(bh, h14_mode()[0])
+    rows = {r["key"]: r for r in bh["rows"]}
+    pend = [k for k in man["order"] if man["rows"][k]["status"] == "pending"]
+    if not any(k in excl for k in pend):
+        return None
+    if any(k not in excl and not (rows[k]["spec"].get("kind") != "intact" and float(rows[k]["spec"]["h_int"]) <= HEAVY_H + 1e-9) for k in pend):
+        return None
+    idle = {**snap, "unclaimed_db": [], "heavy_inflight": [], "busy_any": []}
+    keys, _, why = probe_pass(bh, man, idle)
+    if keys and keys[0] in excl:
+        return keys[0]
+    return None
+
+
+def feeder_pids(batch: str) -> list | None:
+    """本机上 "stage_db.py feed <批次>" 进程的 pid（读 /proc/*/cmdline，只读）；没有 /proc（Windows）→ None（不知道）。"""
+    if not os.path.isdir("/proc"):
+        return None
+    out = []
+    for d in os.listdir("/proc"):
+        if not d.isdigit():
+            continue
+        try:
+            with open(f"/proc/{d}/cmdline", "rb") as fh:
+                args = [c.decode(errors="replace") for c in fh.read().split(b"\0") if c]
+        except OSError:
+            continue
+        if any(a.endswith("stage_db.py") for a in args) and "feed" in args and batch in args:
+            out.append(int(d))
+    return sorted(out)
+
+
+def _alive_txt(h: str) -> str:
+    p = feeder_pids(h)
+    if p is None:
+        return f"{h} feeder process: unknown on this host"
+    return f"{h} feeder process: pid {', '.join(map(str, p))}" if p else f"{h} feeder process: NOT RUNNING (no 'stage_db.py feed {h}' found)"
+
+
+def priority_wait(batch: str, hi_builds: dict, snap: dict) -> str | None:
+    """低优先级批次这一刻能不能提交（PRIORITY）：任何一个高优先级批次 此刻有可提交的行 / 独占行在飞 / 只剩独占行要排空队列 / 清单读不了
+    或探查不了 → 返回等待原因；都没有 → None。"""
+    for h, bh in hi_builds.items():
+        man, err = hi_manifest(h, bh)
+        if err:
+            return f"{h} priority: {err}; not submitting (fix or finish {h} first)"
+        if _finished(man):
+            continue
+        keys, waits, why = probe_pass(bh, man, snap)
+        if why:
+            return f"{h} priority: probe failed ({why}); not submitting"
+        if "exclusive_inflight" in waits:
+            return f"{h} priority: {waits['exclusive_inflight']['text']}"
+        if keys:
+            absent = " (no manifest yet: its feeder has not started)" if man.get("_absent") else ""
+            return (f"{h} priority: {len(keys)} row(s) of {h} submittable now{absent} ({', '.join(keys[:3])}{', ...' if len(keys) > 3 else ''}); "
+                    f"{_alive_txt(h)}")
+        due = exclusive_due(bh, man, snap)
+        if due:
+            return f"{h} priority: only exclusive / h 1.4 rows left in {h}; its exclusive {due} goes on an idle queue: draining (no submission)"
+    return None
+
+
+def cross_batch_dups(b: dict, others: dict) -> list:
+    """同一物理计算出现在两个批次里 → 问题（两个喂料器可能各提交一次）。"""
+    mine = {phys_key(r["spec"]): r["key"] for r in b["rows"]}
+    out = []
+    for h, bh in others.items():
+        for r in bh["rows"]:
+            k = mine.get(phys_key(r["spec"]))
+            if k:
+                out.append(f"{k}: same physics as row {r['key']} of batch {h}")
+    return out
+
+
 def feed(batch: str = "b1", poll: float = POLL_S, once: bool = False, max_unclaimed: int = MAX_UNCLAIMED, sleep=time.sleep) -> int:
     """喂料器主循环（规则见模块说明）。返回退出码：0 = 全部 DONE / FAILED、STOP 或 --once 一轮结束；3 = 有 blocked 行。
     任何拒绝（检查、磁盘、代码哈希、股骨几何、aux md5、清单不符、碰撞）→ SystemExit 带原因（日志里也有）；其他异常记 "ERROR crashed" 再抛出。"""
@@ -1612,11 +2721,12 @@ def feed(batch: str = "b1", poll: float = POLL_S, once: bool = False, max_unclai
     if not J.QROOT.is_dir():
         raise SystemExit(f"queue {J.QROOT} does not exist")
     root = J.QROOT.parent
-    stop = root / STOP_NAME
-    if stop.exists():
-        raise SystemExit(f"{stop} exists: remove it to start the feeder")
-    with feed_lock(root / "logs" / "db_feed.lock"):
-        log = _Log(root / "logs" / "db_feed.log")
+    stops = stop_files(batch)
+    for stop in stops:
+        if stop.exists():
+            raise SystemExit(f"{stop} exists: remove it to start the feeder")
+    with feed_lock(lock_path(batch)):
+        log = _Log(log_path(batch))
         pin = ""
         if hasattr(os, "sched_getaffinity"):
             pin = f"; cpus {sorted(os.sched_getaffinity(0))}; nice {os.nice(0)}"
@@ -1629,15 +2739,24 @@ def feed(batch: str = "b1", poll: float = POLL_S, once: bool = False, max_unclai
                 if not isinstance(man0, dict):
                     raise SystemExit(f"{mp} is unreadable ({err0 or 'not a JSON object'}); not feeding (restore it from the job dirs or "
                                      "start a new batch name)")
-            b = build(batch)
+            with submit_mutex() as got_lock:                # 建表时读别的批次的清单：在锁内读，不会撞上它写到一半（Windows 上 os.replace 会失败）
+                if not got_lock:
+                    raise SystemExit(f"the pass mutex {submit_lock_path()} was not free within {SUBMIT_LOCK_TIMEOUT_S:g} s at start")
+                b = build(batch)
+                hi_builds = {h: build(h) for h in PRIORITY.get(batch, ())} if not b["problems"] else {}   # 高优先级批次的作业表（探查用）
             if b["problems"]:
                 raise SystemExit(f"batch {batch}: {len(b['problems'])} check problem(s); nothing submitted:\n" + "\n".join("  " + p for p in b["problems"]))
+            dups = cross_batch_dups(b, hi_builds)
+            if dups:
+                raise SystemExit(f"batch {batch}: rows with the same physics as rows of a higher-priority batch: " + "; ".join(dups[:5]))
             for w in b["warnings"]:
                 log("WARNING " + w)
             gk = femur_geom_key()
             aux = aux_md5()
             if not mp.exists():
                 check_first_start_disk(disk_free_gib())
+                if batch == "b2":
+                    log(write_selection(b, log))
             man = open_manifest(batch, b, gk, log, aux)
             man["events"].append({"utc": _utc(), "event": "start", "pid": os.getpid()})
             n_rows = len(b["rows"])
@@ -1645,17 +2764,23 @@ def feed(batch: str = "b1", poll: float = POLL_S, once: bool = False, max_unclai
             log(f"batch {batch}: {n_rows} rows; {sum(m['status'] == 'pending' for m in man['rows'].values())} pending, "
                 f"{sum(m['status'] == 'existing' for m in man['rows'].values())} existing, {sum(m['status'] == 'held' for m in man['rows'].values())} held"
                 f"{'; ' + sd if sd else ''}; femur_geom_key {gk['key']}; aux md5 {json.dumps(man['aux_md5'])}")
-            log(f"slow start: layers {list(SLOW_START_LAYERS)} keep at most {SLOW_START_CAP} rows in flight until {SLOW_START_DONE} of their "
+            lay = [L for L in SLOW_START_LAYERS if any(r["layer"] == L for r in b["rows"])]
+            log(f"slow start: layers {lay} keep at most {SLOW_START_CAP} rows in flight until {SLOW_START_DONE} of their "
                 f"rows are DONE; first-10 gate window = rows submitted by this feeder only; heartbeat every {HEARTBEAT_S / 60:g} min")
+            if hi_builds:
+                log(f"priority: batch {batch} submits only when {list(hi_builds)} has no row submittable right now (and none of its exclusive rows "
+                    f"is in flight or due on an idle queue); at most {LOW_MAX_SUBMIT} submission per pass, depth and priority re-checked on a fresh "
+                    f"queue scan right before it; global depth cap {max_unclaimed} unclaimed db_* (all batches); pass mutex {submit_lock_path()}")
             idle, announced = 0, set()
-            h14_txt, hb_last = None, None
+            h14_txt, hb_last, pr_last = None, None, None
             while True:
-                if stop.exists():
+                hit = next((s_ for s_ in stops if s_.exists()), None)
+                if hit is not None:
                     refresh(man)
                     man["updated_utc"] = _utc()
-                    man["events"].append({"utc": _utc(), "event": "stop file"})
+                    man["events"].append({"utc": _utc(), "event": "stop file", "file": hit.name})
                     _write_json(mp, man)
-                    log(f"{stop} found: manifest written, exiting cleanly; {json.dumps(_counts(man))}")
+                    log(f"{hit} found: manifest written, exiting cleanly; {json.dumps(_counts(man))}")
                     return 0
                 check_code()
                 if femur_geom_key()["key"] != man["femur_geom_key"]["key"]:
@@ -1664,34 +2789,55 @@ def feed(batch: str = "b1", poll: float = POLL_S, once: bool = False, max_unclai
                 if ch:
                     _halt(man, mp, "aux code files changed while feeding (not in code_hash, but they affect results): " + "; ".join(ch)
                           + "; stopped (restore them, or start a new batch name)")
-                snap = queue_snapshot()
-                refresh(man)
-                lost = [m["key"] for m in man["rows"].values() if m["status"] in ("submitted", "existing") and m["state"] == "MISSING"]
-                if lost:
-                    raise SystemExit(f"job directories vanished from the queue: {lost}")
-                if snap["missing"] or snap["unreadable"]:
-                    log(f"WARNING queue dirs without a readable spec.json this pass (counted as heavy, busy and, if db_*, unclaimed): "
-                        f"missing {snap['missing']}; unreadable {snap['unreadable']}")
-                for k in man["order"]:                      # 每个 FAILED 的行记一次（原因来自 FAILED.json）
-                    m = man["rows"][k]
-                    if m["state"] == "FAILED" and not m.get("failed_logged"):
-                        m["failed_logged"] = True
-                        log(f"FAILED {k} {m['id']} ({m['layer']}): {_fail_reason(m['id'])}")
-                gate_pass(b, man, log)
-                h14x, h14_now = h14_mode()
-                if h14_now != h14_txt:                      # 模式（与理由）在启动和变化时记一行
-                    log(f"FD-0 h1.4 mode: {h14_now}")
-                    man["events"].append({"utc": _utc(), "event": "h14_mode", "mode": "exclusive" if h14x else "heavy", "why": h14_now})
-                    h14_txt = h14_now
-                pending = [m for m in man["rows"].values() if m["status"] == "pending"]
-                held = [m for m in man["rows"].values() if m["status"] == "held"]
-                sub, waits = [], {}
-                if pending:
-                    check_disk(disk_free_gib())
-                    sub = feed_pass(b, man, snap, log, max_unclaimed, waits, h14_exclusive=h14x)
-                refresh(man)
-                man["updated_utc"] = _utc()
-                _write_json(mp, man)
+                with submit_mutex() as got_lock:
+                    if not got_lock:
+                        log(f"WARNING pass skipped: the pass mutex {submit_lock_path()} was not free within {SUBMIT_LOCK_TIMEOUT_S:g} s")
+                        if once:
+                            return 0
+                        sleep(poll)
+                        continue
+                    snap = queue_snapshot()
+                    refresh(man)
+                    lost = [m["key"] for m in man["rows"].values() if m["status"] in ("submitted", "existing") and m["state"] == "MISSING"]
+                    if lost:
+                        raise SystemExit(f"job directories vanished from the queue: {lost}")
+                    if snap["missing"] or snap["unreadable"]:
+                        log(f"WARNING queue dirs without a readable spec.json this pass (counted as heavy, busy and, if db_*, unclaimed): "
+                            f"missing {snap['missing']}; unreadable {snap['unreadable']}")
+                    for k in man["order"]:                      # 每个 FAILED 的行记一次（原因来自 FAILED.json）
+                        m = man["rows"][k]
+                        if m["state"] == "FAILED" and not m.get("failed_logged"):
+                            m["failed_logged"] = True
+                            log(f"FAILED {k} {m['id']} ({m['layer']}): {_fail_reason(m['id'])}")
+                    gate_pass(b, man, log)
+                    h14x, h14_now = h14_mode()
+                    if h14_now != h14_txt:                      # 模式（与理由）在启动和变化时记一行
+                        log(f"FD-0 h1.4 mode: {h14_now}")
+                        man["events"].append({"utc": _utc(), "event": "h14_mode", "mode": "exclusive" if h14x else "heavy", "why": h14_now})
+                        h14_txt = h14_now
+                    pending = [m for m in man["rows"].values() if m["status"] == "pending"]
+                    held = [m for m in man["rows"].values() if m["status"] == "held"]
+                    sub, waits = [], {}
+                    if pending:
+                        check_disk(disk_free_gib())
+                        pr = priority_wait(batch, hi_builds, snap) if hi_builds else None
+                        pr_cat = re.sub(r"\d+", "#", pr.split(" (")[0]) if pr else None
+                        if pr_cat != pr_last:                   # 优先级等待的原因类别变化时记一行（含"不再等"）；完整原因在 WAIT 行里
+                            log(f"PRIORITY {pr}" if pr else "PRIORITY clear: no higher-priority row is submittable now")
+                            pr_last = pr_cat
+                        if pr:
+                            waits["priority"] = {"text": pr, "keys": [k for k in man["order"] if man["rows"][k]["status"] == "pending"]}
+                        else:
+                            def fresh_gate():                   # 低优先级批次：提交前重新扫队列，再核深度与优先级
+                                fs = queue_snapshot()
+                                if len(fs["unclaimed_db"]) >= max_unclaimed:
+                                    return f"depth cap (fresh scan): {len(fs['unclaimed_db'])} unclaimed db_* jobs >= {max_unclaimed}"
+                                return priority_wait(batch, hi_builds, fs)
+                            sub = feed_pass(b, man, snap, log, max_unclaimed, waits, h14_exclusive=h14x,
+                                            gate=fresh_gate if hi_builds else None, max_submit=LOW_MAX_SUBMIT if hi_builds else None)
+                    refresh(man)
+                    man["updated_utc"] = _utc()
+                    _write_json(mp, man)
                 t_hb = _mono()
                 if hb_last is None or t_hb - hb_last >= HEARTBEAT_S:
                     hb_last = t_hb
@@ -1746,19 +2892,24 @@ def status(batch: str = "b1") -> None:
 
 def main(argv=None) -> int:
     import argparse
-    ap = argparse.ArgumentParser(description="db3406 batch submitter v1.1 (dry-run / feed / status)")
-    ap.add_argument("cmd", choices=["dry-run", "feed", "status"])
+    ap = argparse.ArgumentParser(description="db3406 batch submitter v1.2 (dry-run / feed / status; select for b2)")
+    ap.add_argument("cmd", choices=["dry-run", "feed", "status", "select"])
     ap.add_argument("batch", choices=list(BATCHES))
-    ap.add_argument("--root", help="dry-run / status only: read <root>/queue and <root>/results (a read-only copy) instead of ~/mobo_toy_v2")
+    ap.add_argument("--root", help="dry-run / status / select only: read <root>/queue and <root>/results (a copy) instead of ~/mobo_toy_v2 "
+                                   "(select writes into <root>/results)")
     ap.add_argument("--once", action="store_true", help="feed only: one pass, then exit")
     ap.add_argument("--poll", type=float, default=POLL_S, help="feed only: seconds between passes (default 60)")
     a = ap.parse_args(argv)
     if a.root:
         if a.cmd == "feed":
-            ap.error("--root is for dry-run / status only (the feeder works on the live ~/mobo_toy_v2 queue)")
+            ap.error("--root is for dry-run / status / select only (the feeder works on the live ~/mobo_toy_v2 queue)")
         J.QROOT, J.RESULTS = pathlib.Path(a.root) / "queue", pathlib.Path(a.root) / "results"
     if a.cmd != "feed" and (a.once or a.poll != POLL_S):
         ap.error("--once / --poll are feed options")
+    if a.cmd == "select":
+        if a.batch != "b2":
+            ap.error("select is for batch b2 (CR-1 / CR-T selection file and widened-box counts)")
+        return select_b2()
     if a.cmd == "dry-run":
         return dry_run(a.batch)
     if a.cmd == "status":
