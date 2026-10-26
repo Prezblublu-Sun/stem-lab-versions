@@ -587,6 +587,27 @@ def test_femur_registry_binds_key_to_job_time():
     assert not errs5 and reg5["femurs"][DX.FEMUR_ID]["windows"] == [["2026-10-23T23:40:47Z", "2026-10-30T00:00:00Z"]]
 
 
+def test_solve_evidence_provenance():
+    """finalize --provenance may name the solver of a DONE job whose solve.json was overwritten after the solve (with evidence)."""
+    err = DX.SOLVER_ERR + " (no 'solver' key and no *.odb in odb_meta)"
+    r = _row("sb11_init_x", "sobol_init_p11", "iid", "d1", solver=None, solve_wall_s_fric=None, export_errors=[err, "other"])
+    pv = {"solver": "abaqus", "solve_wall_s_fric": "1877", "solver_evidence": "worker.log 04:16:27 m_fric OK 1877 s", "_file": "ev.json"}
+    rows, errs, _ = DX.finalize_rows([r], {}, {"sb11_init_x": pv})
+    assert not [e for e in errs if "sb11_init_x" in e and "solver" in e], errs
+    assert r["solver"] == "abaqus" and r["solve_wall_s_fric"] == 1877.0 and r["export_errors"] == ["other"] and r["export_status"] == "error"
+    r1 = _row("sb11_init_w", "sobol_init_p11", "iid", "d1", solver=None, export_errors=[err], export_status="error")
+    DX.finalize_rows([r1], {}, {"sb11_init_w": dict(pv)})
+    assert r1["export_errors"] == [] and r1["export_status"] == "ok"
+    assert r["solver_basis"].startswith("provenance ev.json: worker.log") and r["provenance"] == "rule"   # selection provenance unchanged
+    r2 = _row("sb11_init_y", "sobol_init_p11", "iid", "d1", solver=None, export_errors=[err])
+    _, errs2, _ = DX.finalize_rows([r2], {}, {"sb11_init_y": {"solver": "abaqus", "_file": "ev.json"}})
+    assert any("without solver_evidence" in e for e in errs2) and r2["solver"] is None and r2["export_errors"] == [err]
+    r3 = _row("sb11_init_z", "sobol_init_p11", "iid", "d1", solver="abaqus", solve_wall_s_fric=1818.98)
+    _, errs3, _ = DX.finalize_rows([r3], {}, {"sb11_init_z": {"solver": "calculix", "solve_wall_s_fric": "1818", "solver_evidence": "x",
+                                                             "_file": "ev.json"}})
+    assert any("solver 'calculix' != exported 'abaqus'" in e for e in errs3) and not any("solve_wall_s_fric" in e for e in errs3)
+
+
 def test_finalize_writes_registry_only_when_clean():
     """The db-level femur registry is updated only by a finalize with no errors and no rows with export errors (not even
     under --allow-errors); the version dir always gets its own copy. finalize --db-root has no default."""

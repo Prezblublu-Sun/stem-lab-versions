@@ -82,7 +82,7 @@ import traceback
 
 import numpy as np
 
-EXPORTER_VERSION = "db_export 0.2.0 (2026-10-26, D456fix)"
+EXPORTER_VERSION = "db_export 0.2.1 (2026-10-26, solve evidence)"
 FEMUR_ID = "sawbone3406"
 FEMUR_VERSIONS = {FEMUR_ID: ("3406R_v1_hollowcore", True)}          # plan 2.1: hollow-core model until the user answers
 EXPECTED_CODE_HASH = "6d7af243d0"
@@ -193,6 +193,8 @@ def _build_columns():
        desc="cut centre and baked neck axis of the export femur equal the prep-time values (<= 1e-9 mm)")
     _c("femur_pose_dev_mm", "float", "mm", 0.0, None, req="prep", source=X)
     _c("solver", "str", "", req="done", source="solve.json", desc="abaqus (odb_meta.odb *.odb) | the entry's 'solver' key")
+    _c("solver_basis", "str", "", req="optional", source=X,
+       desc="'' = solve.json; 'provenance <file>: <evidence>' = filled by finalize --provenance (solve.json overwritten after the solve)")
     _c("steps", "json", "", req="prep", source=P + " steps (else the step names in solve.json odb_meta)",
        desc="analysis steps of the model, e.g. PRESSFIT, RELEASE, LOAD, UNLOAD, LOAD2")
     _c("collar_rule", "str", "", req="optional", source=S)
@@ -2202,6 +2204,30 @@ def _load_provenance(paths) -> dict:
 
 PROV_KEYS = {"source": str, "selection": str, "acq_name": str, "acq_round": int, "acq_model_version": str, "acq_pred_mean": float,
              "acq_pred_sd": float, "pool_idx": int, "w_iid": float, "source_detail": str, "layer": str}
+# solve-record evidence (a DONE job whose solve.json was overwritten after the solve): filled only where emit left the cell empty,
+# only together with a non-empty solver_evidence; removes exactly the export error SOLVER_ERR
+SOLVE_PROV_KEYS = {"solver": str, "solve_wall_s_fric": float, "solve_wall_s_bond": float, "solve_tries_fric": int, "solve_tries_bond": int}
+SOLVER_ERR = "solver not identifiable from solve.json"
+
+
+def apply_solve_evidence(r: dict, pv: dict, errs: list) -> None:
+    keys = [k for k in SOLVE_PROV_KEYS if pv.get(k) is not None]
+    if not keys:
+        return
+    ev = str(pv.get("solver_evidence") or "").strip()
+    if not ev:
+        errs.append(f"{r['job_id']}: provenance {pv['_file']} gives {keys} without solver_evidence")
+        return
+    for k in keys:
+        v = SOLVE_PROV_KEYS[k](pv[k])
+        if r.get(k) is None:
+            r[k] = v
+        elif (r[k] != v) if not isinstance(v, float) else abs(float(r[k]) - v) > 1.0:
+            errs.append(f"{r['job_id']}: provenance {pv['_file']} {k} {v!r} != exported {r[k]!r} (only empty cells are filled)")
+    if pv.get("solver") is not None:
+        r["solver_basis"] = f"provenance {pv['_file']}: {ev}"
+        r["export_errors"] = [e for e in (r.get("export_errors") or []) if not str(e).startswith(SOLVER_ERR)]
+        r["export_status"] = "error" if r["export_errors"] else "ok"
 
 
 def replicate_groups(rows: list) -> dict:
@@ -2239,7 +2265,9 @@ def finalize_rows(rows: list, E_scan: dict, prov: dict) -> tuple[list, list, dic
             for k, typ in PROV_KEYS.items():
                 if pv.get(k) is not None:
                     r[k] = typ(pv[k])
-            r["provenance"] = pv["_file"]
+            if any(pv.get(k) is not None for k in PROV_KEYS):
+                r["provenance"] = pv["_file"]
+            apply_solve_evidence(r, pv, errs)
         if r.get("selection") not in SELECTIONS:
             errs.append(f"{r['job_id']}: selection {r.get('selection')!r} not in {SELECTIONS} (needs a provenance entry)")
         if r.get("source") is None:
@@ -2422,7 +2450,16 @@ def finalize(out: pathlib.Path, db_root: str | None, provenance, allow_errors: b
     rows, E, inv, ctxs = _load_rows(out)
     prov = _load_provenance(provenance)
     rows, errs, einfo = finalize_rows(rows, E, prov)
+    for pp in provenance or []:                                      # keep the override files with the version (audit)
+        pp = pathlib.Path(pp).resolve()
+        dst = out / "provenance" / pp.name
+        if pp != dst.resolve():
+            dst.parent.mkdir(exist_ok=True)
+            shutil.copy2(pp, dst)
     warns = []
+    unknown = sorted(set(prov) - {r["job_id"] for r in rows})
+    if unknown:
+        warns.append(f"{len(unknown)} provenance entries for jobs not in this version (ignored): {unknown[:10]}")
     if not any(c.get("queue_complete") for c in ctxs):
         errs.append("no batch scanned the full Linux queue: the exclusion set E only covers the exported roots "
                     "(add a Linux batch, or pass the Linux exclusion.json via a provenance in_E file)")
