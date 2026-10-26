@@ -130,7 +130,8 @@ def test_columns_diag_prefix_solver_steps_foam():
     assert DX.STAB_KEY_TO_COL["rot_first_prox_deg"] == "diag_rot_first_prox_deg"
     assert DX.STAB_KEY_TO_COL["bench_cx_rot_first_deg"] == "diag_bench_cx_rot_first_deg"
     assert DX.STAB_KEY_TO_COL["rot_first_deg"] == "rot_first_deg"
-    assert "db_bd_" not in DX.E_JOB_PREFIXES and DX.DB_STAGE_RULES["db_bd"] is None
+    assert "db_bd_" in DX.E_JOB_PREFIXES and not any(x.startswith("db_bo") for x in DX.E_JOB_PREFIXES)
+    assert DX.DB_STAGE_RULES["db_bd"] == ("offset_variant", "stratum") and DX.DB_STAGE_RULES["db_bo"] == ("bond_partner", "stratum")
 
 
 def test_csv_present_gz(tmp=None):
@@ -490,6 +491,7 @@ def test_db_provenance_manifest_and_seed():
     DX.apply_db_provenance(row, rs, prov.get(row["job_id"]), "k" * 16, errs)
     assert not errs and (row["layer"], row["source"], row["selection"]) == ("REF", "intact_ref", "stratum")
     assert "selection reference" in row["source_detail"]
+    assert row["source_job"] == "sb_intact_h2_9c9d7fb5"            # stage_db specs carry no source_job: taken from the manifest
     # NZ row: intact_job mismatch and femur key mismatch are errors
     ns = {"stage": "db_nz", "kind": "variant", "intact_job": "sb_intact_h2_9c9d7fb5"}
     row = _prow("db_nz_p13_a78_h1.94_22222222", **DX.classify("db_nz_p13_a78_h1.94_22222222", ns, None))
@@ -583,6 +585,36 @@ def test_femur_registry_binds_key_to_job_time():
     # the same files seen later by another Linux batch extend the window
     reg5, errs5, _ = DX.apply_femur_registry(rows, [_ctx("b2", "K1", "2026-10-23T23:40:47Z", "2026-10-30T00:00:00Z")], reg, "v0.2")
     assert not errs5 and reg5["femurs"][DX.FEMUR_ID]["windows"] == [["2026-10-23T23:40:47Z", "2026-10-30T00:00:00Z"]]
+
+
+def test_finalize_writes_registry_only_when_clean():
+    """The db-level femur registry is updated only by a finalize with no errors and no rows with export errors (not even
+    under --allow-errors); the version dir always gets its own copy. finalize --db-root has no default."""
+    rows = [_row("j1", "x", "iid", "d1", has_prep=True, femur_geom_key="K1", femur_geom_verified=True,
+                 femur_geom_basis="files_older_than_prep", t_prep_utc="2026-10-24T01:00:00Z")]
+    ctxs = [dict(_ctx("b0", "K1", "2026-10-23T23:40:47Z", "2026-10-26T00:00:00Z"), queue_complete=True)]
+    einfo = {"E_jobs": {}, "n_E": 0, "replicate_groups": {"fric": [], "bond": []}}
+    orig = (DX._load_rows, DX.finalize_rows)
+    try:
+        for bad, allow, want in ((True, True, False), (False, False, True)):
+            rr = [dict(r, export_errors=(["boom"] if bad else [])) for r in rows]
+            DX._load_rows = lambda out, rr=rr: ([dict(r) for r in rr], {}, {}, [dict(c) for c in ctxs])
+            DX.finalize_rows = lambda rows_, E, prov: (rows_, [], einfo)
+            root, out = _tmpdir("finreg_root"), _tmpdir("finreg_out")
+            (out / "export").mkdir()
+            rc = DX.finalize(out, str(root), None, allow)
+            man = json.loads((out / "manifest.json").read_text())
+            assert (root / "femur_registry.json").exists() is want and man["femur_registry"]["updated"] is want, (bad, rc, man["femur_registry"])
+            assert (out / "femur_registry.json").exists() and rc == (0 if allow or not bad else 3)
+            assert bad == any("NOT updated" in w for w in man["finalize_warnings"])
+    finally:
+        DX._load_rows, DX.finalize_rows = orig
+    for argv in (["finalize", "--out", "x"], ["pull", "--jobs", "a", "--out", "x"]):
+        try:
+            DX.main(argv)
+            raise AssertionError(f"{argv}: accepted without --db-root")
+        except SystemExit as e:
+            assert e.code == 2, argv
 
 
 # ------------------------------------------------------------------------------------------------ write guard (subprocess: hooks cannot be removed)

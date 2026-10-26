@@ -105,18 +105,18 @@ FEMUR_GEOM_FILES = tuple(FEMUR_GEOM_ROLES.values())
 FEMUR_GEOM_KEY_RULE = ("sha256(''.join(f'{role}:{sha256(file)}\\n' for role in sorted(roles))).hexdigest()[:16], roles femur_3406.py / "
                        "step_cancellous / step_cortical (= stage_db.femur_geom_key()['key'])")
 # exclusion set E (plan 1.4): job-name prefixes whose designs were picked by an optimiser or by a BO-derived box.
-# NOT db_bd_: stage_db.py (D1) uses stage db_bd for the bond-only PARTNER jobs (layers "BD mesh" / "BD h2.0", source bond_partner),
-# not for the plan's BD offset-variant stratum; db_* jobs enter E through their manifest source (E_SOURCES) instead.
-E_JOB_PREFIXES = ("sb13_a", "sb14_a", "db_cr_", "db_crt_", "db_opt_")
+# db_bd_ = the plan's BD offset-variant stratum (BO-derived). stage_db.py v1.1 puts the bond-only PARTNER jobs under stage db_bo
+# (layers "BD mesh" / "BD h2.0", source bond_partner), never db_bd. db_* jobs also enter E through their manifest source (E_SOURCES).
+E_JOB_PREFIXES = ("sb13_a", "sb14_a", "db_cr_", "db_crt_", "db_bd_", "db_opt_")
 E_SOURCES = {"bo_p13", "bo_p14", "corner", "corner_test", "offset_variant", "opt_verify", "a9_baseline", "a9_bo", "gen_verify"}
 ARM_SOURCES = {"bo_p13", "bo_p14"}
 CANDIDATE_JOBS = {"A": "sb13_a105_91e458e3", "B": "sb13_a78_b0f465da", "B'": "sb13_a53_23a3f031", "C": "sb14_a29_6ad70033",
                   "D": "sb14_a26_96c5ab9b", "a62": "sb13_a62_1e4338ee"}   # progress summary 50 h section 4 + corner check
 SELECTIONS = ("iid", "stratum", "adaptive", "corner_test")
 # db_* stage prefix -> (source, selection) used only to CROSS-CHECK the manifest (every db_* row needs a D1 manifest or seed entry);
-# None = no rule. db_bd has no rule (D1 uses it for bond-only partners, see E_JOB_PREFIXES).
+# None = no rule. db_bo = stage_db.py v1.1 bond-only partners (source bond_partner); db_bd = offset variants (see E_JOB_PREFIXES).
 DB_STAGE_RULES = {"db_sf": ("sf", "iid"), "db_cr": ("corner", "stratum"), "db_crt": ("corner_test", "corner_test"),
-                  "db_bd": None, "db_nz": ("noise", "stratum"), "db_opt": ("opt_verify", "stratum"),
+                  "db_bd": ("offset_variant", "stratum"), "db_bo": ("bond_partner", "stratum"), "db_nz": ("noise", "stratum"), "db_opt": ("opt_verify", "stratum"),
                   "db_ref": ("intact_ref", "stratum"), "db_cd": None, "db_fd": None, "db_al": None}
 # D1 manifest selection values -> db3406 selection (the raw value is kept in source_detail)
 MANIFEST_SELECTION = {"reference": "stratum", "stratum": "stratum", "iid": "iid", "adaptive": "adaptive", "corner_test": "corner_test"}
@@ -1095,6 +1095,8 @@ def apply_db_provenance(row: dict, spec: dict, entries: list | None, ctx_femur_k
         errs.append(f"{name}: manifest intact_job {e0.get('intact_job')!r} != spec intact_job {spec.get('intact_job')!r}")
     if e0.get("source_job") and spec.get("source_job") and e0["source_job"] != spec["source_job"]:
         errs.append(f"{name}: manifest source_job {e0['source_job']!r} != spec source_job {spec['source_job']!r}")
+    if not row.get("source_job") and e0.get("source_job"):         # stage_db specs carry no source_job (META key, manifest only)
+        row["source_job"] = e0["source_job"]
     fmv = e0.get("femur_model_version")
     if fmv is not None and fmv != row.get("femur_model_version"):
         errs.append(f"{name}: manifest femur_model_version {fmv!r} != exporter {row.get('femur_model_version')!r}")
@@ -1491,8 +1493,8 @@ def export_job(P: Pipeline, ctx: Context, jd: pathlib.Path, with_fields: bool):
     apply_db_provenance(row, spec, ctx.db_prov.get(jd.name), ctx.femur_geom_key, errs)
     if rec and rec.get("rot_first_deg") is not None:
         row["rot_record_deg"] = float(rec["rot_first_deg"])
-    if spec.get("source_job"):
-        sj = P.qroot / spec["source_job"]
+    if row.get("source_job"):                                     # spec source_job, else the manifest's (apply_db_provenance)
+        sj = P.qroot / row["source_job"]
         try:
             ssp = json.loads((sj / "spec.json").read_text())
             if ssp.get("design") is not None:
@@ -1501,7 +1503,7 @@ def export_job(P: Pipeline, ctx: Context, jd: pathlib.Path, with_fields: bool):
                 nt = json.loads((sj / "prep.json").read_text()).get("n_tet") or {}
                 row["source_job_n_tet_total"] = sum(int(v) for v in nt.values()) if nt else None
         except Exception as e:  # noqa: BLE001
-            errs.append(f"source_job {spec['source_job']}: {type(e).__name__}: {e}")
+            errs.append(f"source_job {row['source_job']}: {type(e).__name__}: {e}")
     if kind in ("design", "variant"):
         try:
             ph = P.phases()
@@ -2441,13 +2443,18 @@ def finalize(out: pathlib.Path, db_root: str | None, provenance, allow_errors: b
         reg_old = json.loads(reg_path.read_text(encoding="utf-8")) if reg_path.exists() else None
     reg_new, rerrs, rinfo = apply_femur_registry(rows, ctxs, reg_old, out.name)
     errs += rerrs
-    if reg_path is not None and not rerrs:
-        if not reg_path.parent.exists():
-            errs.append(f"registry dir {reg_path.parent} does not exist")
-        else:
-            tmp = reg_path.with_name(reg_path.name + ".part")
-            tmp.write_text(json.dumps(reg_new, indent=1, sort_keys=True), encoding="utf-8")
-            os.replace(tmp, reg_path)
+    export_errs = {r["job_id"]: r.get("export_errors") for r in rows if r.get("export_errors")}
+    reg_updated = False
+    if reg_path is not None and not reg_path.parent.exists():
+        errs.append(f"registry dir {reg_path.parent} does not exist")
+    if reg_path is not None and not errs and not export_errs:     # db-level registry only from a clean version (not --allow-errors)
+        tmp = reg_path.with_name(reg_path.name + ".part")
+        tmp.write_text(json.dumps(reg_new, indent=1, sort_keys=True), encoding="utf-8")
+        os.replace(tmp, reg_path)
+        reg_updated = True
+    elif reg_path is not None:
+        warns.append(f"femur registry {reg_path} NOT updated ({len(errs)} finalize errors, {len(export_errs)} rows with export "
+                     "errors); this version's copy is in femur_registry.json")
     (out / "femur_registry.json").write_text(json.dumps(reg_new, indent=1, sort_keys=True), encoding="utf-8")
     write_scalars(out, rows)
     if root and root.exists():
@@ -2468,7 +2475,6 @@ def finalize(out: pathlib.Path, db_root: str | None, provenance, allow_errors: b
     splits["unbiased_jobs"] = sorted(r["job_id"] for r in rows if r.get("unbiased"))
     splits["exclusion_set_E"] = einfo["E_jobs"]
     (out / "splits.json").write_text(json.dumps(splits, indent=1, sort_keys=True))
-    export_errs = {r["job_id"]: r.get("export_errors") for r in rows if r.get("export_errors")}
     files = {}
     for p in sorted(out.rglob("*")):
         if p.is_file() and p.name != "manifest.json" and not p.name.endswith(".part"):
@@ -2481,7 +2487,7 @@ def finalize(out: pathlib.Path, db_root: str | None, provenance, allow_errors: b
            "femur": sorted({(str(r.get("femur_id")), str(r.get("femur_model_version")), str(r.get("femur_geom_key"))) for r in rows}),
            "split_rule": SPLIT_RULE, "batches": [c.get("batch") for c in ctxs], "contexts": ctxs,
            "skipped_batch_dirs": [p.name for p in batch_dirs(out)[1]], "replicate_groups": einfo["replicate_groups"],
-           "femur_registry": {"path": str(reg_path) if reg_path else None, "info": rinfo, "updated": bool(reg_path and not rerrs)},
+           "femur_registry": {"path": str(reg_path) if reg_path else None, "info": rinfo, "updated": reg_updated},
            "finalize_errors": errs, "finalize_warnings": warns, "rows_with_export_errors": export_errs, "files": files}
     (out / "manifest.json").write_text(json.dumps(man, indent=1, sort_keys=True, default=_jdefault))
     rg = einfo["replicate_groups"]
@@ -2569,7 +2575,7 @@ def main(argv=None) -> int:
     p.add_argument("--shard-size", type=int, default=64)
     p.add_argument("--no-fields", action="store_true")
     p.add_argument("--out", required=True)
-    p.add_argument("--db-root", default="H:/projects/Femoral implant generation/db3406")
+    p.add_argument("--db-root", help="db3406 root (femur_registry.json, schema.json, DATA_CARD.md); required unless --no-finalize")
     p.add_argument("--registry", help="femur registry json (default <db-root>/femur_registry.json)")
     p.add_argument("--provenance", nargs="*")
     p.add_argument("--min-free-gb", type=float, default=H_MIN_FREE_GB)
@@ -2584,7 +2590,7 @@ def main(argv=None) -> int:
     p.add_argument("--allow-errors", action="store_true")
     f = sub.add_parser("finalize")
     f.add_argument("--out", required=True)
-    f.add_argument("--db-root", default="H:/projects/Femoral implant generation/db3406")
+    f.add_argument("--db-root", required=True, help="db3406 root (femur_registry.json, schema.json, DATA_CARD.md)")
     f.add_argument("--registry", help="femur registry json (default <db-root>/femur_registry.json)")
     f.add_argument("--provenance", nargs="*")
     f.add_argument("--allow-errors", action="store_true")
@@ -2601,6 +2607,8 @@ def main(argv=None) -> int:
         ap.error("give --jobs, --jobs-file, or --list-only --select-3406")
     if a.cmd == "pull" and a.jobs_file and (a.jobs or a.select_3406 or a.list_only):
         ap.error("--jobs-file excludes --jobs / --select-3406 / --list-only")
+    if a.cmd == "pull" and not a.db_root and not a.no_finalize and not a.list_only:
+        ap.error("--db-root is required (finalize reads / updates the femur registry there); or pass --no-finalize")
     if a.cmd == "emit":
         return cmd_emit(a)
     if a.cmd == "pull":
