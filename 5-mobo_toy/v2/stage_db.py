@@ -1,8 +1,8 @@
-"""3406 数据库（db3406）的批量提交器 v1.3（D1 = v0 + 审查修正 + 采纳 CD-0 种子 + 第二轮审查修正；D2 = 批次 b2 + 并行喂料；v1.3 = 批次 b1b）。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
+"""3406 数据库（db3406）的批量提交器 v1.4（D1 = v0 + 审查修正 + 采纳 CD-0 种子 + 第二轮审查修正；D2 = 批次 b2 + 并行喂料；v1.3 = 批次 b1b；v1.4 = 批次 b2b）。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
 （第 1.3 / 1.4 节分层与无偏集、第 1.6 节命名 / 查重 / 版本陷阱、第 1.8 节检查 13 / 14、第 2.1–2.7 节、第 3.2 节 CR-T；用户 2026-10-25 批准两天部分）。
 不改 8 个哈希文件（code_hash 必须是 6d7af243d0）、不改 jobs.py / stage_neckopt.py / stage_deck.py / stage_v2a.py / tpl_record.py；提交只走 jobs.submit。
 
-    python v2/stage_db.py dry-run b1|b2|b1b [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
+    python v2/stage_db.py dry-run b1|b2|b1b|b2b [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
                                                           预期 id、查重结果（hash8 / 物理键）、种子采纳、参照与参照核对；末尾 DRY-RUN-JSON。什么都不写
                                                           （b2 另印 G2 核对、CR-1 / CR-T 选点、放宽计数、槽时估计、b1 优先级的当前判断）
     python v2/stage_db.py feed b1|b2 [--once] [--poll 60] 喂料器（只在 Linux 上跑；b1 与 b2 可以同时跑，见"并行喂料"）：
@@ -11,6 +11,11 @@
     python v2/stage_db.py status b1|b2 [--root …]         只读：清单 results/db_manifest_<批次>.json + 队列里的状态
     python v2/stage_db.py select b2 [--root …]            写 results/db_crt_selection.json（CR-1 / CR-T 名单，冻结）与 results/db_widened_counts.json；
                                                           不提交（feed b2 第一次启动时也会写选点文件；已有且不同 → 拒绝）
+
+批次 b2b（v1.4，2026-10-28，用户批准"可以补只粘结作业"）= b2 里每个已 DONE 的只解摩擦设计行（SF-1 / CR-1，含采纳的两臂作业）
+    配一个 h 2.0 只粘接作业（层 "BD b2"，stage db_bo，source bond_partner；spec = 源作业的物理键 + bond_only，参照 sb_intact_h2_9c9d7fb5），
+    让无偏 / 角落设计都有 SED 与 vM（场级模型要用）。从 results/db_manifest_b2.json 建表：源行还在飞是检查问题（b2 跑完后再建，行集就冻结了）；
+    源行 FAILED 或队列里已有可用的 h 2.0 粘接结果的不补。python v2/stage_db.py feed b2b（同 b1b 的启动方式，日志 logs/db_feed_b2b.*）。
 
 批次 b1b（v1.3，2026-10-26）= 粗网格先导换到 h 2.4：b1 的 REF_h2.5 建模失败（L3，松质里 2 个退化四面体；h 2.45 / 2.5 / 2.55 都失败、
     2.4 正常，探针 deck/meshprobe），b1 的 24 行 FD-0 h2.5 被挡住。b1b = REF h 2.4（主会话已提交 db_ref_intact_h2.4_cae476c7，本批采纳；
@@ -213,7 +218,7 @@ REF_PRIORITY_CAP = 1                        # 参照优先期间其他未领取 
 GATE_MIN_FAILED = 2                         # 按层失败闸门：未确认的 FAILED ≥ 2 …
 GATE_MAX_RATE = 0.05                        # … 且失败率 > 5 %
 FIRST_N, FIRST_N_MAX_FAILED = 10, 2         # 本批最先完成的 10 个喂料器自己提交的行里 FAILED > 2 → 每层都停（规划 G1）
-SLOW_START_LAYERS = ("NZ-1", "FD-0 h2.5", "FD-0 h1.4", "BD mesh", "BD h2.0", "SF-1", "CR-1", "FD-0 h2.4")   # 新层慢启动（REF 串行、CD-0 是种子：不在内）
+SLOW_START_LAYERS = ("NZ-1", "FD-0 h2.5", "FD-0 h1.4", "BD mesh", "BD h2.0", "SF-1", "CR-1", "FD-0 h2.4", "BD b2")   # 新层慢启动（REF 串行、CD-0 是种子：不在内）
 SLOW_START_CAP = 2                          # … DONE 不到 SLOW_START_DONE 行之前，该层在飞（NEW / READY / CLAIMED / SOLVED）最多 2 行
 SLOW_START_DONE = 2
 WAIT_EVERY = 10                             # 没有提交时：第 1 轮及之后每 10 轮记一行 WAIT
@@ -269,9 +274,12 @@ NOISE_H2_SOURCE = "sb11_smoke_f_h16_898709ba"
 NOISE_MESH = ("v3406_noise_smoke_h16_hint1.94_1de5bb9e", "v3406_noise_smoke_h16_hint2.06_73a2c8bf")
 NOISE_H2_TAG = "v3406_noise_smoke_h16_hint2"
 LAYER_SOURCE = {"REF": "intact_ref", "CD-0": "cond_anchor", "NZ-1": "noise", "FD-0 h2.5": "fid_h25", "FD-0 h1.4": "fid_h14",
-                "BD mesh": "bond_partner", "BD h2.0": "bond_partner", "SF-1": "sf", "CR-1": "corner", "FD-0 h2.4": "fid_h24"}
+                "BD mesh": "bond_partner", "BD h2.0": "bond_partner", "SF-1": "sf", "CR-1": "corner", "FD-0 h2.4": "fid_h24",
+                "BD b2": "bond_partner"}
 LAYER_SELECTION = {"REF": "reference", "SF-1": "iid"}   # 其余层 stratum（tools/db_export.DB_STAGE_RULES：db_sf = sf / iid，db_cr = corner / stratum）
-BATCHES = ("b1", "b2", "b1b")
+BATCHES = ("b1", "b2", "b1b", "b2b")
+B2B_SOURCE_BATCHES = ("b2",)                # b2b：这些批次清单里已 DONE 的只解摩擦设计行各配一个 h 2.0 只粘接作业
+B2B_LAYER = "BD b2"
 B1B_H = 2.4                                 # b1b 的粗网格档（h 2.5 的完整股骨建模失败，见模块说明"批次 b1b"）
 B1B_LAYER = "FD-0 h2.4"
 SEEDS = {"b1": ("db_seed_CD0.json",)}      # 主会话已提交的种子（results/ 下）：每个种子作业必须被本批一行 1:1 采纳；文件缺失 = 问题（b2 没有种子）
@@ -812,6 +820,8 @@ def build(batch: str = "b1") -> dict:
         raise SystemExit(f"unknown batch {batch!r} (known: {list(BATCHES)})")
     if batch == "b2":
         return build_b2()
+    if batch == "b2b":
+        return build_b2b()
     unreadable = []
     qspecs = scan_queue(unreadable)
     by_h8 = _by_h8(qspecs)
@@ -1376,6 +1386,96 @@ def _ev_sha(evaluated: list) -> str:
     return hashlib.sha256(json.dumps(evaluated, sort_keys=True, default=float).encode()).hexdigest()
 
 
+def build_b2b() -> dict:
+    """b2b（模块说明"批次 b2b"）：B2B_SOURCE_BATCHES 清单里 model_set fric、已 DONE 的行 → 各一个 h 2.0 只粘接作业（stage db_bo，
+    参照 REF_H2）。源行在飞 → problems（b2 没跑完，先不建）；源行 FAILED、或队列里已有可用 h 2.0 粘接结果 → 跳过（warnings 记数）。
+    查重 / 检查与 build() 相同；没有种子、没有 REF 行。"""
+    unreadable = []
+    qspecs = scan_queue(unreadable)
+    by_h8 = _by_h8(qspecs)
+    by_phys = {}
+    for n, sp in qspecs.items():
+        if sp is not None:
+            by_phys.setdefault(phys_key(sp), []).append(n)
+    warn, problems, rows = [], [], []
+    if unreadable:
+        warn.append(f"queue dirs with an unreadable spec.json (treated as having no spec; a hash8 hit on one refuses): {unreadable}")
+    ref_src = load_source(REF_H2, "intact", qspecs)
+    idents = {n: _ident(sp) for n, sp in qspecs.items() if sp is not None}
+    skipped = {"failed": [], "has_bonded": [], "not_fric": 0}
+    for h in B2B_SOURCE_BATCHES:
+        man, err = _read_json(manifest_path(h))
+        if not isinstance(man, dict) or not isinstance(man.get("rows"), dict):
+            raise SystemExit(f"batch {h}: manifest {manifest_path(h)} unreadable ({err or 'not a JSON object with rows'}); b2b needs it")
+        for k in man["order"]:
+            m = man["rows"][k]
+            if m.get("model_set") != "fric":
+                skipped["not_fric"] += 1
+                continue
+            jid = m.get("id")
+            if m.get("status") not in ("submitted", "existing") or not jid:
+                problems.append(f"{h}:{k}: source row is {m.get('status')} (not submitted yet): batch {h} has not finished; build b2b after it has")
+                continue
+            st = J.state(J.QROOT / jid)
+            if st == "FAILED":
+                skipped["failed"].append(jid)
+                continue
+            if st != "DONE":
+                problems.append(f"{h}:{k}: source {jid} is {st}: batch {h} has not finished; build b2b after it has")
+                continue
+            src = _spec_of(jid, qspecs)
+            if src is None:
+                raise SystemExit(f"{h}:{k}: source {jid} has no readable spec.json")
+            if not src.get("fric_only") or src.get("kind") not in ("design", "variant") or src.get("femur_id") != FEMUR_ID or src.get("h_int") != H_PROD:
+                raise SystemExit(f"{h}:{k}: source {jid} is not a friction-only 3406 h 2.0 design job (fric_only {src.get('fric_only')!r}, "
+                                 f"kind {src.get('kind')!r}, h_int {src.get('h_int')!r})")
+            have = usable_bonded_h2(src, qspecs, warn, idents)
+            if have:
+                skipped["has_bonded"].append(f"{jid} -> {have}")
+                continue
+            spec = _variant(_phys(src, jid), "db_bo", f"{_tag_of(jid)}_h2", "bond", intact_job=REF_H2)
+            rows.append(_row(f"BD2_{k}", B2B_LAYER, spec, jid, m.get("design_code"),
+                             extra={"pool_idx": m.get("pool_idx"), "partner_of": jid, "src_batch": h, "src_layer": m.get("layer")}))
+    if skipped["failed"]:
+        warn.append(f"{len(skipped['failed'])} source rows FAILED, no partner: {skipped['failed']}")
+    if skipped["has_bonded"]:
+        warn.append(f"{len(skipped['has_bonded'])} source designs already have a usable h 2.0 bonded result, no partner: {skipped['has_bonded']}")
+    seen = {}
+    for r in rows:
+        r["expected_id"] = expected_id(r["spec"])
+        r["id"], r["dedup"], r["dedup_hits"], r["dedup_via"] = resolve(r["spec"], by_h8, qspecs, by_phys)
+        if r["expected_id"] in seen:
+            raise SystemExit(f"batch b2b: keys {seen[r['expected_id']]} and {r['key']} give the same job id {r['expected_id']}")
+        seen[r["expected_id"]] = r["key"]
+        r["source_spec"] = _spec_of(r["source_job"], qspecs)
+    taken = {}
+    for r in rows:
+        if r["dedup"] != "new":
+            if r["id"] in taken:
+                raise SystemExit(f"batch b2b: keys {taken[r['id']]} and {r['key']} both resolve to queue job {r['id']}")
+            taken[r["id"]] = r["key"]
+    if J.code_hash() != DB_CODE_HASH:
+        problems.append(f"code_hash {J.code_hash()} != {DB_CODE_HASH} (one of the 8 hashed files changed; every expected id differs)")
+    recorded, rec_err = recorded_ids("b2b")
+    if rec_err:
+        warn.append(rec_err)
+    for r in rows:
+        problems += [f"{r['key']}: {p}" for p in row_problems(r, lambda j: _spec_of(j, qspecs), h14_ref=None)]
+        r["ack_failed"] = None
+        if r["dedup"] != "new":
+            pr, notes, r["ack_failed"] = hit_checks(r["key"], r["id"], _spec_of(r["id"], qspecs), recorded=recorded.get(r["key"]) == r["id"])
+            problems += pr
+            warn += notes
+    seeds, seed_probs = check_seeds("b2b", rows, qspecs)
+    problems += seed_probs
+    if not rows and not problems:
+        problems.append("b2b: no rows (no finished friction-only design row in " + ", ".join(B2B_SOURCE_BATCHES) + " lacks a bonded result)")
+    return {"batch": "b2b", "rows": rows, "problems": problems, "warnings": warn, "code_hash": J.code_hash(),
+            "ref_id": {f"{H_PROD:g}": REF_H2}, "ref_src": ref_src, "partners": {}, "n_partner": len(rows), "pilot16": [],
+            "seeds": seeds, "skipped": {k: (len(v) if isinstance(v, list) else v) for k, v in skipped.items()},
+            "queue_root": str(J.QROOT), "n_queue_dirs": len(qspecs)}
+
+
 def build_b2() -> dict:
     """批次 b2 的作业表（SF-1 128 + CR-1 32，交错）+ 查重（hash8 + 物理键 + 两臂同一设计的采纳）+ CR-T 选点 + G2 + 放宽计数（只算不写）。
     读队列、阶段 13 / 14 状态文件、候选池、tpl_record 文件与（在就读的）results/db_crt_selection.json；不写任何东西。"""
@@ -1858,13 +1958,18 @@ def dry_run(batch: str = "b1") -> int:
           f"{FIRST_START_MIN_GIB:.1f} GiB at the first start; on Linux the feeder checks ~/mobo_toy_v2/queue; a dry run against a local copy "
           "measures the local disk)")
     print(f"aux files (md5 on this host, relative to {CODE_ROOT}; null = absent here): {json.dumps(aux)}")
-    m = b["init_median"]
-    print(f"init median design: {m['job_id']} rot {m['rot_first_deg']:.4f} deg; rule: {INIT_MEDIAN_RULE}")
-    print(f"pilot16 resolved from the queue: {', '.join(b['pilot16'])}")
+    m = b.get("init_median")
+    if m:
+        print(f"init median design: {m['job_id']} rot {m['rot_first_deg']:.4f} deg; rule: {INIT_MEDIAN_RULE}")
+    if b.get("pilot16"):
+        print(f"pilot16 resolved from the queue: {', '.join(b['pilot16'])}")
     print("references: " + ", ".join(f"h{h} -> {j}" for h, j in b["ref_id"].items()))
-    print("h 2.0 usable bonded results of the 24 pilot designs (a design without one gets a BD h2.0 bond_only partner):")
-    for c, have in b["partners"].items():
+    if b.get("partners"):
+        print("h 2.0 usable bonded results of the 24 pilot designs (a design without one gets a BD h2.0 bond_only partner):")
+    for c, have in b.get("partners", {}).items():
         print(f"    {c:<20} {', '.join(have) if have else '-  (partner)'}")
+    if b.get("skipped"):
+        print(f"b2b sources skipped: {json.dumps(b['skipped'])} (source batches {list(B2B_SOURCE_BATCHES)})")
     if not b["seeds"]:
         print(f"seed files declared for batch {batch}: none (SEEDS)")
     for s in b["seeds"]:
@@ -1890,7 +1995,8 @@ def dry_run(batch: str = "b1") -> int:
     n_ex_ph = sum(r["dedup"] == "existing" and r["dedup_via"] == "physics" for r in rows)
     fam_legacy = {r["key"]: [p for p in CHECK_PHASES if SN.Phase(p).in_family(r["spec"], legacy=True)] for r in rows}
     fam_legacy = {k: v for k, v in fam_legacy.items() if v}
-    print(f"per layer: {json.dumps(by_layer)}; total {len(rows)}; h 2.0 bond_only partners {b['n_partner']} (of at most {len(FD25_CODES) + len(PILOT16)})")
+    print(f"per layer: {json.dumps(by_layer)}; total {len(rows)}; h 2.0 bond_only partners {b['n_partner']}"
+          + (f" (of at most {len(FD25_CODES) + len(PILOT16)})" if batch == "b1" else ""))
     print(f"dedup: {n_new} new, {sum(r['dedup'] == 'queued' for r in rows)} already queued under the expected id, "
           f"{n_ex_h8 + n_ex_ph} existing ({n_ex_h8} via hash8, {n_ex_ph} via the physics key)"
           + ("".join(f"\n    {r['key']}: {r['dedup']} ({r['dedup_via']}) {r['id']} (queue state {J.state(J.QROOT / r['id'])}; hits {r['dedup_hits']})"
@@ -1925,7 +2031,7 @@ def dry_run(batch: str = "b1") -> int:
     print(json.dumps({"batch": batch, "n_jobs": len(rows), "per_layer": by_layer, "n_partner": b["n_partner"], "n_new": n_new,
                       "n_existing": n_ex_h8 + n_ex_ph, "n_existing_physics": n_ex_ph, "seeds": b["seeds"], "problems": b["problems"],
                       "warnings": b["warnings"], "code_hash": b["code_hash"], "femur_geom_key": gk["key"], "aux_md5": aux,
-                      "init_median": m["job_id"], "h14_mode": "exclusive" if h14x else "heavy",
+                      "init_median": m["job_id"] if m else None, "h14_mode": "exclusive" if h14x else "heavy",
                       "slow_start": {"layers": lay, "cap": SLOW_START_CAP, "until_done": SLOW_START_DONE},
                       "jobs": [{k: r[k] for k in ("key", "layer", "stage", "source", "selection", "design_code", "source_job", "condition_id",
                                                   "bonded", "model_set", "intact_job", "ref_key", "heavy", "exclusive", "femur_model_version",
