@@ -1,8 +1,9 @@
-"""3406 数据库（db3406）的批量提交器 v1.4（D1 = v0 + 审查修正 + 采纳 CD-0 种子 + 第二轮审查修正；D2 = 批次 b2 + 并行喂料；v1.3 = 批次 b1b；v1.4 = 批次 b2b）。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
+"""3406 数据库（db3406）的批量提交器 v1.5（D1 = v0 + 审查修正 + 采纳 CD-0 种子 + 第二轮审查修正；D2 = 批次 b2 + 并行喂料；v1.3 = 批次 b1b；v1.4 = 批次 b2b；
+v1.5 = 批次 b3 + 已知规律失败的自动确认）。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
 （第 1.3 / 1.4 节分层与无偏集、第 1.6 节命名 / 查重 / 版本陷阱、第 1.8 节检查 13 / 14、第 2.1–2.7 节、第 3.2 节 CR-T；用户 2026-10-25 批准两天部分）。
 不改 8 个哈希文件（code_hash 必须是 6d7af243d0）、不改 jobs.py / stage_neckopt.py / stage_deck.py / stage_v2a.py / tpl_record.py；提交只走 jobs.submit。
 
-    python v2/stage_db.py dry-run b1|b2|b1b|b2b [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
+    python v2/stage_db.py dry-run b1|b2|b1b|b2b|b3 [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
                                                           预期 id、查重结果（hash8 / 物理键）、种子采纳、参照与参照核对；末尾 DRY-RUN-JSON。什么都不写
                                                           （b2 另印 G2 核对、CR-1 / CR-T 选点、放宽计数、槽时估计、b1 优先级的当前判断）
     python v2/stage_db.py feed b1|b2 [--once] [--poll 60] 喂料器（只在 Linux 上跑；b1 与 b2 可以同时跑，见"并行喂料"）：
@@ -11,6 +12,21 @@
     python v2/stage_db.py status b1|b2 [--root …]         只读：清单 results/db_manifest_<批次>.json + 队列里的状态
     python v2/stage_db.py select b2 [--root …]            写 results/db_crt_selection.json（CR-1 / CR-T 名单，冻结）与 results/db_widened_counts.json；
                                                           不提交（feed b2 第一次启动时也会写选点文件；已有且不同 → 拒绝）
+
+批次 b3（v1.5，2026-10-29，用户批准一周计划 research-log/neck_implant_2026-10-02/3406一周FEA计划_2026-10-29.md 第 3 节；粘接 100 %）= 62 行，全部带粘接：
+    CR-T       db_crt  b2 冻结在 results/db_crt_selection.json 的 30 个角落留出设计（不重选；u13 与 cr_points() 逐位核对），参照 sb_intact_h2_9c9d7fb5；
+                       source corner_test、selection corner_test，unbiased false、in_E true（A2 的留出测试集）
+    NZ-2       db_nz   b2 已 DONE 的 SF-1 6 个 + CR-1 6 个设计（各按 result.json 的 f1_p95_um 分位 (i + 0.5) / 6 取，quantile_pick）× h 1.94 / 2.06，
+                       同网格参照 = b1 的 REF_h1.94 / REF_h2.06（必须 DONE）
+    FD-1 h1.4  db_fd   B、C、D、a62 + SF-1 4 个（f1 分位 (i + 0.5) / 4，去掉 NZ-2 已选的）× h 1.4（slip_tol = stage_deck.M_SLIP14），参照 b1 的
+                       REF_h1.4；重作业（一次一个、旁边可有轻作业；DB_H14_EXCLUSIVE 模式下与 FD-0 h1.4 一样独占），也等 DB_H14_REF_OK
+    顺序：CR-T 与 NZ-2 按比例交错，FD-1 再按比例插进去。三层都在 SLOW_START_LAYERS 里。python v2/stage_db.py feed b3（同 b1b 的启动方式）。
+
+已知规律失败的自动确认（v1.5，用户 2026-10-29 批准）：按层失败闸门之前，本层每个未确认的 FAILED 行若属于已知规律（known_failure：L4 求解
+    "TOO MANY ATTEMPTS" / "TIME INCREMENT … LESS THAN THE MINIMUM" 且 L < 27 mm 或 α < 20° 且 m < 0.6 mm；L3 建模"degenerate tetrahedra"且没有
+    "overlapping facets"）→ 自动确认（ack_failed），记 AUTO-ACK 日志与 auto_ack 事件，不停；已因本层失败停着、确认后不再超门槛 → 自动放行。
+    本层失败率 > 15 %（AUTO_ACK_MAX_RATE）时不自动确认（像系统性问题），照旧按闸门停。其他失败（如边界网格面片重叠）照旧停住等人。
+    "最先 10 行"的批次规则不变。
 
 批次 b2b（v1.4，2026-10-28，用户批准"可以补只粘结作业"）= b2 里每个已 DONE 的只解摩擦设计行（SF-1 / CR-1，含采纳的两臂作业）
     配一个 h 2.0 只粘接作业（层 "BD b2"，stage db_bo，source bond_partner；spec = 源作业的物理键 + bond_only，参照 sb_intact_h2_9c9d7fb5），
@@ -213,12 +229,22 @@ RELEASE_ALL = "ALL"                         # 操作员文件 DB_RELEASE_ALL（�
 ACK_FAILED_PREFIX = "DB_ACK_FAILED_"        # 操作员文件 DB_ACK_FAILED_<键>：接受该行查重到的 FAILED 作业（不重算，留洞）
 H14_EXCL_NAME = "DB_H14_EXCLUSIVE"          # 操作员文件：FD0_h1.4_* 也独占（或 DB_H14_REF_OK 里写 exclusive 一词）
 EXCLUSIVE = ("REF_h1.4",)                   # 独占：只在全队列空时提交；它在飞时其他 db 提交暂停
-H14_LAYER = "FD-0 h1.4"                     # 这一层的行在 DB_H14_EXCLUSIVE 模式下也独占
+H14_LAYERS = ("FD-0 h1.4", "FD-1 h1.4")     # 这些层的行在 DB_H14_EXCLUSIVE 模式下也独占
 REF_PRIORITY_CAP = 1                        # 参照优先期间其他未领取 db_* 的上限
 GATE_MIN_FAILED = 2                         # 按层失败闸门：未确认的 FAILED ≥ 2 …
 GATE_MAX_RATE = 0.05                        # … 且失败率 > 5 %
+# 已知规律的失败自动确认（用户 2026-10-29 批准，一周计划第 5 节第 2 条）：L4 求解不收敛的短柄（L < 27 mm）或 α、m 都贴下限的设计，
+# L3 建模的退化四面体。其余失败（如边界网格面片重叠）照旧停住等人。该层失败率 > AUTO_ACK_MAX_RATE 时也不自动确认（像是系统性问题）。
+AUTO_ACK = True
+AUTO_ACK_L4_L_MAX = 27.0
+AUTO_ACK_L4_LOW = {"alpha": 20.0, "m": 0.6}
+AUTO_ACK_L4_TEXT = ("TOO MANY ATTEMPTS", "TIME INCREMENT REQUIRED IS LESS THAN THE MINIMUM")
+AUTO_ACK_L3_TEXT = "degenerate tetrahedra"
+AUTO_ACK_L3_NOT = "overlapping facets"
+AUTO_ACK_MAX_RATE = 0.15
 FIRST_N, FIRST_N_MAX_FAILED = 10, 2         # 本批最先完成的 10 个喂料器自己提交的行里 FAILED > 2 → 每层都停（规划 G1）
-SLOW_START_LAYERS = ("NZ-1", "FD-0 h2.5", "FD-0 h1.4", "BD mesh", "BD h2.0", "SF-1", "CR-1", "FD-0 h2.4", "BD b2")   # 新层慢启动（REF 串行、CD-0 是种子：不在内）
+SLOW_START_LAYERS = ("NZ-1", "FD-0 h2.5", "FD-0 h1.4", "BD mesh", "BD h2.0", "SF-1", "CR-1", "FD-0 h2.4", "BD b2",
+                     "CR-T", "NZ-2", "FD-1 h1.4")   # 新层慢启动（REF 串行、CD-0 是种子：不在内）
 SLOW_START_CAP = 2                          # … DONE 不到 SLOW_START_DONE 行之前，该层在飞（NEW / READY / CLAIMED / SOLVED）最多 2 行
 SLOW_START_DONE = 2
 WAIT_EVERY = 10                             # 没有提交时：第 1 轮及之后每 10 轮记一行 WAIT
@@ -275,14 +301,22 @@ NOISE_MESH = ("v3406_noise_smoke_h16_hint1.94_1de5bb9e", "v3406_noise_smoke_h16_
 NOISE_H2_TAG = "v3406_noise_smoke_h16_hint2"
 LAYER_SOURCE = {"REF": "intact_ref", "CD-0": "cond_anchor", "NZ-1": "noise", "FD-0 h2.5": "fid_h25", "FD-0 h1.4": "fid_h14",
                 "BD mesh": "bond_partner", "BD h2.0": "bond_partner", "SF-1": "sf", "CR-1": "corner", "FD-0 h2.4": "fid_h24",
-                "BD b2": "bond_partner"}
-LAYER_SELECTION = {"REF": "reference", "SF-1": "iid"}   # 其余层 stratum（tools/db_export.DB_STAGE_RULES：db_sf = sf / iid，db_cr = corner / stratum）
-BATCHES = ("b1", "b2", "b1b", "b2b")
+                "BD b2": "bond_partner", "CR-T": "corner_test", "NZ-2": "noise", "FD-1 h1.4": "fid_h14"}
+LAYER_SELECTION = {"REF": "reference", "SF-1": "iid", "CR-T": "corner_test"}   # 其余层 stratum（tools/db_export.DB_STAGE_RULES：db_sf = sf / iid，
+                                                                                # db_cr = corner / stratum，db_crt = corner_test / corner_test）
+BATCHES = ("b1", "b2", "b1b", "b2b", "b3")
 B2B_SOURCE_BATCHES = ("b2",)                # b2b：这些批次清单里已 DONE 的只解摩擦设计行各配一个 h 2.0 只粘接作业
 B2B_LAYER = "BD b2"
 B1B_H = 2.4                                 # b1b 的粗网格档（h 2.5 的完整股骨建模失败，见模块说明"批次 b1b"）
 B1B_LAYER = "FD-0 h2.4"
 SEEDS = {"b1": ("db_seed_CD0.json",)}      # 主会话已提交的种子（results/ 下）：每个种子作业必须被本批一行 1:1 采纳；文件缺失 = 问题（b2 没有种子）
+# ---------------------------------------------------------------- 批次 b3（一周计划 2026-10-29 第 3 节，用户 10-29 批准；粘接 100 %）
+B3_SOURCE_BATCH = "b2"                      # NZ-2 / FD-1 的 SF-1 与 CR-1 设计：这一批清单里已 DONE 的行
+B3_REF_BATCH = "b1"                         # h 1.94 / 2.06 / 1.4 的完整股骨参照：这一批清单里的 REF 行（必须 DONE）
+NZ2_H = (1.94, 2.06)
+NZ2_PER_LAYER = 6                           # NZ-2：SF-1 6 个 + CR-1 6 个，各按 result.json 的 f1_p95_um 分位 (i + 0.5) / 6 取
+FD1_CODES = ("B", "C", "D", "a62")
+FD1_SF_N = 4                                # FD-1：另取 SF-1 4 个（f1 分位 (i + 0.5) / 4，去掉 NZ-2 已选的）
 
 # ---------------------------------------------------------------- 批次 b2（规划 1.3 / 1.4、2.2 D2、2.4 SF-1 / CR-1、3.2 CR-T、2.5 放宽计数）
 B2_PHASE = 13                               # 基线条件 = PHASES[13]（δ 0.10、楼梯、h_int 2.0、neck_in_shoulder、dense、ref_cut 16、a_max 2000）
@@ -604,6 +638,11 @@ def load_source(job: str, expect: str, qspecs: dict | None = None) -> dict:
     elif expect == "intact":
         if src.get("kind") != "intact" or src.get("femur_id") != FEMUR_ID or src.get("h_int") != H_PROD or src.get("cfg"):
             why.append("not the 3406 h 2.0 stair intact reference")
+    elif expect == "b2row":                             # b3 的源：b2 的 SF-1 / CR-1 基线行（stage db_sf / db_cr 的 variant，h 2.0，楼梯）
+        if src.get("kind") != "variant" or str(src.get("stage")) not in ("db_sf", "db_cr") or src.get("femur_id") != FEMUR_ID \
+                or src.get("h_int") != H_PROD or src.get("cfg") or src.get("bond_only"):
+            why.append(f"kind {src.get('kind')!r} stage {src.get('stage')!r} femur_id {src.get('femur_id')!r} h_int {src.get('h_int')!r} "
+                       f"cfg {src.get('cfg')!r} bond_only {src.get('bond_only')!r} (want a b2 SF-1 / CR-1 baseline row)")
     else:
         raise ValueError(expect)
     if why:
@@ -822,6 +861,8 @@ def build(batch: str = "b1") -> dict:
         return build_b2()
     if batch == "b2b":
         return build_b2b()
+    if batch == "b3":
+        return build_b3()
     unreadable = []
     qspecs = scan_queue(unreadable)
     by_h8 = _by_h8(qspecs)
@@ -1473,6 +1514,156 @@ def build_b2b() -> dict:
     return {"batch": "b2b", "rows": rows, "problems": problems, "warnings": warn, "code_hash": J.code_hash(),
             "ref_id": {f"{H_PROD:g}": REF_H2}, "ref_src": ref_src, "partners": {}, "n_partner": len(rows), "pilot16": [],
             "seeds": seeds, "skipped": {k: (len(v) if isinstance(v, list) else v) for k, v in skipped.items()},
+            "queue_root": str(J.QROOT), "n_queue_dirs": len(qspecs)}
+
+
+def quantile_pick(cands: list, n: int, exclude=frozenset()) -> list:
+    """cands = [(值, 键, 作业号)]：去掉键在 exclude 里的，按 (值, 键) 排序，取位置 int((i + 0.5) / n × 个数)，i = 0..n − 1（n ≤ 个数时互不相同）。"""
+    c = sorted((x for x in cands if x[1] not in exclude), key=lambda x: (x[0], x[1]))
+    if len(c) < n:
+        raise SystemExit(f"quantile_pick: {len(c)} candidates < {n} wanted")
+    return [c[int((i + 0.5) / n * len(c))] for i in range(n)]
+
+
+def build_b3() -> dict:
+    """b3（一周计划 2026-10-29 第 3 节；模块说明"批次 b3"）：CR-T 30（b2 冻结的名单，stage db_crt）、NZ-2 24（SF-1 6 + CR-1 6 个设计 ×
+    h 1.94 / 2.06，stage db_nz）、FD-1 h1.4 8（B、C、D、a62 + SF-1 4 个，stage db_fd，h 1.4 的滑移容差）；全部带粘接（用户 10-29：100 %），
+    网格变体用同网格参照（b1 的 REF 行，必须 DONE）。NZ-2 / FD-1 的设计从 b2 清单里已 DONE 的 SF-1 / CR-1 行按 result.json 的 f1_p95_um
+    分位取（quantile_pick）。顺序：CR-T 与 NZ-2 按比例交错，FD-1 再按比例插进去（重作业一次一个，旁边有轻作业）。
+    查重 / 检查与 build() 相同；没有种子、没有 REF 行。"""
+    np = _np()
+    unreadable = []
+    qspecs = scan_queue(unreadable)
+    by_h8 = _by_h8(qspecs)
+    by_phys = {}
+    for n, sp in qspecs.items():
+        if sp is not None:
+            by_phys.setdefault(phys_key(sp), []).append(n)
+    warn, problems, rows = [], [], []
+    if unreadable:
+        warn.append(f"queue dirs with an unreadable spec.json (treated as having no spec; a hash8 hit on one refuses): {unreadable}")
+    # ---- 参照：b1 的 REF 行
+    b1_ids, err = recorded_ids(B3_REF_BATCH)
+    if err:
+        raise SystemExit(err)
+    ref_id, ref_key_of = {H_PROD: REF_H2}, {}
+    for h in NZ2_H + (HEAVY_H,):
+        k = f"REF_h{h:g}"
+        jid = b1_ids.get(k)
+        if not jid:
+            raise SystemExit(f"b3: the {B3_REF_BATCH} manifest has no submitted {k} (the h {h:g} reference)")
+        st = J.state(J.QROOT / jid)
+        if st != "DONE":
+            problems.append(f"b3: reference {k} = {jid} is {st} (must be DONE)")
+        ref_id[h], ref_key_of[h] = jid, k
+    # ---- b2 的 SF-1 / CR-1 行（已 DONE，带 f1_p95_um）
+    man, merr = _read_json(manifest_path(B3_SOURCE_BATCH))
+    if not isinstance(man, dict) or not isinstance(man.get("rows"), dict):
+        raise SystemExit(f"b3: manifest {manifest_path(B3_SOURCE_BATCH)} unreadable ({merr or 'not a JSON object with rows'})")
+    pools = {"SF-1": [], "CR-1": []}
+    for k in man["order"]:
+        m = man["rows"][k]
+        if m.get("layer") not in pools:
+            continue
+        jid = m.get("id")
+        if m.get("status") not in ("submitted", "existing") or not jid:
+            problems.append(f"{B3_SOURCE_BATCH}:{k}: source row is {m.get('status')} (batch {B3_SOURCE_BATCH} has not finished)")
+            continue
+        st = J.state(J.QROOT / jid)
+        if st == "FAILED":
+            continue
+        if st != "DONE":
+            problems.append(f"{B3_SOURCE_BATCH}:{k}: source {jid} is {st} (batch {B3_SOURCE_BATCH} has not finished)")
+            continue
+        res, _ = _read_json(J.QROOT / jid / "result.json")
+        f1 = res.get("f1_p95_um") if isinstance(res, dict) else None
+        if not isinstance(f1, (int, float)) or isinstance(f1, bool) or not math.isfinite(f1):
+            warn.append(f"{B3_SOURCE_BATCH}:{k}: {jid} has no finite f1_p95_um in result.json; not a NZ-2 / FD-1 candidate")
+            continue
+        pools[m["layer"]].append((float(f1), k, jid))
+    nz_pick = {L: quantile_pick(pools[L], NZ2_PER_LAYER) for L in pools}
+    fd_sf = quantile_pick(pools["SF-1"], FD1_SF_N, exclude={x[1] for x in nz_pick["SF-1"]})
+
+    def src_of(jid):
+        s_ = load_source(jid, "design" if jid.startswith(ARM_PREFIXES) else "b2row", qspecs)
+        return _phys(s_, jid)
+
+    # ---- CR-T：b2 冻结的名单（不重选）
+    sel, serr = _read_json(crt_file_path())
+    if not isinstance(sel, dict) or not sel.get("crt"):
+        raise SystemExit(f"b3: {crt_file_path()} unreadable or without a CR-T list ({serr or 'no crt'}); it is frozen by batch b2")
+    if _ev_sha(sel.get("evaluated") or []) != sel.get("evaluated_sha256"):
+        raise SystemExit(f"b3: {crt_file_path()}: the evaluated-design list does not match its sha256 (edited?)")
+    ph = b2_phase()
+    U_cr = cr_points()
+    crt_keys, nz_keys, fd_keys = [], [], []
+    for x in sel["crt"]:
+        ci = int(x["cr_idx"])
+        if not np.array_equal(np.asarray(x["u13"], float), U_cr[ci]):
+            problems.append(f"CR-T c{ci}: the frozen u13 differs from cr_points()[{ci}] (sub-box points changed?)")
+        spec = _sf_cr_spec(ph, U_cr[ci], "db_crt", f"c{ci}", True)
+        extra = {"cr_idx": ci, "layer_pos": x.get("rank"), "bonded_planned": True, "sf_bo_overlap": False, "bo_twins": [],
+                 "e_star": x.get("e_star"), "e_group": x.get("group"), "u13": [float(v) for v in U_cr[ci]]}
+        r = _row(f"CRT_c{ci:04d}", "CR-T", spec, None, None, extra=extra)
+        r.update(unbiased=False, in_E=True)
+        rows.append(r)
+        crt_keys.append(r["key"])
+    # ---- NZ-2：每个设计 × h 1.94 / 2.06，带粘接
+    for L, picks in nz_pick.items():
+        for f1, k, jid in picks:
+            p_ = src_of(jid)
+            for h in NZ2_H:
+                spec = _variant(p_, "db_nz", f"{_tag_of(jid)}_h{h:g}", "full", intact_job=ref_id[h], h_int=h)
+                r = _row(f"NZ2_h{h:g}_{_tag_of(jid)}", "NZ-2", spec, jid, None, ref_key=ref_key_of[h],
+                         extra={"src_batch": B3_SOURCE_BATCH, "src_key": k, "src_layer": L, "f1_p95_um_h2": f1})
+                rows.append(r)
+                nz_keys.append(r["key"])
+    # ---- FD-1 h1.4：B、C、D、a62 + SF-1 4 个，带粘接
+    fd_src = [(c, CODES[c], None, None) for c in FD1_CODES] + [(None, jid, k, f1) for f1, k, jid in fd_sf]
+    for c, jid, k, f1 in fd_src:
+        src = load_source(jid, "design", qspecs) if c else None
+        p_ = _phys(src, jid) if c else src_of(jid)
+        spec = _variant(p_, "db_fd", f"{_tag_of(jid)}_h1.4", "full", intact_job=ref_id[HEAVY_H], h_int=HEAVY_H, slip_tol=H14_SLIP_TOL)
+        r = _row(f"FD1_h1.4_{c or _tag_of(jid)}", "FD-1 h1.4", spec, jid, c, ref_key=ref_key_of[HEAVY_H],
+                 extra={"src_batch": None if c else B3_SOURCE_BATCH, "src_key": k, "f1_p95_um_h2": f1})
+        rows.append(r)
+        fd_keys.append(r["key"])
+    order = interleave(interleave(crt_keys, nz_keys), fd_keys)
+    by_key = {r["key"]: r for r in rows}
+    if len(by_key) != len(rows):
+        raise SystemExit("b3: duplicate row keys")
+    rows = [by_key[k] for k in order]
+    # ---- 查重 + 批内重复 + 检查（同 b1）
+    seen, taken = {}, {}
+    for r in rows:
+        r["expected_id"] = expected_id(r["spec"])
+        r["id"], r["dedup"], r["dedup_hits"], r["dedup_via"] = resolve(r["spec"], by_h8, qspecs, by_phys)
+        if r["expected_id"] in seen:
+            raise SystemExit(f"batch b3: keys {seen[r['expected_id']]} and {r['key']} give the same job id {r['expected_id']}")
+        seen[r["expected_id"]] = r["key"]
+        r["source_spec"] = _spec_of(r["source_job"], qspecs) if r["source_job"] else None
+        if r["dedup"] != "new":
+            if r["id"] in taken:
+                raise SystemExit(f"batch b3: keys {taken[r['id']]} and {r['key']} both resolve to queue job {r['id']}")
+            taken[r["id"]] = r["key"]
+            warn.append(f"{r['key']}: already in the queue ({r['dedup']} via {r['dedup_via']}: {r['id']})")
+    if J.code_hash() != DB_CODE_HASH:
+        problems.append(f"code_hash {J.code_hash()} != {DB_CODE_HASH} (one of the 8 hashed files changed; every expected id differs)")
+    recorded, rec_err = recorded_ids("b3")
+    if rec_err:
+        warn.append(rec_err)
+    for r in rows:
+        problems += [f"{r['key']}: {p}" for p in row_problems(r, lambda j: _spec_of(j, qspecs), h14_ref=ref_id[HEAVY_H])]
+        r["ack_failed"] = None
+        if r["dedup"] != "new":
+            pr, notes, r["ack_failed"] = hit_checks(r["key"], r["id"], _spec_of(r["id"], qspecs), recorded=recorded.get(r["key"]) == r["id"])
+            problems += pr
+            warn += notes
+    seeds, seed_probs = check_seeds("b3", rows, qspecs)
+    problems += seed_probs
+    return {"batch": "b3", "rows": rows, "problems": problems, "warnings": warn, "code_hash": J.code_hash(),
+            "ref_id": {f"{h:g}": v for h, v in ref_id.items()}, "partners": {}, "n_partner": 0, "pilot16": [], "seeds": seeds,
+            "picks": {"NZ-2": {L: [(k, j, f) for f, k, j in v] for L, v in nz_pick.items()}, "FD-1 SF-1": [(k, j, f) for f, k, j in fd_sf]},
             "queue_root": str(J.QROOT), "n_queue_dirs": len(qspecs)}
 
 
@@ -2129,7 +2320,7 @@ def _man_row(r: dict) -> dict:
             **({k: r.get(k) for k in B2_ROW_FIELDS} if r["layer"] in B2_LAYERS else {})}
 
 
-B2_LAYERS = ("SF-1", "CR-1")
+B2_LAYERS = ("SF-1", "CR-1", "CR-T")
 B2_ROW_FIELDS = ("cr_idx", "layer_pos", "bonded_planned", "sf_bo_overlap", "bo_twins", "adopted_role_from", "unbiased", "in_E", "e_star", "e_group")
 
 
@@ -2284,6 +2475,28 @@ def _release_hint(rel: pathlib.Path, kinds: list, batch: str) -> str:
     return h
 
 
+def known_failure(jid: str) -> str | None:
+    """已知规律的失败（AUTO_ACK_*，用户 10-29 批准）→ 说明；其他（读不了也算）→ None。只读 FAILED.json 与 spec.json。"""
+    d = J.QROOT / jid
+    f, _ = _read_json(d / "FAILED.json")
+    sp, _ = _read_spec(d / "spec.json")
+    if not isinstance(f, dict) or not isinstance(sp, dict):
+        return None
+    lv, stg, why = f.get("level"), f.get("stage"), str(f.get("reason") or "")
+    dsg = sp.get("design") if isinstance(sp.get("design"), dict) else {}
+    num = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)   # noqa: E731
+    if lv == "L4" and stg == "solve" and any(t in why for t in AUTO_ACK_L4_TEXT):
+        L, a, m = dsg.get("L"), dsg.get("alpha"), dsg.get("m")
+        if num(L) and L < AUTO_ACK_L4_L_MAX:
+            return f"L4 short stem (L {L:.1f} mm < {AUTO_ACK_L4_L_MAX:g})"
+        if num(a) and num(m) and a < AUTO_ACK_L4_LOW["alpha"] and m < AUTO_ACK_L4_LOW["m"]:
+            return f"L4 with alpha {a:.1f} < {AUTO_ACK_L4_LOW['alpha']:g} and m {m:.2f} < {AUTO_ACK_L4_LOW['m']:g}"
+        return None
+    if lv == "L3" and stg == "prep" and AUTO_ACK_L3_TEXT in why and AUTO_ACK_L3_NOT not in why:
+        return "L3 degenerate tetrahedra"
+    return None
+
+
 def gate_pass(b: dict, man: dict, log) -> None:
     """按层失败闸门（模块说明）：先处理放行文件（本层的 / 批次级的），再按当前状态判断要不要停；停 = 该层 pending 行 → held，记 ERROR 与事件。
     按层规则数该层全部已完成的行（种子与采纳的已有作业也算）；"最先 10 行"的窗口只数喂料器自己提交的行（清单 dedup == "new"）。"""
@@ -2333,6 +2546,26 @@ def gate_pass(b: dict, man: dict, log) -> None:
             g["releases"].append({"utc": _utc(), "file": str(file), "file_mtime_utc": _utc(mt), "rows": n, "how": how})
             man["events"].append({"utc": _utc(), "event": "release", "layer": L, "rows": n, "file": file.name})
             return n
+
+        if AUTO_ACK:                                        # 已知规律的失败：自动确认，不停（该层失败率过高时不确认，照旧按闸门停）
+            auto = g.setdefault("auto_acked", [])
+            rate_all = len(st["failed"]) / st["finished"] if st["finished"] else 0.0
+            new_known = [(k, n_) for k in st["failed"] if k not in g["ack_failed"] and not man["rows"][k].get("ack_failed")
+                         and k not in auto and (n_ := known_failure(man["rows"][k]["id"]))]
+            if new_known and rate_all <= AUTO_ACK_MAX_RATE:
+                for k, note in new_known:
+                    g["ack_failed"] = sorted(set(g["ack_failed"]) | {k})
+                    auto.append(k)
+                    man["events"].append({"utc": _utc(), "event": "auto_ack", "layer": L, "key": k, "id": man["rows"][k]["id"], "why": note})
+                    log(f"AUTO-ACK layer {L}: {k} {man['rows'][k]['id']} FAILED by a known pattern ({note}); acknowledged, no hold "
+                        f"(layer failure rate {100 * rate_all:.1f} % <= {100 * AUTO_ACK_MAX_RATE:g} %)")
+                if g["held"] and g.get("kinds") == ["layer"] and not layer_why():
+                    n = unhold("auto", J.QROOT.parent / "AUTO_ACK", time.time())
+                    log(f"RELEASE layer {L}: every unacknowledged FAILED row matches a known pattern -> {n} held rows pending again")
+            elif new_known and g.get("auto_rate_warned") != len(new_known):
+                g["auto_rate_warned"] = len(new_known)
+                log(f"WARNING layer {L}: {len(new_known)} FAILED rows match a known pattern but the layer failure rate {100 * rate_all:.1f} % > "
+                    f"{100 * AUTO_ACK_MAX_RATE:g} %: not acknowledged automatically (the gate decides as usual)")
 
         if g["held"]:
             mt = _mtime(rel)
@@ -2416,7 +2649,7 @@ def h14_mode() -> tuple[bool, str]:
 
 def exclusive_keys(b: dict, h14_exclusive: bool) -> list:
     """这一轮独占的行：EXCLUSIVE（REF_h1.4），DB_H14_EXCLUSIVE 模式下再加 FD0_h1.4_*（作业表顺序）。"""
-    return list(EXCLUSIVE) + ([r["key"] for r in b["rows"] if r["layer"] == H14_LAYER] if h14_exclusive else [])
+    return list(EXCLUSIVE) + ([r["key"] for r in b["rows"] if r["layer"] in H14_LAYERS] if h14_exclusive else [])
 
 
 class ProbeHalt(Exception):
