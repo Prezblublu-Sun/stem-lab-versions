@@ -21,6 +21,9 @@ Per job:
      (both ends' hashes, sizes, compression ratio, timings). Any mismatch -> <job>.tar.xz.BAD + non-zero exit.
   Disk gates: Linux free < 15 GB or output drive free < --min-free-gb (default 50; H: is always checked against 50 GB) -> stop.
   Nothing on Linux is ever deleted or modified by this tool (no rm / mv / write commands are sent).
+  Symlinks: refused, except a job's m_fric_csv / m_bond_csv folder moved to the NVMe by adhoc/raw_to_nvme.py (a directory symlink
+  to /mnt/nvme/mobo_raw/<job>/<same name>, user decision 2026-10-29). Those are followed: the listing uses `find -L`, the stream
+  `tar -h`, and the manifest records them (dereferenced_links). A broken link (NVMe not mounted) is a non-regular entry -> refused.
 """
 from __future__ import annotations
 
@@ -45,6 +48,8 @@ RAW_DEFAULT = "H:/projects/Femoral implant generation/db3406/raw"
 QUEUE = "$HOME/mobo_toy_v2/queue"
 PIN = "nice -n 19 taskset -c 4-11"
 JOB_RE = re.compile(r"^[A-Za-z0-9_.\-]+$")
+NVME_RAW = "/mnt/nvme/mobo_raw/"            # raw_to_nvme.py target: the only symlink targets an archive follows
+LINKABLE = ("m_fric_csv", "m_bond_csv")
 
 
 def ssh_base(a) -> list:
@@ -64,21 +69,25 @@ def linux_listing(a, job: str) -> dict:
     cmd = (f"set -e; cd {QUEUE}; test -d {q}; "
            f"if [ -e {q}/DONE ]; then echo STATE DONE; elif [ -e {q}/FAILED.json ]; then echo STATE FAILED; else echo STATE UNFINISHED; fi; "
            f"echo FREE $(df -B1 --output=avail \"$HOME\" | tail -1); "
-           f"echo SIZES; {PIN} find {q} -type f -printf '%s\\t%p\\n' | LC_ALL=C sort -t \"$(printf '\\t')\" -k2; "
-           f"echo HASHES; {PIN} find {q} -type f -print0 | LC_ALL=C sort -z | {PIN} xargs -0 -r sha256sum; "
-           f"echo LINKS $({PIN} find {q} ! -type f ! -type d | wc -l)")
+           f"echo SYMLINKS; find {q} -type l -printf '%p\\t%l\\n'; "
+           f"echo SIZES; {PIN} find -L {q} -type f -printf '%s\\t%p\\n' | LC_ALL=C sort -t \"$(printf '\\t')\" -k2; "
+           f"echo HASHES; {PIN} find -L {q} -type f -print0 | LC_ALL=C sort -z | {PIN} xargs -0 -r sha256sum; "
+           f"echo LINKS $({PIN} find -L {q} ! -type f ! -type d | wc -l)")
     out = run_ssh(a, cmd)
-    state, free, sizes, hashes, links, mode = None, None, {}, {}, None, None
+    state, free, sizes, hashes, links, mode, symlinks = None, None, {}, {}, None, None, {}
     for line in out.splitlines():
         if line.startswith("STATE "):
             state = line.split()[1]
         elif line.startswith("FREE "):
             free = int(line.split()[1]) / 1e9
-        elif line in ("SIZES", "HASHES"):
+        elif line in ("SYMLINKS", "SIZES", "HASHES"):
             mode = line
         elif line.startswith("LINKS "):
             links = int(line.split()[1])
             mode = None
+        elif mode == "SYMLINKS" and line:
+            pth, tgt = line.split("\t", 1)
+            symlinks[pth] = tgt
         elif mode == "SIZES" and line:
             s, pth = line.split("\t", 1)
             sizes[pth] = int(s)
@@ -88,12 +97,22 @@ def linux_listing(a, job: str) -> dict:
     if set(sizes) != set(hashes):
         raise RuntimeError(f"{job}: Linux size and hash listings disagree ({len(sizes)} vs {len(hashes)} files)")
     return {"state": state, "free_gb": free, "files": {p: {"size": sizes[p], "sha256": hashes[p]} for p in sorted(sizes)},
-            "n_special": links}
+            "n_special": links, "symlinks": symlinks}
 
 
-def stream_archive(a, job: str, dst_part: pathlib.Path) -> dict:
+def link_problems(job: str, symlinks: dict) -> list:
+    """Symlinks an archive may follow: <job>/m_fric_csv or m_bond_csv -> /mnt/nvme/mobo_raw/<job>/<same name>. Others are problems."""
+    bad = []
+    for pth, tgt in symlinks.items():
+        name = pth.split("/", 1)[1] if "/" in pth else ""
+        if not (name in LINKABLE and tgt == f"{NVME_RAW}{job}/{name}"):
+            bad.append(f"{pth} -> {tgt}")
+    return bad
+
+
+def stream_archive(a, job: str, dst_part: pathlib.Path, deref: bool = False) -> dict:
     q = shlex.quote(job)
-    inner = (f"cd {QUEUE} && {PIN} tar -cf - {q} | {PIN} xz -T{int(getattr(a, 'xz_threads', 2))} -{a.level} -c | tee >(sha256sum 1>&2)")
+    inner = (f"cd {QUEUE} && {PIN} tar {'-h ' if deref else ''}-cf - {q} | {PIN} xz -T{int(getattr(a, 'xz_threads', 2))} -{a.level} -c | tee >(sha256sum 1>&2)")
     cmd = f"bash -o pipefail -c {shlex.quote(inner)}"
     t0 = time.time()
     h = hashlib.sha256()
@@ -173,10 +192,13 @@ def archive_one(a, job: str, out: pathlib.Path) -> dict:
     if li["state"] not in ("DONE", "FAILED") and not a.allow_unfinished:
         raise SystemExit(f"{job}: state {li['state']} -- only finished jobs are archived (files may still change)")
     if li["n_special"]:
-        raise SystemExit(f"{job}: {li['n_special']} non-regular entries (symlinks?) -- not handled, refusing")
+        raise SystemExit(f"{job}: {li['n_special']} non-regular entries (broken symlink -- NVMe not mounted? -- or special file), refusing")
+    lp = link_problems(job, li["symlinks"])
+    if lp:
+        raise SystemExit(f"{job}: symlinks other than the NVMe raw-data moves -- not handled, refusing: {lp[:5]}")
     part = out / f"{job}.tar.xz.part"
     try:
-        st = stream_archive(a, job, part)
+        st = stream_archive(a, job, part, deref=bool(li["symlinks"]))
     except BaseException as e:                                       # the stream died: quarantine what arrived, report, re-raise
         bad = out / f"{job}.tar.xz.BAD"
         if part.exists():
@@ -205,7 +227,7 @@ def archive_one(a, job: str, out: pathlib.Path) -> dict:
            "raw_bytes": raw_bytes, "archive_bytes": st["bytes"], "ratio": st["bytes"] / raw_bytes if raw_bytes else None,
            "xz_level": a.level, "stream_wall_s": st["wall_s"], "verify_wall_s": time.time() - t1, "total_wall_s": time.time() - t0,
            "stream_sha256": {"linux": st["linux_stream_sha256"], "windows": st["windows_sha256"]},
-           "files_linux": li["files"], "files_archive": win, "errors": errs, "tool": DX.EXPORTER_VERSION.replace("db_export", "db_archive")}
+           "files_linux": li["files"], "files_archive": win, "dereferenced_links": li["symlinks"], "errors": errs, "tool": DX.EXPORTER_VERSION.replace("db_export", "db_archive")}
     if errs:
         bad = out / f"{job}.tar.xz.BAD"
         os.replace(part, bad)

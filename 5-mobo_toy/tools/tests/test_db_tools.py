@@ -913,6 +913,19 @@ def test_archive_members_and_compare():
     assert len(errs) == 2
 
 
+def test_archive_link_rule():
+    """Only <job>/m_fric_csv or m_bond_csv -> /mnt/nvme/mobo_raw/<job>/<same name> may be followed (raw_to_nvme.py moves)."""
+    j = "db_sf_p1_abc"
+    ok = {f"{j}/m_fric_csv": f"/mnt/nvme/mobo_raw/{j}/m_fric_csv", f"{j}/m_bond_csv": f"/mnt/nvme/mobo_raw/{j}/m_bond_csv"}
+    assert DA.link_problems(j, ok) == [] and DA.link_problems(j, {}) == []
+    for bad in ({f"{j}/m_fric_csv": f"/mnt/nvme/mobo_raw/other_job/m_fric_csv"},     # another job's folder
+                {f"{j}/m_fric_csv": "/tmp/x"},                                      # outside the NVMe raw store
+                {f"{j}/spec.json": f"/mnt/nvme/mobo_raw/{j}/spec.json"},            # not a raw-CSV folder
+                {f"{j}/m_fric_csv/LOAD_U.csv": f"/mnt/nvme/mobo_raw/{j}/m_fric_csv/LOAD_U.csv"},   # a file inside, not the folder
+                {f"{j}/m_fric_csv": f"/mnt/nvme/mobo_raw/{j}/m_bond_csv"}):         # swapped names
+        assert len(DA.link_problems(j, bad)) == 1, bad
+
+
 def test_archive_stream_never_hangs():
     """db_archive.stream_archive: the producer closes its stdout but does not exit -> TimeoutExpired after stream_timeout, the
     producer is killed (no 20-minute hang), the exception propagates (review D456 issue 3, second half)."""
