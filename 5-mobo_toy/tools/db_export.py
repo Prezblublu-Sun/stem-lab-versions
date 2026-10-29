@@ -108,7 +108,8 @@ FEMUR_GEOM_KEY_RULE = ("sha256(''.join(f'{role}:{sha256(file)}\\n' for role in s
 # db_bd_ = the plan's BD offset-variant stratum (BO-derived). stage_db.py v1.1 puts the bond-only PARTNER jobs under stage db_bo
 # (layers "BD mesh" / "BD h2.0", source bond_partner), never db_bd. db_* jobs also enter E through their manifest source (E_SOURCES).
 E_JOB_PREFIXES = ("sb13_a", "sb14_a", "db_cr_", "db_crt_", "db_bd_", "db_opt_")
-E_SOURCES = {"bo_p13", "bo_p14", "corner", "corner_test", "offset_variant", "opt_verify", "a9_baseline", "a9_bo", "gen_verify"}
+E_SOURCES = {"bo_p13", "bo_p14", "corner", "corner_test", "offset_variant", "opt_verify", "a9_baseline", "a9_bo", "gen_verify",
+             "al_adaptive"}                 # al_adaptive: the non-random active-learning picks (stage_db b5; plan 1.4 exclusion set E)
 ARM_SOURCES = {"bo_p13", "bo_p14"}
 CANDIDATE_JOBS = {"A": "sb13_a105_91e458e3", "B": "sb13_a78_b0f465da", "B'": "sb13_a53_23a3f031", "C": "sb14_a29_6ad70033",
                   "D": "sb14_a26_96c5ab9b", "a62": "sb13_a62_1e4338ee"}   # progress summary 50 h section 4 + corner check
