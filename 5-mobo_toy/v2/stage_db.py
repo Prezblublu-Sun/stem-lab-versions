@@ -3,7 +3,7 @@ v1.5 = 批次 b3 + 已知规律失败的自动确认）。规划：research-log/
 （第 1.3 / 1.4 节分层与无偏集、第 1.6 节命名 / 查重 / 版本陷阱、第 1.8 节检查 13 / 14、第 2.1–2.7 节、第 3.2 节 CR-T；用户 2026-10-25 批准两天部分）。
 不改 8 个哈希文件（code_hash 必须是 6d7af243d0）、不改 jobs.py / stage_neckopt.py / stage_deck.py / stage_v2a.py / tpl_record.py；提交只走 jobs.submit。
 
-    python v2/stage_db.py dry-run b1|b2|b1b|b2b|b3 [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
+    python v2/stage_db.py dry-run b1|b2|b1b|b2b|b3|b4 [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
                                                           预期 id、查重结果（hash8 / 物理键）、种子采纳、参照与参照核对；末尾 DRY-RUN-JSON。什么都不写
                                                           （b2 另印 G2 核对、CR-1 / CR-T 选点、放宽计数、槽时估计、b1 优先级的当前判断）
     python v2/stage_db.py feed b1|b2 [--once] [--poll 60] 喂料器（只在 Linux 上跑；b1 与 b2 可以同时跑，见"并行喂料"）：
@@ -21,6 +21,20 @@ v1.5 = 批次 b3 + 已知规律失败的自动确认）。规划：research-log/
     FD-1 h1.4  db_fd   B、C、D、a62 + SF-1 4 个（f1 分位 (i + 0.5) / 4，去掉 NZ-2 已选的）× h 1.4（slip_tol = stage_deck.M_SLIP14），参照 b1 的
                        REF_h1.4；重作业（一次一个、旁边可有轻作业；DB_H14_EXCLUSIVE 模式下与 FD-0 h1.4 一样独占），也等 DB_H14_REF_OK
     顺序：CR-T 与 NZ-2 按比例交错，FD-1 再按比例插进去。三层都在 SLOW_START_LAYERS 里。python v2/stage_db.py feed b3（同 b1b 的启动方式）。
+
+批次 b4（v1.5，2026-10-29，同一周计划 b4，并接收从 b3 推来的 BD 次优偏移变体）= 274 行：
+    REF        db_ref  起身两档（stage_deck.D13_STS：1714 / 3839 N，前 24°、矢 8°）的 3406 h 2.0 完整股骨参照 = sb_intact_h2_9c9d7fb5 的 spec + cfg.load
+                       （重作业，一次一个）；喂料时 REF 行按行键核对计划的作业号（ref_by_key；起身参照与楼梯参照同为 h 2.0）
+    CD-1       db_cd   锚点 32 个 = b2 已 DONE 的 SF-1 22 + CR-1 10（f1 分位，去掉 b3 的 NZ-2 / FD-1 已选的）× δ 0.05、δ 0.20（楼梯）、起身 1714、
+                       3839（δ 0.10），只解摩擦（粘接与 δ 无关；起身的粘接见 BD sts）；source cond_anchor
+    BD sts     db_bo   锚点 × 起身两档的只粘接，参照 = 本批同载荷的 REF；source bond_partner
+    CD-1 rand  db_cd   17 维 scrambled Sobol（种子 52401，512 点；u13 全空间 + δ 0.025–0.20 对数均匀、R 1300–3900 N、前 16–24°、矢 4–18°，按
+                       CD1R_BOX 的小数位取整）里按 u13 的 0-FE 模板化（results/db_pool/db_cd1r512_s52401.npz，tpl_record batch）可行的前 56 个，
+                       各 1 个条件，只解摩擦（SED 要同载荷参照）；source cond_random、selection iid、unbiased true
+    BD offset  db_bd   b2 已 DONE、有第二个可用偏移的设计里 e_margin_eff 最小的 SF-1 12 + CR-1 12（SF-1 的模板化记录 = POOL65K 里 u13 逐位相同的那一行，
+                       CR-1 = CR_TPL 的 cr_idx 行；prep.json 的 e 必须等于记录的 e*），强制偏移 = 其余可用偏移里 A0 最大的（entry_offset），
+                       带粘接（基线载荷，100 %）；source offset_variant（排除集 E）。不是放置误差（规划 1.1）
+    顺序：REF 在前；CD-1、CD-1 rand、BD offset、BD sts 按比例交错。新层都在 SLOW_START_LAYERS 里。
 
 已知规律失败的自动确认（v1.5，用户 2026-10-29 批准）：按层失败闸门之前，本层每个未确认的 FAILED 行若属于已知规律（known_failure：L4 求解
     "TOO MANY ATTEMPTS" / "TIME INCREMENT … LESS THAN THE MINIMUM" 且 L < 27 mm 或 α < 20° 且 m < 0.6 mm；L3 建模"degenerate tetrahedra"且没有
@@ -175,7 +189,7 @@ ref_cut 16、a_max 2000、3406 isthmus），spec = Phase(13).spec_of(u) 的物�
     全局深度上限：未领取的 db_*（任何批次，NEW + READY）≤ 6，本来就按全部 db_* 数。
     全局提交互斥锁 logs/db_submit.lock：每轮"快照 → 闸门 → 提交 → 写清单"在锁内（120 s 拿不到 → 本轮跳过，记 WARNING）。2026-10-26 01:24 UTC
         起跑的 b1 喂料器是旧代码、不拿这把锁；所以低优先级批次（b2）每轮最多提交 1 个，提交前重新扫一次队列，再核深度与优先级（窗口毫秒级）。
-    b1 优先（PRIORITY = {b2: (b1,)}）：b2 每轮先读 b1 的清单（results/db_manifest_b1.json，只读；没有 = b1 还没启动，按 b1 的作业表现建），
+    b1 优先（PRIORITY = {b2: (b1,)}；b4 对 b3 同理，v1.5）：b2 每轮先读 b1 的清单（results/db_manifest_b1.json，只读；没有 = b1 还没启动，按 b1 的作业表现建），
         状态按队列刷新，在副本上跑 b1 的 feed_pass(probe=True)（不提交、不写；同一套闸门：深度、参照、重作业、独占、慢启动、参照优先、h 1.4
         操作员文件）。b1 此刻有可提交的行、b1 的独占行在飞、或 b1 只剩独占行（与依赖它的 h ≤ 1.4 行）且队列一空它就会提交 → b2 本轮不提交
         （最后一种 = 让队列排空，REF_h1.4 才能单独跑）；b1 清单读不了 / 与作业表不符 / 探查会停 → b2 也不提交（WAIT 里有原因）。
@@ -244,7 +258,7 @@ AUTO_ACK_L3_NOT = "overlapping facets"
 AUTO_ACK_MAX_RATE = 0.15
 FIRST_N, FIRST_N_MAX_FAILED = 10, 2         # 本批最先完成的 10 个喂料器自己提交的行里 FAILED > 2 → 每层都停（规划 G1）
 SLOW_START_LAYERS = ("NZ-1", "FD-0 h2.5", "FD-0 h1.4", "BD mesh", "BD h2.0", "SF-1", "CR-1", "FD-0 h2.4", "BD b2",
-                     "CR-T", "NZ-2", "FD-1 h1.4")   # 新层慢启动（REF 串行、CD-0 是种子：不在内）
+                     "CR-T", "NZ-2", "FD-1 h1.4", "CD-1", "CD-1 rand", "BD offset", "BD sts")   # 新层慢启动（REF 串行、CD-0 是种子：不在内）
 SLOW_START_CAP = 2                          # … DONE 不到 SLOW_START_DONE 行之前，该层在飞（NEW / READY / CLAIMED / SOLVED）最多 2 行
 SLOW_START_DONE = 2
 WAIT_EVERY = 10                             # 没有提交时：第 1 轮及之后每 10 轮记一行 WAIT
@@ -301,10 +315,11 @@ NOISE_MESH = ("v3406_noise_smoke_h16_hint1.94_1de5bb9e", "v3406_noise_smoke_h16_
 NOISE_H2_TAG = "v3406_noise_smoke_h16_hint2"
 LAYER_SOURCE = {"REF": "intact_ref", "CD-0": "cond_anchor", "NZ-1": "noise", "FD-0 h2.5": "fid_h25", "FD-0 h1.4": "fid_h14",
                 "BD mesh": "bond_partner", "BD h2.0": "bond_partner", "SF-1": "sf", "CR-1": "corner", "FD-0 h2.4": "fid_h24",
-                "BD b2": "bond_partner", "CR-T": "corner_test", "NZ-2": "noise", "FD-1 h1.4": "fid_h14"}
-LAYER_SELECTION = {"REF": "reference", "SF-1": "iid", "CR-T": "corner_test"}   # 其余层 stratum（tools/db_export.DB_STAGE_RULES：db_sf = sf / iid，
-                                                                                # db_cr = corner / stratum，db_crt = corner_test / corner_test）
-BATCHES = ("b1", "b2", "b1b", "b2b", "b3")
+                "BD b2": "bond_partner", "CR-T": "corner_test", "NZ-2": "noise", "FD-1 h1.4": "fid_h14",
+                "CD-1": "cond_anchor", "CD-1 rand": "cond_random", "BD offset": "offset_variant", "BD sts": "bond_partner"}
+LAYER_SELECTION = {"REF": "reference", "SF-1": "iid", "CR-T": "corner_test", "CD-1 rand": "iid"}   # 其余层 stratum（tools/db_export.DB_STAGE_RULES：
+                                                # db_sf = sf / iid，db_cr = corner / stratum，db_crt = corner_test / corner_test，db_bd = offset_variant）
+BATCHES = ("b1", "b2", "b1b", "b2b", "b3", "b4")
 B2B_SOURCE_BATCHES = ("b2",)                # b2b：这些批次清单里已 DONE 的只解摩擦设计行各配一个 h 2.0 只粘接作业
 B2B_LAYER = "BD b2"
 B1B_H = 2.4                                 # b1b 的粗网格档（h 2.5 的完整股骨建模失败，见模块说明"批次 b1b"）
@@ -317,6 +332,17 @@ NZ2_H = (1.94, 2.06)
 NZ2_PER_LAYER = 6                           # NZ-2：SF-1 6 个 + CR-1 6 个，各按 result.json 的 f1_p95_um 分位 (i + 0.5) / 6 取
 FD1_CODES = ("B", "C", "D", "a62")
 FD1_SF_N = 4                                # FD-1：另取 SF-1 4 个（f1 分位 (i + 0.5) / 4，去掉 NZ-2 已选的）
+# ---------------------------------------------------------------- 批次 b4（一周计划 2026-10-29 第 3 节 b4 + 从 b3 推来的 BD 次优偏移变体；规划 1.1、1.3、3.2）
+CD1_ANCHOR_N = {"SF-1": 22, "CR-1": 10}     # CD-1 锚点：b2 已 DONE 的设计按 f1 分位取（去掉 b3 已选的）
+CD1_DELTA = (0.05, 0.20)                    # 锚点 × δ（楼梯，只解摩擦）；锚点 × 起身两档 STS_LOADS（δ 0.10，只解摩擦）+ 同载荷只粘接
+CD1R_N, CD1R_POINTS, CD1R_SOBOL_SEED = 56, 512, 52401   # CD-1 随机条件：17 维 scrambled Sobol（u13 + 4 个条件，独立种子），只按 u13 的
+                                                        # 模板化判可行，按 Sobol 顺序取前 56 个可行
+CD1R_TPL = "db_pool/db_cd1r512_s52401.npz"  # results/ 下：tpl_record batch --phase 13 对 cd1r_points()[:, :13] 的输出（0 FE）
+CD1R_BOX = (("delta", 0.025, 0.20, "log", 4), ("resultant_N", 1300.0, 3900.0, "lin", 1),
+            ("alpha_front_deg", 16.0, 24.0, "lin", 2), ("alpha_sagit_deg", 4.0, 18.0, "lin", 2))   # (名, 下, 上, 刻度, 小数位)：规划 1.1 的条件框
+BD_N = {"SF-1": 12, "CR-1": 12}             # 次优偏移变体：b2 已 DONE、有第二个可用偏移的设计里 e_margin_eff 最小的；强制偏移 = 其余可用偏移里
+                                            # A0 最大的（规划 1.1 第 3 条：同一个 x 在两支上都有标签；不是放置误差）
+U65K = "db_pool/U65536_s51100.npy"          # results/ 下：6.5 万点池的单位坐标（POOL65K 的 u13 必须逐位等于它）
 
 # ---------------------------------------------------------------- 批次 b2（规划 1.3 / 1.4、2.2 D2、2.4 SF-1 / CR-1、3.2 CR-T、2.5 放宽计数）
 B2_PHASE = 13                               # 基线条件 = PHASES[13]（δ 0.10、楼梯、h_int 2.0、neck_in_shoulder、dense、ref_cut 16、a_max 2000）
@@ -342,7 +368,7 @@ WIDE_COUNTS_FILE = "db_widened_counts.json"  # results/ 下：放宽边界的分
 COST_MIN = {"SF-1": 30.75, "CR-1": 23.25}   # 规划成本模型：每个作业的槽时（min）；带粘接再加 BOND_MIN
 BOND_MIN = 0.6
 SLOTS, UPTIME = 3, 0.85                     # 墙钟 = 槽时 ÷ (3 槽 × 85 %)
-PRIORITY = {"b2": ("b1",)}                  # b2 只在 b1 此刻没有可提交的行时提交（见模块说明"并行喂料"）
+PRIORITY = {"b2": ("b1",), "b4": ("b3",)}   # b2 只在 b1、b4 只在 b3 此刻没有可提交的行时提交（见模块说明"并行喂料"）
 LOW_MAX_SUBMIT = 1                          # 低优先级批次每轮最多提交 1 个，提交前重新核对深度与优先级
 SUBMIT_LOCK_TIMEOUT_S = 120.0               # 全局提交互斥锁 logs/db_submit.lock 的等待上限（拿不到 → 本轮跳过，记 WARNING）
 if {L.replace(" ", "_") for L in LAYER_SOURCE} & {RELEASE_ALL, *BATCHES}:      # DB_RELEASE_ALL / DB_RELEASE_<批次> 不能与某层的放行文件同名
@@ -863,6 +889,8 @@ def build(batch: str = "b1") -> dict:
         return build_b2b()
     if batch == "b3":
         return build_b3()
+    if batch == "b4":
+        return build_b4()
     unreadable = []
     qspecs = scan_queue(unreadable)
     by_h8 = _by_h8(qspecs)
@@ -1525,6 +1553,47 @@ def quantile_pick(cands: list, n: int, exclude=frozenset()) -> list:
     return [c[int((i + 0.5) / n * len(c))] for i in range(n)]
 
 
+def b2_done_rows(problems: list, warn: list) -> tuple[dict, dict]:
+    """b2 清单里已 DONE 的 SF-1 / CR-1 行 → ({层: [(f1_p95_um, 键, 作业号)]}, b2 清单的行)。源行还在飞 → problems（b2 没跑完）；FAILED 跳过；
+    没有有限 f1 → warn。b3 / b4 的选点都从这里出发。"""
+    man, merr = _read_json(manifest_path(B3_SOURCE_BATCH))
+    if not isinstance(man, dict) or not isinstance(man.get("rows"), dict):
+        raise SystemExit(f"manifest {manifest_path(B3_SOURCE_BATCH)} unreadable ({merr or 'not a JSON object with rows'})")
+    pools = {"SF-1": [], "CR-1": []}
+    for k in man["order"]:
+        m = man["rows"][k]
+        if m.get("layer") not in pools:
+            continue
+        jid = m.get("id")
+        if m.get("status") not in ("submitted", "existing") or not jid:
+            problems.append(f"{B3_SOURCE_BATCH}:{k}: source row is {m.get('status')} (batch {B3_SOURCE_BATCH} has not finished)")
+            continue
+        st = J.state(J.QROOT / jid)
+        if st == "FAILED":
+            continue
+        if st != "DONE":
+            problems.append(f"{B3_SOURCE_BATCH}:{k}: source {jid} is {st} (batch {B3_SOURCE_BATCH} has not finished)")
+            continue
+        res, _ = _read_json(J.QROOT / jid / "result.json")
+        f1 = res.get("f1_p95_um") if isinstance(res, dict) else None
+        if not isinstance(f1, (int, float)) or isinstance(f1, bool) or not math.isfinite(f1):
+            warn.append(f"{B3_SOURCE_BATCH}:{k}: {jid} has no finite f1_p95_um in result.json; not a candidate")
+            continue
+        pools[m["layer"]].append((float(f1), k, jid))
+    return pools, man["rows"]
+
+
+def b3_picks(pools: dict) -> tuple[dict, list]:
+    """b3 的选点（确定性）：NZ-2 = 每层 NZ2_PER_LAYER 个 f1 分位；FD-1 的 SF-1 = FD1_SF_N 个 f1 分位（去掉 NZ-2 已选的）。"""
+    nz = {L: quantile_pick(pools[L], NZ2_PER_LAYER) for L in pools}
+    return nz, quantile_pick(pools["SF-1"], FD1_SF_N, exclude={x[1] for x in nz["SF-1"]})
+
+
+def b2_source_phys(jid: str, qspecs: dict) -> dict:
+    """b2 一行的源作业的物理键：采纳的两臂作业按 design 核对，其余按 b2row 核对。"""
+    return _phys(load_source(jid, "design" if jid.startswith(ARM_PREFIXES) else "b2row", qspecs), jid)
+
+
 def build_b3() -> dict:
     """b3（一周计划 2026-10-29 第 3 节；模块说明"批次 b3"）：CR-T 30（b2 冻结的名单，stage db_crt）、NZ-2 24（SF-1 6 + CR-1 6 个设计 ×
     h 1.94 / 2.06，stage db_nz）、FD-1 h1.4 8（B、C、D、a62 + SF-1 4 个，stage db_fd，h 1.4 的滑移容差）；全部带粘接（用户 10-29：100 %），
@@ -1557,36 +1626,11 @@ def build_b3() -> dict:
             problems.append(f"b3: reference {k} = {jid} is {st} (must be DONE)")
         ref_id[h], ref_key_of[h] = jid, k
     # ---- b2 的 SF-1 / CR-1 行（已 DONE，带 f1_p95_um）
-    man, merr = _read_json(manifest_path(B3_SOURCE_BATCH))
-    if not isinstance(man, dict) or not isinstance(man.get("rows"), dict):
-        raise SystemExit(f"b3: manifest {manifest_path(B3_SOURCE_BATCH)} unreadable ({merr or 'not a JSON object with rows'})")
-    pools = {"SF-1": [], "CR-1": []}
-    for k in man["order"]:
-        m = man["rows"][k]
-        if m.get("layer") not in pools:
-            continue
-        jid = m.get("id")
-        if m.get("status") not in ("submitted", "existing") or not jid:
-            problems.append(f"{B3_SOURCE_BATCH}:{k}: source row is {m.get('status')} (batch {B3_SOURCE_BATCH} has not finished)")
-            continue
-        st = J.state(J.QROOT / jid)
-        if st == "FAILED":
-            continue
-        if st != "DONE":
-            problems.append(f"{B3_SOURCE_BATCH}:{k}: source {jid} is {st} (batch {B3_SOURCE_BATCH} has not finished)")
-            continue
-        res, _ = _read_json(J.QROOT / jid / "result.json")
-        f1 = res.get("f1_p95_um") if isinstance(res, dict) else None
-        if not isinstance(f1, (int, float)) or isinstance(f1, bool) or not math.isfinite(f1):
-            warn.append(f"{B3_SOURCE_BATCH}:{k}: {jid} has no finite f1_p95_um in result.json; not a NZ-2 / FD-1 candidate")
-            continue
-        pools[m["layer"]].append((float(f1), k, jid))
-    nz_pick = {L: quantile_pick(pools[L], NZ2_PER_LAYER) for L in pools}
-    fd_sf = quantile_pick(pools["SF-1"], FD1_SF_N, exclude={x[1] for x in nz_pick["SF-1"]})
+    pools, _ = b2_done_rows(problems, warn)
+    nz_pick, fd_sf = b3_picks(pools)
 
     def src_of(jid):
-        s_ = load_source(jid, "design" if jid.startswith(ARM_PREFIXES) else "b2row", qspecs)
-        return _phys(s_, jid)
+        return b2_source_phys(jid, qspecs)
 
     # ---- CR-T：b2 冻结的名单（不重选）
     sel, serr = _read_json(crt_file_path())
@@ -1665,6 +1709,179 @@ def build_b3() -> dict:
             "ref_id": {f"{h:g}": v for h, v in ref_id.items()}, "partners": {}, "n_partner": 0, "pilot16": [], "seeds": seeds,
             "picks": {"NZ-2": {L: [(k, j, f) for f, k, j in v] for L, v in nz_pick.items()}, "FD-1 SF-1": [(k, j, f) for f, k, j in fd_sf]},
             "queue_root": str(J.QROOT), "n_queue_dirs": len(qspecs)}
+
+
+def cd1r_points():
+    """CD-1 随机条件的 CD1R_POINTS 个 17 维 scrambled Sobol 点（种子 CD1R_SOBOL_SEED）：前 13 列 = 阶段 13 的单位坐标（全空间，列序 =
+    Phase(13).vars），后 4 列 = CD1R_BOX 的条件单位坐标。"""
+    return sobol(CD1R_POINTS, CD1R_SOBOL_SEED, 17)
+
+
+def cd1r_condition(v) -> dict:
+    """4 个条件的单位坐标 → {"delta": δ, "load": {resultant_N, alpha_front_deg, alpha_sagit_deg}}（CD1R_BOX，δ 按对数均匀，按小数位取整）。"""
+    out = {}
+    for (name, lo, hi, scale, nd), x in zip(CD1R_BOX, v):
+        val = math.exp(math.log(lo) + float(x) * (math.log(hi) - math.log(lo))) if scale == "log" else lo + float(x) * (hi - lo)
+        out[name] = round(val, nd)
+    return {"delta": out["delta"], "load": {k: out[k] for k in ("resultant_N", "alpha_front_deg", "alpha_sagit_deg")}}
+
+
+def runner_up_offset(tpl: dict, t: int) -> tuple[float, float] | None:
+    """模板化记录第 t 行：除 e* 以外可用偏移里 A0 最大的 (e, A0)；没有第二个可用偏移 → None。"""
+    es = float(tpl["e_star"][t])
+    best = None
+    for j, e in enumerate(tpl["offsets"]):
+        if bool(tpl["usable_by_e"][t][j]) and abs(float(e) - es) > 1e-9:
+            a0 = float(tpl["A0_by_e"][t][j])
+            if best is None or a0 > best[1]:
+                best = (float(e), a0)
+    return best
+
+
+def build_b4() -> dict:
+    """b4（一周计划 2026-10-29 第 3 节；模块说明"批次 b4"）：
+    REF 2        起身两档（STS_LOADS）的 3406 h 2.0 完整股骨参照（= sb_intact_h2_9c9d7fb5 的 spec + cfg.load），本批提交，重作业
+    CD-1 128     锚点 32 个（b2 已 DONE 的 SF-1 22 + CR-1 10，f1 分位，去掉 b3 已选的）× {δ 0.05、δ 0.20（楼梯）、起身 1714、3839（δ 0.10）}，只解摩擦
+    BD sts 64    锚点 × 起身两档的只粘接（stage db_bo，参照 = 本批的同载荷 REF）
+    CD-1 rand 56 17 维 Sobol（u13 + δ、R、两个方向角）里按 u13 的模板化可行的前 56 个，各 1 个条件，只解摩擦（SED 要同载荷参照）；iid
+    BD offset 24 b2 已 DONE、有第二个可用偏移的设计里 e_margin_eff 最小的 SF-1 12 + CR-1 12，强制次优偏移（entry_offset），带粘接（基线载荷）
+    顺序：REF 在前；CD-1、CD-1 rand、BD offset、BD sts 按比例交错。查重 / 检查与 build() 相同（参照在本批里，按本批的 spec 核对）。"""
+    np = _np()
+    unreadable = []
+    qspecs = scan_queue(unreadable)
+    by_h8 = _by_h8(qspecs)
+    by_phys = {}
+    for n, sp in qspecs.items():
+        if sp is not None:
+            by_phys.setdefault(phys_key(sp), []).append(n)
+    warn, problems, rows = [], [], []
+    if unreadable:
+        warn.append(f"queue dirs with an unreadable spec.json (treated as having no spec; a hash8 hit on one refuses): {unreadable}")
+    ph = b2_phase()
+    pools, b2rows = b2_done_rows(problems, warn)
+    nz, fd_sf = b3_picks(pools)
+    taken3 = {x[1] for v in nz.values() for x in v} | {x[1] for x in fd_sf}
+    # ---- REF：起身两档
+    ref_phys = _phys(load_source(REF_H2, "intact", qspecs), REF_H2)
+    ref_sts, ref_by_key, ref_keys = {}, {}, []
+    for ln, L in STS_LOADS.items():
+        spec = {**copy.deepcopy(ref_phys), "kind": "intact", "cfg": {"load": dict(L)}, "stage": "db_ref", "tag": f"intact_sts{ln[1:]}"}
+        k = f"REF_sts{ln[1:]}"
+        rows.append(_row(k, "REF", spec, REF_H2))
+        ref_sts[ln] = ref_by_key[k] = resolve(spec, by_h8, qspecs, by_phys)[0]
+        ref_keys.append(k)
+    # ---- CD-1 锚点 + 起身只粘接
+    cd_keys, bds_keys = [], []
+    for L_, n in CD1_ANCHOR_N.items():
+        for f1, k, jid in quantile_pick(pools[L_], n, exclude=taken3):
+            p_, tag = b2_source_phys(jid, qspecs), _tag_of(jid)
+            ext = {"src_batch": B3_SOURCE_BATCH, "src_key": k, "src_layer": L_, "f1_p95_um_h2": f1}
+            for dl in CD1_DELTA:
+                spec = _variant(p_, "db_cd", f"{tag}_d{dl:g}", "fric", delta=dl)
+                rows.append(_row(f"CD1_d{dl:g}_{tag}", "CD-1", spec, jid, None, extra=ext))
+                cd_keys.append(rows[-1]["key"])
+            for ln, Ld in STS_LOADS.items():
+                spec = _variant(p_, "db_cd", f"{tag}_{ln}", "fric", cfg={"load": dict(Ld)})
+                rows.append(_row(f"CD1_sts{ln[1:]}_{tag}", "CD-1", spec, jid, None, extra=ext))
+                cd_keys.append(rows[-1]["key"])
+                spec = _variant(p_, "db_bo", f"{tag}_{ln}", "bond", intact_job=ref_sts[ln], cfg={"load": dict(Ld)})
+                rows.append(_row(f"BDS_sts{ln[1:]}_{tag}", "BD sts", spec, jid, None, ref_key=f"REF_sts{ln[1:]}", extra={**ext, "partner_of": jid}))
+                bds_keys.append(rows[-1]["key"])
+    # ---- CD-1 随机条件
+    U17 = cd1r_points()
+    tpl = load_tpl(CD1R_TPL, U17[:, :13])
+    feas = [int(i) for i in np.flatnonzero(np.asarray(tpl["feasible"], bool))]
+    if len(feas) < CD1R_N:
+        problems.append(f"CD-1 rand: only {len(feas)} feasible of {CD1R_POINTS} Sobol points < {CD1R_N}")
+    cdr_keys = []
+    for i in feas[:CD1R_N]:
+        cond = cd1r_condition(U17[i, 13:])
+        p_ = _phys(ph.spec_of(U17[i, :13], f"cd1r_{i}", bonded=False), f"db_cd cd1r_{i}")
+        spec = _variant(p_, "db_cd", f"cd1r_{i}", "fric", delta=cond["delta"], cfg={"load": cond["load"]})
+        r = _row(f"CD1R_{i:04d}", "CD-1 rand", spec, None, None,
+                 extra={"sobol_idx": i, "cond": cond, "e_star": float(tpl["e_star"][i]), "u13": [float(x) for x in U17[i, :13]]})
+        r.update(unbiased=True, in_E=False)
+        rows.append(r)
+        cdr_keys.append(r["key"])
+    # ---- BD 次优偏移变体
+    pool = load_pool()
+    tp65 = load_tpl(POOL65K, np.load(J.RESULTS / U65K))
+    head = tp65["u13"][:POOL_N]
+    tcr = load_tpl(CR_TPL, cr_points())
+    cand = {"SF-1": [], "CR-1": []}
+    for L_ in cand:
+        for f1, k, jid in pools[L_]:
+            m = b2rows[k]
+            if L_ == "SF-1":
+                u = pool["U"][int(m["pool_idx"])]
+                hit = np.flatnonzero((head == u).all(1))
+                if len(hit) != 1:
+                    problems.append(f"BD offset: {k} pool_idx {m['pool_idx']}: {len(hit)} rows of {POOL65K} match its u13 (want 1)")
+                    continue
+                tp, t = tp65, int(hit[0])
+            else:
+                tp, t = tcr, int(m["cr_idx"])
+            ru = runner_up_offset(tp, t)
+            em = float(tp["e_margin_eff"][t])
+            if ru is None or not math.isfinite(em):
+                continue
+            prep, _ = _read_json(J.QROOT / jid / "prep.json")
+            e_job = ((prep or {}).get("templating") or {}).get("e")
+            if not isinstance(e_job, (int, float)) or abs(float(e_job) - float(tp["e_star"][t])) > 1e-9:
+                problems.append(f"BD offset: {k} ({jid}): prep.json entry offset {e_job!r} != the templating record's e* {float(tp['e_star'][t])}")
+                continue
+            cand[L_].append((em, k, jid, ru, float(tp["e_star"][t]), float(tp["A0_star"][t])))
+    bdo_keys = []
+    for L_, n in BD_N.items():
+        picks = sorted(cand[L_], key=lambda x: (x[0], x[1]))[:n]
+        if len(picks) < n:
+            problems.append(f"BD offset: {len(picks)} {L_} candidates with a second usable offset < {n}")
+        for em, k, jid, (e2, a2), es, a0s in picks:
+            p_, tag = b2_source_phys(jid, qspecs), _tag_of(jid)
+            spec = _variant(p_, "db_bd", f"{tag}_e{e2:g}", "full", intact_job=REF_H2, entry_offset=e2)
+            r = _row(f"BDO_{tag}_e{e2:g}", "BD offset", spec, jid, None,
+                     extra={"src_batch": B3_SOURCE_BATCH, "src_key": k, "src_layer": L_, "e_star": es, "e_forced": e2, "e_margin_eff": em,
+                            "A0_star": a0s, "A0_forced": a2})
+            r.update(unbiased=False, in_E=True)
+            rows.append(r)
+            bdo_keys.append(r["key"])
+    order = ref_keys + interleave(interleave(interleave(cd_keys, cdr_keys), bdo_keys), bds_keys)
+    by_key = {r["key"]: r for r in rows}
+    if len(by_key) != len(rows) or len(order) != len(rows):
+        raise SystemExit("b4: duplicate row keys")
+    rows = [by_key[k] for k in order]
+    # ---- 查重 + 批内重复 + 检查（同 b1：参照在本批里）
+    seen, taken = {}, {}
+    for r in rows:
+        r["expected_id"] = expected_id(r["spec"])
+        r["id"], r["dedup"], r["dedup_hits"], r["dedup_via"] = resolve(r["spec"], by_h8, qspecs, by_phys)
+        if r["expected_id"] in seen:
+            raise SystemExit(f"batch b4: keys {seen[r['expected_id']]} and {r['key']} give the same job id {r['expected_id']}")
+        seen[r["expected_id"]] = r["key"]
+        r["source_spec"] = _spec_of(r["source_job"], qspecs) if r["source_job"] else None
+        if r["dedup"] != "new":
+            if r["id"] in taken:
+                raise SystemExit(f"batch b4: keys {taken[r['id']]} and {r['key']} both resolve to queue job {r['id']}")
+            taken[r["id"]] = r["key"]
+            warn.append(f"{r['key']}: already in the queue ({r['dedup']} via {r['dedup_via']}: {r['id']})")
+    refs_in_batch = {r["id"]: r["spec"] for r in rows if r["layer"] == "REF"}
+    if J.code_hash() != DB_CODE_HASH:
+        problems.append(f"code_hash {J.code_hash()} != {DB_CODE_HASH} (one of the 8 hashed files changed; every expected id differs)")
+    recorded, rec_err = recorded_ids("b4")
+    if rec_err:
+        warn.append(rec_err)
+    for r in rows:
+        problems += [f"{r['key']}: {p}" for p in row_problems(r, lambda j: refs_in_batch.get(j) or _spec_of(j, qspecs))]
+        r["ack_failed"] = None
+        if r["dedup"] != "new":
+            pr, notes, r["ack_failed"] = hit_checks(r["key"], r["id"], _spec_of(r["id"], qspecs), recorded=recorded.get(r["key"]) == r["id"])
+            problems += pr
+            warn += notes
+    seeds, seed_probs = check_seeds("b4", rows, qspecs)
+    problems += seed_probs
+    return {"batch": "b4", "rows": rows, "problems": problems, "warnings": warn, "code_hash": J.code_hash(),
+            "ref_id": {f"{H_PROD:g}": REF_H2}, "ref_by_key": ref_by_key, "partners": {}, "n_partner": len(bds_keys), "pilot16": [],
+            "seeds": seeds, "n_feasible_cd1r": len(feas), "queue_root": str(J.QROOT), "n_queue_dirs": len(qspecs)}
 
 
 def build_b2() -> dict:
@@ -2320,8 +2537,9 @@ def _man_row(r: dict) -> dict:
             **({k: r.get(k) for k in B2_ROW_FIELDS} if r["layer"] in B2_LAYERS else {})}
 
 
-B2_LAYERS = ("SF-1", "CR-1", "CR-T")
-B2_ROW_FIELDS = ("cr_idx", "layer_pos", "bonded_planned", "sf_bo_overlap", "bo_twins", "adopted_role_from", "unbiased", "in_E", "e_star", "e_group")
+B2_LAYERS = ("SF-1", "CR-1", "CR-T", "CD-1 rand", "BD offset")
+B2_ROW_FIELDS = ("cr_idx", "layer_pos", "bonded_planned", "sf_bo_overlap", "bo_twins", "adopted_role_from", "unbiased", "in_E", "e_star", "e_group",
+                 "e_forced", "e_margin_eff", "sobol_idx", "cond")
 
 
 def open_manifest(batch: str, b: dict, gk: dict, log, aux: dict | None = None) -> dict:
@@ -2763,8 +2981,8 @@ def feed_pass(b: dict, man: dict, snap: dict, log, max_unclaimed: int = MAX_UNCL
             wait("heavy", f"heavy gate: {', '.join(heavy[:3])} in flight", key)
             continue
         jid, status, hits, via = resolve(s, snap["by_h8"], by_phys=snap["by_phys"])   # 提交前对活队列再查一次重（碰撞 → SystemExit）
-        if L == "REF":
-            want = b["ref_id"].get(f"{float(s['h_int']):g}")
+        if L == "REF":                                   # b4 的起身参照与楼梯参照同为 h 2.0：按行键查计划的作业号（ref_by_key），没有再按 h_int
+            want = (b.get("ref_by_key") or {}).get(key) or b["ref_id"].get(f"{float(s['h_int']):g}")
             if jid != want:
                 deps = [k for k in order if rows[k]["spec"].get("intact_job") == want]
                 halt(f"{key}: at feed time this reference resolves to {jid} ({status} via {via}), not to {want}, the intact_job "
