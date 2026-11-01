@@ -1,8 +1,8 @@
 """db3406 主动学习驱动（一周计划 2026-10-29 第 3 节 AL-1；规划 3406数据库规划_两天一周一月_2026-10-25.md 第 3.4 节）。0 FE。
 只读：导出版本目录（scalars.csv）、面积量 json、6.5 万点池的模板化记录（POOL65K + 面积量 pool65k_area）、CR-T 名单；只写 results/db_al_<轮>.json。
 
-    python v2/stage_al.py select al1|al2 --export <版本目录> --tpl-area <json> [--seed 0] [--dry]
-    python v2/stage_al.py show al1|al2
+    python v2/stage_al.py select al1|al2|al3 --export <版本目录> --tpl-area <json> [--seed 0] [--dry]
+    python v2/stage_al.py show al1|al2|al3
 
 训练行（导出 scalars.csv）：DONE、有摩擦模型、kind design / variant、h_int 2.0、E_canc 155、μ 与 slip_tol 为默认、cfg 覆盖只含 load；
     去掉 CR-T（selection corner_test，A2 的留出集，不进任何训练）；三个目标都有限；面积量缺失的行去掉并记数。
@@ -34,6 +34,9 @@ AL-2（ROUNDS["al2"]，2026-11-01，按 AL-1 验收修改；一周计划执行�
       GP 0.89–0.95；
     · 训练行必须包含上一轮（al1）的全部选点（导出里按 u13 逐位找到），否则拒绝。
     AL-1 的配置不变（ROUNDS["al1"]，重放选点逐位相同）。
+AL-3（ROUNDS["al3"]，2026-11-01，用户批准）：AL-2 的 P（改进）在各去骨上限全部 < 1 %（≤ 6 cm³ 最大 3.6e-14），名额都挪给了基线与全局——
+    固定候选池里离 FE 最好的设计都太远。AL-3 加局部候选来源 loc_al3（v2/al_local.py：以 FE 最好的设计为中心、单位距离 0.03–0.20 的扰动，
+    模板化 + 面积量，0 FE），配比与打分同 AL-2；随机组只从 pool65k 抽（局部点与角落子盒都不是全空间的 iid 抽样）。训练导出须含 al1、al2。
 记录：每个点的组、问题、分数、P、GP 与集成在基线条件下的均值与校准后 σ、GP 在起身 3839 N 下的均值与 σ、池下标、u13、x13、去骨量；模型版本
     （训练行作业号与目标的 sha256、本文件 md5、sklearn / torch 版本、超参数）、交叉验证指标与校准因子、各问题当前 FE 最好值。
 冻结：文件已在且选点（组 + u13）不同 → 拒绝（SystemExit）；相同 → 不动。提交由 stage_db 的批次读这个文件。
@@ -72,14 +75,23 @@ PLAN = (("robust", None, 6), ("cap", 6000.0, 2), ("cap", 8000.0, 2), ("cap", 100
 N_GLOBAL, N_RANDOM = 19, 10
 # 每轮的配比与打分（模块说明）：plan = 优化导向（问题, 去骨上限, 个数），按顺序选；unc = 不确定度用哪些模型的校准 σ；p_floor = 优化导向候选的
 # P 下限（None = 不设）；overflow = 不足的名额依次给这些问题，再不足给全局不确定；after = 训练导出必须包含这些轮的全部选点
-ROUNDS = {"al1": {"plan": PLAN, "n_global": N_GLOBAL, "n_random": N_RANDOM, "unc": ("gp", "ens"), "p_floor": None, "overflow": (), "after": ()},
+# sources = 候选来源（顺序 = 近重复时留前面的）；random_sources = 随机组只从这些来源抽（None = 全部候选，al1 / al2 的做法；
+# 两轮的随机 20 个实际都落在 pool65k）
+ROUNDS = {"al1": {"plan": PLAN, "n_global": N_GLOBAL, "n_random": N_RANDOM, "unc": ("gp", "ens"), "p_floor": None, "overflow": (), "after": (),
+                  "sources": ("pool65k", "cr4096"), "random_sources": None},
           "al2": {"plan": (("robust", None, 2), ("cap", 5000.0, 2), ("cap", 6000.0, 6), ("cap", 8000.0, 2), ("cap", 10000.0, 2),
                            ("baseline", None, 5)),
                   "n_global": N_GLOBAL, "n_random": N_RANDOM, "unc": ("gp",), "p_floor": 0.01, "overflow": ("cap6000", "baseline"),
-                  "after": ("al1",)}}
+                  "after": ("al1",), "sources": ("pool65k", "cr4096"), "random_sources": None},
+          "al3": {"plan": (("robust", None, 2), ("cap", 5000.0, 2), ("cap", 6000.0, 6), ("cap", 8000.0, 2), ("cap", 10000.0, 2),
+                           ("baseline", None, 5)),
+                  "n_global": N_GLOBAL, "n_random": N_RANDOM, "unc": ("gp",), "p_floor": 0.01, "overflow": ("cap6000", "baseline"),
+                  "after": ("al1", "al2"), "sources": ("pool65k", "cr4096", "loc_al3"), "random_sources": ("pool65k",)}}
 GLOBAL_MAX_ROT_DEG = 2.0                    # 全局不确定只在 GP 预测转动 ≤ 2° 的候选里选（更松的柄多半 L4 不收敛 = 物理松动，FEA 设置核查第 5 节）
 ENS_MEMBERS = 5
 AREA_FILES = {"pool65k": "db_pool/pool65k_area_s51100.npz", "cr4096": "db_pool/db_cr4096_area_s52101.npz"}   # results/ 下：pool_area_features.py
+# 局部候选来源（v2/al_local.py 点表 → tpl_record batch → pool_area_features；results/ 下）。模板化里出错的行（例如截口为空）当作不可行
+LOCAL_SOURCES = {"loc_al3": {"u": "db_pool/loc_al3_u13.npy", "tpl": "db_pool/db_loc_al3_s53301.npz", "area": "db_pool/db_loc_al3_area_s53301.npz"}}
 CAL_CLIP = (0.5, 10.0)
 OUT_NAME = "db_al_{}.json"
 
@@ -318,7 +330,7 @@ def check_area_consistency(rows, area, srcs, ars, pool) -> dict:
 
 
 # ------------------------------------------------------------------------------------------------ select
-def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, log) -> dict:
+def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, log, skip_after: bool = False) -> dict:
     t0 = time.time()
     if rnd not in ROUNDS:
         raise SystemExit(f"unknown round {rnd!r} (known: {list(ROUNDS)})")
@@ -350,8 +362,15 @@ def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, l
     ens = ens_fit(Xn, Y, groups, seed)
     log("final models fitted")
     # ---- 候选：6.5 万点池 + 角落子盒 CR4096（两者都已 0-FE 模板化、补了面积量）
-    srcs = {"pool65k": (DB.load_tpl(DB.POOL65K, np.load(J.RESULTS / DB.U65K)), AREA_FILES["pool65k"]),
-            "cr4096": (DB.load_tpl(DB.CR_TPL, DB.cr_points()), AREA_FILES["cr4096"])}
+    srcs = {}
+    for name in cfg["sources"]:
+        if name == "pool65k":
+            srcs[name] = (DB.load_tpl(DB.POOL65K, np.load(J.RESULTS / DB.U65K)), AREA_FILES["pool65k"])
+        elif name == "cr4096":
+            srcs[name] = (DB.load_tpl(DB.CR_TPL, DB.cr_points()), AREA_FILES["cr4096"])
+        else:
+            d_ = LOCAL_SOURCES[name]
+            srcs[name] = (DB.load_tpl(d_["tpl"], np.load(J.RESULTS / d_["u"]), allow_errors=True), d_["area"])
     ars = {}
     for name, (tp_, af) in srcs.items():
         with np.load(J.RESULTS / af, allow_pickle=False) as z:
@@ -373,6 +392,9 @@ def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, l
 
     prior = {}
     for r0 in cfg["after"]:
+        if skip_after:
+            log(f"TEST: the check that the export contains the {r0} picks is skipped (--dry-skip-prior; nothing is written)")
+            continue
         d0 = json.loads(out_path(r0).read_text())
         U0 = np.array([q["u13"] for q in d0["picks"]])
         miss = int((mind(U0, Uev) > 1e-12).sum())
@@ -392,11 +414,12 @@ def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, l
                       "A0_star": np.asarray(tp_["A0_star"][keep], float)})
     C = {k: np.concatenate([p_[k] for p_ in parts]) for k in parts[0]}
     Uc, tpl6, bone = C["U"], C["tpl6"], C["bone"]
-    # 两个来源之间的近重复（子盒点落在池点旁边）：只留池里的那个
+    # 来源之间的近重复（子盒点、局部点落在前面来源的点旁边）：只留前面来源的那个
     dup = np.zeros(len(Uc), bool)
-    is_cr = C["src"] == "cr4096"
-    if is_cr.any() and (~is_cr).any():
-        dup[is_cr] = mind(Uc[is_cr], Uc[~is_cr]) < EVAL_EXCL
+    for k, name in enumerate(cfg["sources"][1:], start=1):
+        is_n, before = C["src"] == name, np.isin(C["src"], cfg["sources"][:k])
+        if is_n.any() and before.any():
+            dup[is_n] = mind(Uc[is_n], Uc[before]) < EVAL_EXCL
     for k in C:
         C[k] = C[k][~dup]
     Uc, tpl6, bone = C["U"], C["tpl6"], C["bone"]
@@ -495,7 +518,8 @@ def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, l
         log(f"overflow: {moved}; {short} left to the global-uncertainty group")
     n_global = cfg["n_global"] + (short if cfg["overflow"] else 0)     # al1（没有 overflow）：不足的名额照旧空着
     take(unc_g, "global", "uncertainty", n_global)
-    rest = [i for i in range(len(cand)) if i not in {q["_i"] for q in picks}]
+    rs_ = cfg["random_sources"]
+    rest = [i for i in range(len(cand)) if i not in {q["_i"] for q in picks} and (rs_ is None or C["src"][i] in rs_)]
     rr = np.random.default_rng(seed + 7919)
     for i in rr.choice(rest, size=cfg["n_random"], replace=False):
         picks.append({"_i": int(i), "group": "random", "problem": "iid", "score": None, "p_improve": None})
@@ -545,6 +569,7 @@ def main():
     ap.add_argument("--tpl-area")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--dry", action="store_true", help="select: print only, write nothing")
+    ap.add_argument("--dry-skip-prior", action="store_true", help="with --dry only: skip the prior-rounds check (test on an older export)")
     a = ap.parse_args()
     p = out_path(a.round)
     if a.cmd == "show":
@@ -557,7 +582,9 @@ def main():
     if not (a.export and a.tpl_area):
         raise SystemExit("select needs --export and --tpl-area")
     log = lambda m: print(f"{time.strftime('%H:%M:%S')} {m}", flush=True)   # noqa: E731
-    doc = select(a.round, pathlib.Path(a.export), pathlib.Path(a.tpl_area), a.seed, log)
+    if a.dry_skip_prior and not a.dry:
+        raise SystemExit("--dry-skip-prior needs --dry")
+    doc = select(a.round, pathlib.Path(a.export), pathlib.Path(a.tpl_area), a.seed, log, skip_after=a.dry_skip_prior)
     print(json.dumps({k: doc[k] for k in ("n_train", "n_designs", "dropped", "n_candidates", "best_cap_log_rot", "best_robust_log_rot",
                                           "n_designs_both_conditions", "wall_s")}, indent=1))
     for m, d in doc["cv"].items():

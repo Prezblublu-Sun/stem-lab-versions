@@ -1,9 +1,9 @@
 """3406 数据库（db3406）的批量提交器 v1.5（D1 = v0 + 审查修正 + 采纳 CD-0 种子 + 第二轮审查修正；D2 = 批次 b2 + 并行喂料；v1.3 = 批次 b1b；v1.4 = 批次 b2b；
-v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2））。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
+v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2）；v1.7 = 批次 b7（AL-3，局部候选））。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
 （第 1.3 / 1.4 节分层与无偏集、第 1.6 节命名 / 查重 / 版本陷阱、第 1.8 节检查 13 / 14、第 2.1–2.7 节、第 3.2 节 CR-T；用户 2026-10-25 批准两天部分）。
 不改 8 个哈希文件（code_hash 必须是 6d7af243d0）、不改 jobs.py / stage_neckopt.py / stage_deck.py / stage_v2a.py / tpl_record.py；提交只走 jobs.submit。
 
-    python v2/stage_db.py dry-run b1|b2|b1b|b2b|b3|b4|b5|b6 [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
+    python v2/stage_db.py dry-run b1|b2|b1b|b2b|b3|b4|b5|b6|b7 [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
                                                           预期 id、查重结果（hash8 / 物理键）、种子采纳、参照与参照核对；末尾 DRY-RUN-JSON。什么都不写
                                                           （b2 另印 G2 核对、CR-1 / CR-T 选点、放宽计数、槽时估计、b1 优先级的当前判断）
     python v2/stage_db.py feed b1|b2 [--once] [--poll 60] 喂料器（只在 Linux 上跑；b1 与 b2 可以同时跑，见"并行喂料"）：
@@ -43,6 +43,8 @@ v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2�
     v0.3 导出后由 stage_al.py 选点再建。
 批次 b6（v1.6，2026-11-01，用户 11-01 "继续跑" = 批准 AL-2）= 同一构造读 results/db_al_al2.json（stage_al.py select al2，训练行 = v0.4 导出，
     含 b5 的 54 行）；层 AL-2 / AL-2 sts / AL-2 rand，行键 AL2_<名次>，作业标签 al2_<名次>。b5 的行与作业号不变（AL_BATCHES）。
+批次 b7（v1.7，2026-11-01，用户批准 AL-3）= 同一构造读 results/db_al_al3.json；选点可以来自局部候选来源（stage_al.LOCAL_SOURCES，
+    模板化文件里的 error 行允许但必须不可行），每个点同样与它的来源那一行逐位核对且可行。层 AL-3 / AL-3 sts / AL-3 rand。
 
 已知规律失败的自动确认（v1.5，用户 2026-10-29 批准）：按层失败闸门之前，本层每个未确认的 FAILED 行若属于已知规律（known_failure：L4 求解
     "TOO MANY ATTEMPTS" / "TIME INCREMENT … LESS THAN THE MINIMUM" 且 L < 27 mm 或 α < 20° 且 m < 0.6 mm；L3 建模"degenerate tetrahedra"且没有
@@ -267,7 +269,7 @@ AUTO_ACK_MAX_RATE = 0.15
 FIRST_N, FIRST_N_MAX_FAILED = 10, 2         # 本批最先完成的 10 个喂料器自己提交的行里 FAILED > 2 → 每层都停（规划 G1）
 SLOW_START_LAYERS = ("NZ-1", "FD-0 h2.5", "FD-0 h1.4", "BD mesh", "BD h2.0", "SF-1", "CR-1", "FD-0 h2.4", "BD b2",
                      "CR-T", "NZ-2", "FD-1 h1.4", "CD-1", "CD-1 rand", "BD offset", "BD sts", "AL-1", "AL-1 sts", "AL-1 rand",
-                     "AL-2", "AL-2 sts", "AL-2 rand")
+                     "AL-2", "AL-2 sts", "AL-2 rand", "AL-3", "AL-3 sts", "AL-3 rand")
                                             # 新层慢启动（REF 串行、CD-0 是种子：不在内）
 SLOW_START_CAP = 2                          # … DONE 不到 SLOW_START_DONE 行之前，该层在飞（NEW / READY / CLAIMED / SOLVED）最多 2 行
 SLOW_START_DONE = 2
@@ -328,11 +330,13 @@ LAYER_SOURCE = {"REF": "intact_ref", "CD-0": "cond_anchor", "NZ-1": "noise", "FD
                 "BD b2": "bond_partner", "CR-T": "corner_test", "NZ-2": "noise", "FD-1 h1.4": "fid_h14",
                 "CD-1": "cond_anchor", "CD-1 rand": "cond_random", "BD offset": "offset_variant", "BD sts": "bond_partner",
                 "AL-1": "al_adaptive", "AL-1 sts": "al_adaptive", "AL-1 rand": "al_random",
-                "AL-2": "al_adaptive", "AL-2 sts": "al_adaptive", "AL-2 rand": "al_random"}
+                "AL-2": "al_adaptive", "AL-2 sts": "al_adaptive", "AL-2 rand": "al_random",
+                "AL-3": "al_adaptive", "AL-3 sts": "al_adaptive", "AL-3 rand": "al_random"}
 LAYER_SELECTION = {"REF": "reference", "SF-1": "iid", "CR-T": "corner_test", "CD-1 rand": "iid", "AL-1": "adaptive", "AL-1 sts": "adaptive",
-                   "AL-1 rand": "iid", "AL-2": "adaptive", "AL-2 sts": "adaptive", "AL-2 rand": "iid"}          # 其余层 stratum（tools/db_export.DB_STAGE_RULES：db_sf = sf / iid，db_cr = corner / stratum，
+                   "AL-1 rand": "iid", "AL-2": "adaptive", "AL-2 sts": "adaptive", "AL-2 rand": "iid",
+                   "AL-3": "adaptive", "AL-3 sts": "adaptive", "AL-3 rand": "iid"}          # 其余层 stratum（tools/db_export.DB_STAGE_RULES：db_sf = sf / iid，db_cr = corner / stratum，
                                                 # db_crt = corner_test / corner_test，db_bd = offset_variant；AL 的非随机选点在排除集 E）
-BATCHES = ("b1", "b2", "b1b", "b2b", "b3", "b4", "b5", "b6")
+BATCHES = ("b1", "b2", "b1b", "b2b", "b3", "b4", "b5", "b6", "b7")
 B2B_SOURCE_BATCHES = ("b2",)                # b2b：这些批次清单里已 DONE 的只解摩擦设计行各配一个 h 2.0 只粘接作业
 B2B_LAYER = "BD b2"
 B1B_H = 2.4                                 # b1b 的粗网格档（h 2.5 的完整股骨建模失败，见模块说明"批次 b1b"）
@@ -357,7 +361,7 @@ BD_N = {"SF-1": 12, "CR-1": 12}             # 次优偏移变体：b2 已 DONE�
                                             # A0 最大的（规划 1.1 第 3 条：同一个 x 在两支上都有标签；不是放置误差）
 U65K = "db_pool/U65536_s51100.npy"          # results/ 下：6.5 万点池的单位坐标（POOL65K 的 u13 必须逐位等于它）
 # ---------------------------------------------------------------- 批次 b5（一周计划第 3 节 AL-1；规划 3.4）：读 stage_al.py 冻结的选点文件
-AL_BATCHES = {"b5": ("al1", "AL-1", "AL1"), "b6": ("al2", "AL-2", "AL2")}   # 批次 -> (stage_al 轮 = results/db_al_<轮>.json, 层前缀, 行键前缀)
+AL_BATCHES = {"b5": ("al1", "AL-1", "AL1"), "b6": ("al2", "AL-2", "AL2"), "b7": ("al3", "AL-3", "AL3")}   # 批次 -> (stage_al 轮 = results/db_al_<轮>.json, 层前缀, 行键前缀)
 AL_STS = "F3839"                            # 稳健问题的选点另加一行起身 3839 N（δ 0.10，只解摩擦），验收稳健目标用
 
 # ---------------------------------------------------------------- 批次 b2（规划 1.3 / 1.4、2.2 D2、2.4 SF-1 / CR-1、3.2 CR-T、2.5 放宽计数）
@@ -1209,9 +1213,10 @@ def _tpl_rule_expect() -> dict:
             "ref_cut_mm": float(ph.ref_cut_mm), "min_A0": float(S2.MIN_A0)}
 
 
-def load_tpl(rel: str, U_expect, phys_expect=None, rows: tuple | None = None) -> dict:
+def load_tpl(rel: str, U_expect, phys_expect=None, rows: tuple | None = None, allow_errors: bool = False) -> dict:
     """tpl_record batch 的输出（results/<rel>）。核对：工具与格式、全部算完、没有 error 行、code_hash、选号规则（= 阶段 13）、
-    变量顺序、u13 逐位等于 U_expect（由种子重建的点）、x13 = phys_expect（给了时；放宽空间的物理值）。不符 → SystemExit。"""
+    变量顺序、u13 逐位等于 U_expect（由种子重建的点）、x13 = phys_expect（给了时；放宽空间的物理值）。不符 → SystemExit。
+    allow_errors（AL 局部候选）：error 行允许，但必须都标为不可行。"""
     np = _np()
     p = J.RESULTS / rel
     if not p.exists():
@@ -1227,8 +1232,10 @@ def load_tpl(rel: str, U_expect, phys_expect=None, rows: tuple | None = None) ->
         why.append(f"tool / format {meta.get('tool')}/{meta.get('format')} (want tpl_record/2)")
     if not meta.get("complete") or not bool(np.all(d["done"])):
         why.append(f"incomplete ({int(np.sum(d['done']))}/{len(d['done'])} done)")
-    if bool(np.any(d["error"])):
+    if bool(np.any(d["error"])) and not allow_errors:
         why.append(f"{int(np.sum(d['error']))} error rows")
+    if allow_errors and bool(np.any(np.asarray(d["error"], bool) & np.asarray(d["feasible"], bool))):
+        why.append("error rows marked feasible")
     prov = meta.get("provenance") or {}
     if prov.get("code_hash") != DB_CODE_HASH:
         why.append(f"provenance code_hash {prov.get('code_hash')!r} != {DB_CODE_HASH}")
@@ -1927,6 +1934,9 @@ def build_b5(batch: str = "b5") -> dict:
         raise SystemExit(f"{batch}: {p}: the picks do not match their essence sha256 (edited?)")
     ph = b2_phase()
     tps = {"pool65k": (POOL65K, load_tpl(POOL65K, np.load(J.RESULTS / U65K))), "cr4096": (CR_TPL, load_tpl(CR_TPL, cr_points()))}
+    for name in sorted({q.get("source") for q in doc["picks"]} & set(AL.LOCAL_SOURCES)):     # 局部候选（al3 起）：只在选点用到时读
+        d_ = AL.LOCAL_SOURCES[name]
+        tps[name] = (d_["tpl"], load_tpl(d_["tpl"], np.load(J.RESULTS / d_["u"]), allow_errors=True))
     keys = {LP: [], f"{LP} sts": [], f"{LP} rand": []}
     for q in doc["picks"]:
         if q.get("source") not in tps:
@@ -2643,7 +2653,8 @@ def _man_row(r: dict) -> dict:
             **({k: r.get(k) for k in B2_ROW_FIELDS} if r["layer"] in B2_LAYERS else {})}
 
 
-B2_LAYERS = ("SF-1", "CR-1", "CR-T", "CD-1 rand", "BD offset", "AL-1", "AL-1 sts", "AL-1 rand", "AL-2", "AL-2 sts", "AL-2 rand")
+B2_LAYERS = ("SF-1", "CR-1", "CR-T", "CD-1 rand", "BD offset", "AL-1", "AL-1 sts", "AL-1 rand", "AL-2", "AL-2 sts", "AL-2 rand",
+             "AL-3", "AL-3 sts", "AL-3 rand")
 B2_ROW_FIELDS = ("cr_idx", "layer_pos", "bonded_planned", "sf_bo_overlap", "bo_twins", "adopted_role_from", "unbiased", "in_E", "e_star", "e_group",
                  "e_forced", "e_margin_eff", "sobol_idx", "cond", "al_group", "al_problem", "al_score", "al_p")
 
