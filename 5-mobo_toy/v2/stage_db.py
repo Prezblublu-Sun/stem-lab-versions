@@ -1,9 +1,9 @@
 """3406 数据库（db3406）的批量提交器 v1.5（D1 = v0 + 审查修正 + 采纳 CD-0 种子 + 第二轮审查修正；D2 = 批次 b2 + 并行喂料；v1.3 = 批次 b1b；v1.4 = 批次 b2b；
-v1.5 = 批次 b3 + 已知规律失败的自动确认）。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
+v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2））。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
 （第 1.3 / 1.4 节分层与无偏集、第 1.6 节命名 / 查重 / 版本陷阱、第 1.8 节检查 13 / 14、第 2.1–2.7 节、第 3.2 节 CR-T；用户 2026-10-25 批准两天部分）。
 不改 8 个哈希文件（code_hash 必须是 6d7af243d0）、不改 jobs.py / stage_neckopt.py / stage_deck.py / stage_v2a.py / tpl_record.py；提交只走 jobs.submit。
 
-    python v2/stage_db.py dry-run b1|b2|b1b|b2b|b3|b4|b5 [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
+    python v2/stage_db.py dry-run b1|b2|b1b|b2b|b3|b4|b5|b6 [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
                                                           预期 id、查重结果（hash8 / 物理键）、种子采纳、参照与参照核对；末尾 DRY-RUN-JSON。什么都不写
                                                           （b2 另印 G2 核对、CR-1 / CR-T 选点、放宽计数、槽时估计、b1 优先级的当前判断）
     python v2/stage_db.py feed b1|b2 [--once] [--poll 60] 喂料器（只在 Linux 上跑；b1 与 b2 可以同时跑，见"并行喂料"）：
@@ -41,6 +41,8 @@ v1.5 = 批次 b3 + 已知规律失败的自动确认）。规划：research-log/
     （只解摩擦，层 AL-1 sts）。核对：选点文件的 essence sha256、每个点的 u13 与它的来源（POOL65K 或 CR_TPL）那一行逐位相同且可行。层 AL-1（opt / global：
     source al_adaptive、selection adaptive、排除集 E）、AL-1 rand（source al_random、selection iid、unbiased true）。b5 在 b4 跑完、
     v0.3 导出后由 stage_al.py 选点再建。
+批次 b6（v1.6，2026-11-01，用户 11-01 "继续跑" = 批准 AL-2）= 同一构造读 results/db_al_al2.json（stage_al.py select al2，训练行 = v0.4 导出，
+    含 b5 的 54 行）；层 AL-2 / AL-2 sts / AL-2 rand，行键 AL2_<名次>，作业标签 al2_<名次>。b5 的行与作业号不变（AL_BATCHES）。
 
 已知规律失败的自动确认（v1.5，用户 2026-10-29 批准）：按层失败闸门之前，本层每个未确认的 FAILED 行若属于已知规律（known_failure：L4 求解
     "TOO MANY ATTEMPTS" / "TIME INCREMENT … LESS THAN THE MINIMUM" 且 L < 27 mm 或 α < 20° 且 m < 0.6 mm；L3 建模"degenerate tetrahedra"且没有
@@ -264,7 +266,8 @@ AUTO_ACK_L3_NOT = "overlapping facets"
 AUTO_ACK_MAX_RATE = 0.15
 FIRST_N, FIRST_N_MAX_FAILED = 10, 2         # 本批最先完成的 10 个喂料器自己提交的行里 FAILED > 2 → 每层都停（规划 G1）
 SLOW_START_LAYERS = ("NZ-1", "FD-0 h2.5", "FD-0 h1.4", "BD mesh", "BD h2.0", "SF-1", "CR-1", "FD-0 h2.4", "BD b2",
-                     "CR-T", "NZ-2", "FD-1 h1.4", "CD-1", "CD-1 rand", "BD offset", "BD sts", "AL-1", "AL-1 sts", "AL-1 rand")
+                     "CR-T", "NZ-2", "FD-1 h1.4", "CD-1", "CD-1 rand", "BD offset", "BD sts", "AL-1", "AL-1 sts", "AL-1 rand",
+                     "AL-2", "AL-2 sts", "AL-2 rand")
                                             # 新层慢启动（REF 串行、CD-0 是种子：不在内）
 SLOW_START_CAP = 2                          # … DONE 不到 SLOW_START_DONE 行之前，该层在飞（NEW / READY / CLAIMED / SOLVED）最多 2 行
 SLOW_START_DONE = 2
@@ -324,11 +327,12 @@ LAYER_SOURCE = {"REF": "intact_ref", "CD-0": "cond_anchor", "NZ-1": "noise", "FD
                 "BD mesh": "bond_partner", "BD h2.0": "bond_partner", "SF-1": "sf", "CR-1": "corner", "FD-0 h2.4": "fid_h24",
                 "BD b2": "bond_partner", "CR-T": "corner_test", "NZ-2": "noise", "FD-1 h1.4": "fid_h14",
                 "CD-1": "cond_anchor", "CD-1 rand": "cond_random", "BD offset": "offset_variant", "BD sts": "bond_partner",
-                "AL-1": "al_adaptive", "AL-1 sts": "al_adaptive", "AL-1 rand": "al_random"}
+                "AL-1": "al_adaptive", "AL-1 sts": "al_adaptive", "AL-1 rand": "al_random",
+                "AL-2": "al_adaptive", "AL-2 sts": "al_adaptive", "AL-2 rand": "al_random"}
 LAYER_SELECTION = {"REF": "reference", "SF-1": "iid", "CR-T": "corner_test", "CD-1 rand": "iid", "AL-1": "adaptive", "AL-1 sts": "adaptive",
-                   "AL-1 rand": "iid"}          # 其余层 stratum（tools/db_export.DB_STAGE_RULES：db_sf = sf / iid，db_cr = corner / stratum，
+                   "AL-1 rand": "iid", "AL-2": "adaptive", "AL-2 sts": "adaptive", "AL-2 rand": "iid"}          # 其余层 stratum（tools/db_export.DB_STAGE_RULES：db_sf = sf / iid，db_cr = corner / stratum，
                                                 # db_crt = corner_test / corner_test，db_bd = offset_variant；AL 的非随机选点在排除集 E）
-BATCHES = ("b1", "b2", "b1b", "b2b", "b3", "b4", "b5")
+BATCHES = ("b1", "b2", "b1b", "b2b", "b3", "b4", "b5", "b6")
 B2B_SOURCE_BATCHES = ("b2",)                # b2b：这些批次清单里已 DONE 的只解摩擦设计行各配一个 h 2.0 只粘接作业
 B2B_LAYER = "BD b2"
 B1B_H = 2.4                                 # b1b 的粗网格档（h 2.5 的完整股骨建模失败，见模块说明"批次 b1b"）
@@ -353,8 +357,8 @@ BD_N = {"SF-1": 12, "CR-1": 12}             # 次优偏移变体：b2 已 DONE�
                                             # A0 最大的（规划 1.1 第 3 条：同一个 x 在两支上都有标签；不是放置误差）
 U65K = "db_pool/U65536_s51100.npy"          # results/ 下：6.5 万点池的单位坐标（POOL65K 的 u13 必须逐位等于它）
 # ---------------------------------------------------------------- 批次 b5（一周计划第 3 节 AL-1；规划 3.4）：读 stage_al.py 冻结的选点文件
-B5_ROUND = "al1"                            # results/db_al_al1.json（stage_al.py select al1）
-B5_STS = "F3839"                            # 稳健问题的选点另加一行起身 3839 N（δ 0.10，只解摩擦），验收稳健目标用
+AL_BATCHES = {"b5": ("al1", "AL-1", "AL1"), "b6": ("al2", "AL-2", "AL2")}   # 批次 -> (stage_al 轮 = results/db_al_<轮>.json, 层前缀, 行键前缀)
+AL_STS = "F3839"                            # 稳健问题的选点另加一行起身 3839 N（δ 0.10，只解摩擦），验收稳健目标用
 
 # ---------------------------------------------------------------- 批次 b2（规划 1.3 / 1.4、2.2 D2、2.4 SF-1 / CR-1、3.2 CR-T、2.5 放宽计数）
 B2_PHASE = 13                               # 基线条件 = PHASES[13]（δ 0.10、楼梯、h_int 2.0、neck_in_shoulder、dense、ref_cut 16、a_max 2000）
@@ -903,8 +907,8 @@ def build(batch: str = "b1") -> dict:
         return build_b3()
     if batch == "b4":
         return build_b4()
-    if batch == "b5":
-        return build_b5()
+    if batch in AL_BATCHES:
+        return build_b5(batch)
     unreadable = []
     qspecs = scan_queue(unreadable)
     by_h8 = _by_h8(qspecs)
@@ -1898,12 +1902,13 @@ def build_b4() -> dict:
             "seeds": seeds, "n_feasible_cd1r": len(feas), "queue_root": str(J.QROOT), "n_queue_dirs": len(qspecs)}
 
 
-def build_b5() -> dict:
-    """b5（一周计划 AL-1；模块说明"批次 b5"）：stage_al.py 冻结的 results/db_al_<B5_ROUND>.json 的选点，各 1 行基线条件、带粘接（stage db_al）；
-    稳健问题的选点另加 1 行起身 3839 N（只解摩擦）。选点文件的 essence sha256 与选点、每个点的 u13 与 POOL65K 的那一行逐位核对、
-    那一行必须可行。层：AL-1（opt / global，selection adaptive，排除集 E）、AL-1 sts、AL-1 rand（random，iid）。"""
+def build_b5(batch: str = "b5") -> dict:
+    """b5 / b6（一周计划 AL-1 / AL-2；模块说明"批次 b5""批次 b6"）：stage_al.py 冻结的 results/db_al_<轮>.json（AL_BATCHES）的选点，
+    各 1 行基线条件、带粘接（stage db_al）；稳健问题的选点另加 1 行起身 3839 N（只解摩擦）。选点文件的 essence sha256 与选点、每个点的 u13
+    与 POOL65K 的那一行逐位核对、那一行必须可行。层：AL-n（opt / global，selection adaptive，排除集 E）、AL-n sts、AL-n rand（random，iid）。"""
     np = _np()
     import stage_al as AL
+    rnd_name, LP, KP = AL_BATCHES[batch]
     unreadable = []
     qspecs = scan_queue(unreadable)
     by_h8 = _by_h8(qspecs)
@@ -1914,15 +1919,15 @@ def build_b5() -> dict:
     warn, problems, rows = [], [], []
     if unreadable:
         warn.append(f"queue dirs with an unreadable spec.json (treated as having no spec; a hash8 hit on one refuses): {unreadable}")
-    p = AL.out_path(B5_ROUND)
+    p = AL.out_path(rnd_name)
     doc, err = _read_json(p)
     if not isinstance(doc, dict) or not doc.get("picks"):
-        raise SystemExit(f"b5: {p} unreadable or without picks ({err or 'no picks'}); run stage_al.py select {B5_ROUND} first")
+        raise SystemExit(f"{batch}: {p} unreadable or without picks ({err or 'no picks'}); run stage_al.py select {rnd_name} first")
     if AL.essence(doc) != doc.get("essence_sha256"):
-        raise SystemExit(f"b5: {p}: the picks do not match their essence sha256 (edited?)")
+        raise SystemExit(f"{batch}: {p}: the picks do not match their essence sha256 (edited?)")
     ph = b2_phase()
     tps = {"pool65k": (POOL65K, load_tpl(POOL65K, np.load(J.RESULTS / U65K))), "cr4096": (CR_TPL, load_tpl(CR_TPL, cr_points()))}
-    keys = {"AL-1": [], "AL-1 sts": [], "AL-1 rand": []}
+    keys = {LP: [], f"{LP} sts": [], f"{LP} rand": []}
     for q in doc["picks"]:
         if q.get("source") not in tps:
             problems.append(f"AL pick {q['rank']}: unknown candidate source {q.get('source')!r}")
@@ -1933,42 +1938,42 @@ def build_b5() -> dict:
         if not bool(tp["feasible"][ci]):
             problems.append(f"AL pick {q['rank']}: {fname} row {ci} is not feasible")
         rnd = q["group"] == "random"
-        L_ = "AL-1 rand" if rnd else "AL-1"
-        tag = f"{B5_ROUND}_{q['rank']:02d}"
+        L_ = f"{LP} rand" if rnd else LP
+        tag = f"{rnd_name}_{q['rank']:02d}"
         ext = {"pool_idx": None, "layer_pos": q["rank"], "e_star": q.get("e_star"), "cond": None,
                "al_group": q["group"], "al_problem": q["problem"], "al_score": q.get("score"), "al_p": q.get("p_improve")}
-        r = _row(f"AL1_{q['rank']:02d}", L_, _sf_cr_spec(ph, u, "db_al", tag, True), None, None, extra=ext)
+        r = _row(f"{KP}_{q['rank']:02d}", L_, _sf_cr_spec(ph, u, "db_al", tag, True), None, None, extra=ext)
         r.update(unbiased=rnd, in_E=not rnd)
         rows.append(r)
         keys[L_].append(r["key"])
         if q["problem"] == "robust":
             sp = ph.spec_of(u, tag, bonded=False)
-            spec = _variant(_phys(sp, f"db_al {tag}"), "db_al", f"{tag}_{B5_STS}", "fric", cfg={"load": dict(STS_LOADS[B5_STS])})
-            r = _row(f"AL1_{q['rank']:02d}_sts{B5_STS[1:]}", "AL-1 sts", spec, None, None, extra={**ext, "cond": {"load": dict(STS_LOADS[B5_STS])}})
+            spec = _variant(_phys(sp, f"db_al {tag}"), "db_al", f"{tag}_{AL_STS}", "fric", cfg={"load": dict(STS_LOADS[AL_STS])})
+            r = _row(f"{KP}_{q['rank']:02d}_sts{AL_STS[1:]}", f"{LP} sts", spec, None, None, extra={**ext, "cond": {"load": dict(STS_LOADS[AL_STS])}})
             r.update(unbiased=False, in_E=True)
             rows.append(r)
-            keys["AL-1 sts"].append(r["key"])
-    order = interleave(interleave(keys["AL-1"], keys["AL-1 rand"]), keys["AL-1 sts"])
+            keys[f"{LP} sts"].append(r["key"])
+    order = interleave(interleave(keys[LP], keys[f"{LP} rand"]), keys[f"{LP} sts"])
     by_key = {r["key"]: r for r in rows}
     if len(by_key) != len(rows) or len(order) != len(rows):
-        raise SystemExit("b5: duplicate row keys")
+        raise SystemExit(f"{batch}: duplicate row keys")
     rows = [by_key[k] for k in order]
     seen, taken = {}, {}
     for r in rows:
         r["expected_id"] = expected_id(r["spec"])
         r["id"], r["dedup"], r["dedup_hits"], r["dedup_via"] = resolve(r["spec"], by_h8, qspecs, by_phys)
         if r["expected_id"] in seen:
-            raise SystemExit(f"batch b5: keys {seen[r['expected_id']]} and {r['key']} give the same job id {r['expected_id']}")
+            raise SystemExit(f"batch {batch}: keys {seen[r['expected_id']]} and {r['key']} give the same job id {r['expected_id']}")
         seen[r["expected_id"]] = r["key"]
         r["source_spec"] = None
         if r["dedup"] != "new":
             if r["id"] in taken:
-                raise SystemExit(f"batch b5: keys {taken[r['id']]} and {r['key']} both resolve to queue job {r['id']}")
+                raise SystemExit(f"batch {batch}: keys {taken[r['id']]} and {r['key']} both resolve to queue job {r['id']}")
             taken[r["id"]] = r["key"]
             warn.append(f"{r['key']}: already in the queue ({r['dedup']} via {r['dedup_via']}: {r['id']})")
     if J.code_hash() != DB_CODE_HASH:
         problems.append(f"code_hash {J.code_hash()} != {DB_CODE_HASH} (one of the 8 hashed files changed; every expected id differs)")
-    recorded, rec_err = recorded_ids("b5")
+    recorded, rec_err = recorded_ids(batch)
     if rec_err:
         warn.append(rec_err)
     for r in rows:
@@ -1978,9 +1983,9 @@ def build_b5() -> dict:
             pr, notes, r["ack_failed"] = hit_checks(r["key"], r["id"], _spec_of(r["id"], qspecs), recorded=recorded.get(r["key"]) == r["id"])
             problems += pr
             warn += notes
-    seeds, seed_probs = check_seeds("b5", rows, qspecs)
+    seeds, seed_probs = check_seeds(batch, rows, qspecs)
     problems += seed_probs
-    return {"batch": "b5", "rows": rows, "problems": problems, "warnings": warn, "code_hash": J.code_hash(),
+    return {"batch": batch, "rows": rows, "problems": problems, "warnings": warn, "code_hash": J.code_hash(),
             "ref_id": {f"{H_PROD:g}": REF_H2}, "partners": {}, "n_partner": 0, "pilot16": [], "seeds": seeds,
             "al_file": str(p), "al_essence": doc["essence_sha256"], "queue_root": str(J.QROOT), "n_queue_dirs": len(qspecs)}
 
@@ -2638,7 +2643,7 @@ def _man_row(r: dict) -> dict:
             **({k: r.get(k) for k in B2_ROW_FIELDS} if r["layer"] in B2_LAYERS else {})}
 
 
-B2_LAYERS = ("SF-1", "CR-1", "CR-T", "CD-1 rand", "BD offset", "AL-1", "AL-1 sts", "AL-1 rand")
+B2_LAYERS = ("SF-1", "CR-1", "CR-T", "CD-1 rand", "BD offset", "AL-1", "AL-1 sts", "AL-1 rand", "AL-2", "AL-2 sts", "AL-2 rand")
 B2_ROW_FIELDS = ("cr_idx", "layer_pos", "bonded_planned", "sf_bo_overlap", "bo_twins", "adopted_role_from", "unbiased", "in_E", "e_star", "e_group",
                  "e_forced", "e_margin_eff", "sobol_idx", "cond", "al_group", "al_problem", "al_score", "al_p")
 

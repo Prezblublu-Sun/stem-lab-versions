@@ -1,8 +1,8 @@
 """db3406 主动学习驱动（一周计划 2026-10-29 第 3 节 AL-1；规划 3406数据库规划_两天一周一月_2026-10-25.md 第 3.4 节）。0 FE。
 只读：导出版本目录（scalars.csv）、面积量 json、6.5 万点池的模板化记录（POOL65K + 面积量 pool65k_area）、CR-T 名单；只写 results/db_al_<轮>.json。
 
-    python v2/stage_al.py select al1 --export <版本目录> --tpl-area <json> [--seed 0] [--dry]
-    python v2/stage_al.py show al1
+    python v2/stage_al.py select al1|al2 --export <版本目录> --tpl-area <json> [--seed 0] [--dry]
+    python v2/stage_al.py show al1|al2
 
 训练行（导出 scalars.csv）：DONE、有摩擦模型、kind design / variant、h_int 2.0、E_canc 155、μ 与 slip_tol 为默认、cfg 覆盖只含 load；
     去掉 CR-T（selection corner_test，A2 的留出集，不进任何训练）；三个目标都有限；面积量缺失的行去掉并记数。
@@ -25,6 +25,15 @@
     批内多样性：每个新点离已选点的单位距离 ≥ DIV_R
     随机 10     其余候选里均匀抽（种子 seed + 7919），iid 流（候选已去掉已算设计的近邻，含排除集 E）
     ε = EPS_DEX = 0.012 dex（网格噪声，规划 3.4）。
+AL-2（ROUNDS["al2"]，2026-11-01，按 AL-1 验收修改；一周计划执行记录 11-01）：
+    · 稳健 6 → 2：AL-1 的 6 个稳健选点 P（改进）≤ 2e-4，没有一个改进；
+    · 新增去骨 ≤ 5 cm³ 上限 2 个，≤ 6 cm³ 2 → 6 个：AL-1 在 ≤ 6 cm³ 的 2 个选点都超过了原最好（0.102° / 0.256° 对 0.354°），这一带没探够；
+      基线 7 → 5，≤ 8 / ≤ 10 cm³ 不变；
+    · 概率下限 P_FLOOR：优化导向的问题只选 P（改进 / 不被 ε 支配）≥ 1 % 的候选，不足的名额依次给 ≤ 6 cm³、基线，再不足给全局不确定；
+    · 不确定度（全局不确定与基线分数里的乘子）只用 GP 的校准 σ：AL-1 全局不确定 19 个上集成的 90 % 区间覆盖只有 0.42（离数据远时 σ 太小），
+      GP 0.89–0.95；
+    · 训练行必须包含上一轮（al1）的全部选点（导出里按 u13 逐位找到），否则拒绝。
+    AL-1 的配置不变（ROUNDS["al1"]，重放选点逐位相同）。
 记录：每个点的组、问题、分数、P、GP 与集成在基线条件下的均值与校准后 σ、GP 在起身 3839 N 下的均值与 σ、池下标、u13、x13、去骨量；模型版本
     （训练行作业号与目标的 sha256、本文件 md5、sklearn / torch 版本、超参数）、交叉验证指标与校准因子、各问题当前 FE 最好值。
 冻结：文件已在且选点（组 + u13）不同 → 拒绝（SystemExit）；相同 → 不动。提交由 stage_db 的批次读这个文件。
@@ -59,9 +68,15 @@ EPS_DEX = 0.012
 CRT_EXCL = 0.05
 EVAL_EXCL = DB.CR_EXCL_R
 DIV_R = 0.15
-CAPS_MM3 = (6000.0, 8000.0, 10000.0)
 PLAN = (("robust", None, 6), ("cap", 6000.0, 2), ("cap", 8000.0, 2), ("cap", 10000.0, 2), ("baseline", None, 7))
 N_GLOBAL, N_RANDOM = 19, 10
+# 每轮的配比与打分（模块说明）：plan = 优化导向（问题, 去骨上限, 个数），按顺序选；unc = 不确定度用哪些模型的校准 σ；p_floor = 优化导向候选的
+# P 下限（None = 不设）；overflow = 不足的名额依次给这些问题，再不足给全局不确定；after = 训练导出必须包含这些轮的全部选点
+ROUNDS = {"al1": {"plan": PLAN, "n_global": N_GLOBAL, "n_random": N_RANDOM, "unc": ("gp", "ens"), "p_floor": None, "overflow": (), "after": ()},
+          "al2": {"plan": (("robust", None, 2), ("cap", 5000.0, 2), ("cap", 6000.0, 6), ("cap", 8000.0, 2), ("cap", 10000.0, 2),
+                           ("baseline", None, 5)),
+                  "n_global": N_GLOBAL, "n_random": N_RANDOM, "unc": ("gp",), "p_floor": 0.01, "overflow": ("cap6000", "baseline"),
+                  "after": ("al1",)}}
 GLOBAL_MAX_ROT_DEG = 2.0                    # 全局不确定只在 GP 预测转动 ≤ 2° 的候选里选（更松的柄多半 L4 不收敛 = 物理松动，FEA 设置核查第 5 节）
 ENS_MEMBERS = 5
 AREA_FILES = {"pool65k": "db_pool/pool65k_area_s51100.npz", "cr4096": "db_pool/db_cr4096_area_s52101.npz"}   # results/ 下：pool_area_features.py
@@ -305,6 +320,10 @@ def check_area_consistency(rows, area, srcs, ars, pool) -> dict:
 # ------------------------------------------------------------------------------------------------ select
 def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, log) -> dict:
     t0 = time.time()
+    if rnd not in ROUNDS:
+        raise SystemExit(f"unknown round {rnd!r} (known: {list(ROUNDS)})")
+    cfg = ROUNDS[rnd]
+    caps = sorted({c for p_, c, _ in cfg["plan"] if p_ == "cap"})
     area = {k: v for k, v in json.load(open(area_path))["rows"].items() if v.get("ok")}
     rows, info = load_training(export, area)
     if len(rows) < 50:
@@ -352,6 +371,14 @@ def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, l
             out = np.minimum(out, np.min(np.linalg.norm(A[:, None, :] - B[None, i0:i0 + 64, :], axis=2), axis=1))
         return out
 
+    prior = {}
+    for r0 in cfg["after"]:
+        d0 = json.loads(out_path(r0).read_text())
+        U0 = np.array([q["u13"] for q in d0["picks"]])
+        miss = int((mind(U0, Uev) > 1e-12).sum())
+        if miss:
+            raise SystemExit(f"round {rnd}: {miss} of the {len(U0)} {r0} picks have no row in the export (export a version that contains them)")
+        prior[r0] = {"n_picks": len(U0), "essence_sha256": d0["essence_sha256"]}
     parts, n_feas = [], {}
     for name, (tp_, _) in srcs.items():
         a_ = ars[name]
@@ -389,12 +416,13 @@ def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, l
     gm, gs, em, es = predict(BASE)
     sm, ss_, _, _ = predict(STS)
     sy = Y.std(0)
-    unc = (0.5 * ((gs / sy) ** 2 + (es / sy) ** 2)).mean(1)
+    sig = {"gp": gs, "ens": es}
+    unc = np.mean([(sig[m] / sy) ** 2 for m in cfg["unc"]], axis=0).mean(1)      # al1：0.5 × [(σ_GP / σ_y)² + (σ_集成 / σ_y)²]；al2：只用 GP
     # ---- 当前 FE 最好值
     base_rows = [r for r in rows if is_cond(r["cond"], BASE) and r["forced_e"] is None]
     front = pareto_front(np.array([[r["y"][0], r["y"][1]] for r in base_rows]))
     best_cap = {}
-    for cap in CAPS_MM3:
+    for cap in caps:
         v = [r["y"][0] for r in base_rows if r["bone"] is not None and r["bone"] <= cap]
         best_cap[cap] = min(v) if v else None
     by_d = {}
@@ -410,7 +438,7 @@ def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, l
     # ---- 分数（全部解析）
     probs = {"baseline": p_not_eps_dominated(gm[:, 0], gs[:, 0], gm[:, 1], gs[:, 1], front)}
     scores = {"baseline": probs["baseline"] * unc}
-    for cap in CAPS_MM3:
+    for cap in caps:
         ok_c = bone <= cap
         if best_cap[cap] is None:
             p = ei = np.zeros(len(cand))
@@ -423,10 +451,16 @@ def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, l
         probs["robust"] = phi((t - gm[:, 0]) / gs[:, 0]) * phi((t - sm[:, 0]) / ss_[:, 0])   # P(max(楼梯, 起身) < t)，两者独立
         scores["robust"] = probs["robust"] * np.maximum(gs[:, 0], ss_[:, 0])
     unc_g = np.where(gm[:, 0] <= math.log10(GLOBAL_MAX_ROT_DEG), unc, 0.0)
-    plan = [(p, c, n) for p, c, n in PLAN if not (p == "robust" and best_rob is None)]
+    plan = [(p, c, n) for p, c, n in cfg["plan"] if not (p == "robust" and best_rob is None)]
     if best_rob is None:
-        plan = [(p, c, n + 6 if p == "baseline" else n) for p, c, n in plan]
-        log("robust: no design has both a stair and a sit-to-stand 3839 N FE row -> its 6 picks go to the baseline problem")
+        n_rob = sum(n for p, c, n in cfg["plan"] if p == "robust")
+        plan = [(p, c, n + n_rob if p == "baseline" else n) for p, c, n in plan]
+        log(f"robust: no design has both a stair and a sit-to-stand 3839 N FE row -> its {n_rob} picks go to the baseline problem")
+    floor = cfg["p_floor"]
+    elig = {k: (scores[k] if floor is None else np.where(probs[k] >= floor, scores[k], 0.0)) for k in scores}
+    p_max = {k: float(probs[k].max()) for k in probs}
+    log("max P per problem: " + ", ".join(f"{k} {v:.3g}" for k, v in p_max.items())
+        + (f"; candidates with P >= {floor:g}: " + ", ".join(f"{k} {int((probs[k] >= floor).sum())}" for k in probs) if floor else ""))
     picks = []
 
     def take(score, group, problem, n, prob=None):
@@ -443,15 +477,27 @@ def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, l
                           "p_improve": None if prob is None else float(prob[i])})
             got += 1
         if got < n:
-            log(f"WARNING {group}/{problem}: only {got} of {n} picks (scores <= 0 or diversity)")
+            log(f"WARNING {group}/{problem}: only {got} of {n} picks (scores <= 0{' or P < floor' if floor and group == 'opt' else ''} or diversity)")
+        return got
 
+    short = 0
     for p, cap, n in plan:
         key = p if cap is None else f"cap{cap:g}"
-        take(scores[key], "opt", key, n, probs[key])
-    take(unc_g, "global", "uncertainty", N_GLOBAL)
+        short += n - take(elig[key], "opt", key, n, probs[key])
+    moved = []
+    for key in cfg["overflow"]:
+        if short <= 0:
+            break
+        got = take(elig[key], "opt", key, short, probs[key])
+        moved.append([key, got])
+        short -= got
+    if cfg["overflow"] and (moved or short):
+        log(f"overflow: {moved}; {short} left to the global-uncertainty group")
+    n_global = cfg["n_global"] + (short if cfg["overflow"] else 0)     # al1（没有 overflow）：不足的名额照旧空着
+    take(unc_g, "global", "uncertainty", n_global)
     rest = [i for i in range(len(cand)) if i not in {q["_i"] for q in picks}]
     rr = np.random.default_rng(seed + 7919)
-    for i in rr.choice(rest, size=N_RANDOM, replace=False):
+    for i in rr.choice(rest, size=cfg["n_random"], replace=False):
         picks.append({"_i": int(i), "group": "random", "problem": "iid", "score": None, "p_improve": None})
     # ---- 记录
     out_p = []
@@ -477,6 +523,7 @@ def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, l
            "cv": cv, "eps_dex": EPS_DEX, "div_r": DIV_R, "crt_excl": CRT_EXCL, "eval_excl": EVAL_EXCL,
            "n_candidates": int(len(cand)), "candidates_by_source": n_feas, "area_check": area_check, "front_baseline": front.tolist(), "best_cap_log_rot": {f"{k:g}": v for k, v in best_cap.items()},
            "best_robust_log_rot": best_rob, "n_designs_both_conditions": len(both), "plan": [list(x) for x in plan],
+           "round_cfg": cfg, "p_max": p_max, "overflow": moved, "n_global": n_global, "prior_rounds": prior,
            "picks": out_p, "wall_s": round(time.time() - t0, 1)}
     doc["essence_sha256"] = essence(doc)
     return doc
@@ -520,6 +567,7 @@ def main():
         pb = q["pred_base"]
         print(f"{q['rank']:2d} {q['group']:6s} {q['problem']:11s} {q['source']:7s} {q['source_idx']:5d} bone {q['bone_mm3']:7.0f} "
               f"rot {10 ** pb['log_rot']['gp'][0]:.3f} deg (sd {pb['log_rot']['gp'][1]:.3f}) P {q['p_improve']}")
+    print(f"essence_sha256 {doc['essence_sha256']}")
     if a.dry:
         print("dry: nothing written")
         return 0
