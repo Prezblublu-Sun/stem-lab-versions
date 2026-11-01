@@ -22,6 +22,7 @@ import importlib.util
 import inspect
 import json
 import math
+import os
 import pathlib
 import platform
 import sys
@@ -34,8 +35,9 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent
 REPORTS = ROOT / "reports"
-SPEC_PATH = REPORTS / "spec.yaml"
-CONFIG_PATH = ROOT / "config.yaml"
+# 另一套报告（如 straight3d 的 Q 系列）可用环境变量指定登记表与配置文件；不设时与原来完全相同
+SPEC_PATH = pathlib.Path(os.environ["MOBO_SPEC"]).resolve() if os.environ.get("MOBO_SPEC") else REPORTS / "spec.yaml"
+CONFIG_PATH = pathlib.Path(os.environ["MOBO_CONFIG"]).resolve() if os.environ.get("MOBO_CONFIG") else ROOT / "config.yaml"
 
 # ---------------------------------------------------------------- colours
 OKABE_ITO = {

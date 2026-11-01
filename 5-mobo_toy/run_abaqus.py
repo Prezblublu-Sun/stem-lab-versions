@@ -92,12 +92,12 @@ def _first_error(*texts: str) -> str:
     return "unknown failure (see .log/.msg)"
 
 
-def export_odb(odb: pathlib.Path, out_dir: pathlib.Path, timeout: float = 600) -> dict:
-    """在 Abaqus 内置 Python 下跑 odb_export.py（只用标准库）。失败返回 L5。"""
+def export_odb(odb: pathlib.Path, out_dir: pathlib.Path, timeout: float = 600, script: pathlib.Path | None = None) -> dict:
+    """在 Abaqus 内置 Python 下跑导出脚本（默认 odb_export.py；3D 用 odb_export3d.py；只用标准库）。失败返回 L5。"""
     odb = pathlib.Path(odb).resolve()
     out_dir = pathlib.Path(out_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
-    cmd = ["cmd", "/c", LAUNCHER, "python", str(EXPORT), str(odb), str(out_dir)]
+    cmd = ["cmd", "/c", LAUNCHER, "python", str(script or EXPORT), str(odb), str(out_dir)]
     try:
         proc = subprocess.run(cmd, cwd=odb.parent, capture_output=True, text=True, timeout=timeout,
                               errors="ignore")
@@ -109,12 +109,12 @@ def export_odb(odb: pathlib.Path, out_dir: pathlib.Path, timeout: float = 600) -
     return {"status": "OK", "meta": json.loads(meta.read_text())}
 
 
-def run_and_export(inp: pathlib.Path, **kw) -> dict:
+def run_and_export(inp: pathlib.Path, export_script: pathlib.Path | None = None, **kw) -> dict:
     r = run_job(inp, **kw)
     if r["status"] != "OK":
         return r
     inp = pathlib.Path(inp).resolve()
-    e = export_odb(inp.with_suffix(".odb"), inp.parent / f"{inp.stem}_csv")
+    e = export_odb(inp.with_suffix(".odb"), inp.parent / f"{inp.stem}_csv", script=export_script)
     r["export"] = e["status"]
     if e["status"] != "OK":
         r["status"], r["reason"] = "L5", e["reason"]
