@@ -82,7 +82,7 @@ import traceback
 
 import numpy as np
 
-EXPORTER_VERSION = "db_export 0.2.1 (2026-10-26, solve evidence)"
+EXPORTER_VERSION = "db_export 0.2.2 (2026-11-02, db_ws bound scan)"
 FEMUR_ID = "sawbone3406"
 FEMUR_VERSIONS = {FEMUR_ID: ("3406R_v1_hollowcore", True)}          # plan 2.1: hollow-core model until the user answers
 EXPECTED_CODE_HASH = "6d7af243d0"
@@ -107,9 +107,9 @@ FEMUR_GEOM_KEY_RULE = ("sha256(''.join(f'{role}:{sha256(file)}\\n' for role in s
 # exclusion set E (plan 1.4): job-name prefixes whose designs were picked by an optimiser or by a BO-derived box.
 # db_bd_ = the plan's BD offset-variant stratum (BO-derived). stage_db.py v1.1 puts the bond-only PARTNER jobs under stage db_bo
 # (layers "BD mesh" / "BD h2.0", source bond_partner), never db_bd. db_* jobs also enter E through their manifest source (E_SOURCES).
-E_JOB_PREFIXES = ("sb13_a", "sb14_a", "db_cr_", "db_crt_", "db_bd_", "db_opt_")
+E_JOB_PREFIXES = ("sb13_a", "sb14_a", "db_cr_", "db_crt_", "db_bd_", "db_opt_", "db_ws_")
 E_SOURCES = {"bo_p13", "bo_p14", "corner", "corner_test", "offset_variant", "opt_verify", "a9_baseline", "a9_bo", "gen_verify",
-             "al_adaptive"}                 # al_adaptive: the non-random active-learning picks (stage_db b5; plan 1.4 exclusion set E)
+             "al_adaptive", "bound_scan"}   # bound_scan: stage_db b14, one-factor m / alpha scan of the BO design A. al_adaptive: the non-random active-learning picks (stage_db b5; plan 1.4 exclusion set E)
 ARM_SOURCES = {"bo_p13", "bo_p14"}
 CANDIDATE_JOBS = {"A": "sb13_a105_91e458e3", "B": "sb13_a78_b0f465da", "B'": "sb13_a53_23a3f031", "C": "sb14_a29_6ad70033",
                   "D": "sb14_a26_96c5ab9b", "a62": "sb13_a62_1e4338ee"}   # progress summary 50 h section 4 + corner check
@@ -118,7 +118,7 @@ SELECTIONS = ("iid", "stratum", "adaptive", "corner_test")
 # None = no rule. db_bo = stage_db.py v1.1 bond-only partners (source bond_partner); db_bd = offset variants (see E_JOB_PREFIXES).
 DB_STAGE_RULES = {"db_sf": ("sf", "iid"), "db_cr": ("corner", "stratum"), "db_crt": ("corner_test", "corner_test"),
                   "db_bd": ("offset_variant", "stratum"), "db_bo": ("bond_partner", "stratum"), "db_nz": ("noise", "stratum"), "db_opt": ("opt_verify", "stratum"),
-                  "db_ref": ("intact_ref", "stratum"), "db_cd": None, "db_fd": None, "db_al": None}
+                  "db_ref": ("intact_ref", "stratum"), "db_cd": None, "db_fd": None, "db_al": None, "db_ws": ("bound_scan", "stratum")}
 # D1 manifest selection values -> db3406 selection (the raw value is kept in source_detail)
 MANIFEST_SELECTION = {"reference": "stratum", "stratum": "stratum", "iid": "iid", "adaptive": "adaptive", "corner_test": "corner_test"}
 SEED_LAYER_SOURCE = {"CD-0": "cond_anchor"}                         # results/db_seed_CD0.json (deck/db_seed/db_seed_cd0.py)

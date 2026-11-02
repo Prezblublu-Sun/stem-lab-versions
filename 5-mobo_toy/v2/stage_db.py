@@ -1,9 +1,9 @@
 """3406 数据库（db3406）的批量提交器 v1.5（D1 = v0 + 审查修正 + 采纳 CD-0 种子 + 第二轮审查修正；D2 = 批次 b2 + 并行喂料；v1.3 = 批次 b1b；v1.4 = 批次 b2b；
-v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2）；v1.7 = 批次 b7（AL-3，局部候选））。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
+v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2）；v1.7 = 批次 b7（AL-3，局部候选）；v1.8 = 批次 b14（候选 A 的 m / α 单因素扫描））。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
 （第 1.3 / 1.4 节分层与无偏集、第 1.6 节命名 / 查重 / 版本陷阱、第 1.8 节检查 13 / 14、第 2.1–2.7 节、第 3.2 节 CR-T；用户 2026-10-25 批准两天部分）。
 不改 8 个哈希文件（code_hash 必须是 6d7af243d0）、不改 jobs.py / stage_neckopt.py / stage_deck.py / stage_v2a.py / tpl_record.py；提交只走 jobs.submit。
 
-    python v2/stage_db.py dry-run b1|b2|b1b|b2b|b3|b4|b5|b6|b7 [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
+    python v2/stage_db.py dry-run b1|b2|b1b|b2b|b3|b4|b5|b6|b7|b14 [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
                                                           预期 id、查重结果（hash8 / 物理键）、种子采纳、参照与参照核对；末尾 DRY-RUN-JSON。什么都不写
                                                           （b2 另印 G2 核对、CR-1 / CR-T 选点、放宽计数、槽时估计、b1 优先级的当前判断）
     python v2/stage_db.py feed b1|b2 [--once] [--poll 60] 喂料器（只在 Linux 上跑；b1 与 b2 可以同时跑，见"并行喂料"）：
@@ -45,6 +45,16 @@ v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2�
     含 b5 的 54 行）；层 AL-2 / AL-2 sts / AL-2 rand，行键 AL2_<名次>，作业标签 al2_<名次>。b5 的行与作业号不变（AL_BATCHES）。
 批次 b7（v1.7，2026-11-01，用户批准 AL-3）= 同一构造读 results/db_al_al3.json；选点可以来自局部候选来源（stage_al.LOCAL_SOURCES，
     模板化文件里的 error 行允许但必须不可行），每个点同样与它的来源那一行逐位核对且可行。层 AL-3 / AL-3 sts / AL-3 rand。
+
+批次 b14（v1.8，2026-11-02，用户要求"写 m/α 扫描批次"；只写批次与干跑，喂料另行决定）= 候选 A（sb13_a105_91e458e3）的单因素边界扫描，6 行，全部带粘接，
+    其余设计量与 h_cut、δ、载荷、网格都与 A 相同（spec = A 的物理键只改 design 的一个键）：
+    WS m      db_ws  m 0.75 / 1.0 / 1.5（A 是 0.5）：A 家族的转动有多少靠"擦着皮质压配"。m 变大时模板化同时把肩面积 A0 压小（0-FE：519.6 → 492.5 / 466.1 / 414.1 mm²），
+                     所以结果是"余量 + 尺寸"的合并效应，不是纯余量效应
+    WS alpha  db_ws  α 50 / 55 / 60°（A 是 44.35°，盒子上限 45°）：3406 的颈轴（isthmus 法）与干轴夹角约 67.6°，盒子不含它。这 3 行在 v1 盒外（in_bounds_v1 false），
+                     stage_al.load_training 不用它们训练
+    source bound_scan、selection stratum、unbiased false、in_E true（设计来自 BO）。build 对每行跑 0-FE 模板化（tpl_record.record_spec，股骨缓存只读，不建模不求解）：
+    不可行、入口偏移离开 A 的 e*（会混入偏移跳变）、模板化报错、或 A 自身与它的 prep.json 不符 → 问题，feed 拒绝。层都慢启动；失败门不改（α > 45° 的建模没测过，
+    2 行失败会停住第 3 行等人看）。决策规则在看结果前写定：research-log/neck_implant_2026-10-02/3406_m_alpha扫描_b14_2026-11-02.md。
 
 已知规律失败的自动确认（v1.5，用户 2026-10-29 批准）：按层失败闸门之前，本层每个未确认的 FAILED 行若属于已知规律（known_failure：L4 求解
     "TOO MANY ATTEMPTS" / "TIME INCREMENT … LESS THAN THE MINIMUM" 且 L < 27 mm 或 α < 20° 且 m < 0.6 mm；L3 建模"degenerate tetrahedra"且没有
@@ -237,7 +247,7 @@ FEMUR_MODEL_VERSION = "3406R_v1_hollowcore"  # 规划 2.1：松质芯底按"空"
 HOLLOW_CORE = True
 REF_H2 = "sb_intact_h2_9c9d7fb5"             # 3406 完整股骨参照 h 2.0、楼梯载荷（= stage_neckopt.PHASES[11..14]["intact_job"]）
 H_PROD = 2.0
-DB_STAGES = ("db_ref", "db_sf", "db_cr", "db_crt", "db_cd", "db_nz", "db_fd", "db_bd", "db_bo", "db_al", "db_opt")   # 规划 1.6 + db_bo（只粘接补算）
+DB_STAGES = ("db_ref", "db_sf", "db_cr", "db_crt", "db_cd", "db_nz", "db_fd", "db_bd", "db_bo", "db_al", "db_opt", "db_ws")   # 规划 1.6 + db_bo（只粘接补算）
 CHECK_PHASES = (11, 12, 13, 14)
 MAX_UNCLAIMED = 6
 POLL_S = 60.0
@@ -269,7 +279,7 @@ AUTO_ACK_MAX_RATE = 0.15
 FIRST_N, FIRST_N_MAX_FAILED = 10, 2         # 本批最先完成的 10 个喂料器自己提交的行里 FAILED > 2 → 每层都停（规划 G1）
 SLOW_START_LAYERS = ("NZ-1", "FD-0 h2.5", "FD-0 h1.4", "BD mesh", "BD h2.0", "SF-1", "CR-1", "FD-0 h2.4", "BD b2",
                      "CR-T", "NZ-2", "FD-1 h1.4", "CD-1", "CD-1 rand", "BD offset", "BD sts", "AL-1", "AL-1 sts", "AL-1 rand",
-                     "AL-2", "AL-2 sts", "AL-2 rand", "AL-3", "AL-3 sts", "AL-3 rand")
+                     "AL-2", "AL-2 sts", "AL-2 rand", "AL-3", "AL-3 sts", "AL-3 rand", "WS m", "WS alpha")
                                             # 新层慢启动（REF 串行、CD-0 是种子：不在内）
 SLOW_START_CAP = 2                          # … DONE 不到 SLOW_START_DONE 行之前，该层在飞（NEW / READY / CLAIMED / SOLVED）最多 2 行
 SLOW_START_DONE = 2
@@ -331,12 +341,13 @@ LAYER_SOURCE = {"REF": "intact_ref", "CD-0": "cond_anchor", "NZ-1": "noise", "FD
                 "CD-1": "cond_anchor", "CD-1 rand": "cond_random", "BD offset": "offset_variant", "BD sts": "bond_partner",
                 "AL-1": "al_adaptive", "AL-1 sts": "al_adaptive", "AL-1 rand": "al_random",
                 "AL-2": "al_adaptive", "AL-2 sts": "al_adaptive", "AL-2 rand": "al_random",
-                "AL-3": "al_adaptive", "AL-3 sts": "al_adaptive", "AL-3 rand": "al_random"}
+                "AL-3": "al_adaptive", "AL-3 sts": "al_adaptive", "AL-3 rand": "al_random",
+                "WS m": "bound_scan", "WS alpha": "bound_scan"}
 LAYER_SELECTION = {"REF": "reference", "SF-1": "iid", "CR-T": "corner_test", "CD-1 rand": "iid", "AL-1": "adaptive", "AL-1 sts": "adaptive",
                    "AL-1 rand": "iid", "AL-2": "adaptive", "AL-2 sts": "adaptive", "AL-2 rand": "iid",
                    "AL-3": "adaptive", "AL-3 sts": "adaptive", "AL-3 rand": "iid"}          # 其余层 stratum（tools/db_export.DB_STAGE_RULES：db_sf = sf / iid，db_cr = corner / stratum，
                                                 # db_crt = corner_test / corner_test，db_bd = offset_variant；AL 的非随机选点在排除集 E）
-BATCHES = ("b1", "b2", "b1b", "b2b", "b3", "b4", "b5", "b6", "b7")
+BATCHES = ("b1", "b2", "b1b", "b2b", "b3", "b4", "b5", "b6", "b7", "b14")
 B2B_SOURCE_BATCHES = ("b2",)                # b2b：这些批次清单里已 DONE 的只解摩擦设计行各配一个 h 2.0 只粘接作业
 B2B_LAYER = "BD b2"
 B1B_H = 2.4                                 # b1b 的粗网格档（h 2.5 的完整股骨建模失败，见模块说明"批次 b1b"）
@@ -362,6 +373,9 @@ BD_N = {"SF-1": 12, "CR-1": 12}             # 次优偏移变体：b2 已 DONE�
 U65K = "db_pool/U65536_s51100.npy"          # results/ 下：6.5 万点池的单位坐标（POOL65K 的 u13 必须逐位等于它）
 # ---------------------------------------------------------------- 批次 b5（一周计划第 3 节 AL-1；规划 3.4）：读 stage_al.py 冻结的选点文件
 AL_BATCHES = {"b5": ("al1", "AL-1", "AL1"), "b6": ("al2", "AL-2", "AL2"), "b7": ("al3", "AL-3", "AL3")}   # 批次 -> (stage_al 轮 = results/db_al_<轮>.json, 层前缀, 行键前缀)
+WS_BASE = "A"                               # b14：扫描的基准设计（CODES 的键）
+WS_M = (0.75, 1.0, 1.5)                     # b14：余量（A 是 0.5，盒子下限）
+WS_ALPHA = (50.0, 55.0, 60.0)               # b14：插入角（A 是 44.35°，盒子上限 45°；α 65° 时 e* 跳到 −2，所以停在 60°）
 AL_STS = "F3839"                            # 稳健问题的选点另加一行起身 3839 N（δ 0.10，只解摩擦），验收稳健目标用
 
 # ---------------------------------------------------------------- 批次 b2（规划 1.3 / 1.4、2.2 D2、2.4 SF-1 / CR-1、3.2 CR-T、2.5 放宽计数）
@@ -913,6 +927,8 @@ def build(batch: str = "b1") -> dict:
         return build_b4()
     if batch in AL_BATCHES:
         return build_b5(batch)
+    if batch == "b14":
+        return build_b14()
     unreadable = []
     qspecs = scan_queue(unreadable)
     by_h8 = _by_h8(qspecs)
@@ -2000,6 +2016,102 @@ def build_b5(batch: str = "b5") -> dict:
             "al_file": str(p), "al_essence": doc["essence_sha256"], "queue_root": str(J.QROOT), "n_queue_dirs": len(qspecs)}
 
 
+def ws_templating(spec: dict) -> dict:
+    """b14：一行的 0-FE 模板化（tpl_record.record_spec：与 jobs.prep 同一选号调用；股骨缓存只读，不建模、不求解）。"""
+    import tpl_record as TR
+    r = TR.record_spec(spec)
+    return {"feasible": bool(r["feasible"]), "reason": str(r["reason"]), "e_star": float(r["e_star"]), "A0_star": float(r["A0_star"]),
+            "bone_mm3": float(r["bone_mm3"]), "e_margin_eff": float(r["e_margin_eff"])}
+
+
+def build_b14() -> dict:
+    """b14（模块说明"批次 b14"）：候选 A 的 m / α 单因素扫描。每行 = A 的物理键只改 design 的一个键，带粘接，参照 REF_H2。
+    0-FE 模板化不可行、入口偏移离开 A 的 e*、模板化报错、A 自身与 prep.json 不符 → problems（dry run 退出 1、feed 拒绝）。"""
+    unreadable = []
+    qspecs = scan_queue(unreadable)
+    by_h8 = _by_h8(qspecs)
+    by_phys = {}
+    for n, sp in qspecs.items():
+        if sp is not None:
+            by_phys.setdefault(phys_key(sp), []).append(n)
+    warn, problems, rows, ws_tpl = [], [], [], {}
+    if unreadable:
+        warn.append(f"queue dirs with an unreadable spec.json (treated as having no spec; a hash8 hit on one refuses): {unreadable}")
+    base = CODES[WS_BASE]
+    src = load_source(base, "design", qspecs)
+    phys = _phys(src, base)
+    load_source(REF_H2, "intact", qspecs)
+    tag = _tag_of(base)
+    base_e = None
+    try:
+        t0 = ws_templating(src)
+        ws_tpl[WS_BASE] = t0
+        base_e = t0["e_star"]
+        prep, perr = _read_json(J.QROOT / base / "prep.json")
+        tp = (prep or {}).get("templating") or {}
+        if not isinstance(tp.get("e"), (int, float)) or not isinstance(tp.get("A0"), (int, float)):
+            problems.append(f"b14: {base}: no templating record in prep.json ({perr or 'missing e / A0'}); cannot check that tpl_record reproduces production")
+        elif abs(float(tp["e"]) - t0["e_star"]) > 1e-9 or abs(float(tp["A0"]) - t0["A0_star"]) > 1e-6:
+            problems.append(f"b14: tpl_record does not reproduce {base}: prep.json e {tp['e']} A0 {tp['A0']} vs e* {t0['e_star']} A0* {t0['A0_star']}")
+    except Exception as e:                              # noqa: BLE001  模板化核对不了 = 不提交
+        problems.append(f"b14: 0-FE templating of the base design {base} failed: {type(e).__name__}: {str(e)[:300]}")
+    scan = {"WS m": [("m", float(v), f"m{v:g}") for v in WS_M], "WS alpha": [("alpha", float(v), f"a{v:g}") for v in WS_ALPHA]}
+    keys = {L: [] for L in scan}
+    for L, items in scan.items():
+        for var, val, lab in items:
+            spec = _variant(phys, "db_ws", f"{tag}_{lab}", "full", intact_job=REF_H2, design={**phys["design"], var: val})
+            ext = {"cond": None, "e_star": None, "e_forced": None}
+            try:
+                t = ws_templating(spec)
+                ws_tpl[lab] = t
+                ext["e_star"] = t["e_star"]
+                if not t["feasible"]:
+                    problems.append(f"WS_{lab}: 0-FE templating is not feasible ({t['reason']}); prep would fail, no FE can run")
+                elif base_e is not None and abs(t["e_star"] - base_e) > 1e-9:
+                    problems.append(f"WS_{lab}: entry offset e* {t['e_star']:g} != {base_e:g} of {base} (an offset jump would be mixed into the one-factor comparison)")
+            except Exception as e:                      # noqa: BLE001
+                problems.append(f"WS_{lab}: 0-FE templating failed: {type(e).__name__}: {str(e)[:300]}")
+            r = _row(f"WS_{lab}", L, spec, base, WS_BASE, extra=ext)
+            r.update(unbiased=False, in_E=True)
+            rows.append(r)
+            keys[L].append(r["key"])
+    order = interleave(keys["WS m"], keys["WS alpha"])
+    by_key = {r["key"]: r for r in rows}
+    if len(by_key) != len(rows) or len(order) != len(rows):
+        raise SystemExit("b14: duplicate row keys")
+    rows = [by_key[k] for k in order]
+    seen, taken = {}, {}
+    for r in rows:
+        r["expected_id"] = expected_id(r["spec"])
+        r["id"], r["dedup"], r["dedup_hits"], r["dedup_via"] = resolve(r["spec"], by_h8, qspecs, by_phys)
+        if r["expected_id"] in seen:
+            raise SystemExit(f"batch b14: keys {seen[r['expected_id']]} and {r['key']} give the same job id {r['expected_id']}")
+        seen[r["expected_id"]] = r["key"]
+        r["source_spec"] = _spec_of(r["source_job"], qspecs)
+        if r["dedup"] != "new":
+            if r["id"] in taken:
+                raise SystemExit(f"batch b14: keys {taken[r['id']]} and {r['key']} both resolve to queue job {r['id']}")
+            taken[r["id"]] = r["key"]
+            warn.append(f"{r['key']}: already in the queue ({r['dedup']} via {r['dedup_via']}: {r['id']})")
+    if J.code_hash() != DB_CODE_HASH:
+        problems.append(f"code_hash {J.code_hash()} != {DB_CODE_HASH} (one of the 8 hashed files changed; every expected id differs)")
+    recorded, rec_err = recorded_ids("b14")
+    if rec_err:
+        warn.append(rec_err)
+    for r in rows:
+        problems += [f"{r['key']}: {p_}" for p_ in row_problems(r, lambda j: _spec_of(j, qspecs))]
+        r["ack_failed"] = None
+        if r["dedup"] != "new":
+            pr, notes, r["ack_failed"] = hit_checks(r["key"], r["id"], _spec_of(r["id"], qspecs), recorded=recorded.get(r["key"]) == r["id"])
+            problems += pr
+            warn += notes
+    seeds, seed_probs = check_seeds("b14", rows, qspecs)
+    problems += seed_probs
+    return {"batch": "b14", "rows": rows, "problems": problems, "warnings": warn, "code_hash": J.code_hash(),
+            "ref_id": {f"{H_PROD:g}": REF_H2}, "partners": {}, "n_partner": 0, "pilot16": [], "seeds": seeds, "ws_tpl": ws_tpl,
+            "queue_root": str(J.QROOT), "n_queue_dirs": len(qspecs)}
+
+
 def build_b2() -> dict:
     """批次 b2 的作业表（SF-1 128 + CR-1 32，交错）+ 查重（hash8 + 物理键 + 两臂同一设计的采纳）+ CR-T 选点 + G2 + 放宽计数（只算不写）。
     读队列、阶段 13 / 14 状态文件、候选池、tpl_record 文件与（在就读的）results/db_crt_selection.json；不写任何东西。"""
@@ -2488,6 +2600,11 @@ def dry_run(batch: str = "b1") -> int:
     if b.get("pilot16"):
         print(f"pilot16 resolved from the queue: {', '.join(b['pilot16'])}")
     print("references: " + ", ".join(f"h{h} -> {j}" for h, j in b["ref_id"].items()))
+    if b.get("ws_tpl"):
+        print("0-FE templating (tpl_record.record_spec; femur cache read-only; no model built, nothing solved):")
+        for k, t in b["ws_tpl"].items():
+            print(f"    {k:<8} feasible {t['feasible']} e* {t['e_star']:g} A0* {t['A0_star']:.1f} mm2 bone {t['bone_mm3'] / 1000:.2f} cm3 "
+                  f"e_margin_eff {t['e_margin_eff']:.3f}")
     if b.get("partners"):
         print("h 2.0 usable bonded results of the 24 pilot designs (a design without one gets a BD h2.0 bond_only partner):")
     for c, have in b.get("partners", {}).items():
@@ -2555,6 +2672,7 @@ def dry_run(batch: str = "b1") -> int:
     print(json.dumps({"batch": batch, "n_jobs": len(rows), "per_layer": by_layer, "n_partner": b["n_partner"], "n_new": n_new,
                       "n_existing": n_ex_h8 + n_ex_ph, "n_existing_physics": n_ex_ph, "seeds": b["seeds"], "problems": b["problems"],
                       "warnings": b["warnings"], "code_hash": b["code_hash"], "femur_geom_key": gk["key"], "aux_md5": aux,
+                      **({"ws_tpl": b["ws_tpl"]} if b.get("ws_tpl") else {}),
                       "init_median": m["job_id"] if m else None, "h14_mode": "exclusive" if h14x else "heavy",
                       "slow_start": {"layers": lay, "cap": SLOW_START_CAP, "until_done": SLOW_START_DONE},
                       "jobs": [{k: r[k] for k in ("key", "layer", "stage", "source", "selection", "design_code", "source_job", "condition_id",
@@ -2654,7 +2772,7 @@ def _man_row(r: dict) -> dict:
 
 
 B2_LAYERS = ("SF-1", "CR-1", "CR-T", "CD-1 rand", "BD offset", "AL-1", "AL-1 sts", "AL-1 rand", "AL-2", "AL-2 sts", "AL-2 rand",
-             "AL-3", "AL-3 sts", "AL-3 rand")
+             "AL-3", "AL-3 sts", "AL-3 rand", "WS m", "WS alpha")
 B2_ROW_FIELDS = ("cr_idx", "layer_pos", "bonded_planned", "sf_bo_overlap", "bo_twins", "adopted_role_from", "unbiased", "in_E", "e_star", "e_group",
                  "e_forced", "e_margin_eff", "sobol_idx", "cond", "al_group", "al_problem", "al_score", "al_p")
 

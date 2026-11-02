@@ -140,6 +140,9 @@ def load_training(export: pathlib.Path, area: dict) -> tuple[list, dict]:
         if r["selection"] == "corner_test":
             no("CR-T holdout")
             continue
+        if r.get("in_bounds_v1") == "false":            # b14 的 α > 45° 行：u13 超出候选池的 [0, 1]，不进训练（盒内的 m 行照常用）
+            no("outside the v1 box")
+            continue
         c = cond_of(r)
         y = [f(r[col]) for _, col in TARGETS]
         if c is None or None in y or y[0] <= 0 or y[1] <= 0 or y[2] <= 0:
