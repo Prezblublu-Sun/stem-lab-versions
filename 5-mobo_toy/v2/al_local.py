@@ -3,7 +3,8 @@
 这里以导出里 FE 最好的设计为中心，在单位坐标里取扰动点；之后交 tpl_record batch 模板化、pool_area_features 补面积量，作为
 stage_al 的一个候选来源（stage_al.LOCAL_SOURCES）。只读导出、面积量 json；只写 --out（.npy，N × 13）与 <out>.json。
 
-    python v2/al_local.py <来源名> --export <版本目录> --tpl-area <json> --out results/db_pool/<来源名>_u13.npy [--per-center 200] [--seed S]
+    python v2/al_local.py <来源名> --export <版本目录> --tpl-area <json> --out results/db_pool/<来源名>_u13.npy [--per-center 200] [--seed S] [--m-min 1.0]
+    --m-min（AL-3′）：中心只取 m ≥ m_min 的行，扰动点也必须 m ≥ m_min。
 
 中心（训练行口径 = stage_al.load_training；基线条件、没有强制入口偏移的行）：
     去骨上限 5 / 6 / 8 / 10 cm³ 各取转动最小的 N_CAP 个设计；(log 转动 ↓, log 完全接触 ↑) 的 FE 前沿全部；
@@ -36,7 +37,10 @@ R_MIN, R_MAX = 0.03, 0.20
 DIM = 13
 
 
-def centers(rows: list) -> list:
+def centers(rows: list, m_min: float | None = None) -> list:
+    if m_min is not None:
+        um = AL.u_of_m(m_min)
+        rows = [r for r in rows if r["u13"][AL.U_M] >= um - 1e-12]
     base = [r for r in rows if AL.is_cond(r["cond"], AL.BASE) and r["forced_e"] is None]
     picks = {}
 
@@ -75,7 +79,7 @@ def centers(rows: list) -> list:
     return out
 
 
-def perturb(c: np.ndarray, n: int, seed: int) -> np.ndarray:
+def perturb(c: np.ndarray, n: int, seed: int, u_m_min: float | None = None) -> np.ndarray:
     from scipy.stats import norm
     out, start = [], 0
     while len(out) < n:
@@ -86,7 +90,10 @@ def perturb(c: np.ndarray, n: int, seed: int) -> np.ndarray:
         d /= np.linalg.norm(d, axis=1, keepdims=True)
         r = R_MIN + (R_MAX - R_MIN) * S[:, DIM]
         P = c[None, :] + d * r[:, None]
-        out.extend(P[np.all((P >= 0) & (P <= 1), axis=1)])
+        keep = np.all((P >= 0) & (P <= 1), axis=1)
+        if u_m_min is not None:
+            keep &= P[:, AL.U_M] >= u_m_min
+        out.extend(P[keep])
         if start > 64 * n:
             raise SystemExit(f"center {c}: fewer than {n} perturbations inside the unit cube after {start} Sobol points")
     return np.array(out[:n])
@@ -100,17 +107,19 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--per-center", type=int, default=200)
     ap.add_argument("--seed", type=int, required=True)
+    ap.add_argument("--m-min", type=float)
     a = ap.parse_args()
     out = pathlib.Path(a.out)
     if out.exists() or out.with_suffix(".json").exists():
         raise SystemExit(f"{out} (or its .json) exists; not overwriting")
     area = {k: v for k, v in json.load(open(a.tpl_area))["rows"].items() if v.get("ok")}
     rows, info = AL.load_training(pathlib.Path(a.export), area)
-    cs = centers(rows)
-    U = np.concatenate([perturb(np.asarray(c["u13"]), a.per_center, a.seed + i) for i, c in enumerate(cs)])
+    cs = centers(rows, a.m_min)
+    um = None if a.m_min is None else AL.u_of_m(a.m_min)
+    U = np.concatenate([perturb(np.asarray(c["u13"]), a.per_center, a.seed + i, um) for i, c in enumerate(cs)])
     np.save(out, U)
     meta = {"tool": "al_local", "name": a.name, "export": {"dir": a.export, "scalars_sha256": DB._sha256_file(pathlib.Path(a.export) / "scalars.csv")},
-            "tpl_area": a.tpl_area, "n_train": len(rows), "centers": cs, "per_center": a.per_center, "seed": a.seed, "r_min": R_MIN, "r_max": R_MAX,
+            "tpl_area": a.tpl_area, "n_train": len(rows), "centers": cs, "per_center": a.per_center, "seed": a.seed, "m_min": a.m_min, "r_min": R_MIN, "r_max": R_MAX,
             "caps_mm3": CAPS_MM3, "n_cap": N_CAP, "n_rob": N_ROB, "n_points": int(len(U)), "u13_sha256": hashlib.sha256(U.tobytes()).hexdigest(),
             "al_local_md5": hashlib.md5(pathlib.Path(__file__).read_bytes()).hexdigest()}
     out.with_suffix(".json").write_text(json.dumps(meta, indent=1))

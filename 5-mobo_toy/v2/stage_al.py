@@ -1,7 +1,7 @@
 """db3406 主动学习驱动（一周计划 2026-10-29 第 3 节 AL-1；规划 3406数据库规划_两天一周一月_2026-10-25.md 第 3.4 节）。0 FE。
 只读：导出版本目录（scalars.csv）、面积量 json、6.5 万点池的模板化记录（POOL65K + 面积量 pool65k_area）、CR-T 名单；只写 results/db_al_<轮>.json。
 
-    python v2/stage_al.py select al1|al2|al3 --export <版本目录> --tpl-area <json> [--seed 0] [--dry]
+    python v2/stage_al.py select al1|al2|al3|al3m --export <版本目录> --tpl-area <json> [--seed 0] [--dry]
     python v2/stage_al.py show al1|al2|al3
 
 训练行（导出 scalars.csv）：DONE、有摩擦模型、kind design / variant、h_int 2.0、E_canc 155、μ 与 slip_tol 为默认、cfg 覆盖只含 load；
@@ -37,6 +37,9 @@ AL-2（ROUNDS["al2"]，2026-11-01，按 AL-1 验收修改；一周计划执行�
 AL-3（ROUNDS["al3"]，2026-11-01，用户批准）：AL-2 的 P（改进）在各去骨上限全部 < 1 %（≤ 6 cm³ 最大 3.6e-14），名额都挪给了基线与全局——
     固定候选池里离 FE 最好的设计都太远。AL-3 加局部候选来源 loc_al3（v2/al_local.py：以 FE 最好的设计为中心、单位距离 0.03–0.20 的扰动，
     模板化 + 面积量，0 FE），配比与打分同 AL-2；随机组只从 pool65k 抽（局部点与角落子盒都不是全空间的 iid 抽样）。训练导出须含 al1、al2。
+AL-3′（ROUNDS["al3m"]，2026-11-02，第二周计划第二版的触发规则）：b14 的 WS_m1 比 A 高 0.209 dex（0.05–0.30 一档），现有 AL-3 的优化导向选点 m 全在 0.50–0.74，不喂。
+    al3m 配比同 al3，只有优化导向的问题按 m_min 1.0 限制：候选必须 m ≥ 1.0，FE 最好值（前沿、各上限、稳健）也只在 m ≥ 1.0 的行里算；局部候选 loc_al3m 以 m ≥ 1.0 的 FE 最好设计为中心
+    （al_local.py --m-min 1.0）。全局不确定与随机组不限制 m。训练导出须含 al1、al2；al3 没有算过，不要求。
 记录：每个点的组、问题、分数、P、GP 与集成在基线条件下的均值与校准后 σ、GP 在起身 3839 N 下的均值与 σ、池下标、u13、x13、去骨量；模型版本
     （训练行作业号与目标的 sha256、本文件 md5、sklearn / torch 版本、超参数）、交叉验证指标与校准因子、各问题当前 FE 最好值。
 冻结：文件已在且选点（组 + u13）不同 → 拒绝（SystemExit）；相同 → 不动。提交由 stage_db 的批次读这个文件。
@@ -86,14 +89,26 @@ ROUNDS = {"al1": {"plan": PLAN, "n_global": N_GLOBAL, "n_random": N_RANDOM, "unc
           "al3": {"plan": (("robust", None, 2), ("cap", 5000.0, 2), ("cap", 6000.0, 6), ("cap", 8000.0, 2), ("cap", 10000.0, 2),
                            ("baseline", None, 5)),
                   "n_global": N_GLOBAL, "n_random": N_RANDOM, "unc": ("gp",), "p_floor": 0.01, "overflow": ("cap6000", "baseline"),
-                  "after": ("al1", "al2"), "sources": ("pool65k", "cr4096", "loc_al3"), "random_sources": ("pool65k",)}}
+                  "after": ("al1", "al2"), "sources": ("pool65k", "cr4096", "loc_al3"), "random_sources": ("pool65k",)},
+          "al3m": {"plan": (("robust", None, 2), ("cap", 5000.0, 2), ("cap", 6000.0, 6), ("cap", 8000.0, 2), ("cap", 10000.0, 2),
+                            ("baseline", None, 5)),
+                   "n_global": N_GLOBAL, "n_random": N_RANDOM, "unc": ("gp",), "p_floor": 0.01, "overflow": ("cap6000", "baseline"),
+                   "after": ("al1", "al2"), "sources": ("pool65k", "cr4096", "loc_al3m"), "random_sources": ("pool65k",), "m_min": 1.0}}
 GLOBAL_MAX_ROT_DEG = 2.0                    # 全局不确定只在 GP 预测转动 ≤ 2° 的候选里选（更松的柄多半 L4 不收敛 = 物理松动，FEA 设置核查第 5 节）
 ENS_MEMBERS = 5
 AREA_FILES = {"pool65k": "db_pool/pool65k_area_s51100.npz", "cr4096": "db_pool/db_cr4096_area_s52101.npz"}   # results/ 下：pool_area_features.py
 # 局部候选来源（v2/al_local.py 点表 → tpl_record batch → pool_area_features；results/ 下）。模板化里出错的行（例如截口为空）当作不可行
-LOCAL_SOURCES = {"loc_al3": {"u": "db_pool/loc_al3_u13.npy", "tpl": "db_pool/db_loc_al3_s53301.npz", "area": "db_pool/db_loc_al3_area_s53301.npz"}}
+LOCAL_SOURCES = {"loc_al3": {"u": "db_pool/loc_al3_u13.npy", "tpl": "db_pool/db_loc_al3_s53301.npz", "area": "db_pool/db_loc_al3_area_s53301.npz"},
+                 "loc_al3m": {"u": "db_pool/loc_al3m_u13.npy", "tpl": "db_pool/db_loc_al3m_s53401.npz", "area": "db_pool/db_loc_al3m_area_s53401.npz"}}
+U_M = U_COLS.index("u_m")
 CAL_CLIP = (0.5, 10.0)
 OUT_NAME = "db_al_{}.json"
+
+
+def u_of_m(m: float) -> float:
+    """余量 m（mm）在单位坐标里的值（阶段 13 的范围）。"""
+    lo, hi = DB.b2_phase().space["m"]
+    return (float(m) - lo) / (hi - lo)
 
 
 def f(x):
@@ -142,6 +157,9 @@ def load_training(export: pathlib.Path, area: dict) -> tuple[list, dict]:
             continue
         if r.get("in_bounds_v1") == "false":            # b14 的 α > 45° 行：u13 超出候选池的 [0, 1]，不进训练（盒内的 m 行照常用）
             no("outside the v1 box")
+            continue
+        if f(r.get("cycles")) not in (None, 2.0):       # b12 的多循环行：不是同一条件的新信息
+            no("cycles != 2")
             continue
         c = cond_of(r)
         y = [f(r[col]) for _, col in TARGETS]
@@ -445,7 +463,10 @@ def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, l
     sig = {"gp": gs, "ens": es}
     unc = np.mean([(sig[m] / sy) ** 2 for m in cfg["unc"]], axis=0).mean(1)      # al1：0.5 × [(σ_GP / σ_y)² + (σ_集成 / σ_y)²]；al2：只用 GP
     # ---- 当前 FE 最好值
-    base_rows = [r for r in rows if is_cond(r["cond"], BASE) and r["forced_e"] is None]
+    m_min = cfg.get("m_min")
+    u_m_min = None if m_min is None else u_of_m(m_min)
+    fe_ok = lambda r: u_m_min is None or r["u13"][U_M] >= u_m_min - 1e-12      # noqa: E731  al3m：FE 最好值只在 m ≥ m_min 的行里算
+    base_rows = [r for r in rows if is_cond(r["cond"], BASE) and r["forced_e"] is None and fe_ok(r)]
     front = pareto_front(np.array([[r["y"][0], r["y"][1]] for r in base_rows]))
     best_cap = {}
     for cap in caps:
@@ -453,7 +474,7 @@ def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, l
         best_cap[cap] = min(v) if v else None
     by_d = {}
     for r in rows:
-        if r["forced_e"] is not None:
+        if r["forced_e"] is not None or not fe_ok(r):
             continue
         if is_cond(r["cond"], BASE):
             by_d.setdefault(r["design_key"], {})["base"] = min(r["y"][0], by_d.get(r["design_key"], {}).get("base", 9e9))
@@ -482,6 +503,11 @@ def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, l
         n_rob = sum(n for p, c, n in cfg["plan"] if p == "robust")
         plan = [(p, c, n + n_rob if p == "baseline" else n) for p, c, n in plan]
         log(f"robust: no design has both a stair and a sit-to-stand 3839 N FE row -> its {n_rob} picks go to the baseline problem")
+    if u_m_min is not None:                             # al3m：优化导向的问题只看 m ≥ m_min 的候选（全局不确定与随机组不限制）
+        in_m = Uc[:, U_M] >= u_m_min - 1e-12
+        probs = {k: np.where(in_m, v, 0.0) for k, v in probs.items()}
+        scores = {k: np.where(in_m, v, 0.0) for k, v in scores.items()}
+        log(f"m_min {m_min:g}: {int(in_m.sum())} of {len(in_m)} candidates eligible for the optimisation problems; FE bests over {len(base_rows)} baseline rows")
     floor = cfg["p_floor"]
     elig = {k: (scores[k] if floor is None else np.where(probs[k] >= floor, scores[k], 0.0)) for k in scores}
     p_max = {k: float(probs[k].max()) for k in probs}
@@ -545,7 +571,7 @@ def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, l
            "model_version": {"train_sha256": train_sha, "stage_al_md5": hashlib.md5(pathlib.Path(__file__).read_bytes()).hexdigest(),
                              "sklearn": sklearn.__version__, "torch": torch.__version__, "gp": "C*Matern52(ARD)+White, normalize_y, 3 restarts",
                              "ens": f"{ENS_MEMBERS} x MLP 3x128 SiLU, Gaussian NLL, MSE warm-up 100, early stop 15 % designs"},
-           "n_train": len(rows), "n_designs": int(len(np.unique(groups))), "dropped": info["dropped"], "u13_pool_check_max": worst,
+           "m_min": cfg.get("m_min"), "n_train": len(rows), "n_designs": int(len(np.unique(groups))), "dropped": info["dropped"], "u13_pool_check_max": worst,
            "features": U_COLS + list(TPL_COLS) + list(AREA) + ["log10_delta", "R_kN", "alpha_front", "alpha_sagit"],
            "cv": cv, "eps_dex": EPS_DEX, "div_r": DIV_R, "crt_excl": CRT_EXCL, "eval_excl": EVAL_EXCL,
            "n_candidates": int(len(cand)), "candidates_by_source": n_feas, "area_check": area_check, "front_baseline": front.tolist(), "best_cap_log_rot": {f"{k:g}": v for k, v in best_cap.items()},
