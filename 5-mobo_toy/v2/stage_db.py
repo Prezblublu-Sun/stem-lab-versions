@@ -1,9 +1,9 @@
 """3406 数据库（db3406）的批量提交器 v1.5（D1 = v0 + 审查修正 + 采纳 CD-0 种子 + 第二轮审查修正；D2 = 批次 b2 + 并行喂料；v1.3 = 批次 b1b；v1.4 = 批次 b2b；
-v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2）；v1.7 = 批次 b7（AL-3，局部候选）；v1.8 = 批次 b14（候选 A 的 m / α 单因素扫描）；v1.9 = 批次 b8、b12（第二周计划第二版）；v1.10 = 批次 b7m（AL-3′，m ≥ 1.0））。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
+v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2）；v1.7 = 批次 b7（AL-3，局部候选）；v1.8 = 批次 b14（候选 A 的 m / α 单因素扫描）；v1.9 = 批次 b8、b12（第二周计划第二版）；v1.10 = 批次 b7m（AL-3′，m ≥ 1.0）；v1.11 = 批次 b15（A 的 m 1.0 版 × α））。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
 （第 1.3 / 1.4 节分层与无偏集、第 1.6 节命名 / 查重 / 版本陷阱、第 1.8 节检查 13 / 14、第 2.1–2.7 节、第 3.2 节 CR-T；用户 2026-10-25 批准两天部分）。
 不改 8 个哈希文件（code_hash 必须是 6d7af243d0）、不改 jobs.py / stage_neckopt.py / stage_deck.py / stage_v2a.py / tpl_record.py；提交只走 jobs.submit。
 
-    python v2/stage_db.py dry-run b1|b2|b1b|b2b|b3|b4|b5|b6|b7|b7m|b14|b8|b12 [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
+    python v2/stage_db.py dry-run b1|b2|b1b|b2b|b3|b4|b5|b6|b7|b7m|b14|b8|b12|b15 [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
                                                           预期 id、查重结果（hash8 / 物理键）、种子采纳、参照与参照核对；末尾 DRY-RUN-JSON。什么都不写
                                                           （b2 另印 G2 核对、CR-1 / CR-T 选点、放宽计数、槽时估计、b1 优先级的当前判断）
     python v2/stage_db.py feed b1|b2 [--once] [--poll 60] 喂料器（只在 Linux 上跑；b1 与 b2 可以同时跑，见"并行喂料"）：
@@ -55,6 +55,10 @@ v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2�
     source bound_scan、selection stratum、unbiased false、in_E true（设计来自 BO）。build 对每行跑 0-FE 模板化（tpl_record.record_spec，股骨缓存只读，不建模不求解）：
     不可行、入口偏移离开 A 的 e*（会混入偏移跳变）、模板化报错、或 A 自身与它的 prep.json 不符 → 问题，feed 拒绝。层都慢启动；失败门不改（α > 45° 的建模没测过，
     2 行失败会停住第 3 行等人看）。决策规则在看结果前写定：research-log/neck_implant_2026-10-02/3406_m_alpha扫描_b14_2026-11-02.md。
+
+批次 b15（v1.11，2026-11-02，用户"先补 3 行"，放宽 α 之前的检查）= 候选 A 的 m 1.0 版 × α 50 / 55 / 60，3 行，全部带粘接，层 WS m alpha，source bound_scan，stage db_ws。
+    b14 的 α 收益是在 m 0.5 上测的，而台架用 m 1.0 版。对照 = b14 的 WS_m1（必须 DONE），所以这里只改 m 和 α 两个键，其余物理都与 A 相同。这 3 行都在 v1 盒外，stage_al.load_training 不用它们训练。
+    不可行、入口偏移离开 A 的 e*、模板化报错、对照 WS_m1 不是 DONE → 问题，feed 拒绝。规则在看结果前写定：3406_m_alpha扫描_b14_2026-11-02.md 第 8 节。
 
 批次 b8、b12（v1.9，2026-11-02，第二周计划第二版，用户"按这个改"；只写批次与干跑，喂料顺序等 b14 的结果定）：
     b8 = NZ-3 + W-0′。NZ-3 db_nz：第 2–5 名（a82、a96、a100、a95）× h 1.94 / 2.06，带粘接，同网格参照 = b1 的 REF 行（必须 DONE），定噪声值。
@@ -288,7 +292,7 @@ AUTO_ACK_MAX_RATE = 0.15
 FIRST_N, FIRST_N_MAX_FAILED = 10, 2         # 本批最先完成的 10 个喂料器自己提交的行里 FAILED > 2 → 每层都停（规划 G1）
 SLOW_START_LAYERS = ("NZ-1", "FD-0 h2.5", "FD-0 h1.4", "BD mesh", "BD h2.0", "SF-1", "CR-1", "FD-0 h2.4", "BD b2",
                      "CR-T", "NZ-2", "FD-1 h1.4", "CD-1", "CD-1 rand", "BD offset", "BD sts", "AL-1", "AL-1 sts", "AL-1 rand",
-                     "AL-2", "AL-2 sts", "AL-2 rand", "AL-3", "AL-3 sts", "AL-3 rand", "WS m", "WS alpha", "NZ-3", "W-0 alpha", "W-0 L", "CY-1", "AL-3m", "AL-3m sts", "AL-3m rand")
+                     "AL-2", "AL-2 sts", "AL-2 rand", "AL-3", "AL-3 sts", "AL-3 rand", "WS m", "WS alpha", "NZ-3", "W-0 alpha", "W-0 L", "CY-1", "AL-3m", "AL-3m sts", "AL-3m rand", "WS m alpha")
                                             # 新层慢启动（REF 串行、CD-0 是种子：不在内）
 SLOW_START_CAP = 2                          # … DONE 不到 SLOW_START_DONE 行之前，该层在飞（NEW / READY / CLAIMED / SOLVED）最多 2 行
 SLOW_START_DONE = 2
@@ -352,14 +356,14 @@ LAYER_SOURCE = {"REF": "intact_ref", "CD-0": "cond_anchor", "NZ-1": "noise", "FD
                 "AL-2": "al_adaptive", "AL-2 sts": "al_adaptive", "AL-2 rand": "al_random",
                 "AL-3": "al_adaptive", "AL-3 sts": "al_adaptive", "AL-3 rand": "al_random",
                 "AL-3m": "al_adaptive", "AL-3m sts": "al_adaptive", "AL-3m rand": "al_random",
-                "WS m": "bound_scan", "WS alpha": "bound_scan",
+                "WS m": "bound_scan", "WS alpha": "bound_scan", "WS m alpha": "bound_scan",
                 "NZ-3": "noise", "W-0 alpha": "bound_scan", "W-0 L": "bound_scan", "CY-1": "cycle_variant"}
 LAYER_SELECTION = {"REF": "reference", "SF-1": "iid", "CR-T": "corner_test", "CD-1 rand": "iid", "AL-1": "adaptive", "AL-1 sts": "adaptive",
                    "AL-1 rand": "iid", "AL-2": "adaptive", "AL-2 sts": "adaptive", "AL-2 rand": "iid",
                    "AL-3": "adaptive", "AL-3 sts": "adaptive", "AL-3 rand": "iid",
                    "AL-3m": "adaptive", "AL-3m sts": "adaptive", "AL-3m rand": "iid"}          # 其余层 stratum（tools/db_export.DB_STAGE_RULES：db_sf = sf / iid，db_cr = corner / stratum，
                                                 # db_crt = corner_test / corner_test，db_bd = offset_variant；AL 的非随机选点在排除集 E）
-BATCHES = ("b1", "b2", "b1b", "b2b", "b3", "b4", "b5", "b6", "b7", "b14", "b8", "b12", "b7m")
+BATCHES = ("b1", "b2", "b1b", "b2b", "b3", "b4", "b5", "b6", "b7", "b14", "b8", "b12", "b7m", "b15")
 B2B_SOURCE_BATCHES = ("b2",)                # b2b：这些批次清单里已 DONE 的只解摩擦设计行各配一个 h 2.0 只粘接作业
 B2B_LAYER = "BD b2"
 B1B_H = 2.4                                 # b1b 的粗网格档（h 2.5 的完整股骨建模失败，见模块说明"批次 b1b"）
@@ -390,6 +394,8 @@ WS_M = (0.75, 1.0, 1.5)                     # b14：余量（A 是 0.5，盒子�
 WS_ALPHA = (50.0, 55.0, 60.0)               # b14：插入角（A 是 44.35°，盒子上限 45°；α 65° 时 e* 跳到 −2，所以停在 60°）
 NZ3_JOBS = ("sb13_a82_cd8c77ad", "sb13_a96_429a3bcc", "sb13_a100_b1cce588", "sb13_a95_173c181a")   # b8：第 2–5 名（v0.5 基线）
 NZ3_H = (1.94, 2.06)
+WS2_M = 1.0                                 # b15：A 的 m 1.0 版，台架用的余量
+WS2_ALPHA = (50.0, 55.0, 60.0)              # b15：与 b14 的 α 行同样三档
 W0_ALPHA = (("A", 47.0), ("a62", 47.0), ("a62", 50.0))   # b8：A × α 50 是 b14 的 WS_a50
 W0_L = (42.5, 43.5, 44.0, 44.5)
 W0_L_CODES = ("A", "a62")
@@ -960,6 +966,8 @@ def build(batch: str = "b1") -> dict:
         return build_b8()
     if batch == "b12":
         return build_b12()
+    if batch == "b15":
+        return build_b15()
     unreadable = []
     qspecs = scan_queue(unreadable)
     by_h8 = _by_h8(qspecs)
@@ -2197,6 +2205,50 @@ def _finish_batch(batch: str, rows: list, order: list, qspecs: dict, by_h8: dict
             "queue_root": str(J.QROOT), "n_queue_dirs": len(qspecs), **extra}
 
 
+def build_b15() -> dict:
+    """b15（模块说明"批次 b15"）：A 的 m 1.0 版 × α 50 / 55 / 60。对照 WS_m1 必须 DONE；不可行、偏移跳变、模板化报错 → problems。"""
+    qspecs, by_h8, by_phys, warn = _batch_ctx()
+    problems, rows, ws_tpl = [], [], {}
+    base = CODES[WS_BASE]
+    src = load_source(base, "design", qspecs)
+    phys = _phys(src, base)
+    load_source(REF_H2, "intact", qspecs)
+    tag = _tag_of(base)
+    base_e = None
+    try:
+        t0 = ws_templating(src)
+        ws_tpl[WS_BASE] = t0
+        base_e = t0["e_star"]
+    except Exception as e:                              # noqa: BLE001  模板化核对不了 = 不提交
+        problems.append(f"b15: 0-FE templating of the base design {base} failed: {type(e).__name__}: {str(e)[:300]}")
+    lab_m = f"m{WS2_M:g}"
+    ctrl = _variant(phys, "db_ws", f"{tag}_{lab_m}", "full", intact_job=REF_H2, design={**phys["design"], "m": WS2_M})
+    ctrl_id = expected_id(ctrl)
+    ctrl_state = J.state(J.QROOT / ctrl_id) if (J.QROOT / ctrl_id).is_dir() else "absent"
+    if ctrl_state != "DONE":
+        problems.append(f"b15: the control WS_{lab_m} = {ctrl_id} is {ctrl_state} (must be DONE: every row is compared with it)")
+    keys = []
+    for val in WS2_ALPHA:
+        lab = f"{lab_m}_a{val:g}"
+        spec = _variant(phys, "db_ws", f"{tag}_{lab}", "full", intact_job=REF_H2, design={**phys["design"], "m": WS2_M, "alpha": float(val)})
+        ext = {"cond": None, "e_star": None, "e_forced": None}
+        try:
+            t = ws_templating(spec)
+            ws_tpl[lab] = t
+            ext["e_star"] = t["e_star"]
+            if not t["feasible"]:
+                problems.append(f"WS_{lab}: 0-FE templating is not feasible ({t['reason']}); prep would fail, no FE can run")
+            elif base_e is not None and abs(t["e_star"] - base_e) > 1e-9:
+                problems.append(f"WS_{lab}: entry offset e* {t['e_star']:g} != {base_e:g} of {base} (an offset jump would be mixed into the comparison)")
+        except Exception as e:                          # noqa: BLE001
+            problems.append(f"WS_{lab}: 0-FE templating failed: {type(e).__name__}: {str(e)[:300]}")
+        r = _row(f"WS_{lab}", "WS m alpha", spec, base, WS_BASE, extra=ext)
+        r.update(unbiased=False, in_E=True)
+        rows.append(r)
+        keys.append(r["key"])
+    return _finish_batch("b15", rows, keys, qspecs, by_h8, by_phys, warn, problems, {H_PROD: REF_H2}, ws_tpl=ws_tpl, ws_control=ctrl_id)
+
+
 def build_b8() -> dict:
     """b8（模块说明"批次 b8、b12"）：NZ-3 + W-0′。"""
     qspecs, by_h8, by_phys, warn = _batch_ctx()
@@ -2958,7 +3010,7 @@ def _man_row(r: dict) -> dict:
 
 
 B2_LAYERS = ("SF-1", "CR-1", "CR-T", "CD-1 rand", "BD offset", "AL-1", "AL-1 sts", "AL-1 rand", "AL-2", "AL-2 sts", "AL-2 rand",
-             "AL-3", "AL-3 sts", "AL-3 rand", "WS m", "WS alpha", "W-0 alpha", "W-0 L", "AL-3m", "AL-3m sts", "AL-3m rand")
+             "AL-3", "AL-3 sts", "AL-3 rand", "WS m", "WS alpha", "W-0 alpha", "W-0 L", "AL-3m", "AL-3m sts", "AL-3m rand", "WS m alpha")
 B2_ROW_FIELDS = ("cr_idx", "layer_pos", "bonded_planned", "sf_bo_overlap", "bo_twins", "adopted_role_from", "unbiased", "in_E", "e_star", "e_group",
                  "e_forced", "e_margin_eff", "sobol_idx", "cond", "al_group", "al_problem", "al_score", "al_p")
 
