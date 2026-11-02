@@ -1,0 +1,16 @@
+{
+  "id": "V2A-T06",
+  "report": "V2A",
+  "kind": "table",
+  "title": "BO against the same-budget Sobol baseline; warm-started BO in the extended space",
+  "caption": "原空间的比较只有种子 0 完整。热启动 BO 的两列给出加入其评估前后的全数据超体积比（分母为全部已解设计的已知最佳）。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "v2/reports/V2A_real_femur/tables/V2A-T06.csv",
+  "csv_sha256": "b30ee0e6d92913b85820302e5270aa29ee8d39ca252ff2c800047d587b015d62",
+  "producer": "v2/report_v2a_bo.py",
+  "producer_sha256": "4d2a4006f1489086edddc97b869ccaed1b409e7dd7d8ccddb4ee7e7bfd994d63",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "created": "2026-09-28T12:45:32"
+}

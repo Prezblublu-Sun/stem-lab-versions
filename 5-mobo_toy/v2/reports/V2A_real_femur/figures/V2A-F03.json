@@ -1,0 +1,26 @@
+{
+  "id": "V2A-F03",
+  "report": "V2A",
+  "kind": "figure",
+  "title": "Seven cross-section variables; the anterior and posterior halves carry their own squareness and keystone",
+  "caption": "每列只变一个截面变量，其余取一个不对称基准（γ_ml 0.56、γ_ap 0.44、n_a 3、n_p 5、τ_a 0.15、τ_p −0.10）；截面面积统一 250 mm²，内侧向右、前方向上。橙色虚线为关于前后侧中线（y = 0）的镜像，与实形不重合即前后不对称。",
+  "synthetic": false,
+  "units": {
+    "x": "mm",
+    "y": "mm"
+  },
+  "sources": {},
+  "csv": "v2/reports/V2A_real_femur/figures/V2A-F03.csv",
+  "csv_sha256": "f458efa69dfa8d1a217dbbec3c892ee8161f9e3d5c7613e73887d7ac36fc7136",
+  "png": "v2/reports/V2A_real_femur/figures/V2A-F03.png",
+  "svg": "v2/reports/V2A_real_femur/figures/V2A-F03.svg",
+  "plot_fn": "v2/report_v2a.py:plot_f03",
+  "plot_module_sha256": "9d4e3345ac28187eeb23f9139668dd66935018027237be1928449f1b2d2d0fe5",
+  "producer": "v2/report_v2a.py",
+  "producer_sha256": "9d4e3345ac28187eeb23f9139668dd66935018027237be1928449f1b2d2d0fe5",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "spec_sha256": "b3a70189dac6b1fd3357774f5a887e48b8a13b4ec79e628feef0d7568f6fe896",
+  "created": "2026-09-28T12:39:49",
+  "python": "3.12.3",
+  "matplotlib": "3.11.2"
+}

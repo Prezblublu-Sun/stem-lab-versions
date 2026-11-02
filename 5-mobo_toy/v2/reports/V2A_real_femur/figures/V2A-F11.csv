@@ -1,0 +1,31 @@
+objective,level,name,ST
+y1_log10_f1,variable,L,0.11569977649165912
+y1_log10_f1,variable,rho_tip,0.05869658293091272
+y1_log10_f1,variable,q,0.01532068266911269
+y1_log10_f1,variable,lam,0.06641041177906483
+y1_log10_f1,variable,g_ml,0.03369292911218812
+y1_log10_f1,variable,g_ap,0.03733866644434473
+y1_log10_f1,variable,n_a,0.04218890451514922
+y1_log10_f1,variable,n_p,0.3483662711937976
+y1_log10_f1,variable,tau_a,0.012763934172717253
+y1_log10_f1,variable,tau_p,0.060550402542802445
+y1_log10_f1,variable,alpha,0.6078653049984316
+y1_log10_f1,group,length,0.11569977649165912
+y1_log10_f1,group,area curve,0.0739388665173159
+y1_log10_f1,group,section shape,0.4763113566812875
+y1_log10_f1,group,insertion angle,0.6078653049984316
+y2_g7_abs_dsed,variable,L,0.2601463282033972
+y2_g7_abs_dsed,variable,rho_tip,0.045255160902251956
+y2_g7_abs_dsed,variable,q,0.033995106032068054
+y2_g7_abs_dsed,variable,lam,0.04238388116280952
+y2_g7_abs_dsed,variable,g_ml,0.04595945846189741
+y2_g7_abs_dsed,variable,g_ap,0.2554441310657837
+y2_g7_abs_dsed,variable,n_a,0.01767119567676622
+y2_g7_abs_dsed,variable,n_p,0.022936697367239023
+y2_g7_abs_dsed,variable,tau_a,0.037514094544699304
+y2_g7_abs_dsed,variable,tau_p,0.021258134806848707
+y2_g7_abs_dsed,variable,alpha,0.6789165250822707
+y2_g7_abs_dsed,group,length,0.2601463282033972
+y2_g7_abs_dsed,group,area curve,0.07862341704340214
+y2_g7_abs_dsed,group,section shape,0.37713132298260804
+y2_g7_abs_dsed,group,insertion angle,0.6789165250822707

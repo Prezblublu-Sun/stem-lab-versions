@@ -1,0 +1,16 @@
+variant,quantity,value
+base,f1_p95_um,7.34
+base,f2_g7_loss_pct,-5.325
+base,vm_p99,66.507
+torque_off,f1_p95_um,6.524
+torque_off,f2_g7_loss_pct,64.286
+torque_off,vm_p99,50.688
+delta_0,f1_p95_um,24.322
+delta_0,f2_g7_loss_pct,-4.771
+delta_0,vm_p99,66.021
+mu_0.8,f1_p95_um,3.379
+mu_0.8,f2_g7_loss_pct,-5.325
+mu_0.8,vm_p99,66.507
+rerun,f1_p95_um,7.34
+rerun,f2_g7_loss_pct,-5.325
+rerun,vm_p99,66.507

@@ -1,0 +1,14 @@
+item,value,check
+cortical STEP,cortical femur 2-zoned-4-sorted.STEP,sha256 1f8a33caac3a…; OCC volume 287059 mm³ (hollow)
+cancellous STEP,cancellous femur 2-zoned-4.STEP,sha256 3c0e10bd02e1…; OCC volume 197040 mm³
+B-rep faces,cortical 286 = periosteal 179 + inner shell 107,cancellous 107
+canal volume in box (SDF vs OCC),135793 vs 135872 mm³,-0.06%
+outer volume in box (SDF vs OCC),241140 vs 241228 mm³,-0.04%
+surface |SDF| P95 (canal / outer),0.059 / 0.059 mm,parity odd columns 0 / 0
+head radius,25.34 mm,straight3d 24.6 mm (+0.74)
+neck–shaft angle,137.5°,straight3d 136.6° (+0.9)
+anteversion (to posterior condylar line),6.1°,straight3d 5.9° (+0.2)
+offset,39.5 mm,
+"CFI / CI, full width",5.40 / 0.68,Dorr A / A
+"CFI / CI, chord y = 0",2.93 / 0.69,Dorr C / A
+isthmus canal (full width),7.5 mm at z = -97 mm,

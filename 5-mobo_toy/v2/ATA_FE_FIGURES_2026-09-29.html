@@ -1,0 +1,974 @@
+<!doctype html><html><head><meta charset='utf-8'><title>ATA_FE_FIGURES_2026-09-29</title><style>
+@page { size: A4; margin: 16mm 15mm; }
+* { box-sizing: border-box; }
+body { font-family: "Segoe UI","Microsoft YaHei",Arial,sans-serif; font-size: 10pt; line-height: 1.5; color:#111; }
+h1 { font-size: 18pt; border-bottom: 3px solid #333; padding-bottom:5px; margin-bottom:4px; }
+h2 { font-size: 13pt; margin-top: 1.2em; border-bottom:1px solid #bbb; padding-bottom:2px; page-break-after: avoid; }
+h3 { font-size: 11pt; margin-top: 0.9em; page-break-after: avoid; }
+table { border-collapse: collapse; width: 100%; font-size: 8.5pt; margin: 0.5em 0; page-break-inside: auto; }
+tr { page-break-inside: avoid; }
+th,td { border: 1px solid #999; padding: 4px 6px; text-align: left; vertical-align: top; }
+th { background:#f0f0f0; }
+td:first-child { white-space: nowrap; }
+code,pre { font-family: Consolas,monospace; font-size: 8.5pt; background:#f6f6f6; }
+.meta { color:#444; font-size:9pt; margin: 2px 0 10px 0; }
+.banner { padding:6px 10px; margin:6px 0; border-radius:4px; font-weight:600; }
+.banner.syn { background:#FDE8DC; border:1px solid #D55E00; color:#8a3200; }
+.banner.draft { background:#FFF4CC; border:1px solid #E69F00; color:#6b4a00; }
+figure { margin: 0.8em 0; page-break-inside: avoid; border:1px solid #ccc; background:#fafafa; padding:8px; border-radius:4px; }
+figure img { max-width: 100%; display:block; margin: 0 auto; background:#fff; }
+figcaption { font-size: 8.8pt; color:#222; margin-top:6px; }
+figcaption .cap { font-weight:600; }
+figcaption .src { color:#666; font-size: 7.8pt; }
+td.PASS { background:#DDF2EA; color:#00553d; font-weight:600; }
+td.FAIL { background:#FBE0D3; color:#8a3200; font-weight:600; }
+td.PENDING { background:#EEEEEE; color:#555; font-weight:600; }
+td.NA { background:#E8F1F8; color:#0b4a78; font-weight:600; }
+.verdict { font-weight:700; padding:1px 6px; border-radius:3px; }
+.verdict.PASS { background:#DDF2EA; color:#00553d; } .verdict.FAIL { background:#FBE0D3; color:#8a3200; }
+.verdict.INCOMPLETE { background:#FFF4CC; color:#6b4a00; }
+.verdict.FAIL-APPROVED { background:#E8F1F8; color:#0b4a78; }
+</style></head><body><h1>Naghavi 博士论文里用有限元评估柄的图和表</h1>
+<p>生成时间：2026-09-29 15:53。论文：Seyed Ataollah Naghavi，UCL 博士论文，2023。全部内容在第 5 章，论文页码与 PDF 页码相同。</p>
+<p>原页摘录共 28 页，在 <code>v2/refs_pdf/11_Naghavi_2023_thesis_FE_pages.pdf</code>，每页带书签。下文每一项都给出论文页码和摘录里的页码。</p>
+<p>标“读图”的数字是从柱状图或曲线上估读的，误差约 ±1。其余数字来自论文正文、表格或图上的标注。</p>
+<h2>1 总览</h2>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>内容</th>
+<th>类别</th>
+<th>论文页</th>
+<th>摘录页</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>表 5-1</td>
+<td>文献里 15 项多孔柄研究的效果汇总</td>
+<td>文献</td>
+<td>194–195</td>
+<td>1–2</td>
+</tr>
+<tr>
+<td>图 5-9</td>
+<td>Gruen 分区在完整股骨和植入股骨上的划法</td>
+<td>评价分区</td>
+<td>207</td>
+<td>3</td>
+</tr>
+<tr>
+<td>图 5-10</td>
+<td>完整股骨皮质骨的网格收敛曲线</td>
+<td>模型验证</td>
+<td>208</td>
+<td>4</td>
+</tr>
+<tr>
+<td>图 5-11</td>
+<td>完整股骨的载荷与边界条件，实验对模型</td>
+<td>模型设置</td>
+<td>209</td>
+<td>5</td>
+</tr>
+<tr>
+<td>图 5-13</td>
+<td>按应力场确定多孔结构的壁厚和孔径</td>
+<td>设计</td>
+<td>211</td>
+<td>6</td>
+</tr>
+<tr>
+<td>图 5-14</td>
+<td>四种构型的剖面</td>
+<td>模型设置</td>
+<td>213</td>
+<td>7</td>
+</tr>
+<tr>
+<td>图 5-19</td>
+<td>柄在股骨里、柄在水泥里两种模型的载荷与边界</td>
+<td>模型设置</td>
+<td>221</td>
+<td>10</td>
+</tr>
+<tr>
+<td>图 5-20</td>
+<td>骨改建速率与应变能密度的关系，死区 0.6</td>
+<td>评价规则</td>
+<td>223</td>
+<td>12</td>
+</tr>
+<tr>
+<td>图 5-23</td>
+<td>完整股骨十个测点：实验对模型，一致性图</td>
+<td>模型验证</td>
+<td>229</td>
+<td>15</td>
+</tr>
+<tr>
+<td>图 5-24</td>
+<td>完整股骨皮质骨应力云图，标出十个测点的模型值</td>
+<td>模型验证</td>
+<td>230</td>
+<td>16</td>
+</tr>
+<tr>
+<td>图 5-25</td>
+<td>十个测点的应力比，实验对模型，三种柄</td>
+<td>模型验证</td>
+<td>233</td>
+<td>17</td>
+</tr>
+<tr>
+<td>图 5-26</td>
+<td>多孔柄与 PEEK 柄植入后的一致性图</td>
+<td>模型验证</td>
+<td>234</td>
+<td>18</td>
+</tr>
+<tr>
+<td>图 5-27</td>
+<td>四种构型在 2300 N 下的应力和压应变云图</td>
+<td>结果</td>
+<td>236</td>
+<td>19</td>
+</tr>
+<tr>
+<td>图 5-28</td>
+<td>七个分区的应力比和应力屏蔽</td>
+<td>结果</td>
+<td>238</td>
+<td>20</td>
+</tr>
+<tr>
+<td>图 5-29</td>
+<td>七个分区的骨吸收和相对实心柄的减少量</td>
+<td>结果</td>
+<td>241</td>
+<td>21</td>
+</tr>
+<tr>
+<td>图 5-30</td>
+<td>柄的载荷–位移曲线与轴向刚度，实验对模型</td>
+<td>结果</td>
+<td>244</td>
+<td>22</td>
+</tr>
+<tr>
+<td>图 5-31</td>
+<td>多孔柄的屈服与疲劳安全系数</td>
+<td>结果</td>
+<td>246（只有图题）</td>
+<td>24</td>
+</tr>
+<tr>
+<td>表 5-3</td>
+<td>多孔柄在 12 种载荷下的最大应力和安全系数</td>
+<td>结果</td>
+<td>246–247</td>
+<td>24–25</td>
+</tr>
+<tr>
+<td>图 5-32</td>
+<td>PEEK 柄的屈服与疲劳安全系数</td>
+<td>结果</td>
+<td>249–250</td>
+<td>26–27</td>
+</tr>
+<tr>
+<td>表 5-4</td>
+<td>PEEK 柄在 12 种载荷下的最大应力和安全系数</td>
+<td>结果</td>
+<td>250–251</td>
+<td>27–28</td>
+</tr>
+</tbody>
+</table>
+<p>另外摘了 6 页没有图表的正文和公式：第 219、220、222、224、225、245 页。它们定义了模型和评价公式，读图时要用。</p>
+<p>没有摘的图：图 5-1 到 5-8、5-12、5-15 到 5-18、5-21、5-22、5-33。它们是文献图片、柄的设计图、实验装置和实验读数，不是有限元结果。第 4 章有晶格试样的有限元图，评估的是试样不是柄，也没有摘。</p>
+<h2>2 模型是怎么建的</h2>
+<p><strong>图 5-9，论文第 207（摘录第 3 页）。</strong> 七个 Gruen 区是股骨上的水平带，位置由柄决定。完整股骨用同样的分区，方便逐区对比。</p>
+<p><strong>图 5-10，第 208（摘录第 4 页）。</strong> 横轴是单元数，最多约 820 万；纵轴是皮质骨最大应力，在 13.4 到 15.2 MPa 之间。论文取单元尺寸 0.65 mm 作为收敛点，对应约 352 万单元。判据是单元数翻倍后变化不超过 5%（第 207 页正文）。从曲线看，整条曲线的总变化只有约 12%，100 万单元之后在 ±2% 以内。</p>
+<p><strong>图 5-11，第 209（摘录第 5 页）。</strong> 完整股骨按 ISO 7206-4 倾斜 10°，竖直力 1200 N 经一个加载块压在股骨头上，接触摩擦系数 0.2。皮质骨与松质骨绑定，远端固支。实验装置与模型并排画出。</p>
+<p><strong>图 5-14，第 213（摘录第 7 页）。</strong> 四种构型：完整股骨、实心钛柄、多孔钛柄、PEEK 柄。柄周围和柄尖以下填环氧树脂。</p>
+<p><strong>图 5-19，第 221（摘录第 10 页）。</strong> 两种支承。柄在股骨里：冠状面 10°、矢状面 9°，远端固支。柄在水泥里：水泥块的侧面和底面固支，柄的近端悬空。两种情况下柄、树脂、骨之间全部绑定，只有加载块与球头之间是摩擦接触。</p>
+<p><strong>正文，第 219（摘录第 8 页）、220（摘录第 9 页）。</strong> 材料与网格：</p>
+<table>
+<thead>
+<tr>
+<th>部件</th>
+<th>弹性模量</th>
+<th>泊松比</th>
+<th>单元数（百万）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>皮质骨</td>
+<td>16.7 GPa</td>
+<td>0.3</td>
+<td>3.52</td>
+</tr>
+<tr>
+<td>松质骨，近端与远端</td>
+<td>0.155 GPa</td>
+<td>0.3</td>
+<td>0.38 与 0.41</td>
+</tr>
+<tr>
+<td>环氧树脂</td>
+<td>2.5 GPa</td>
+<td>0.3</td>
+<td>—</td>
+</tr>
+<tr>
+<td>骨水泥</td>
+<td>3 GPa</td>
+<td>0.3</td>
+<td>0.3</td>
+</tr>
+<tr>
+<td>实心钛柄</td>
+<td>110 GPa</td>
+<td>0.3</td>
+<td>9.1</td>
+</tr>
+<tr>
+<td>多孔钛柄</td>
+<td>95 GPa</td>
+<td>0.3</td>
+<td>21.5</td>
+</tr>
+<tr>
+<td>PEEK 柄</td>
+<td>1.69 GPa</td>
+<td>0.35</td>
+<td>9.1</td>
+</tr>
+<tr>
+<td>加载块、球头、钢罐</td>
+<td>200 GPa</td>
+<td>0.3</td>
+<td>0.1–0.22</td>
+</tr>
+</tbody>
+</table>
+<p>单元都是二次四面体。四种构型的总单元数是 450 万、1150 万、2390 万、1150 万。论文在第 219 页说明不采用“等效实体”的做法，多孔柄按晶格几何直接划分网格，所以单元数最多。95 GPa 是给多孔柄的材料取的模量，不是整根柄的等效模量。</p>
+<p><strong>图 5-13，第 211（摘录第 6 页）。</strong> 多孔柄的壁厚由有限元应力场决定。先用均匀晶格在 4839 N 下算一次，再按 von Mises 应力分配壁厚：40 MPa 以下取 0.3 mm，40 到 170 MPa 之间线性增加，170 MPa 以上取 0.5 mm。孔径相应从 900 µm 降到 700 µm。</p>
+<h2>3 评价用的公式</h2>
+<table>
+<thead>
+<tr>
+<th>量</th>
+<th>定义</th>
+<th>论文页</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>应力屏蔽 SSI</td>
+<td>（完整 − 植入）÷ 完整，应力取分区内 von Mises 的体积加权平均</td>
+<td>221（摘录第 10 页）</td>
+</tr>
+<tr>
+<td>骨改建规则</td>
+<td>应变能密度低于完整值的 (1 − s) 倍判为吸收，高于 (1 + s) 倍判为增生，s = 0.6</td>
+<td>222（摘录第 11 页）、223（摘录第 12 页）</td>
+</tr>
+<tr>
+<td>应变能密度之比</td>
+<td>植入与完整的压缩主应变之比的平方</td>
+<td>223（摘录第 12 页）</td>
+</tr>
+<tr>
+<td>骨吸收质量分数</td>
+<td>被判为吸收的骨质量 ÷ 骨总质量</td>
+<td>223（摘录第 12 页）</td>
+</tr>
+<tr>
+<td>屈服安全系数</td>
+<td>屈服强度 ÷ 最大应力</td>
+<td>224（摘录第 13 页）</td>
+</tr>
+<tr>
+<td>疲劳安全系数</td>
+<td>疲劳极限 ÷ 最大应力</td>
+<td>224（摘录第 13 页）</td>
+</tr>
+<tr>
+<td>Goodman 与 Soderberg 安全系数</td>
+<td>应力比 0.1，最小应力取 230 N、最大应力取 2300 N 时的值</td>
+<td>224（摘录第 13 页）、225（摘录第 14 页）</td>
+</tr>
+</tbody>
+</table>
+<p>材料强度：钛合金屈服 788 MPa、抗拉 882 MPa、疲劳极限 375 MPa；PEEK 屈服与抗拉都是 85.5 MPa、疲劳极限 70 MPa。论文要求安全系数不低于 2。</p>
+<h2>4 模型验证</h2>
+<p><strong>图 5-23 与图 5-24，第 229（摘录第 15 页）、230（摘录第 16 页）。</strong> 完整股骨，1200 N，十个应变花位置的 von Mises 应力：</p>
+<table>
+<thead>
+<tr>
+<th>测点</th>
+<th>M1</th>
+<th>MX1</th>
+<th>M2</th>
+<th>MX2</th>
+<th>M3</th>
+<th>M4</th>
+<th>L1</th>
+<th>L2</th>
+<th>L3</th>
+<th>L4</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>实验，读图 (MPa)</td>
+<td>15.5</td>
+<td>24.5</td>
+<td>19.3</td>
+<td>18.2</td>
+<td>16.8</td>
+<td>15.3</td>
+<td>9.6</td>
+<td>13.7</td>
+<td>11.8</td>
+<td>8.9</td>
+</tr>
+<tr>
+<td>模型，图 5-24 标注 (MPa)</td>
+<td>10.9</td>
+<td>19.7</td>
+<td>14.9</td>
+<td>14.3</td>
+<td>13.7</td>
+<td>11.9</td>
+<td>6.3</td>
+<td>9.3</td>
+<td>7.7</td>
+<td>4.6</td>
+</tr>
+<tr>
+<td>模型相对实验</td>
+<td>-30%</td>
+<td>-20%</td>
+<td>-23%</td>
+<td>-21%</td>
+<td>-18%</td>
+<td>-22%</td>
+<td>-34%</td>
+<td>-32%</td>
+<td>-35%</td>
+<td>-48%</td>
+</tr>
+</tbody>
+</table>
+<p>M 是内侧，L 是外侧，从小转子水平向下排列。一致性图给出的平均差是 −4.1 MPa，界限 −5.3 到 −2.9 MPa。模型在十个点上都低于实验，两条曲线的形状一致。按上表，模型比实验低 18% 到 48%。</p>
+<p><strong>图 5-25，第 233（摘录第 17 页）。</strong> 植入后与完整股骨的应力比，十个测点，实验和模型各一张柱状图。</p>
+<ul>
+<li>远端五个点 MX2、M3、M4、L3、L4 的应力比都高于 100%，三种柄都没有屏蔽。</li>
+<li>近端五个点有屏蔽，实心柄最重。模型里实心柄在 MX1 和 L1 的应力比约 45%（读图）。</li>
+<li>M1 点实验和模型相差最大。实心柄实验约 83%、模型约 25%；PEEK 柄实验超过 200%、模型约 66%（读图）。论文把它归因于加工误差造成的局部点接触（第 231–232 页）。</li>
+</ul>
+<p><strong>图 5-26，第 234（摘录第 18 页）。</strong> 植入后的一致性图。多孔柄平均差约 −4 MPa，界限 −10 到 +2 MPa。PEEK 柄平均差约 −5 MPa，界限 −21 到 +10 MPa。</p>
+<p><strong>图 5-30，第 244（摘录第 22 页）。</strong> 柄固定在骨水泥里做轴向压缩，刚度取载荷–位移曲线的初始斜率：</p>
+<table>
+<thead>
+<tr>
+<th>柄</th>
+<th>实验 (kN/mm)</th>
+<th>模型 (kN/mm)</th>
+<th>相差</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>实心钛</td>
+<td>2.758</td>
+<td>2.836</td>
+<td>2.9%</td>
+</tr>
+<tr>
+<td>多孔钛</td>
+<td>2.154</td>
+<td>1.925</td>
+<td>10.6%</td>
+</tr>
+<tr>
+<td>PEEK</td>
+<td>0.276</td>
+<td>0.231</td>
+<td>16.3%</td>
+</tr>
+</tbody>
+</table>
+<p>图上同时画了文献里完整股骨的刚度范围，1.163 到 1.446 kN/mm。</p>
+<h2>5 结果</h2>
+<p><strong>图 5-27，第 236（摘录第 19 页）。</strong> 2300 N 下四种构型的冠状剖面云图，上排是 von Mises 应力，下排是压应变，图上标了 Gruen 分区。柄上标注的应力：</p>
+<table>
+<thead>
+<tr>
+<th>位置</th>
+<th>实心钛</th>
+<th>多孔钛</th>
+<th>PEEK</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>颈外侧 (MPa)</td>
+<td>86</td>
+<td>86</td>
+<td>74</td>
+</tr>
+<tr>
+<td>颈内侧 (MPa)</td>
+<td>112</td>
+<td>112</td>
+<td>82</td>
+</tr>
+<tr>
+<td>柄远段 (MPa)</td>
+<td>73</td>
+<td>壳 43，晶格 95</td>
+<td>2</td>
+</tr>
+</tbody>
+</table>
+<p>皮质骨上的应力在骨干高、近端低。实心柄的 1、2、6、7 区应变很小，多孔柄和 PEEK 柄接近完整股骨。</p>
+<p><strong>图 5-28，第 238（摘录第 20 页）。</strong> 各区应力屏蔽，%，正值表示被屏蔽。1、6、7 区和总值来自正文，其余读图：</p>
+<table>
+<thead>
+<tr>
+<th>柄</th>
+<th>1 区</th>
+<th>2 区</th>
+<th>3 区</th>
+<th>4 区</th>
+<th>5 区</th>
+<th>6 区</th>
+<th>7 区</th>
+<th>总值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>实心钛</td>
+<td>69</td>
+<td>27</td>
+<td>5</td>
+<td>-9</td>
+<td>25</td>
+<td>45</td>
+<td>68</td>
+<td>32</td>
+</tr>
+<tr>
+<td>多孔钛</td>
+<td>34</td>
+<td>-12</td>
+<td>-15</td>
+<td>-9</td>
+<td>6</td>
+<td>12</td>
+<td>40</td>
+<td>10</td>
+</tr>
+<tr>
+<td>PEEK</td>
+<td>17</td>
+<td>-21</td>
+<td>-21</td>
+<td>-10</td>
+<td>-10</td>
+<td>0.2</td>
+<td>22</td>
+<td>-1.2</td>
+</tr>
+</tbody>
+</table>
+<p>总值按各区体积分数加权。</p>
+<p><strong>图 5-29，第 241（摘录第 21 页）。</strong> 各区被判为吸收的皮质骨比例，%，死区 0.6。总值来自正文，其余读图：</p>
+<table>
+<thead>
+<tr>
+<th>柄</th>
+<th>1 区</th>
+<th>2 区</th>
+<th>3 区</th>
+<th>4 区</th>
+<th>5 区</th>
+<th>6 区</th>
+<th>7 区</th>
+<th>总值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>实心钛</td>
+<td>74</td>
+<td>13</td>
+<td>14</td>
+<td>3</td>
+<td>20</td>
+<td>72</td>
+<td>89</td>
+<td>41</td>
+</tr>
+<tr>
+<td>多孔钛</td>
+<td>44</td>
+<td>2</td>
+<td>8</td>
+<td>3</td>
+<td>2</td>
+<td>2</td>
+<td>44</td>
+<td>16</td>
+</tr>
+<tr>
+<td>PEEK</td>
+<td>35</td>
+<td>2</td>
+<td>3</td>
+<td>3</td>
+<td>0</td>
+<td>0</td>
+<td>26</td>
+<td>12</td>
+</tr>
+</tbody>
+</table>
+<p>下半张图是相对实心柄的减少量：多孔柄总值减少约 60%，PEEK 柄约 72%。</p>
+<p><strong>图 5-31，第 246（摘录第 24 页）。</strong> 这份 PDF 里只有图题，图本身缺失。第 245 页和第 246 页都没有图像对象。图的内容可以从第 245（摘录第 23 页） 的正文读到：</p>
+<table>
+<thead>
+<tr>
+<th>多孔柄</th>
+<th>最大应力位置</th>
+<th>最大应力 (MPa)</th>
+<th>晶格内最大应力 (MPa)</th>
+<th>Soderberg</th>
+<th>Goodman</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>植入股骨</td>
+<td>实心颈内侧</td>
+<td>112</td>
+<td>内侧 94，外侧 97</td>
+<td>4.7</td>
+<td>4.9</td>
+</tr>
+<tr>
+<td>埋入水泥</td>
+<td>水泥面处的内侧壳</td>
+<td>290</td>
+<td>内侧 128，外侧 106</td>
+<td>1.8</td>
+<td>1.9</td>
+</tr>
+</tbody>
+</table>
+<p>这张图也出现在已发表的论文里（Frontiers in Bioengineering and Biotechnology，2023），需要的话可以从那里取。</p>
+<p><strong>表 5-3，第 246（摘录第 24 页）、247（摘录第 25 页）。</strong> 多孔柄，模型算出的最大 von Mises 应力和安全系数：</p>
+<table>
+<thead>
+<tr>
+<th>活动</th>
+<th>关节力 (N)</th>
+<th>最大应力 (MPa)</th>
+<th>屈服</th>
+<th>疲劳</th>
+<th>Goodman</th>
+<th>Soderberg</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ISO 7206-4</td>
+<td>1200</td>
+<td>58</td>
+<td>13.49</td>
+<td>6.42</td>
+<td>9.38</td>
+<td>9.02</td>
+</tr>
+<tr>
+<td>骑车</td>
+<td>1256</td>
+<td>61</td>
+<td>12.88</td>
+<td>6.13</td>
+<td>8.97</td>
+<td>8.61</td>
+</tr>
+<tr>
+<td>ISO 7206-4，埋入水泥</td>
+<td>2300</td>
+<td>290</td>
+<td>2.72</td>
+<td>1.29</td>
+<td>1.89</td>
+<td>1.82</td>
+</tr>
+<tr>
+<td>ISO 7206-4，植入股骨</td>
+<td>2300</td>
+<td>112</td>
+<td>7.04</td>
+<td>3.35</td>
+<td>4.9</td>
+<td>4.7</td>
+</tr>
+<tr>
+<td>坐下</td>
+<td>2935</td>
+<td>143</td>
+<td>5.51</td>
+<td>2.62</td>
+<td>3.84</td>
+<td>3.69</td>
+</tr>
+<tr>
+<td>站起</td>
+<td>3839</td>
+<td>187</td>
+<td>4.22</td>
+<td>2.01</td>
+<td>2.93</td>
+<td>2.82</td>
+</tr>
+<tr>
+<td>屈膝</td>
+<td>3145</td>
+<td>153</td>
+<td>5.15</td>
+<td>2.45</td>
+<td>3.58</td>
+<td>3.44</td>
+</tr>
+<tr>
+<td>步行</td>
+<td>2880</td>
+<td>140</td>
+<td>5.62</td>
+<td>2.67</td>
+<td>3.91</td>
+<td>3.76</td>
+</tr>
+<tr>
+<td>站立</td>
+<td>3340</td>
+<td>163</td>
+<td>4.84</td>
+<td>2.31</td>
+<td>3.37</td>
+<td>3.24</td>
+</tr>
+<tr>
+<td>上楼</td>
+<td>3606</td>
+<td>176</td>
+<td>4.49</td>
+<td>2.14</td>
+<td>3.12</td>
+<td>3.0</td>
+</tr>
+<tr>
+<td>下楼</td>
+<td>3875</td>
+<td>189</td>
+<td>4.18</td>
+<td>1.99</td>
+<td>2.91</td>
+<td>2.79</td>
+</tr>
+<tr>
+<td>慢跑</td>
+<td>4839</td>
+<td>236</td>
+<td>3.34</td>
+<td>1.59</td>
+<td>2.33</td>
+<td>2.24</td>
+</tr>
+</tbody>
+</table>
+<p>除“埋入水泥”一行外，都是柄植入股骨的模型，最大应力在颈内侧。最大应力与关节力成正比，每 1000 N 约 49 MPa，说明各行是同一个线弹性结果按载荷缩放得到的，载荷方向没有变。</p>
+<p><strong>图 5-32，第 249（摘录第 26 页）；图题在第 250（摘录第 27 页）。</strong> PEEK 柄的应力云图和安全系数云图，上排植入股骨，中排埋入水泥，下排是平均应力对应力幅的散点和 Soderberg 线。标注值：植入股骨时颈外侧 74.1 MPa、颈内侧 82.3 MPa；埋入水泥时颈部 64.9 和 67.4 MPa，水泥面处 76 MPa。安全系数 0.94（股骨）和 1.02（水泥）。</p>
+<p>图左侧的竖排文字写的是 Porous stem，图例、数值和图题都是 PEEK 柄。这是图上的标注错误。</p>
+<p><strong>表 5-4，第 250（摘录第 27 页）、251（摘录第 28 页）。</strong> PEEK 柄：</p>
+<table>
+<thead>
+<tr>
+<th>活动</th>
+<th>关节力 (N)</th>
+<th>最大应力 (MPa)</th>
+<th>屈服</th>
+<th>疲劳</th>
+<th>Goodman</th>
+<th>Soderberg</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ISO 7206-4</td>
+<td>1200</td>
+<td>40</td>
+<td>2.16</td>
+<td>1.77</td>
+<td>1.96</td>
+<td>1.96</td>
+</tr>
+<tr>
+<td>骑车</td>
+<td>1256</td>
+<td>45</td>
+<td>1.9</td>
+<td>1.56</td>
+<td>1.73</td>
+<td>1.73</td>
+</tr>
+<tr>
+<td>ISO 7206-4，埋入水泥</td>
+<td>2300</td>
+<td>76</td>
+<td>1.13</td>
+<td>0.92</td>
+<td>1.02</td>
+<td>1.02</td>
+</tr>
+<tr>
+<td>ISO 7206-4，植入股骨</td>
+<td>2300</td>
+<td>82</td>
+<td>1.04</td>
+<td>0.85</td>
+<td>0.94</td>
+<td>0.94</td>
+</tr>
+<tr>
+<td>坐下</td>
+<td>2935</td>
+<td>105</td>
+<td>0.81</td>
+<td>0.67</td>
+<td>0.74</td>
+<td>0.74</td>
+</tr>
+<tr>
+<td>站起</td>
+<td>3839</td>
+<td>137</td>
+<td>0.62</td>
+<td>0.51</td>
+<td>0.57</td>
+<td>0.57</td>
+</tr>
+<tr>
+<td>屈膝</td>
+<td>3145</td>
+<td>113</td>
+<td>0.76</td>
+<td>0.62</td>
+<td>0.69</td>
+<td>0.69</td>
+</tr>
+<tr>
+<td>步行</td>
+<td>2880</td>
+<td>103</td>
+<td>0.83</td>
+<td>0.68</td>
+<td>0.75</td>
+<td>0.75</td>
+</tr>
+<tr>
+<td>站立</td>
+<td>3340</td>
+<td>120</td>
+<td>0.72</td>
+<td>0.59</td>
+<td>0.65</td>
+<td>0.65</td>
+</tr>
+<tr>
+<td>上楼</td>
+<td>3606</td>
+<td>129</td>
+<td>0.66</td>
+<td>0.54</td>
+<td>0.6</td>
+<td>0.6</td>
+</tr>
+<tr>
+<td>下楼</td>
+<td>3875</td>
+<td>139</td>
+<td>0.62</td>
+<td>0.5</td>
+<td>0.56</td>
+<td>0.56</td>
+</tr>
+<tr>
+<td>慢跑</td>
+<td>4839</td>
+<td>173</td>
+<td>0.49</td>
+<td>0.4</td>
+<td>0.45</td>
+<td>0.45</td>
+</tr>
+</tbody>
+</table>
+<p>2300 N 以上所有活动的安全系数都低于 1。疲劳试验里 PEEK 柄 5102 次断在颈部，多孔柄 457349 次断在水泥面处（第 251 页）。</p>
+<h2>6 文献汇总表</h2>
+<p><strong>表 5-1，第 194（摘录第 1 页）、195（摘录第 2 页）。</strong> 论文汇总的 15 项多孔柄研究，多数是有限元结果：</p>
+<table>
+<thead>
+<tr>
+<th>研究</th>
+<th>柄</th>
+<th>报告的效果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Arabnejad 2017</td>
+<td>四面体晶格</td>
+<td>骨吸收减少 75%；6 区 86%，7 区 40%</td>
+</tr>
+<tr>
+<td>Wang 2018</td>
+<td>四面体晶格</td>
+<td>骨吸收减少 58%</td>
+</tr>
+<tr>
+<td>Sun 2018</td>
+<td>梯度模量</td>
+<td>骨吸收减少 40%；安全系数 11.3</td>
+</tr>
+<tr>
+<td>Sun 2022</td>
+<td>梯度体心立方</td>
+<td>表中写骨吸收减少 2.4%；正文第 190 页写的是骨吸收降到 2.4%</td>
+</tr>
+<tr>
+<td>Kladovasilakis 2020</td>
+<td>三周期极小曲面，拓扑优化</td>
+<td>安全系数 2.08</td>
+</tr>
+<tr>
+<td>Gao 2022</td>
+<td>克里金近似</td>
+<td>应力屏蔽减少 17%</td>
+</tr>
+<tr>
+<td>Jette 2018</td>
+<td>金刚石晶格</td>
+<td>刚度降低 31%</td>
+</tr>
+<tr>
+<td>Abate 2021</td>
+<td>vintiles 晶格</td>
+<td>刚度降低 62%</td>
+</tr>
+<tr>
+<td>Mehboob 2020</td>
+<td>体心立方</td>
+<td>应力屏蔽减少 28%；刚度降低 26%</td>
+</tr>
+<tr>
+<td>Tan 与 van Arkel 2021</td>
+<td>随机晶格与选择性挖空</td>
+<td>6 区 15%，7 区 25%；刚度降低 40%</td>
+</tr>
+<tr>
+<td>He 2018</td>
+<td>面心加体心立方</td>
+<td>应力屏蔽减少 57%</td>
+</tr>
+<tr>
+<td>Yan 2010</td>
+<td>不同孔隙率的多孔钛</td>
+<td>孔隙率 20% 时骨吸收减少 80%，60% 时 92%</td>
+</tr>
+<tr>
+<td>Wang 2020</td>
+<td>金刚石立方，两种梯度</td>
+<td>骨吸收减少 74%</td>
+</tr>
+<tr>
+<td>Zoubi 2022</td>
+<td>立方晶格</td>
+<td>6 区 22%，7 区 65%</td>
+</tr>
+<tr>
+<td>Cortis 2022</td>
+<td>体心立方</td>
+<td>6 区 11%，7 区 25%</td>
+</tr>
+</tbody>
+</table>
+<h2>7 与本项目对应的量</h2>
+<table>
+<thead>
+<tr>
+<th>论文的图表</th>
+<th>本项目里对应的内容</th>
+<th>差别</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>图 5-9 分区</td>
+<td><code>v2/resorption.py</code> 的“股骨坐标系，随柄定位”</td>
+<td>本项目另有固定分区，用来比较不同设计</td>
+</tr>
+<tr>
+<td>图 5-10 网格收敛</td>
+<td>正在跑的网格检查，4 档</td>
+<td>论文加密到 0.65 mm，本项目最细 1.0 mm</td>
+</tr>
+<tr>
+<td>图 5-19 载荷与边界</td>
+<td>正在跑的 2300 N 对照工况</td>
+<td>本项目没有加载块，力直接加在球头上；没有水泥包埋模型</td>
+</tr>
+<tr>
+<td>图 5-23 到 5-26 实验对照</td>
+<td>没有</td>
+<td>本项目没有实验</td>
+</tr>
+<tr>
+<td>图 5-28 应力屏蔽</td>
+<td><code>ATA_FOLLOWUP</code> 第 4 节</td>
+<td>口径相同，可以直接对照</td>
+</tr>
+<tr>
+<td>图 5-29 骨吸收</td>
+<td><code>ATA_FOLLOWUP</code> 第 3 节</td>
+<td>口径相同；本项目另给了死区 0.4 和 0.75</td>
+</tr>
+<tr>
+<td>图 5-30 刚度</td>
+<td>没有</td>
+<td>本项目没有算柄的整体刚度</td>
+</tr>
+<tr>
+<td>图 5-31、5-32，表 5-3、5-4</td>
+<td><code>ATA_FOLLOWUP</code> 第 5 节</td>
+<td>本项目只有一种载荷，其余按比例放大；颈与柄肩交界的应力不可用</td>
+</tr>
+<tr>
+<td>界面微动</td>
+<td>论文没有</td>
+<td>本项目的主目标</td>
+</tr>
+</tbody>
+</table>
+<p>图 5-24 标出的十个模型值，加上图 5-23 的实验曲线，可以作为本项目对标完整股骨模型的数据。前提是拿到同一型号 Sawbones 的几何。</p></body></html>

@@ -1,0 +1,27 @@
+{
+  "id": "V2A-F06",
+  "report": "V2A",
+  "kind": "figure",
+  "title": "Three example stems in the real femur: 1 of 3 are large enough to carry the prosthetic neck",
+  "caption": "每行一根示例柄（插入角为其设计值）。左：颈平面，橙线为截骨线，蓝色为柄在颈平面上的投影；右三列：垂直于柄轴、距肩部 0.15/0.50/0.85 L 的截面（内侧向右、前方向上），灰为皮质、米色为松质、蓝为柄截面；只画截骨面以下的保留骨。尺寸为皮质穿透 ≤ 0.25 mm 的最大号。",
+  "synthetic": false,
+  "units": {
+    "x": "mm",
+    "y": "mm",
+    "A0": "mm2"
+  },
+  "sources": {},
+  "csv": "v2/reports/V2A_real_femur/figures/V2A-F06.csv",
+  "csv_sha256": "117533ba74d957a3aa786d7839ec073e8a0afb46b72cb358d540e48a9636eed7",
+  "png": "v2/reports/V2A_real_femur/figures/V2A-F06.png",
+  "svg": "v2/reports/V2A_real_femur/figures/V2A-F06.svg",
+  "plot_fn": "v2/report_v2a.py:plot_f06",
+  "plot_module_sha256": "9d4e3345ac28187eeb23f9139668dd66935018027237be1928449f1b2d2d0fe5",
+  "producer": "v2/report_v2a.py",
+  "producer_sha256": "9d4e3345ac28187eeb23f9139668dd66935018027237be1928449f1b2d2d0fe5",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "spec_sha256": "b3a70189dac6b1fd3357774f5a887e48b8a13b4ec79e628feef0d7568f6fe896",
+  "created": "2026-09-28T12:41:25",
+  "python": "3.12.3",
+  "matplotlib": "3.11.2"
+}

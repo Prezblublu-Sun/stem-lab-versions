@@ -1,0 +1,81 @@
+{
+  "report": "V2A",
+  "synthetic": false,
+  "created": "2026-09-28T12:45:34",
+  "producer": "v2/report_v2a.py",
+  "items": [
+    {
+      "id": "V2A-A1",
+      "measured": "head r +0.74 mm, NSA +0.88°, anteversion +0.18°",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "id": "V2A-A2",
+      "measured": "canal -0.06%, outer -0.04%",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "id": "V2A-A3",
+      "measured": "0 of 968,723 swept points outside the final stem (20 designs)",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "id": "V2A-A4",
+      "measured": "max 1.62% (median 0.04%) of stem volume, 20 designs",
+      "status": "FAIL",
+      "note": "CAD 中柄与皮质重叠超过 0.5%"
+    },
+    {
+      "id": "V2A-A5",
+      "measured": "3/3 directions as expected torque raises micromotion: yes, no interference raises micromotion: yes, higher friction lowers micromotion: yes",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "id": "V2A-A6",
+      "measured": "identical",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "id": "V2A-A7",
+      "measured": "rel. change vs 1.0 mm: base·f1 5%, base·f2 27%; Spearman 2.0 vs 1.4: f1 0.92, f2 0.99",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "id": "V2A-A8",
+      "measured": "51.9% of 8192",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "id": "V2A-A9",
+      "measured": "6 of 148 (4.1%) at 2.0 mm; levels L3",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "id": "V2A-A10",
+      "measured": "seed 0: 0.987 at n = 58 (single complete seed; seeds 1, 2 stopped at 16 / 2 evaluations)",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "id": "V2A-A11",
+      "measured": "0 of 1 complete seed above the Sobol median (seed 0: 0.987 vs 0.984); criterion needs 3 seeds",
+      "status": "FAIL",
+      "note": "用户 2026-09-28 12:30 决定停掉种子 1、2，把机时转给 20–40 mm 探针与扩展空间的热启动 BO（中期结果：BO 与 Sobol 持平，64 个随机设计已达已知最佳的 98%）。3/3 的判据因此不可判，按 FAIL-APPROVED 记。",
+      "approved": "2026-09-28"
+    },
+    {
+      "id": "V2A-A12",
+      "measured": "",
+      "status": "PENDING",
+      "note": ""
+    }
+  ]
+}

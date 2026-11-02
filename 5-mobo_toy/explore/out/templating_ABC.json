@@ -1,0 +1,119 @@
+[
+ {
+  "stem": "slim symmetric",
+  "dorr": "A",
+  "fit": true,
+  "alpha": 10.0,
+  "offset": -5.0,
+  "sink": 8.54296875,
+  "fill": 0.125379445872619,
+  "overcut_mm2": 0.0
+ },
+ {
+  "stem": "slim symmetric",
+  "dorr": "B",
+  "fit": true,
+  "alpha": 15.0,
+  "offset": 0.0,
+  "sink": 7.6171875,
+  "fill": 0.17179386832293808,
+  "overcut_mm2": 0.0
+ },
+ {
+  "stem": "slim symmetric",
+  "dorr": "C",
+  "fit": true,
+  "alpha": 15.0,
+  "offset": -5.0,
+  "sink": 1.9453125,
+  "fill": 0.10966199333192837,
+  "overcut_mm2": 0.0
+ },
+ {
+  "stem": "calcar-curved medial",
+  "dorr": "A",
+  "fit": true,
+  "alpha": 15.0,
+  "offset": 0.0,
+  "sink": 4.46484375,
+  "fill": 0.10568928286975468,
+  "overcut_mm2": 0.0
+ },
+ {
+  "stem": "calcar-curved medial",
+  "dorr": "B",
+  "fit": true,
+  "alpha": 12.5,
+  "offset": -2.5,
+  "sink": 6.0703125,
+  "fill": 0.16735387193001006,
+  "overcut_mm2": 0.0
+ },
+ {
+  "stem": "calcar-curved medial",
+  "dorr": "C",
+  "fit": true,
+  "alpha": 20.0,
+  "offset": -5.0,
+  "sink": 8.859375,
+  "fill": 0.14348928975727945,
+  "overcut_mm2": 0.0
+ },
+ {
+  "stem": "wide, short",
+  "dorr": "A",
+  "fit": true,
+  "alpha": 7.5,
+  "offset": -2.5,
+  "sink": 2.61328125,
+  "fill": 0.3476150931283101,
+  "overcut_mm2": 0.0
+ },
+ {
+  "stem": "wide, short",
+  "dorr": "B",
+  "fit": true,
+  "alpha": 12.5,
+  "offset": -2.5,
+  "sink": 4.30078125,
+  "fill": 0.16541284896450853,
+  "overcut_mm2": 0.0
+ },
+ {
+  "stem": "wide, short",
+  "dorr": "C",
+  "fit": true,
+  "alpha": 32.5,
+  "offset": -2.5,
+  "sink": 11.3203125,
+  "fill": 0.15215210332584683,
+  "overcut_mm2": 0.0
+ },
+ {
+  "stem": "lateral-flared",
+  "dorr": "A",
+  "fit": true,
+  "alpha": 12.5,
+  "offset": -2.5,
+  "sink": 11.61328125,
+  "fill": 0.13611875902816628,
+  "overcut_mm2": 0.0
+ },
+ {
+  "stem": "lateral-flared",
+  "dorr": "B",
+  "fit": true,
+  "alpha": 15.0,
+  "offset": 0.0,
+  "sink": 3.52734375,
+  "fill": 0.21981383820541942,
+  "overcut_mm2": 0.0
+ },
+ {
+  "stem": "lateral-flared",
+  "dorr": "C",
+  "fit": false,
+  "reason": "blocked at entry:\nhits cortex at every angle/offset",
+  "code": "blocked"
+ }
+]

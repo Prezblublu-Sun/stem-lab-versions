@@ -1,0 +1,9 @@
+check,observed
+torque raises micromotion,True
+no interference raises micromotion,True
+higher friction lowers micromotion,True
+rerun identical,True
+torque_off: f1 / f2 / vm,6.52 µm / 64.3% / 50.7 MPa (base 7.34 / -5.33 / 66.5)
+delta_0: f1 / f2 / vm,24.3 µm / -4.77% / 66 MPa (base 7.34 / -5.33 / 66.5)
+mu_0.8: f1 / f2 / vm,3.38 µm / -5.33% / 66.5 MPa (base 7.34 / -5.33 / 66.5)
+rerun: f1 / f2 / vm,7.34 µm / -5.33% / 66.5 MPa (base 7.34 / -5.33 / 66.5)

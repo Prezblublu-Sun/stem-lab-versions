@@ -1,0 +1,16 @@
+{
+  "id": "V2A-T03",
+  "report": "V2A",
+  "kind": "table",
+  "title": "FE model reporting items (Erdemir 2012)",
+  "caption": "按 Erdemir 2012 的模型结构与仿真结构类目概括。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "v2/reports/V2A_real_femur/tables/V2A-T03.csv",
+  "csv_sha256": "790329b92c32bfb91bf2f73968b615ecd99c68450475d0e824aac7b2e76552eb",
+  "producer": "v2/report_v2a.py",
+  "producer_sha256": "9d4e3345ac28187eeb23f9139668dd66935018027237be1928449f1b2d2d0fe5",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "created": "2026-09-28T12:41:30"
+}

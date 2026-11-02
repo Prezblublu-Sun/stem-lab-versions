@@ -1,0 +1,28 @@
+{
+  "id": "V2A-F01",
+  "report": "V2A",
+  "kind": "figure",
+  "title": "Real right femur (STEP): head r 25.3 mm, neck–shaft 137.5°, anteversion 6.1°, offset 39.5 mm",
+  "caption": "左：颈平面（过截骨中心，由干轴与颈轴张成）切面，灰为皮质、米色为松质骨；蓝色虚圆为头球拟合，蓝线为颈轴，绿线为干轴，橙线为颈中段截骨线（距头心 25 mm），点线为 LT、LT+20、LT−100 高度。右：垂直干轴的 8 个横断面（z 为相对小转子的高度），内侧向右、前方向上，+ 为干轴。轮廓取距离场零等值线。",
+  "synthetic": false,
+  "units": {
+    "x": "mm",
+    "y": "mm"
+  },
+  "sources": {
+    "femur": "v2/data/femur_real/*.STEP（sha256 见 SHA256SUMS.txt）"
+  },
+  "csv": "v2/reports/V2A_real_femur/figures/V2A-F01.csv",
+  "csv_sha256": "59f1771f4c1f0b74499299c8a9f03d44bc5de18cc4ac28635abb15c6f1645853",
+  "png": "v2/reports/V2A_real_femur/figures/V2A-F01.png",
+  "svg": "v2/reports/V2A_real_femur/figures/V2A-F01.svg",
+  "plot_fn": "v2/report_v2a.py:plot_f01",
+  "plot_module_sha256": "9d4e3345ac28187eeb23f9139668dd66935018027237be1928449f1b2d2d0fe5",
+  "producer": "v2/report_v2a.py",
+  "producer_sha256": "9d4e3345ac28187eeb23f9139668dd66935018027237be1928449f1b2d2d0fe5",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "spec_sha256": "b3a70189dac6b1fd3357774f5a887e48b8a13b4ec79e628feef0d7568f6fe896",
+  "created": "2026-09-28T12:39:46",
+  "python": "3.12.3",
+  "matplotlib": "3.11.2"
+}
