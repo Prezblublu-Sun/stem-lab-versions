@@ -161,6 +161,9 @@ def load_training(export: pathlib.Path, area: dict) -> tuple[list, dict]:
         if f(r.get("cycles")) not in (None, 2.0):       # b12 的多循环行：不是同一条件的新信息
             no("cycles != 2")
             continue
+        if (f(r.get("alpha_sagit_deg")) or 0.0) > 18.0 + 1e-6:   # b17 的 20° / 40° 行：超出条件框（CD1R_BOX 上限 18°），不进训练
+            no("alpha_sagit > 18")
+            continue
         c = cond_of(r)
         y = [f(r[col]) for _, col in TARGETS]
         if c is None or None in y or y[0] <= 0 or y[1] <= 0 or y[2] <= 0:
