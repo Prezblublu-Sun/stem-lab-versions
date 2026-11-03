@@ -31,7 +31,7 @@ ok("older rounds have no m_min", all("m_min" not in AL.ROUNDS[r] for r in ("al1"
 a3, am = AL.ROUNDS["al3"], AL.ROUNDS["al3m"]
 ok("al3m = al3 except sources and m_min", am["m_min"] == 1.0 and am["sources"] == ("pool65k", "cr4096", "loc_al3m")
    and all(am[k] == a3[k] for k in ("plan", "n_global", "n_random", "unc", "p_floor", "overflow", "after", "random_sources")))
-ok("loc_al3m is a registered local source, distinct files", set(AL.LOCAL_SOURCES) == {"loc_al3", "loc_al3m"}
+ok("loc_al3m is a registered local source, distinct files", set(AL.LOCAL_SOURCES) >= {"loc_al3", "loc_al3m"}
    and not set(AL.LOCAL_SOURCES["loc_al3"].values()) & set(AL.LOCAL_SOURCES["loc_al3m"].values()))
 ok("b7m batch and layers", "b7m" in DB.BATCHES and DB.AL_BATCHES["b7m"] == ("al3m", "AL-3m", "AL3M") and DB.AL_BATCHES["b7"] == ("al3", "AL-3", "AL3")
    and DB.LAYER_SOURCE["AL-3m"] == "al_adaptive" and DB.LAYER_SOURCE["AL-3m rand"] == "al_random" and DB.LAYER_SELECTION["AL-3m"] == "adaptive"

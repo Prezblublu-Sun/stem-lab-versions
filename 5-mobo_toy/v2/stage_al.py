@@ -1,7 +1,7 @@
 """db3406 主动学习驱动（一周计划 2026-10-29 第 3 节 AL-1；规划 3406数据库规划_两天一周一月_2026-10-25.md 第 3.4 节）。0 FE。
 只读：导出版本目录（scalars.csv）、面积量 json、6.5 万点池的模板化记录（POOL65K + 面积量 pool65k_area）、CR-T 名单；只写 results/db_al_<轮>.json。
 
-    python v2/stage_al.py select al1|al2|al3|al3m --export <版本目录> --tpl-area <json> [--seed 0] [--dry]
+    python v2/stage_al.py select al1|al2|al3|al3m|al4m --export <版本目录> --tpl-area <json> [--seed 0] [--dry]
     python v2/stage_al.py show al1|al2|al3
 
 训练行（导出 scalars.csv）：DONE、有摩擦模型、kind design / variant、h_int 2.0、E_canc 155、μ 与 slip_tol 为默认、cfg 覆盖只含 load；
@@ -40,6 +40,9 @@ AL-3（ROUNDS["al3"]，2026-11-01，用户批准）：AL-2 的 P（改进）在�
 AL-3′（ROUNDS["al3m"]，2026-11-02，第二周计划第二版的触发规则）：b14 的 WS_m1 比 A 高 0.209 dex（0.05–0.30 一档），现有 AL-3 的优化导向选点 m 全在 0.50–0.74，不喂。
     al3m 配比同 al3，只有优化导向的问题按 m_min 1.0 限制：候选必须 m ≥ 1.0，FE 最好值（前沿、各上限、稳健）也只在 m ≥ 1.0 的行里算；局部候选 loc_al3m 以 m ≥ 1.0 的 FE 最好设计为中心
     （al_local.py --m-min 1.0）。全局不确定与随机组不限制 m。训练导出须含 al1、al2；al3 没有算过，不要求。
+AL-4m（ROUNDS["al4m"]，2026-11-03，用户"批准 A 和 B"，第三版计划 G4 触发，判据 G22–G24）：AL-3′ 的上限只有 5、6、8、10 cm³，18 个优化选点没有一个落在 6–6.5 和 7–7.4 cm³。
+    al4m 只有优化导向的 12 个：去骨 6–6.5、6.5–7、7–7.4 cm³ 各 4 个，m_min 1.0。分数同"上限"（EI，相对"≤ 档上界的 FE 最好 − ε"），但只看落在档内的候选（band_problem）。
+    名额不足时依次给 6.5–7、7–7.4 档，再不足就空着，不补全局和随机行（no_global_fill）。局部候选 loc_al4m 以各档 m ≥ 1.0 的 FE 最好设计为中心（al_local.py --bands）。训练导出须含 al1、al2、al3m。
 记录：每个点的组、问题、分数、P、GP 与集成在基线条件下的均值与校准后 σ、GP 在起身 3839 N 下的均值与 σ、池下标、u13、x13、去骨量；模型版本
     （训练行作业号与目标的 sha256、本文件 md5、sklearn / torch 版本、超参数）、交叉验证指标与校准因子、各问题当前 FE 最好值。
 冻结：文件已在且选点（组 + u13）不同 → 拒绝（SystemExit）；相同 → 不动。提交由 stage_db 的批次读这个文件。
@@ -93,13 +96,17 @@ ROUNDS = {"al1": {"plan": PLAN, "n_global": N_GLOBAL, "n_random": N_RANDOM, "unc
           "al3m": {"plan": (("robust", None, 2), ("cap", 5000.0, 2), ("cap", 6000.0, 6), ("cap", 8000.0, 2), ("cap", 10000.0, 2),
                             ("baseline", None, 5)),
                    "n_global": N_GLOBAL, "n_random": N_RANDOM, "unc": ("gp",), "p_floor": 0.01, "overflow": ("cap6000", "baseline"),
-                   "after": ("al1", "al2"), "sources": ("pool65k", "cr4096", "loc_al3m"), "random_sources": ("pool65k",), "m_min": 1.0}}
+                   "after": ("al1", "al2"), "sources": ("pool65k", "cr4096", "loc_al3m"), "random_sources": ("pool65k",), "m_min": 1.0},
+          "al4m": {"plan": (("band", (6000.0, 6500.0), 4), ("band", (6500.0, 7000.0), 4), ("band", (7000.0, 7400.0), 4)),
+                   "n_global": 0, "n_random": 0, "unc": ("gp",), "p_floor": 0.01, "overflow": ("band7000", "band7400"), "no_global_fill": True,
+                   "after": ("al1", "al2", "al3m"), "sources": ("pool65k", "cr4096", "loc_al4m"), "random_sources": ("pool65k",), "m_min": 1.0}}
 GLOBAL_MAX_ROT_DEG = 2.0                    # 全局不确定只在 GP 预测转动 ≤ 2° 的候选里选（更松的柄多半 L4 不收敛 = 物理松动，FEA 设置核查第 5 节）
 ENS_MEMBERS = 5
 AREA_FILES = {"pool65k": "db_pool/pool65k_area_s51100.npz", "cr4096": "db_pool/db_cr4096_area_s52101.npz"}   # results/ 下：pool_area_features.py
 # 局部候选来源（v2/al_local.py 点表 → tpl_record batch → pool_area_features；results/ 下）。模板化里出错的行（例如截口为空）当作不可行
 LOCAL_SOURCES = {"loc_al3": {"u": "db_pool/loc_al3_u13.npy", "tpl": "db_pool/db_loc_al3_s53301.npz", "area": "db_pool/db_loc_al3_area_s53301.npz"},
-                 "loc_al3m": {"u": "db_pool/loc_al3m_u13.npy", "tpl": "db_pool/db_loc_al3m_s53401.npz", "area": "db_pool/db_loc_al3m_area_s53401.npz"}}
+                 "loc_al3m": {"u": "db_pool/loc_al3m_u13.npy", "tpl": "db_pool/db_loc_al3m_s53401.npz", "area": "db_pool/db_loc_al3m_area_s53401.npz"},
+                 "loc_al4m": {"u": "db_pool/loc_al4m_u13.npy", "tpl": "db_pool/db_loc_al4m_s53501.npz", "area": "db_pool/db_loc_al4m_area_s53501.npz"}}
 U_M = U_COLS.index("u_m")
 CAL_CLIP = (0.5, 10.0)
 OUT_NAME = "db_al_{}.json"
@@ -354,12 +361,22 @@ def check_area_consistency(rows, area, srcs, ars, pool) -> dict:
 
 
 # ------------------------------------------------------------------------------------------------ select
+def band_problem(bone, mean, sd, best, lo, hi) -> tuple:
+    """al4m：落在 (lo, hi] 的候选相对"≤ hi 的 FE 最好 − ε"的 P 与 EI（同"上限"的打分）；档外都是 0。best = None 时都是 0。"""
+    if best is None:
+        return np.zeros(len(bone)), np.zeros(len(bone))
+    ok_c = (bone > lo) & (bone <= hi)
+    t = best - EPS_DEX
+    return np.where(ok_c, phi((t - mean) / sd), 0.0), np.where(ok_c, expected_improvement(mean, sd, t), 0.0)
+
+
 def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, log, skip_after: bool = False) -> dict:
     t0 = time.time()
     if rnd not in ROUNDS:
         raise SystemExit(f"unknown round {rnd!r} (known: {list(ROUNDS)})")
     cfg = ROUNDS[rnd]
     caps = sorted({c for p_, c, _ in cfg["plan"] if p_ == "cap"})
+    bands = [c for p_, c, _ in cfg["plan"] if p_ == "band"]
     area = {k: v for k, v in json.load(open(area_path))["rows"].items() if v.get("ok")}
     rows, info = load_training(export, area)
     if len(rows) < 50:
@@ -472,7 +489,7 @@ def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, l
     base_rows = [r for r in rows if is_cond(r["cond"], BASE) and r["forced_e"] is None and fe_ok(r)]
     front = pareto_front(np.array([[r["y"][0], r["y"][1]] for r in base_rows]))
     best_cap = {}
-    for cap in caps:
+    for cap in caps + [hi for _, hi in bands]:
         v = [r["y"][0] for r in base_rows if r["bone"] is not None and r["bone"] <= cap]
         best_cap[cap] = min(v) if v else None
     by_d = {}
@@ -496,6 +513,8 @@ def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, l
             t = best_cap[cap] - EPS_DEX
             p, ei = phi((t - gm[:, 0]) / gs[:, 0]), expected_improvement(gm[:, 0], gs[:, 0], t)
         probs[f"cap{cap:g}"], scores[f"cap{cap:g}"] = np.where(ok_c, p, 0.0), np.where(ok_c, ei, 0.0)
+    for lo, hi in bands:
+        probs[f"band{hi:g}"], scores[f"band{hi:g}"] = band_problem(bone, gm[:, 0], gs[:, 0], best_cap[hi], lo, hi)
     if best_rob is not None:
         t = best_rob - EPS_DEX
         probs["robust"] = phi((t - gm[:, 0]) / gs[:, 0]) * phi((t - sm[:, 0]) / ss_[:, 0])   # P(max(楼梯, 起身) < t)，两者独立
@@ -537,7 +556,7 @@ def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, l
 
     short = 0
     for p, cap, n in plan:
-        key = p if cap is None else f"cap{cap:g}"
+        key = p if cap is None else (f"band{cap[1]:g}" if p == "band" else f"cap{cap:g}")
         short += n - take(elig[key], "opt", key, n, probs[key])
     moved = []
     for key in cfg["overflow"]:
@@ -547,8 +566,8 @@ def select(rnd: str, export: pathlib.Path, area_path: pathlib.Path, seed: int, l
         moved.append([key, got])
         short -= got
     if cfg["overflow"] and (moved or short):
-        log(f"overflow: {moved}; {short} left to the global-uncertainty group")
-    n_global = cfg["n_global"] + (short if cfg["overflow"] else 0)     # al1（没有 overflow）：不足的名额照旧空着
+        log(f"overflow: {moved}; {short} left " + ("empty" if cfg.get("no_global_fill") else "to the global-uncertainty group"))
+    n_global = cfg["n_global"] + (short if cfg["overflow"] and not cfg.get("no_global_fill") else 0)     # al1（没有 overflow）、al4m（no_global_fill）：不足的名额空着
     take(unc_g, "global", "uncertainty", n_global)
     rs_ = cfg["random_sources"]
     rest = [i for i in range(len(cand)) if i not in {q["_i"] for q in picks} and (rs_ is None or C["src"][i] in rs_)]

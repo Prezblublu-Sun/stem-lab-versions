@@ -3,8 +3,9 @@
 这里以导出里 FE 最好的设计为中心，在单位坐标里取扰动点；之后交 tpl_record batch 模板化、pool_area_features 补面积量，作为
 stage_al 的一个候选来源（stage_al.LOCAL_SOURCES）。只读导出、面积量 json；只写 --out（.npy，N × 13）与 <out>.json。
 
-    python v2/al_local.py <来源名> --export <版本目录> --tpl-area <json> --out results/db_pool/<来源名>_u13.npy [--per-center 200] [--seed S] [--m-min 1.0]
+    python v2/al_local.py <来源名> --export <版本目录> --tpl-area <json> --out results/db_pool/<来源名>_u13.npy [--per-center 200] [--seed S] [--m-min 1.0] [--bands 5500:6000,6000:6500]
     --m-min（AL-3′）：中心只取 m ≥ m_min 的行，扰动点也必须 m ≥ m_min。
+    --bands（AL-4m）：中心只取各去骨档（下, 上]（mm³）里转动最小的 N_CAP 个，转动 > BAND_MAX_ROT_DEG 的不当中心；不再用上限、前沿、稳健的中心。
 
 中心（训练行口径 = stage_al.load_training；基线条件、没有强制入口偏移的行）：
     去骨上限 5 / 6 / 8 / 10 cm³ 各取转动最小的 N_CAP 个设计；(log 转动 ↓, log 完全接触 ↑) 的 FE 前沿全部；
@@ -34,10 +35,11 @@ import stage_db as DB  # noqa: E402
 CAPS_MM3 = (5000.0, 6000.0, 8000.0, 10000.0)
 N_CAP, N_ROB = 3, 3
 R_MIN, R_MAX = 0.03, 0.20
+BAND_MAX_ROT_DEG = 1.0
 DIM = 13
 
 
-def centers(rows: list, m_min: float | None = None) -> list:
+def centers(rows: list, m_min: float | None = None, bands: list | None = None) -> list:
     if m_min is not None:
         um = AL.u_of_m(m_min)
         rows = [r for r in rows if r["u13"][AL.U_M] >= um - 1e-12]
@@ -51,6 +53,12 @@ def centers(rows: list, m_min: float | None = None) -> list:
             c.update(job_id=r["job_id"], y=r["y"])
         c["why"].append(why)
 
+    if bands:
+        for lo, hi in bands:
+            ok = sorted((r for r in base if r["bone"] is not None and lo < r["bone"] <= hi and r["y"][0] <= np.log10(BAND_MAX_ROT_DEG)), key=lambda r: r["y"][0])
+            for k, r in enumerate(ok[:N_CAP]):
+                add(r, f"band{hi:g}#{k + 1}")
+        return list(picks.values())
     for cap in CAPS_MM3:
         ok = sorted((r for r in base if r["bone"] is not None and r["bone"] <= cap), key=lambda r: r["y"][0])
         for k, r in enumerate(ok[:N_CAP]):
@@ -108,19 +116,21 @@ def main():
     ap.add_argument("--per-center", type=int, default=200)
     ap.add_argument("--seed", type=int, required=True)
     ap.add_argument("--m-min", type=float)
+    ap.add_argument("--bands", help="lo:hi,lo:hi in mm3: centers are the best designs of each bone band only")
     a = ap.parse_args()
     out = pathlib.Path(a.out)
     if out.exists() or out.with_suffix(".json").exists():
         raise SystemExit(f"{out} (or its .json) exists; not overwriting")
     area = {k: v for k, v in json.load(open(a.tpl_area))["rows"].items() if v.get("ok")}
     rows, info = AL.load_training(pathlib.Path(a.export), area)
-    cs = centers(rows, a.m_min)
+    bands = [tuple(float(x) for x in b.split(":")) for b in a.bands.split(",")] if a.bands else None
+    cs = centers(rows, a.m_min, bands)
     um = None if a.m_min is None else AL.u_of_m(a.m_min)
     U = np.concatenate([perturb(np.asarray(c["u13"]), a.per_center, a.seed + i, um) for i, c in enumerate(cs)])
     np.save(out, U)
     meta = {"tool": "al_local", "name": a.name, "export": {"dir": a.export, "scalars_sha256": DB._sha256_file(pathlib.Path(a.export) / "scalars.csv")},
             "tpl_area": a.tpl_area, "n_train": len(rows), "centers": cs, "per_center": a.per_center, "seed": a.seed, "m_min": a.m_min, "r_min": R_MIN, "r_max": R_MAX,
-            "caps_mm3": CAPS_MM3, "n_cap": N_CAP, "n_rob": N_ROB, "n_points": int(len(U)), "u13_sha256": hashlib.sha256(U.tobytes()).hexdigest(),
+            "caps_mm3": CAPS_MM3, "bands_mm3": bands, "band_max_rot_deg": BAND_MAX_ROT_DEG if bands else None, "n_cap": N_CAP, "n_rob": N_ROB, "n_points": int(len(U)), "u13_sha256": hashlib.sha256(U.tobytes()).hexdigest(),
             "al_local_md5": hashlib.md5(pathlib.Path(__file__).read_bytes()).hexdigest()}
     out.with_suffix(".json").write_text(json.dumps(meta, indent=1))
     print(f"{len(cs)} centers, {len(U)} points -> {out}")
