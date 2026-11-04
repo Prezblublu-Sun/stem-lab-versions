@@ -1,9 +1,9 @@
 """3406 数据库（db3406）的批量提交器 v1.5（D1 = v0 + 审查修正 + 采纳 CD-0 种子 + 第二轮审查修正；D2 = 批次 b2 + 并行喂料；v1.3 = 批次 b1b；v1.4 = 批次 b2b；
-v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2）；v1.7 = 批次 b7（AL-3，局部候选）；v1.8 = 批次 b14（候选 A 的 m / α 单因素扫描）；v1.9 = 批次 b8、b12（第二周计划第二版）；v1.10 = 批次 b7m（AL-3′，m ≥ 1.0）；v1.11 = 批次 b15（A 的 m 1.0 版 × α）；v1.12 = 批次 b16、b17、b18（第三版计划的 VAL-1、TQ-0、MU-1）；v1.13 = 批次 b19（WL-1）；v1.14 = 批次 b9p、b11p（CD-2″、OW-2）；v1.15 = 批次 b20、b21（AL-4m）；v1.16 = 批次 b22（OW-3）；v1.17 = 批次 b23（OW-4）；v1.18 = 批次 b24（TQ-1、PF-1 的冒烟））。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
+v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2）；v1.7 = 批次 b7（AL-3，局部候选）；v1.8 = 批次 b14（候选 A 的 m / α 单因素扫描）；v1.9 = 批次 b8、b12（第二周计划第二版）；v1.10 = 批次 b7m（AL-3′，m ≥ 1.0）；v1.11 = 批次 b15（A 的 m 1.0 版 × α）；v1.12 = 批次 b16、b17、b18（第三版计划的 VAL-1、TQ-0、MU-1）；v1.13 = 批次 b19（WL-1）；v1.14 = 批次 b9p、b11p（CD-2″、OW-2）；v1.15 = 批次 b20、b21（AL-4m）；v1.16 = 批次 b22（OW-3）；v1.17 = 批次 b23（OW-4）；v1.18 = 批次 b24（TQ-1、PF-1 的冒烟）；v1.19 = 批次 b25（OPT-1，F、微动、去骨三目标））。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
 （第 1.3 / 1.4 节分层与无偏集、第 1.6 节命名 / 查重 / 版本陷阱、第 1.8 节检查 13 / 14、第 2.1–2.7 节、第 3.2 节 CR-T；用户 2026-10-25 批准两天部分）。
 不改 8 个哈希文件（code_hash 必须是 6d7af243d0）、不改 jobs.py / stage_neckopt.py / stage_deck.py / stage_v2a.py / tpl_record.py；提交只走 jobs.submit。
 
-    python v2/stage_db.py dry-run b1|b2|b1b|b2b|b3|b4|b5|b6|b7|b7m|b14|b8|b12|b15|b16|b17|b18|b19|b9p|b11p|b20|b21|b22|b23|b24 [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
+    python v2/stage_db.py dry-run b1|b2|b1b|b2b|b3|b4|b5|b6|b7|b7m|b14|b8|b12|b15|b16|b17|b18|b19|b9p|b11p|b20|b21|b22|b23|b24|b25 [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
                                                           预期 id、查重结果（hash8 / 物理键）、种子采纳、参照与参照核对；末尾 DRY-RUN-JSON。什么都不写
                                                           （b2 另印 G2 核对、CR-1 / CR-T 选点、放宽计数、槽时估计、b1 优先级的当前判断）
     python v2/stage_db.py feed b1|b2 [--once] [--poll 60] 喂料器（只在 Linux 上跑；b1 与 b2 可以同时跑，见"并行喂料"）：
@@ -59,6 +59,11 @@ v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2�
 批次 b15（v1.11，2026-11-02，用户"先补 3 行"，放宽 α 之前的检查）= 候选 A 的 m 1.0 版 × α 50 / 55 / 60，3 行，全部带粘接，层 WS m alpha，source bound_scan，stage db_ws。
     b14 的 α 收益是在 m 0.5 上测的，而台架用 m 1.0 版。对照 = b14 的 WS_m1（必须 DONE），所以这里只改 m 和 α 两个键，其余物理都与 A 相同。这 3 行都在 v1 盒外，stage_al.load_training 不用它们训练。
     不可行、入口偏移离开 A 的 e*、模板化报错、对照 WS_m1 不是 DONE → 问题，feed 拒绝。规则在看结果前写定：3406_m_alpha扫描_b14_2026-11-02.md 第 8 节。
+
+批次 b25（v1.19，2026-11-04，experiments/b25_opt1/，用户"批准 8 行"）：
+    b25 = OPT-1，层 OPT-1，stage db_al，source al_adaptive，带粘接，基线条件，8 行。选点在 research-log/neck_implant_2026-10-02/opt_F微动去骨_2026-11-04/（0 FE）：
+       F 大、微动小、去骨少，m ≥ 1，盒内，入口偏移 0 到 +2 固定，8 个位姿不进皮质、颈底伸出 ≤ 2 mm²。这里写死 u13、e，以及 0 FE 算出的号和去骨量，build 核对。
+       对照 A 的 m 1.0（WS_m1）必须 DONE。判据是 experiments/b25_opt1/gates.py 的 G36、G37。
 
 批次 b24（v1.18，2026-11-04，第三版计划第 3.3、5.2、5.3 节，用户"批准写钩子和冒烟"）：
     b24 = TQ-1、PF-1 的冒烟，共 10 行，stage db_cd，只解摩擦。正式行没有批准。
@@ -334,7 +339,7 @@ AUTO_ACK_MAX_RATE = 0.15
 FIRST_N, FIRST_N_MAX_FAILED = 10, 2         # 本批最先完成的 10 个喂料器自己提交的行里 FAILED > 2 → 每层都停（规划 G1）
 SLOW_START_LAYERS = ("NZ-1", "FD-0 h2.5", "FD-0 h1.4", "BD mesh", "BD h2.0", "SF-1", "CR-1", "FD-0 h2.4", "BD b2",
                      "CR-T", "NZ-2", "FD-1 h1.4", "CD-1", "CD-1 rand", "BD offset", "BD sts", "AL-1", "AL-1 sts", "AL-1 rand",
-                     "AL-2", "AL-2 sts", "AL-2 rand", "AL-3", "AL-3 sts", "AL-3 rand", "WS m", "WS alpha", "NZ-3", "W-0 alpha", "W-0 L", "CY-1", "AL-3m", "AL-3m sts", "AL-3m rand", "WS m alpha", "TQ-0", "MU-1", "WL-1", "CD-2", "OW-2", "OW-3", "OW-4", "OW-4 cy", "OW-4 h1.4", "TQ-1 smoke", "PF-1 smoke", "WS m2", "AL-4m", "AL-4m sts", "AL-4m rand")
+                     "AL-2", "AL-2 sts", "AL-2 rand", "AL-3", "AL-3 sts", "AL-3 rand", "WS m", "WS alpha", "NZ-3", "W-0 alpha", "W-0 L", "CY-1", "AL-3m", "AL-3m sts", "AL-3m rand", "WS m alpha", "TQ-0", "MU-1", "WL-1", "CD-2", "OW-2", "OW-3", "OW-4", "OW-4 cy", "OW-4 h1.4", "TQ-1 smoke", "PF-1 smoke", "WS m2", "AL-4m", "AL-4m sts", "AL-4m rand", "OPT-1")
                                             # 新层慢启动（REF 串行、CD-0 是种子：不在内）
 SLOW_START_CAP = 2                          # … DONE 不到 SLOW_START_DONE 行之前，该层在飞（NEW / READY / CLAIMED / SOLVED）最多 2 行
 SLOW_START_DONE = 2
@@ -402,14 +407,14 @@ LAYER_SOURCE = {"REF": "intact_ref", "CD-0": "cond_anchor", "NZ-1": "noise", "FD
                 "NZ-3": "noise", "W-0 alpha": "bound_scan", "W-0 L": "bound_scan", "CY-1": "cycle_variant",
                 "VAL-1": "intact_ref", "TQ-0": "cond_anchor", "MU-1": "cond_anchor", "WL-1": "bound_scan",
                 "CD-2": "cond_anchor", "OW-2": "bound_scan", "OW-3": "bound_scan", "OW-4": "cond_anchor", "OW-4 cy": "cycle_variant", "OW-4 h1.4": "fid_h14", "TQ-1 smoke": "cond_anchor", "PF-1 smoke": "cond_anchor",
-                "WS m2": "bound_scan", "AL-4m": "al_adaptive", "AL-4m sts": "al_adaptive", "AL-4m rand": "al_random"}
+                "WS m2": "bound_scan", "AL-4m": "al_adaptive", "AL-4m sts": "al_adaptive", "AL-4m rand": "al_random", "OPT-1": "al_adaptive"}
 LAYER_SELECTION = {"REF": "reference", "VAL-1": "reference", "SF-1": "iid", "CR-T": "corner_test", "CD-1 rand": "iid", "AL-1": "adaptive", "AL-1 sts": "adaptive",
                    "AL-1 rand": "iid", "AL-2": "adaptive", "AL-2 sts": "adaptive", "AL-2 rand": "iid",
                    "AL-3": "adaptive", "AL-3 sts": "adaptive", "AL-3 rand": "iid",
                    "AL-3m": "adaptive", "AL-3m sts": "adaptive", "AL-3m rand": "iid",
-                   "AL-4m": "adaptive", "AL-4m sts": "adaptive", "AL-4m rand": "iid"}          # 其余层 stratum（tools/db_export.DB_STAGE_RULES：db_sf = sf / iid，db_cr = corner / stratum，
+                   "AL-4m": "adaptive", "AL-4m sts": "adaptive", "AL-4m rand": "iid", "OPT-1": "adaptive"}          # 其余层 stratum（tools/db_export.DB_STAGE_RULES：db_sf = sf / iid，db_cr = corner / stratum，
                                                 # db_crt = corner_test / corner_test，db_bd = offset_variant；AL 的非随机选点在排除集 E）
-BATCHES = ("b1", "b2", "b1b", "b2b", "b3", "b4", "b5", "b6", "b7", "b14", "b8", "b12", "b7m", "b15", "b16", "b17", "b18", "b19", "b9p", "b11p", "b20", "b21", "b22", "b23", "b24")
+BATCHES = ("b1", "b2", "b1b", "b2b", "b3", "b4", "b5", "b6", "b7", "b14", "b8", "b12", "b7m", "b15", "b16", "b17", "b18", "b19", "b9p", "b11p", "b20", "b21", "b22", "b23", "b24", "b25")
 B2B_SOURCE_BATCHES = ("b2",)                # b2b：这些批次清单里已 DONE 的只解摩擦设计行各配一个 h 2.0 只粘接作业
 B2B_LAYER = "BD b2"
 B1B_H = 2.4                                 # b1b 的粗网格档（h 2.5 的完整股骨建模失败，见模块说明"批次 b1b"）
@@ -481,6 +486,15 @@ OW4_H14_E = 2.0                             # b23：h 1.4 的一行
 TQ1S_E = (None, 1.5, 2.5)                   # b24：A 的 m 1.0 版的入口偏移，None = 规则选的 e 0（= WS_m1，spec 没有 entry_offset）
 TQ1S_T, TQ1S_PRELOAD = 10.0, 1000.0         # b24：扭矩 N·m，定义 A 的预载 N
 PF1S_ROWS = ((None, -1.0), (None, 1.0), (1.5, -1.0), (1.5, 1.0))   # b24：(名义入口偏移，号固定时的 de)
+# b25：(入口偏移, 0 FE 的号 mm², 0 FE 的去骨 mm³, u13)，按去骨量排，来自 opt_F微动去骨_2026-11-04/data/opt1_rows.json
+OPT1_ROWS = ((1.75, 307.553, 5520.15, (0.9238734473034518, 0.9880550814685174, 0.0009155371515778537, 0.3333333333333333, 0.26948536016971436, 0.9633428826385353, 0.11927481159104074, 0.6631797347238787, 0.3400441851509651, 0.6166302108848943, 0.2277420214103016, 0.0243847290220348, 0.08446748167943234)),
+             (0.75, 338.585, 5707.28, (0.9062866845697284, 0.963108334720332, 0.0006199042520656601, 0.33490138406247505, 0.19503403252161028, 0.9490847917701033, 0.09603108221001742, 0.7895932052821071, 0.39119710883620185, 0.636480529738682, 0.180634829524856, 0.09772494131541568, 0.07696422299523359)),
+             (1.0, 379.194, 6607.41, (0.8868491782424296, 0.9804531673100162, 0.000503291146435535, 0.3333333333333333, 0.265177035500872, 0.9743912200517568, 0.11370196092015283, 0.6407204725688732, 0.37049528926622577, 0.601804089992552, 0.22659777201378833, 0.030196448375811754, 0.1033176512358316)),
+             (0.75, 400.108, 7233.92, (0.9487862966417365, 0.994959982342021, 0.0008249149177926827, 0.3333333333333333, 0.27516976046386243, 0.9968314996854876, 0.10778157067750752, 0.6376176486058804, 0.38112553313942593, 0.6577189628761205, 0.21965723308830518, 0.005155062498427006, 0.08481495552510232)),
+             (0.25, 418.395, 7354.66, (0.9066468350575939, 0.9628233466401147, 0.002287864415936821, 0.3333333333333333, 0.26430908215971516, 0.9944180635027176, 0.12076371820843472, 0.6699817562214433, 0.39705982215445296, 0.5559465877812302, 0.26279999198380627, 0.09016779045633572, 0.14777171093942437)),
+             (0.5, 425.391, 7695.43, (0.9341569996053715, 0.9873188003607447, 0.005681831748659506, 0.3333333333333333, 0.26754467144631905, 0.984853255553452, 0.1080535987507047, 0.6309090423837912, 0.3606274717609309, 0.6315438489117637, 0.23640153101577277, 0.025287237519955638, 0.11624080821406796)),
+             (0.25, 423.483, 7966.38, (0.9540817222306555, 0.9803405568860086, 0.006949525841130198, 0.3333333333333333, 0.30664190807811126, 0.9966706768647708, 0.07946121323748254, 0.6835860418864987, 0.33349636910683983, 0.6256084119439757, 0.23251368939551958, 0.019578439336608404, 0.10046854237054983)),
+             (0.0, 468.445, 8410.79, (0.9295018662433129, 0.9996995317168558, 0.0009951799356235995, 0.3333333333333333, 0.2757106676371542, 0.9851306897367607, 0.09503493719216276, 0.6506385821989001, 0.3729435879868641, 0.6211644224335073, 0.21092460454500472, 0.005803008392504591, 0.10503181932260096)))
 AL_STS = "F3839"                            # 稳健问题的选点另加一行起身 3839 N（δ 0.10，只解摩擦），验收稳健目标用
 
 # ---------------------------------------------------------------- 批次 b2（规划 1.3 / 1.4、2.2 D2、2.4 SF-1 / CR-1、3.2 CR-T、2.5 放宽计数）
@@ -1070,6 +1084,8 @@ def build(batch: str = "b1") -> dict:
         return build_b23()
     if batch == "b24":
         return build_b24()
+    if batch == "b25":
+        return build_b25()
     unreadable = []
     qspecs = scan_queue(unreadable)
     by_h8 = _by_h8(qspecs)
@@ -2786,6 +2802,43 @@ def build_b24() -> dict:
     return _finish_batch("b24", rows, order, qspecs, by_h8, by_phys, warn, problems, {H_PROD: REF_H2}, ws_tpl=ws_tpl, ws_control=ctrl_ids)
 
 
+def build_b25() -> dict:
+    """b25 = OPT-1（模块说明"批次 b25"）：8 个新设计，入口偏移固定，带粘接。对照没 DONE、m < 1、不可行、偏移或号或去骨量和 0 FE 记录不符、模板化报错 → problems。"""
+    np = _np()
+    qspecs, by_h8, by_phys, warn = _batch_ctx()
+    problems, rows, keys, ws_tpl = [], [], [], {}
+    load_source(REF_H2, "intact", qspecs)
+    base = CODES[WS_BASE]
+    p_a = _phys(load_source(base, "design", qspecs), base)
+    ctrl_id = expected_id(_variant(p_a, "db_ws", f"{_tag_of(base)}_m{WS2_M:g}", "full", intact_job=REF_H2, design={**p_a["design"], "m": WS2_M}))
+    st = J.state(J.QROOT / ctrl_id) if (J.QROOT / ctrl_id).is_dir() else "absent"
+    if st != "DONE":
+        problems.append(f"b25: the control WS_m{WS2_M:g} = {ctrl_id} is {st} (must be DONE)")
+    ph = b2_phase()
+    for n, (e, A0, bone, u) in enumerate(OPT1_ROWS, 1):
+        tag = f"opt1_{n:02d}_e{e:+g}"
+        key = f"OPT1_{n:02d}"
+        spec = _variant(_phys(ph.spec_of(np.asarray(u, float), tag, bonded=True), f"db_al {tag}"), "db_al", tag, "full", intact_job=REF_H2, entry_offset=float(e))
+        if float(spec["design"]["m"]) < WS2_M - 1e-9:
+            problems.append(f"{key}: m {spec['design']['m']:g} < {WS2_M:g}")
+        try:
+            t = ws_templating(spec)
+            ws_tpl[tag] = t
+            if not t["feasible"]:
+                problems.append(f"{key}: 0-FE templating is not feasible at entry offset {e:g} ({t['reason']}); prep would fail, no FE can run")
+            elif t["e_star"] != float(e):
+                problems.append(f"{key}: entry offset {t['e_star']:g} != {e:g}")
+            elif abs(t["A0_star"] - A0) > 0.01 or abs(t["bone_mm3"] - bone) > 0.5:
+                problems.append(f"{key}: size {t['A0_star']:.3f} or bone {t['bone_mm3']:.2f} differs from the 0-FE record {A0:.3f}, {bone:.2f}")
+        except Exception as ex:                         # noqa: BLE001  模板化核对不了 = 不提交
+            problems.append(f"{key}: 0-FE templating failed: {type(ex).__name__}: {str(ex)[:300]}")
+        r = _row(key, "OPT-1", spec, ctrl_id, None, extra={"pool_idx": None, "layer_pos": n, "cond": None, "e_star": float(e), "e_forced": float(e), "al_group": "opt1", "al_problem": "F_f1_bone"})
+        r.update(unbiased=False, in_E=True)
+        rows.append(r)
+        keys.append(key)
+    return _finish_batch("b25", rows, keys, qspecs, by_h8, by_phys, warn, problems, {H_PROD: REF_H2}, ws_tpl=ws_tpl, ws_control=ctrl_id)
+
+
 def build_b20() -> dict:
     """b20 = AL-4m 的 A 部分（模块说明"批次 b20、b21"）：设计 A 的形状 × m 1.6、1.75、2.0。对照 WS_m1.5 必须 DONE；不可行、模板化报错、偏移不是写定的值 → problems。"""
     qspecs, by_h8, by_phys, warn = _batch_ctx()
@@ -3489,7 +3542,7 @@ def _man_row(r: dict) -> dict:
 
 
 B2_LAYERS = ("SF-1", "CR-1", "CR-T", "CD-1 rand", "BD offset", "AL-1", "AL-1 sts", "AL-1 rand", "AL-2", "AL-2 sts", "AL-2 rand",
-             "AL-3", "AL-3 sts", "AL-3 rand", "WS m", "WS alpha", "W-0 alpha", "W-0 L", "AL-3m", "AL-3m sts", "AL-3m rand", "WS m alpha", "WL-1", "OW-2", "OW-3", "WS m2", "AL-4m", "AL-4m sts", "AL-4m rand")
+             "AL-3", "AL-3 sts", "AL-3 rand", "WS m", "WS alpha", "W-0 alpha", "W-0 L", "AL-3m", "AL-3m sts", "AL-3m rand", "WS m alpha", "WL-1", "OW-2", "OW-3", "WS m2", "AL-4m", "AL-4m sts", "AL-4m rand", "OPT-1")
 B2_ROW_FIELDS = ("cr_idx", "layer_pos", "bonded_planned", "sf_bo_overlap", "bo_twins", "adopted_role_from", "unbiased", "in_E", "e_star", "e_group",
                  "e_forced", "e_margin_eff", "sobol_idx", "cond", "al_group", "al_problem", "al_score", "al_p")
 
