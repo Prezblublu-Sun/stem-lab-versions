@@ -1,6 +1,6 @@
 {
  "from_db": "H:\\projects\\Femoral implant generation\\db3406\\v0.9",
- "version": "v0.9",
+ "version": "v0.10",
  "written": "2026-11-04",
  "note": "QA 已知例外基线：这些检查在这些行上 FAIL 是已知的（见 db3406 CHANGELOG v0.2–v0.9、DATA_CARD 第 4 节第 4、16、22 条）。ops/qa_compare.py 只把新增的失败算失败。",
  "known": {
@@ -20,6 +20,7 @@
    "name": "spec delta / load agree with prep / result",
    "status": "FAIL",
    "failures": [
+    "db_cd_p13_a105_91e458e3_m1_TA10_e31bfa78: cons_load is false",
     "db_crt_c1649_8748b543: cons_h_int is false",
     "db_crt_c723_2790d7db: cons_h_int is false",
     "db_ref_intact_val_b500_far2.5_578ac48d: cons_load is false"
