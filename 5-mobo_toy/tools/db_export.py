@@ -82,7 +82,7 @@ import traceback
 
 import numpy as np
 
-EXPORTER_VERSION = "db_export 0.2.2 (2026-11-02, db_ws bound scan)"
+EXPORTER_VERSION = "db_export 0.2.4 (2026-11-04, torsion and pose columns)"
 FEMUR_ID = "sawbone3406"
 FEMUR_VERSIONS = {FEMUR_ID: ("3406R_v1_hollowcore", True)}          # plan 2.1: hollow-core model until the user answers
 EXPECTED_CODE_HASH = "6d7af243d0"
@@ -96,6 +96,7 @@ HASHED_FILES = ("femur_real.py", "geom3d.py", "fe3d_geom.py", "model3d_v2.py", "
                 "model3d_m1.py", "post_m1.py")
 # not in the job hash but able to change results (plan 1.6 trap 2) + the modules that compute labels in this export
 AUX_FILES = ("inp_writer.py", "v2/jobs.py", "v2/femur_3406.py", "v2/collar_rule.py", "v2/stability.py", "v2/bond_collar.py",
+             "v2/torsion_load.py", "v2/pose_fixed.py",
              "v2/import_stem.py", "v2/resorption.py", "v2/shielding.py", "abaqus/odb_export.py")
 # femur geometry key (plan 1.6 trap 3), SAME definition as v2/stage_db.femur_geom_key() (D1): role -> file; the STEP paths are the
 # ones femur_3406.load_cfg() puts into cfg['femur'] (= these files under the code root)
@@ -235,8 +236,8 @@ def _build_columns():
     _c("interference", "str", "", req="optional", source=P)
     _c("torque", "bool", "", req="optional", source=P)
     _c("entry_offset_forced_mm", "float", "mm", -20, 20, req="optional", source=S + " entry_offset")
-    _c("torsion", "json", "", req="reserved", source="future torsion hook (plan 3.3)")
-    _c("pose", "json", "", req="reserved", source="future fixed-size pose hook (plan 4.4)")
+    _c("torsion", "json", "", req="optional", source=S + " torsion (v2/torsion_load.py)", desc="non-empty: a couple on the head nodes on top of load_vec_N; torque_stem_axis_Nmm does not include it")
+    _c("pose", "json", "", req="optional", source=S + " pose_fixed (v2/pose_fixed.py)", desc="non-empty: the size is the nominal one and only the pose moved; the cavity follows the stem")
     _c("cfg_override", "json", "", req="optional", source=S + " cfg")
     _c("bond_only", "bool", "", req="spec", source=S)
     _c("fric_only", "bool", "", req="spec", source=S)
@@ -1066,7 +1067,9 @@ def classify(name: str, spec: dict, rec: dict | None) -> dict:
 def apply_db_provenance(row: dict, spec: dict, entries: list | None, ctx_femur_key: str, errs: list) -> None:
     """db_* rows: layer / source / selection / pool_idx from the D1 manifest or the CD-0 seed (load_db_provenance); cross-checked
     against the stage rule, spec intact_job, femur_model_version / hollow_core and the manifest's femur_geom_key. Any disagreement
-    or a missing entry is an export error. Non-db rows that a manifest adopted (D1 dedup 'existing') only get manifest_refs."""
+    or a missing entry is an export error. Non-db rows that a manifest adopted (D1 dedup 'existing') only get manifest_refs.
+    A db_* row adopted by a later batch (dedup 'existing') keeps the provenance of the batch that submitted it; the adopting entry
+    only adds to manifest_refs, but must still agree on intact_job and femur_model_version."""
     name, stage = row["job_id"], str(spec.get("stage", ""))
     if entries:
         row["manifest_refs"] = sorted(f"{e['file']}:{e['key']}" for e in entries)
@@ -1076,12 +1079,18 @@ def apply_db_provenance(row: dict, spec: dict, entries: list | None, ctx_femur_k
         errs.append(f"db_* job {name} has no entry in results/db_manifest_*.json or results/db_seed_*.json (unknown provenance)")
         return
     keys = ("layer", "source", "selection_raw", "pool_idx", "intact_job", "femur_model_version")
-    first = {k: entries[0].get(k) for k in keys}
-    for e in entries[1:]:
+    origin = [e for e in entries if e.get("dedup") != "existing"] or entries
+    e0 = origin[0]
+    first = {k: e0.get(k) for k in keys}
+    for e in origin[1:]:
         diff = {k: (first[k], e.get(k)) for k in keys if e.get(k) != first[k]}
         if diff:
-            errs.append(f"provenance entries disagree for {name}: {entries[0]['file']}:{entries[0]['key']} vs {e['file']}:{e['key']}: {diff}")
-    e0 = entries[0]
+            errs.append(f"provenance entries disagree for {name}: {e0['file']}:{e0['key']} vs {e['file']}:{e['key']}: {diff}")
+    for e in entries:
+        if e not in origin:
+            diff = {k: (first[k], e.get(k)) for k in ("intact_job", "femur_model_version") if e.get(k) != first[k]}
+            if diff:
+                errs.append(f"provenance entries disagree for {name}: {e0['file']}:{e0['key']} vs {e['file']}:{e['key']}: {diff}")
     sel = MANIFEST_SELECTION.get(str(e0.get("selection_raw")))
     if sel is None:
         errs.append(f"{e0['file']}:{e0['key']}: selection {e0.get('selection_raw')!r} has no db3406 mapping")
@@ -1311,6 +1320,7 @@ def export_job(P: Pipeline, ctx: Context, jd: pathlib.Path, with_fields: bool):
                bond_only=bool(spec.get("bond_only")), fric_only=bool(spec.get("fric_only")), cfg_override=spec.get("cfg"),
                h_int_mm=_num(spec.get("h_int")), delta_spec_mm=_num(spec.get("delta")), entry_offset_forced_mm=_num(spec.get("entry_offset")),
                collar_rule=spec.get("collar_rule"), margin_check=spec.get("margin_check"), a_bounds_max=_num(spec.get("a_bounds_max")),
+               torsion=spec.get("torsion"), pose=spec.get("pose_fixed"),
                ref_cut_mm=_num(spec.get("ref_cut_mm")), min_A0_mm2=_num(spec.get("min_A0")), source_job=spec.get("source_job"),
                intact_job_spec=spec.get("intact_job"))
     fid = spec.get("femur_id")

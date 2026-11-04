@@ -448,6 +448,28 @@ def record_spec(spec: dict) -> dict:
     return rec
 
 
+def offgrid_view(spec: dict) -> dict:
+    """entry_offset 不在 2 mm 一档：生产选号只在这一个偏移上调一次（jobs.prep 对这个 spec 就是这样调的），返回同 record_spec 的 prep_view，另加 reason。
+    记录的 9 列不变，这一档不进记录。"""
+    fe = float(spec["entry_offset"])
+    rule = spec_rule(spec)
+    fm = base_femur(rule.femur_id, rule.neck_axis)
+    if spec.get("h_cut") is not None:
+        fm = fm.with_cut(float(spec["h_cut"]))
+    if spec.get("cfg"):
+        fm = copy.copy(fm)
+        fm.cfg = copy.deepcopy(fm.cfg)
+        J._merge(fm.cfg, spec["cfg"])
+    st = G.Stem3D(**spec["design"])
+    with J.a_bounds_cap(rule.a_bounds_max):
+        r = CR.template_neck_in_shoulder(st, fm, offsets=np.array([fe]), margin=rule.margin, min_A0=rule.min_A0, tol_mm2=rule.tol_mm2, margin_check=rule.margin_check)
+    if not r.get("fit"):
+        nan = math.nan
+        return {"fit": False, "reason": str(r.get("reason")), "e": nan, "alpha": nan, "A0": nan, "s_bind": nan, "contact": nan, "volume": nan, "bone_total_mm3": nan}
+    return {"fit": True, "reason": "ok", "e": float(r["e"]), "alpha": float(r["alpha"]), "A0": float(r["A0"]), "s_bind": float(r["s_bind"]), "contact": float(r["contact"]),
+            "volume": float(r["volume"]), "bone_total_mm3": float(fm.resected_volume(ref_cut_mm=rule.ref_cut_mm)) + float(r["volume"])}
+
+
 def _sdiff(a, b) -> float:
     """|a − b| / max(|b|, 1)：大量按相对、接近 0 的量（接触比例、s_bind = 0）按绝对。"""
     if a is None or b is None:

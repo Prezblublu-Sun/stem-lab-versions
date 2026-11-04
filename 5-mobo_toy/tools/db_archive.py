@@ -47,7 +47,7 @@ import db_export as DX  # noqa: E402
 RAW_DEFAULT = "H:/projects/Femoral implant generation/db3406/raw"
 QUEUE = "$HOME/mobo_toy_v2/queue"
 PIN = "nice -n 19 taskset -c 4-11"
-JOB_RE = re.compile(r"^[A-Za-z0-9_.\-]+$")
+JOB_RE = re.compile(r"^[A-Za-z0-9_.+\-]+$")                          # + : fixed entry offsets, e.g. _ow_m1_e+2_
 NVME_RAW = "/mnt/nvme/mobo_raw/"            # raw_to_nvme.py target: the only symlink targets an archive follows
 LINKABLE = ("m_fric_csv", "m_bond_csv")
 

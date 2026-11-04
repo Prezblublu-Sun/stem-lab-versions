@@ -49,7 +49,7 @@ def ok(name, cond, extra=""):
 
 
 def raw_job(prefix):
-    hits = sorted(RAW.glob(prefix + "_*.tar.xz"))
+    hits = [h for h in sorted(RAW.glob(prefix + "_*.tar.xz")) if len(h.name) == len(prefix) + 9 + len(".tar.xz")]   # <prefix>_<hash8> only: _m1_* also matches _m1_a50_<hash8>
     assert len(hits) == 1, (prefix, hits)
     return hits[0].name[:-len(".tar.xz")]
 

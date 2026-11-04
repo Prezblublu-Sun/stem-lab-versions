@@ -150,6 +150,9 @@ def load_training(export: pathlib.Path, area: dict) -> tuple[list, dict]:
                 or f(r["slip_tol"]) not in (None, 0.00025):
             no("model / mesh condition")
             continue
+        if r.get("torsion") or r.get("pose"):                   # b24 起：扭转和号固定的行，13 个设计参数说明不了它们
+            no("torsion / pose hook")
+            continue
         if r["cfg_override"]:
             try:
                 cfg = json.loads(r["cfg_override"])

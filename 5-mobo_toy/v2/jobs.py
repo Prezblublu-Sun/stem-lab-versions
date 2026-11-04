@@ -237,6 +237,9 @@ def prep(jid: str) -> str:
             if pl["A0"] < spec.get("min_A0", 0.0):
                 _fail(d, "L1", "prep", f"shoulder {pl['A0']:.0f} mm² < prosthetic neck {spec['min_A0']:.0f} mm²")
                 return "FAILED"
+            if spec.get("pose_fixed"):                              # 号固定、只移动位姿，见 pose_fixed.py
+                import pose_fixed as PF
+                pl = PF.apply(st, fm, pl, spec["pose_fixed"])
             if spec.get("model") == "m1":
                 info = M1.build(st, fm, pl, d, "m", h_int=spec["h_int"], h_far=spec.get("h_far"),
                                 delta=spec.get("delta"), mu=spec.get("mu"), torque=spec.get("torque", True),
@@ -245,6 +248,11 @@ def prep(jid: str) -> str:
                 if spec.get("bond_collar") is not None:          # 粘接模型的领：tied（默认）/ contact（只受压、可掀起），见 bond_collar.py
                     import bond_collar as BC
                     info.update(BC.apply(d, spec, fm.cfg))
+                if spec.get("torsion"):                          # 扭转：只改写 m_fric.inp 的加载步，见 torsion_load.py
+                    import torsion_load as TL
+                    info.update(TL.apply(d, spec, fm, pl))
+                if spec.get("pose_fixed"):
+                    info["pose_fixed"] = pl["pose_fixed"]
             else:
                 if st.has_collar:
                     _fail(d, "L1", "prep", "collar is implemented only in the M1 interface model (spec model = m1)")

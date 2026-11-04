@@ -511,6 +511,33 @@ def test_db_provenance_manifest_and_seed():
     assert errs and "no entry" in errs[0] and row["layer"] is None
 
 
+def test_db_provenance_adopted_by_later_batch():
+    """A db_* row adopted by a later batch keeps the submitting batch's provenance, whatever order the manifests sort in."""
+    base = {"intact_job": "sb_intact_h2_9c9d7fb5", "femur_model_version": "3406R_v1_hollowcore", "condition_id": "c", "source_job": "s"}
+    sub = {**base, "file": "db_manifest_b7m.json", "key": "AL3M_01_sts3839", "layer": "AL-3m sts", "source": "al_adaptive",
+           "selection_raw": "adaptive", "pool_idx": 5, "dedup": "new", "manifest_femur_geom_key": "k" * 16}
+    ado = {**base, "file": "db_manifest_b11.json", "key": "CD2_F3839_al3m_01", "layer": "CD-2", "source": "cond_anchor",
+           "selection_raw": "stratum", "pool_idx": None, "dedup": "existing", "manifest_femur_geom_key": "k" * 16}
+    spec = {"stage": "db_al", "kind": "variant", "intact_job": "sb_intact_h2_9c9d7fb5"}
+    for ents in ([sub, ado], [ado, sub]):
+        row, errs = _prow("db_al_al3m_01_F3839_c0c3bcd2", **DX.classify("db_al_al3m_01_F3839_c0c3bcd2", spec, None)), []
+        DX.apply_db_provenance(row, spec, ents, "k" * 16, errs)
+        assert not errs, errs
+        assert (row["layer"], row["source"], row["selection"], row["pool_idx"], row["provenance"]) == ("AL-3m sts", "al_adaptive", "adaptive", 5, "db_manifest_b7m.json")
+        assert row["manifest_refs"] == ["db_manifest_b11.json:CD2_F3839_al3m_01", "db_manifest_b7m.json:AL3M_01_sts3839"]
+    # an adopter that disagrees on the physics is still an error
+    row, errs = _prow("db_al_al3m_01_F3839_c0c3bcd2", **DX.classify("db_al_al3m_01_F3839_c0c3bcd2", spec, None)), []
+    DX.apply_db_provenance(row, spec, [sub, {**ado, "intact_job": "other"}], "k" * 16, errs)
+    assert any("provenance entries disagree" in e and "intact_job" in e for e in errs), errs
+    # two submitters that disagree, and two adopters with no submitter, are still errors
+    row, errs = _prow("db_al_al3m_01_F3839_c0c3bcd2", **DX.classify("db_al_al3m_01_F3839_c0c3bcd2", spec, None)), []
+    DX.apply_db_provenance(row, spec, [sub, {**sub, "key": "other", "layer": "AL-9"}], "k" * 16, errs)
+    assert any("provenance entries disagree" in e and "layer" in e for e in errs), errs
+    row, errs = _prow("db_al_al3m_01_F3839_c0c3bcd2", **DX.classify("db_al_al3m_01_F3839_c0c3bcd2", spec, None)), []
+    DX.apply_db_provenance(row, spec, [ado, {**ado, "key": "other", "layer": "AL-9"}], "k" * 16, errs)
+    assert any("provenance entries disagree" in e and "layer" in e for e in errs), errs
+
+
 def test_manifest_contract_with_stage_db():
     """Contract: rows written by the CURRENT v2/stage_db._man_row carry every field db_export reads; a seed job adopted by a
     manifest row (stage_db SEEDS) yields two agreeing provenance entries."""
