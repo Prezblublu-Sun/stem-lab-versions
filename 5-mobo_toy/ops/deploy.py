@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import pathlib
 import subprocess
 import sys
@@ -99,9 +100,13 @@ def main() -> int:
             print("门 2：这些文件未提交或与 HEAD 不同，先提交：" + ", ".join(bad)); return 1
         if rc_anc != 0:
             print("门 3：HEAD 还没推到 j/master，先 git push j master"); return 1
+    hashed = set(json.loads((ROOT / "docs" / "freeze" / "M1-3406-v1.json").read_text(encoding="utf-8"))["hashed_files"])
+    if hashed & set(rels):
+        print("门 1：哈希文件不部署（code_hash 按字节算）：" + ", ".join(sorted(hashed & set(rels)))); return 1
     print(f"推 {len(rels)} 个文件到 Linux（HEAD {head}{'-dirty' if a.allow_dirty else ''}）…")
     for rel in rels:
-        R.put(ROOT / rel, f"{R.RBASE}/code/{pathlib.PurePosixPath(rel).parent}")
+        p = pathlib.PurePosixPath(rel)          # 按 LF 字节推，先写临时文件再改名，import 不会读到半个文件
+        R.sh(f"cd ~/{R.RBASE}/code/{p.parent} && cat > .{p.name}.new && mv .{p.name}.new {p.name}", stdin=(ROOT / rel).read_bytes().replace(b"\r\n", b"\n"), timeout=600)
     rm = remote_md5(rels)
     bad = [rel for rel in rels if rm.get(rel) != lf_md5((ROOT / rel).read_bytes())]
     if bad:
