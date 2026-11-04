@@ -38,6 +38,9 @@ def discover() -> list[tuple[str, list[str]]]:
     t = ROOT / "tools" / "tests" / "test_db_tools.py"
     if t.exists():
         items.append(("tools/tests/test_db_tools.py", [PY, str(t)]))
+    o = ROOT / "ops" / "tests" / "test_ops.py"
+    if o.exists():
+        items.append(("ops/tests/test_ops.py", [PY, str(o)]))
     if (ROOT / "tests").exists():
         items.append(("tests/ (pytest)", [PY, "-m", "pytest", "-q", "-p", "no:cacheprovider", str(ROOT / "tests")]))
     return items
@@ -66,6 +69,8 @@ def main() -> int:
     ap.add_argument("--changed-files", default=None)
     ap.add_argument("--timeout", type=float, default=900)
     ap.add_argument("--list", action="store_true")
+    ap.add_argument("--coverage", action="store_true", help="run every test under coverage (in-process code only) and print the report")
+    ap.add_argument("--cov-min-ops", type=float, default=0.0, help="fail when the line coverage of ops/*.py is below this percent")
     a = ap.parse_args()
     items = discover()
     if a.list:
@@ -75,12 +80,22 @@ def main() -> int:
     if a.changed_files is not None:
         files = [f.strip().replace("\\", "/") for f in a.changed_files.split() if f.strip()]
         if files and all(f.startswith(DOC_ONLY_PREFIXES) or f.endswith(".md") for f in files):
-            print("只改了文档和 ops，只核对冻结")
+            print("只改了文档和 ops，只核对冻结" + ("，再跑 ops 的测试" if any(f.startswith("ops/") for f in files) else ""))
             r = subprocess.run([PY, str(ROOT / "ops" / "check_freeze.py"), "--quiet"], cwd=str(ROOT), env=ENV)
-            return r.returncode
+            if r.returncode != 0:
+                return r.returncode
+            if any(f.startswith("ops/") and f.endswith((".py", ".sh")) for f in files):
+                items = [(n, c) for n, c in items if n.startswith("ops/")]
+            else:
+                return 0
         # 其它情况一律全部跑（改动触发全量是保守做法；按文件挑测试留到以后）
     if a.only:
         items = [(n, c) for n, c in items if any(k in n for k in a.only)]
+    if a.coverage:
+        for f in ROOT.glob(".coverage*"):
+            f.unlink()
+        src = ",".join(str(ROOT / d) for d in ("v2", "tools", "ops"))
+        items = [(n, [PY, "-m", "coverage", "run", "-p", f"--source={src}", *c[1:]]) for n, c in items]
     rows = []
     t0 = time.time()
     n_fail = 0
@@ -91,6 +106,20 @@ def main() -> int:
         rows.append((n, st, dt, tail))
         print(f"{st:10s} {dt:6.0f} s  {n}  {tail}", flush=True)
     print(f"\n{len(items) - n_fail}/{len(items)} 个测试文件通过，用时 {time.time() - t0:.0f} s")
+    if a.coverage:
+        subprocess.run([PY, "-m", "coverage", "combine", "-q"], cwd=str(ROOT), env=ENV)
+        r = subprocess.run([PY, "-m", "coverage", "report", "--format=total"], cwd=str(ROOT), env=ENV, capture_output=True)
+        total = r.stdout.decode("utf-8", "replace").strip()
+        r = subprocess.run([PY, "-m", "coverage", "report", "--include=ops/*.py", "--format=total"], cwd=str(ROOT), env=ENV, capture_output=True)
+        ops_total = r.stdout.decode("utf-8", "replace").strip()
+        subprocess.run([PY, "-m", "coverage", "report", "--skip-empty", "--sort=cover"], cwd=str(ROOT), env=ENV)
+        print(f"\n覆盖率：全部 {total} %，ops/*.py {ops_total} %（只计进程内执行的代码，子进程里跑的不计）")
+        try:
+            if a.cov_min_ops and float(ops_total) < a.cov_min_ops:
+                print(f"ops 覆盖率 {ops_total} % < 下限 {a.cov_min_ops} %")
+                return 1
+        except ValueError:
+            pass
     return 1 if n_fail else 0
 
 

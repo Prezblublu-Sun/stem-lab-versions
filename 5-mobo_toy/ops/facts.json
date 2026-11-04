@@ -1,0 +1,16 @@
+{
+ "_doc": "One fact, one place. Documents and scripts restate these values only by copying from here; ops/check_facts.py flags any file that carries a different value. Change a fact here first (with an ADR when it is a model constant), then the copies.",
+ "code_hash": "6d7af243d0",
+ "code_hash_source": "docs/freeze/M1-3406-v1.json; ops/check_freeze.py recomputes it from the 8 hashed files",
+ "hashed_files": ["v2/femur_real.py", "v2/geom3d.py", "v2/fe3d_geom.py", "v2/model3d_v2.py", "v2/post.py", "v2/config_v2a.yaml", "v2/model3d_m1.py", "v2/post_m1.py"],
+ "femur_geom_key": "9281cd8eac10eace",
+ "femur_geom_key_source": "db3406/femur_registry.json, tpl_record.femur_geom_key",
+ "neck_axis_u": [0.92228, 0.06137, 0.38162],
+ "neck_axis_u_source": "research-log p13_3406/visual_report_2026-10-25/data/geometry.json neck_axis.u, model frame, toward the head",
+ "neck_axis_u_baked_wrong": [0.9138995811072274, 0.06263424660728525, 0.4010791777242645],
+ "neck_axis_u_baked_wrong_note": "prep.json u_baked is a baked-frame vector 1.216 deg off the model-frame axis; it was used for F until 2026-11-04 and is frozen inside experiments/b25_opt1/gates.py (judged with it, result unchanged on the right axis)",
+ "foam_E_MPa": 155.0,
+ "foam_nu": 0.3,
+ "mesh_noise_rot_dex": 0.012,
+ "db_latest": "v0.10"
+}

@@ -22,4 +22,6 @@
 - 门禁：`ops/check_freeze.py`（冻结）、`ops/test_all.py`（测试）、`ops/deploy.py --check`（部署）、`ops/qa_compare.py --db`（QA 例外基线）；git 钩子在 `ops/githooks/`
 - 连 Linux 的命令在 `docs/runbook.md` 第 2 节；重组进度在 `STATE.md` 第 8 节
 
-**说话** 中文，先结论，数字进表，一句一个意思，不用破折号。
+**说话** 中文，先结论，数字进表，一句一个意思，不用破折号。每条收尾消息最后一行单独写 `◇`，它不见了就是本文件没被读到。
+
+**事实** 常量只在 `ops/facts.json` 一处，别处只抄；`ops/check_facts.py` 在 pre-commit 里查冲突。

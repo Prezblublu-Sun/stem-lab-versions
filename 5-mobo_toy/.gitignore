@@ -26,3 +26,7 @@ v2/data/bath_femur4g/F10_ABAQUS.inp
 
 # demo odb kept for the supervisor deck (2026-10-05)
 v2/demo_odb/
+
+# coverage data and generated review packets (2026-11-04)
+.coverage*
+experiments/*/_packet/

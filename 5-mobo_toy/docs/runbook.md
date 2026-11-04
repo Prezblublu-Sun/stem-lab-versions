@@ -75,6 +75,17 @@
 - 11-02 事故：旧会话累积 107 个 `mon_*.sh` 循环，每 5 分钟弹一批 `bash.exe` 窗口。
 - 监视器要看：FAILED 新增、喂料器退出、STOP 出现、**READY 长时间没人领**（11-04 漏报的一种）。
 
+## 7b 监视器登记、喂料门、事实表、审查包（11-04 起）
+
+| 东西 | 命令 | 说明 |
+|---|---|---|
+| 监视器 | `"/c/Program Files/Git/usr/bin/ssh.exe" -o BatchMode=yes -o ServerAliveInterval=60 -o ServerAliveCountMax=5 -i ~/.ssh/id_ed25519_lrlbackup linux-user@<linux-ip> 'bash ~/mobo_toy_v2/ops/watch_remote.sh <批次> <会话号> [已见 DONE 数]' < /dev/null`，后台一条 | 登记在 Linux `~/mobo_toy_v2/logs/watcher.lock`（pid 会话 时间 批次）；另一个活着就退出 3；ssh 断了循环收到 HUP 自己退出并删锁。11-04 两个会话互相杀监视器的事故由此而来。本机 PowerShell 起的 ssh 长连接 2 分钟内会断，用 Git 的 ssh |
+| 喂料门 | `ops/feed_gate.py <批次> --check`，再 `--start --session <会话号>` | 六道门见脚本开头；`--start` 向 Linux 写，要用户说。喂料器自身还没有读这道门，是下一步要加进 stage_db 的一行 |
+| 事实表 | `ops/facts.json`；`ops/check_facts.py [--list]` | code_hash、哈希文件、股骨键、颈轴、错的烘焙轴、泡沫参数、库最新版本各只有这一处；检查器在 pre-commit 里，`--list` 列出每处转述 |
+| 审查包 | `ops/review_packet.py <批次>` → `experiments/<批次>/_packet/packet.md`（不入库） | 交给另一个模型，结果按 `experiments/_template/review.md` 写 `review.md`；喂料门缺它只警告，`--require-review` 变拒绝 |
+| 覆盖率 | `ops/test_all.py --coverage [--cov-min-ops 60]` | 只计进程内执行的代码；ops 的测试 `ops/tests/test_ops.py` 在进程内调脚本，所以 ops 能计 |
+| 可见测试指令 | AGENTS.md 要求收尾消息末行单独 `◇` | 没有它说明 AGENTS.md 没被读到 |
+
 ## 8 暂停与恢复
 
 | 用户说 | 做 | 记 |

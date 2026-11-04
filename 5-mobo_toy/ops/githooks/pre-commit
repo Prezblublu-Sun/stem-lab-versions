@@ -11,6 +11,7 @@ PY="$ROOT/.venv-mobo/Scripts/python.exe"
 export PYTHONUTF8=1
 
 "$PY" ops/check_freeze.py --staged --quiet || { echo "pre-commit: 冻结文件被改，拒绝提交"; exit 1; }
+"$PY" ops/check_facts.py --quiet || { echo "pre-commit: 有文件和 ops/facts.json 的事实冲突，拒绝提交"; exit 1; }
 
 STAGED="$(git diff --cached --name-only --diff-filter=ACMR)"
 bad=""

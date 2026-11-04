@@ -23,9 +23,10 @@ experiments/
 | 步 | 谁 | 产物 | 门 |
 |---|---|---|---|
 | 1 提议 | agent | `proposal.md`、`gates.py`、`batch.py` → `rows.json` | 提议里必须有 D 编号和槽时估计 |
+| 1b 审查 | 另一个模型 | `review.md`（模板 `_template/review.md`） | `ops/review_packet.py <批次>` 生成审查包，审查者只读它；高严重度问题没关闭不能批准。11-04 起加 |
 | 2 批准 | 用户 | `approval.md` | 没有 approval.md，喂料门拒绝；approval 之后 gates.py 冻结 |
 | 3 部署 | agent | `ops/deploy.py` | 冻结完好、已提交、已推 |
-| 4 喂料 | agent | note.md 记时间 | Linux 侧 `stage_db.py feed`（旧批次）或新喂料器（待建）；版本一致 |
+| 4 喂料 | agent | note.md 记时间 | `ops/feed_gate.py <批次> --check` 过六道门（冻结、批次目录和 sha256、review、已提交已推、Linux VERSION 和 stage_db 一致、无喂料器无 STOP 磁盘够）再 `--start`；监视器用 `ops/watch_remote.sh`，一个项目一个，登记在 Linux `logs/watcher.lock` |
 | 5 导出 | agent | db3406 新版本 | `ops/qa_compare.py` 无新增失败 |
 | 6 判定 | `ops/judge.py` | `result.json` | 读冻结的数据版本；agent 不改 gates.py |
 | 7 记录 | agent / 用户 | note.md 追加；第三版计划第 12 节追加一条 | 只追加 |
