@@ -272,7 +272,7 @@ def reorg_section() -> list[str]:
         done = re.search(r"\*\*(\d{2}-\d{2} \d{2}:\d{2} UTC 做完)", cells[3])
         st = done.group(1) if done else ("Gate 1 之后" if "Gate 1 后" in cells[1] else "未做")
         out.append(f"| {cells[0]} | {cells[1][:60]} | {st} |")
-    out.append("执行者：重组会话（用户 11-04 决定）；第 0 步等 b24 结束；第 5 步未批准。详情在提议文件第 7–9 节。")
+    out.append("执行者：第 1–4 步重组会话，第 0 步实验会话（b24 撤销后）；第 5 步未批准。详情在提议文件第 7–9 节。")
     return out
 
 
