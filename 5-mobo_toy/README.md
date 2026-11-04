@@ -1,38 +1,41 @@
-# mobo_toy — FEA → 代理 → 多目标贝叶斯优化 简单模型测试
+# mobo_toy：Sawbones 3406 颈部柄的 FE 数据库与优化流水线
 
-场景：Dorr A/B/C 三型 2D 冠状面股骨 × 保颈斜插（圆弧中轴）短柄；双目标为初始微动（P95）与近端遮挡（Gruen 7 SED 下降率）。
-计划：`C:\Users\sun\.claude\plans\fea-dorr-adaptive-crab.md`；报告规范：`REPORTING_SPEC.md`（用户 2026-09-26 确认）。
-探针实验，不进正式 nTop 流水线；沿用上级 `CLAUDE.md` 的单位、.inp 双模型、runs.csv 与失败分级规定。
+规则和入口见 `AGENTS.md`（每次必读）。目标与交付物见 `docs/goal.md`，运行手册 `docs/runbook.md`，冻结模型 `docs/freeze/M1-3406-v1.md`。
+仓库名 `mobo_toy` 来自 2026-09 的 2D 探针实验（`docs/history_2d_probe_2026-09.md`），Gate 1 之后再改名。
 
-## 阶段与报告
+## 现在在做什么（2026-11-04）
 
-| 阶段 | 脚本 | 报告 | 状态 |
-|---|---|---|---|
-| S-1 | `report.py`, `plotstyle.py` | `REPORTING_SPEC.md` | 已确认 |
-| S0 | `stage_s0.py` | R0 环境与冒烟 | PASS |
-| S1 | `stage_s1.py` | R1 几何与设计空间 | R1-A4 不通过（C 型几何门通过率 16 %），待用户决定 |
-| S2 | `stage_s2.py` | R2 FE 模型与验证 | 见报告；R2-A2（f1 网格收敛）不通过，待用户决定 |
-| S3 | `stage_s3.py` | R3 优化器自检 | 运行/已完成 |
-| S4 | `stage_s4.py`, `reference_sweep.py` | R4 参考扫描 | 代码就绪，等 R1/R2 的处置确认 |
-| S5 | `stage_s5.py`, `mobo.py`, `mobo_fe.py` | R5 BO 结果与代理诊断 | 代码就绪，同上 |
-| S7 | `stage_s7.py`, `spot3d/` | R6 3D 抽检 | 3D 几何与网格已通，等 S5 |
-| 收尾 | `stage_r7.py` | R7 总结与可信度 | 代码就绪 |
+单根 Sawbones 3406 上、只靠股骨颈固定的无骨水泥柄：13 个设计量，Abaqus 压配摩擦模型，GP 代理 + 主动学习选点，数据库 db3406（v0.9，1292 个作业）。所有结果是设计之间的比较。
 
-## 模型要点（相对已批准计划的修改，均写进对应报告）
+## 布局
 
-1. 设计变量改为由尖端位置定义圆弧（`tip_depth`, `tip_lat`, `w_prox`, `taper`, `theta_in`）；原 (L, κ) 空间 98 % 不可行。
-2. 加 3 mm 前后皮质侧板：无侧板时 2D 骨在截骨面处开口，压配后 90 % 界面张开。
-3. 压配三步：固定假体头压配 → 释放 → 加载；微动 = 加载相对释放的滑移增量。
-4. 头心载荷均分到 14 mm 圆盘内节点（替代分布耦合，求解快 5 倍）。
+```
+AGENTS.md  CLAUDE.md(@AGENTS.md)  STATE.md(脚本生成)
+docs/        goal.md  runbook.md  glossary.md  vision.md  research-log.md  decisions_log.md  freeze/  adr/
+ops/         state.py（STATE.md）check_freeze.py  test_all.py  deploy.py  qa_compare.py + qa_baseline.json  judge.py  guard_pretooluse.py  githooks/
+experiments/ 每批一个目录：proposal.md  gates.py  approval.md  batch.py  rows.json  result.json  note.md（模板 _template/，试点 b23_ow4/）
+conclusions/ 结论总表的数字复算
+v2/          FE 流水线（冻结的 8 个哈希文件 + jobs.py + 钩子 + stage_*.py + tests/）
+tools/       db_export.py  db_qa.py  db_archive.py（数据库工具，Windows 上跑）
+abaqus/      odb_export.py（Abaqus 内置 Python）
+reports/ results/ runs/(junction→G:)  2026-09 探针实验的产物，不再新增
+```
+
+## 三台机器
+
+| 机器 | 做什么 | 入口 |
+|---|---|---|
+| Windows 本机 | Abaqus 求解（`v2/solve_worker.py`）、导出、QA、git | `v2/runs/start_worker.ps1` |
+| Linux `linux-user@<linux-ip>` | prep、post、模板化、GP/BO、喂料（`~/mobo_toy_v2`） | `~/mobo_toy_v2/run.sh` |
+| J: | 备份（robocopy + 裸仓库远程 `j`） | `git push j master` |
 
 ## 常用命令
 
 ```bash
-.venv-mobo/Scripts/python.exe stage_s2.py          # 各阶段脚本同理
-.venv-mobo/Scripts/python.exe report.py --stage S2  # 重建某阶段报告
-.venv-mobo/Scripts/python.exe report.py --replot R2-F03
-.venv-mobo/Scripts/python.exe -m pytest tests
+PYTHONUTF8=1 .venv-mobo/Scripts/python.exe ops/state.py              # 生成 STATE.md
+PYTHONUTF8=1 .venv-mobo/Scripts/python.exe v2/tests/test_stage_db_b23.py   # 单个测试文件
+python v2/stage_db.py dry-run b24 --root ~/mobo_toy_v2                # Linux 上，干跑批次
+python tools/db_qa.py --db "../../db3406/v0.9"                        # QA 一个版本
 ```
 
-运行记录：`results/runs.csv`（一行一设计，含几何门失败）；设计目录 `runs/<design_id>/`（成功设计只留 gzip 的 inp、所需 CSV、日志与网格）。
-缓存键含配置与建模源码哈希，代码一改旧结果不再命中。
+数据库的导出、归档、QA 流程在 `../../db3406/README.md`。

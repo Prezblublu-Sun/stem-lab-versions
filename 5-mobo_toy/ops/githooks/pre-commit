@@ -1,0 +1,34 @@
+#!/bin/sh
+# pre-commit：快的检查。启用：git config core.hooksPath ops/githooks
+# 1 冻结的 8 个文件字节未变、暂存区内容未变（ops/check_freeze.py --staged）
+# 2 暂存区里没有产物、日志、密钥、大文件
+# 3 AGENTS.md 正文汉字不超过 600
+set -e
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+PY="$ROOT/.venv-mobo/Scripts/python.exe"
+[ -x "$PY" ] || PY=python
+export PYTHONUTF8=1
+
+"$PY" ops/check_freeze.py --staged --quiet || { echo "pre-commit: 冻结文件被改，拒绝提交"; exit 1; }
+
+STAGED="$(git diff --cached --name-only --diff-filter=ACMR)"
+bad=""
+for f in $STAGED; do
+  case "$f" in
+    *.odb|*.lck|*.res|*.mdl|*.stt|*.prt|*.sim|*.com|*.msh|*.log|*.out|*.err|*.pid|*.bak|*.tar.xz|*.npz.bak) bad="$bad $f";;
+    runs/*|scratch/*|v2/cache/*|v2/results/raw/*|v2/out/*) bad="$bad $f";;
+    *id_ed25519*|*.pem|*.key|*secrets*|*SESSDATA*) bad="$bad $f";;
+  esac
+  if [ -f "$f" ]; then
+    sz=$(wc -c < "$f")
+    [ "$sz" -gt 5000000 ] && bad="$bad $f(>5MB)"
+  fi
+done
+if [ -n "$bad" ]; then echo "pre-commit: 这些不该进库:$bad"; exit 1; fi
+
+if echo "$STAGED" | grep -q '^AGENTS.md$'; then
+  n=$("$PY" -c "import re,sys;t=open('AGENTS.md',encoding='utf-8').read().split('\n',1)[1];print(len(re.findall(r'[一-鿿]',t)))")
+  [ "$n" -le 600 ] || { echo "pre-commit: AGENTS.md 正文 $n 字 > 600"; exit 1; }
+fi
+exit 0
