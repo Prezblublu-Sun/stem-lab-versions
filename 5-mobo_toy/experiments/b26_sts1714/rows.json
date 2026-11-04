@@ -1,0 +1,90 @@
+{
+ "b26": [
+  {
+   "label": "STS1_A_m1_L44",
+   "job_id": "db_cd_p13_a105_91e458e3_wl_m1_L44_F1714_f94096ac"
+  },
+  {
+   "label": "STS1_A_m1",
+   "job_id": "db_cd_p13_a105_91e458e3_m1_F1714_2aaff095"
+  },
+  {
+   "label": "STS1_A_m1_e+0.5",
+   "job_id": "db_cd_p13_a105_91e458e3_ow_m1_e+0.5_F1714_fe751553"
+  },
+  {
+   "label": "STS1_a96_m1",
+   "job_id": "db_cd_p13_a96_429a3bcc_ow_m1_e+0_F1714_188aa0a4"
+  },
+  {
+   "label": "STS1_A_m1_e+1",
+   "job_id": "db_cd_p13_a105_91e458e3_ow_m1_e+1_F1714_532dbc33"
+  },
+  {
+   "label": "STS1_A_m1_e+1.5",
+   "job_id": "db_cd_p13_a105_91e458e3_ow_m1_e+1.5_F1714_a7a49840"
+  },
+  {
+   "label": "STS1_A_m1_e+2",
+   "job_id": "db_cd_p13_a105_91e458e3_ow_m1_e+2_F1714_fec644e4"
+  },
+  {
+   "label": "STS1_A_m1.5",
+   "job_id": "db_cd_p13_a105_91e458e3_m1.5_F1714_3a4f5560"
+  },
+  {
+   "label": "STS1_a95_m1_e+2.5",
+   "job_id": "db_cd_p13_a95_173c181a_ow_m1_e+2.5_F1714_8ad80f45"
+  },
+  {
+   "label": "STS1_A_m1_e+2.5",
+   "job_id": "db_cd_p13_a105_91e458e3_ow_m1_e+2.5_F1714_39271c09"
+  },
+  {
+   "label": "STS1_A_m1.75",
+   "job_id": "db_cd_p13_a105_91e458e3_m1.75_F1714_dac22816"
+  },
+  {
+   "label": "STS1_al3m_01",
+   "job_id": "db_cd_al3m_01_F1714_4a9054f0"
+  },
+  {
+   "label": "STS1_al3m_06",
+   "job_id": "db_cd_al3m_06_F1714_49696f69"
+  },
+  {
+   "label": "STS1_al3m_04",
+   "job_id": "db_cd_al3m_04_F1714_a6ec44ce"
+  },
+  {
+   "label": "STS1_opt1_08",
+   "job_id": "db_cd_opt1_08_e+0_F1714_61228be8"
+  }
+ ],
+ "b27": [
+  {
+   "label": "REF_h1.94_sts1714",
+   "job_id": "db_ref_intact_h1.94_sts1714_29144864"
+  },
+  {
+   "label": "REF_h2.06_sts1714",
+   "job_id": "db_ref_intact_h2.06_sts1714_3afadaa2"
+  },
+  {
+   "label": "STS1M_h1.94_A_m1",
+   "job_id": "db_nz_p13_a105_91e458e3_m1_h1.94_F1714_aa17b082"
+  },
+  {
+   "label": "STS1M_h2.06_A_m1",
+   "job_id": "db_nz_p13_a105_91e458e3_m1_h2.06_F1714_743927df"
+  },
+  {
+   "label": "STS1M_h1.94_A_m1_e+2",
+   "job_id": "db_nz_p13_a105_91e458e3_ow_m1_e+2_h1.94_F1714_5e0b528d"
+  },
+  {
+   "label": "STS1M_h2.06_A_m1_e+2",
+   "job_id": "db_nz_p13_a105_91e458e3_ow_m1_e+2_h2.06_F1714_2bb48584"
+  }
+ ]
+}
