@@ -1,0 +1,37 @@
+{
+ "stage_db_batch": "b25",
+ "rows": [
+  {
+   "label": "OPT1_01",
+   "job_id": "db_al_opt1_01_e+1.75_a6fa466c"
+  },
+  {
+   "label": "OPT1_02",
+   "job_id": "db_al_opt1_02_e+0.75_a328bd81"
+  },
+  {
+   "label": "OPT1_03",
+   "job_id": "db_al_opt1_03_e+1_2e459de0"
+  },
+  {
+   "label": "OPT1_04",
+   "job_id": "db_al_opt1_04_e+0.75_88c338c6"
+  },
+  {
+   "label": "OPT1_05",
+   "job_id": "db_al_opt1_05_e+0.25_f0bd9ab8"
+  },
+  {
+   "label": "OPT1_06",
+   "job_id": "db_al_opt1_06_e+0.5_43fd38ab"
+  },
+  {
+   "label": "OPT1_07",
+   "job_id": "db_al_opt1_07_e+0.25_303b2572"
+  },
+  {
+   "label": "OPT1_08",
+   "job_id": "db_al_opt1_08_e+0_68d23c0c"
+  }
+ ]
+}

@@ -17,7 +17,7 @@ def main() -> int:
     if len(sys.argv) >= 3 and sys.argv[1] == "--from-dry-run":
         t = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8", errors="replace")
         d = json.loads(t[t.index("DRY-RUN-JSON") + len("DRY-RUN-JSON"):])
-        rows = [{"label": r.get("key"), "job_id": r.get("id") or r.get("expected_id")} for r in d.get("rows", [])]
+        rows = [{"label": r.get("key"), "job_id": r.get("id") or r.get("expected_id")} for r in d.get("jobs", [])]
     (HERE / "rows.json").write_text(json.dumps({"stage_db_batch": STAGE_DB_BATCH, "rows": rows}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     print(f"{len(rows)} rows -> rows.json")
     return 0
