@@ -128,6 +128,10 @@ try:
        [r["spec"]["tag"] for r in rows.values()] == [GB.tag_of("3b") + s for s in ("_h1.94", "_h1.4", "_F1714")], [r["spec"]["tag"] for r in rows.values()])
     ok("B: rows pass the reference rule", not [m for r in (rr, rh) for m in DB.ref_mismatch(r["spec"], json.loads((J.QROOT / r["spec"]["intact_job"] / "spec.json").read_text()))])
     ok("B: in_E true, unbiased false, all new", all(r["in_E"] and not r["unbiased"] and r["dedup"] == "new" for r in rows.values()))
+    DB.FAM1C_WINNERS = saved                            # 11-08 review of b33: the shared build_cond must give b28c's frozen job ids
+    frozen = [r["job_id"] for r in json.load(open(ROOT / "experiments" / "b28c_cond" / "rows.json", encoding="utf-8"))["rows"]]
+    ok("B: with the real winner list the job ids equal experiments/b28c_cond/rows.json", [r["expected_id"] for r in DB.build("b28c")["rows"]] == frozen, str(frozen[:2]))
+    DB.FAM1C_WINNERS = ("3b",)
 
     # ---------------------------------------------------------------- C
     queue("fail")
