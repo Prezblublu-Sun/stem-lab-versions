@@ -131,6 +131,12 @@ try:
     labs = list(g29.PRED)
     v = rs1(lambda lab, s: 0.0, status_of=lambda lab: "FAILED" if lab in labs[:9] else "DONE")
     ok("C29: 9 rows failed -> NA", v["status"] == "NA" and "算失败" in v["note"], v["note"][:120])
+    v = rs1(lambda lab, s: 0.0, status_of=lambda lab: "RUNNING" if lab in labs[:3] else "DONE")
+    ok("C29: 3 rows still running -> NA (batch not finished)", v["status"] == "NA" and "没算完" in v["note"], v["note"][:120])
+    fake0 = {}
+    rows0 = [row(g29.tag_of(lab), f"j_{lab}", rs[lab]["bone_mm3"], f1=10 ** g29.PRED[lab][1], fake=fake0) for lab in labs[1:]]
+    v = run(g29, rows0, fake0)["G46"]
+    ok("C29: one row never submitted -> NA", v["status"] == "NA" and "没提交" in v["note"], v["note"][:120])
     v = rs1(lambda lab, s: 0.0, status_of=lambda lab: "FAILED" if lab in labs[:8] else "DONE")
     ok("C29: 8 rows failed, rest exact -> PASS with cover 40/48 (missing rows not covered)", v["status"] == "PASS" and v["value"][1] == round(40 / 48, 3) and "RMSE 上界" in v["note"], str(v["value"]))
     v = rs1(lambda lab, s: 0.0, status_of=lambda lab: "FAILED" if lab in labs[:4] else "DONE", f1_of=lambda lab: {labs[4]: 0, labs[5]: -3.0, labs[6]: "nan"}.get(lab))
@@ -148,7 +154,7 @@ try:
     of = {x[0]: x for x in DB.OF1_ROWS}
     dl3b = float(np.mean([-0.0738, -0.0661]))
 
-    def of1(spec, edit=None, drop_rot=False):
+    def of1(spec, edit=None, drop_rot=False, nanF=()):
         fake, rows = {}, []
         for lab in g30.LABELS:
             s = spec.get(lab, (0.0, 0.0, "DONE"))
@@ -156,16 +162,26 @@ try:
                 continue
             bone = s[3] if len(s) > 3 else of[lab][3]
             rows.append(row(g30.tag_of(lab), f"j_{lab}", bone, dF=s[0], dl=s[1], status=s[2], fake=fake))
+        for lab in nanF:
+            fake[f"j_{lab}"] = float("nan")
         return run(g30, rows, fake, edit=edit, drop_rot=drop_rot)
     back0 = {k: (0.0, dl3b, "DONE") for k in g30.BACK_ROWS}
-    v = of1({"n_a-0.15": (0.0, -0.05, "DONE"), "tau_a+0.15": None, "tau_a+0.30": (0, 0, "FAILED"), **back0})
+    v = of1({"tau_a+0.15": (0.0, -0.05, "DONE"), "n_a-0.15": None, "tau_a+0.30": (0, 0, "FAILED"), **back0})
     ok("C30: one key row -0.05 with F kept -> G48 PASS although the other two are missing", v["G48"]["status"] == "PASS", v["G48"]["note"][:120])
-    v = of1({"n_a-0.15": (-3.0, -0.05, "DONE"), **back0})
+    v = of1({"tau_a+0.15": (-3.0, -0.05, "DONE"), **back0})
     ok("C30: key row -0.05 but F -3 mm, others 0 -> G48 FAIL", v["G48"]["status"] == "FAIL", v["G48"]["note"][:120])
     v = of1({"tau_a+0.30": (0, 0, "FAILED"), **back0})
     ok("C30: none pass, a key row failed -> G48 NA", v["G48"]["status"] == "NA")
-    v = of1({"n_a-0.15": (0.0, -0.039, "DONE"), **back0})
+    v = of1({"tau_a+0.15": (0.0, -0.039, "DONE"), **back0})
     ok("C30: -0.039 is not enough -> G48 FAIL", v["G48"]["status"] == "FAIL")
+    v = of1({"n_a-0.15": (0.0, -0.045, "DONE"), **back0})
+    ok("C30: n_a-0.15 sits in the last curve segment, -0.045 is not enough there -> G48 FAIL", v["G48"]["status"] == "FAIL" and "'n_a-0.15': -0.05" in v["G48"]["note"], v["G48"]["note"][:120])
+    v = of1({"n_a-0.15": (0.0, -0.055, "DONE"), **back0})
+    ok("C30: n_a-0.15 at -0.055 -> G48 PASS", v["G48"]["status"] == "PASS")
+    v = of1({"tau_a+0.15": (0.0, -0.045, "DONE"), **back0})
+    ok("C30: tau_a+0.15 (not in the last segment) at -0.045 -> G48 PASS", v["G48"]["status"] == "PASS")
+    v = of1({"tau_a+0.15": (0.0, -0.05, "DONE"), **back0}, nanF=("tau_a+0.15",))
+    ok("C30: a key row with F nan is unusable -> G48 NA", v["G48"]["status"] == "NA" and "F 不是有限数" in v["G48"]["note"])
     v = of1({"n_a-0.15": (0.0, -0.05, "DONE", 9500.0), **back0})
     ok("C30: key row bone outside the curve -> unusable, G48 NA", v["G48"]["status"] == "NA" and "曲线外" in v["G48"]["note"])
     v = of1({"3b_back_n_a": (0.0, dl3b + 0.036, "DONE"), "3b_back_tau_a": (0, 0, "FAILED")})
@@ -182,10 +198,10 @@ try:
             if r["job_id"] == g31.JOB_3B:
                 r["f1_p95_um"] = repr(float(r["f1_p95_um"]) * 1.01)
     v = of1({**back0}, edit=drift)
-    ok("C30: 3b drifts by 0.0043 dex -> both gates NA", v["G48"]["status"] == "NA" and v["G51"]["status"] == "NA" and "复核不上" in v["G51"]["note"])
+    ok("C30: 3b drifts by 0.0043 dex -> G51 NA, G48 still judged", v["G48"]["status"] == "FAIL" and v["G51"]["status"] == "NA" and "复核不上" in v["G51"]["note"])
 
     # b31
-    def rr(spec, edit=None):
+    def rr(spec, edit=None, nanF=()):
         fake, rows = {}, []
         for lab in g31.PRED:
             s = spec.get(lab, (0.0, 0.0, "DONE"))
@@ -193,16 +209,22 @@ try:
                 continue
             f1 = s[3] if len(s) > 3 else None
             rows.append(row(g31.tag_of(lab), f"j_{lab}", r2[lab]["bone_mm3"], dF=s[0], dl=s[1], status=s[2], f1=f1, fake=fake))
+        for lab in nanF:
+            fake[f"j_{lab}"] = float("nan")
         return run(g31, rows, fake, edit=edit)
     L31 = list(g31.PRED)
     v = rr({L31[0]: (12.7, -0.06, "DONE")})
     ok("C31: one row dF 12.7, dl -0.06 -> G49 PASS (route 1)", v["G49"]["status"] == "PASS")
     v = rr({L31[0]: (7.7, -0.124, "DONE")})
     ok("C31: one row dF 7.7, dl -0.124 -> G49 PASS (route 2)", v["G49"]["status"] == "PASS")
-    v = rr({L31[0]: (12.6, -0.06, "DONE"), L31[1]: (0, 0, "FAILED"), L31[2]: None})
-    ok("C31: none better, 2 unusable -> G49 FAIL", v["G49"]["status"] == "FAIL", v["G49"]["note"][:80])
-    v = rr({L31[1]: (0, 0, "FAILED"), L31[2]: None, L31[3]: (0, 0, "DONE", -1.0)})
-    ok("C31: none better, 3 unusable (failed, missing, negative f1) -> G49 NA, no crash", v["G49"]["status"] == "NA", v["G49"]["note"][:80])
+    v = rr({L31[0]: (12.6, -0.06, "DONE"), L31[1]: (0, 0, "FAILED"), L31[2]: (0, 0, "DONE", -1.0)})
+    ok("C31: none better, 2 unusable (failed, negative f1) -> G49 FAIL", v["G49"]["status"] == "FAIL", v["G49"]["note"][:80])
+    v = rr({L31[1]: (0, 0, "FAILED"), L31[2]: (0, 0, "FAILED"), L31[3]: (0, 0, "DONE", -1.0)})
+    ok("C31: none better, 3 unusable -> G49 NA, no crash", v["G49"]["status"] == "NA" and "≥ 3" in v["G49"]["note"], v["G49"]["note"][:80])
+    v = rr({L31[1]: (0, 0, "RUNNING")})
+    ok("C31: none better, one row still running -> G49 NA", v["G49"]["status"] == "NA" and "还没算完" in v["G49"]["note"], v["G49"]["note"][:80])
+    v = rr({L31[0]: (12.7, -0.06, "DONE")}, nanF=(L31[0],))
+    ok("C31: the only better row has F nan -> unusable, G49 FAIL", v["G49"]["status"] == "FAIL" and "F 不是有限数" in v["G49"]["note"], v["G49"]["note"][:80])
     half = {lab: (4.85, -0.0370, "DONE") for lab in L31[:8]}
     v = rr(half)
     ok("C31: 8 rows just inside half of 3b's advantage -> G50 PASS", v["G50"]["status"] == "PASS" and v["G50"]["value"] == 8)

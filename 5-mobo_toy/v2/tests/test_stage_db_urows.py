@@ -136,8 +136,9 @@ try:
     u = list(two[4][4]); u[0] += 0.01; two[4][4] = tuple(u)
     u = list(two[0][4]); u[4] += 0.01; two[0][4] = tuple(u)
     u = list(two[-1][4]); u[12] += 0.01; two[-1][4] = tuple(u)
+    two[2][1] = 1.0
     bad = DB._of1_single_factor([tuple(x) for x in two], ph1, ref1)
-    ok("C: OF-1 two coordinates moved, a wrong step, a 3b_back row that moves another factor: three problems", len(bad) == 3, "; ".join(bad)[:300])
+    ok("C: OF-1 two coordinates moved, a wrong step, a 3b_back row that moves another factor, a one-factor row off e 0: four problems", len(bad) == 4, "; ".join(bad)[:300])
 
     # ---------------------------------------------------------------- D
     root = queue("dry")

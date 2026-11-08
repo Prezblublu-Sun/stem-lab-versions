@@ -1,12 +1,15 @@
 """b30（OF-1）的判据 G48、G51，看结果前定（2026-11-08，喂料前；第二模型审查后改，改了什么见 review.md）。
-行在 experiments/prep_2026-11-08/data/of1_rows.json 和 of1_back.json。
+行在 experiments/prep_2026-11-08/data/of1_rows.json（sha256 5ae9e156…）和 of1_back.json（sha256 57bf3f18…）。
 
 只读版本目录的 scalars.csv 和 fields/iface_*.npz。条件：δ 0.10，楼梯 2391 N，20° / 18°，h 2.0，μ 0.3，2 循环，只解摩擦。
 10 行是 A 的 m 1.0 版只改一个形状量，入口偏移 0；2 行是 b28 的 3b 只把一个量放回 A 的 m 1.0 版的值，入口偏移 +1.5（同 3b）。
 比较基准同 b28：A 族曲线（7 行，按去骨量对新轴网格 F、log10 微动线性插值）。3b 的方向是 n_a 减小 0.174、τ_a 增大 0.105（单位坐标）。
-3b 的位置当场从库里重算（主行 h 2.0 和 h 1.94 复算），和 b28 记下的数差过 0.05 mm 或 0.002 dex 就判不适用。
+3b 的位置当场从库里重算（主行 h 2.0 和 h 1.94 复算），和 b28 记下的数差过 0.05 mm 或 0.002 dex，G51 判不适用；G48 不用 3b，照判。
 噪声：微动重划网格的标准差 0.011 到 0.014 dex（b28 提议第 6 节，h 1.94、2.06 各 10 对），两次运行之差约 0.017 dex，再加曲线插值误差。
-G48 门槛 0.04 dex，没有作用时三行里任一行碰巧过的概率约 2.5 %；G51 门槛 0.035 dex（3b 两次平均的微动优势 0.070 的一半），两行合起来约 2 %。
+G48 门槛 0.04 dex，没有作用时三行里任一行碰巧过的概率约 2.5 %。曲线最后一段（A 的 e 0 到 e −0.5，去骨 8.30 到 9.11 cm³）是弯的，
+线性插值的弦让这段的行看起来好约 0.009 dex（第二轮复核 N3），落在这段的关键行门槛加到 0.05 dex；现在只有 n_a −0.15（8.46 cm³）在这段。
+G51 门槛 0.035 dex（3b 两次平均的微动优势 0.070 的一半），两行合起来约 2 %。b31 的门槛按 3b 主行（−0.0738）定，这里按两次平均，差 0.004 dex，是有意的：
+b31 的门槛在选点时就定了，这里比的是单次还原行和 3b 的差，平均更稳。
 F 的定义同 b28 的 gates.py。
 """
 from __future__ import annotations
@@ -19,7 +22,7 @@ import pathlib
 import numpy as np
 
 GATES = {
-    "G48": "n_a −0.15、τ_a +0.15、τ_a +0.30 三行里至少一行，在相同去骨量下微动比 A 族低 ≥ 0.04 dex，且 F 不比 A 族低 2 mm 以上。有一行过就判过；没有一行过、而且有关键行不可判：不适用。"
+    "G48": "n_a −0.15、τ_a +0.15、τ_a +0.30 三行里至少一行，在相同去骨量下微动比 A 族低 ≥ 0.04 dex（去骨落在曲线最后一段的行要 ≥ 0.05 dex），且 F 不比 A 族低 2 mm 以上。有一行过就判过；没有一行过、而且有关键行不可判：不适用。"
            "过：在 e 0、A 的 m 1.0 版上，单改这个量就能降微动，3b 的改进可能有一部分来自它。"
            "不过：在 e 0 处 n_a 或 τ_a 单走一档都降不了 0.04 dex；这不等于 3b 的改进要几个量一起改，3b 在 e +1.5、去骨约 5.4 cm³，和 e、去骨的交互没测，G51 直接测",
     "G51": "3b 还原 n_a、3b 还原 τ_a 两行里至少一行，相同去骨量下的 Δlog 微动比 3b 高 ≥ 0.035 dex，即丢掉 3b 一半以上的微动优势（3b 取主行和 h 1.94 复算的平均）。"
@@ -40,7 +43,7 @@ TOL_F, TOL_L = 0.05, 0.002
 N3 = np.array([0.381, 0.025, -0.924])
 U_NECK = np.array([0.92228, 0.06137, 0.38162]) / np.linalg.norm([0.92228, 0.06137, 0.38162])
 CREF = np.array([37.65271204198696, 0.8509371708090849, 41.89415555538172])
-MIN_DROP, MAX_F_LOSS, MIN_BACK = 0.04, 2.0, 0.035
+MIN_DROP, MAX_F_LOSS, MIN_BACK, LAST_SEG_EXTRA = 0.04, 2.0, 0.035, 0.01
 
 
 def f(x) -> float | None:
@@ -109,16 +112,16 @@ def judge(db_dir: str) -> dict:
 
     def na_all(why):
         return {g: {"status": "NA", "value": None, "threshold": thr[g], "rows": [], "note": why} for g in GATES}
-    miss = [j for j in (*CURVE, *REF_3B) if j not in by_id or by_id[j]["status"] != "DONE" or pos(by_id[j]["bone_total_mm3"]) is None or pos(by_id[j]["f1_p95_um"]) is None]
+    miss = [j for j in CURVE if j not in by_id or by_id[j]["status"] != "DONE" or pos(by_id[j]["bone_total_mm3"]) is None or pos(by_id[j]["f1_p95_um"]) is None]
     if miss:
-        return na_all(f"A 族曲线或 3b 缺行或缺数据 {miss}")
+        return na_all(f"A 族曲线缺行或缺数据 {miss}")
     rows, why0 = {}, {}
     for lab in LABELS:
         rows[lab], why0[lab] = one(by_tag, tag_of(lab))
     want = set(CURVE) | set(REF_3B) | {r["job_id"] for r in rows.values() if r is not None and r["status"] == "DONE"}
     Fv = mesh_F(db_dir, want)
-    if (set(CURVE) | set(REF_3B)) - set(Fv):
-        return na_all(f"fields 里缺 A 族曲线或 3b 的界面节点 {sorted((set(CURVE) | set(REF_3B)) - set(Fv))}")
+    if set(CURVE) - {j for j in Fv if math.isfinite(Fv[j])}:
+        return na_all(f"fields 里缺 A 族曲线的界面节点 {sorted(set(CURVE) - set(Fv))}")
     cb = np.array([pos(by_id[j]["bone_total_mm3"]) / 1000 for j in CURVE])
     o = np.argsort(cb)
     cb, cF, cl = cb[o], np.array([Fv[j] for j in CURVE])[o], np.log10([pos(by_id[j]["f1_p95_um"]) for j in CURVE])[o]
@@ -136,17 +139,20 @@ def judge(db_dir: str) -> dict:
             return None, "缺微动"
         if r["job_id"] not in Fv:
             return None, "fields 里缺界面节点"
+        if not math.isfinite(Fv[r["job_id"]]):
+            return None, "F 不是有限数"
         b /= 1000
         if not (cb[0] <= b <= cb[-1]):
             return None, f"去骨 {b:.2f} 在曲线外"
         return (b, Fv[r["job_id"]] - float(np.interp(b, cb, cF)), math.log10(f1) - float(np.interp(b, cb, cl))), None
-    ref = {}
+    ref, why3b = {}, None                                  # 复核 N2：3b 复核不上只让 G51 不适用
     for j, (dF0, dl0) in REF_3B.items():
-        g, why = gap(by_id[j], None)
+        g, why = gap(by_id.get(j), "3b 的行不在库里")
         if g is None or abs(g[1] - dF0) > TOL_F or abs(g[2] - dl0) > TOL_L:
-            return na_all(f"3b 复核不上：{j} 记下 ({dF0}, {dl0})，现在 {why or (round(g[1], 3), round(g[2], 4))}")
+            why3b = f"3b 复核不上：{j} 记下 ({dF0}, {dl0})，现在 {why or (round(g[1], 3), round(g[2], 4))}"
+            break
         ref[j] = g
-    dl3b = float(np.mean([g[2] for g in ref.values()]))
+    dl3b = None if why3b else float(np.mean([g[2] for g in ref.values()]))
     table, bad = {}, {}
     for lab, r in rows.items():
         g, why = gap(r, why0[lab])
@@ -156,9 +162,11 @@ def judge(db_dir: str) -> dict:
         table[lab] = {"bone": round(g[0], 3), "dF_mm": round(g[1], 2), "dlog_f1": round(g[2], 4), "rot_deg": f(r.get("rot_first_deg"))}
     desc = f"逐行（相对同去骨量的 A 族）{table}；不可判 {bad or '无'}"
     out = {}
-    # G48
-    hit = [k for k in KEY_ROWS if k in table and table[k]["dlog_f1"] <= -MIN_DROP and table[k]["dF_mm"] >= -MAX_F_LOSS]
+    # G48；复核 N3：曲线最后一段（A 的 e 0 到 e −0.5）是弯的，线性插值的弦让这段的行看起来好约 0.009 dex，这段的行门槛加 LAST_SEG_EXTRA
+    need = {k: MIN_DROP + (LAST_SEG_EXTRA if table[k]["bone"] > cb[-2] else 0.0) for k in KEY_ROWS if k in table}
+    hit = [k for k in need if table[k]["dlog_f1"] <= -need[k] and table[k]["dF_mm"] >= -MAX_F_LOSS]
     best = min((table[k]["dlog_f1"] for k in KEY_ROWS if k in table), default=None)
+    desc = f"关键行各自的门槛 { {k: -round(v, 3) for k, v in need.items()} }；" + desc
     if hit:
         out["G48"] = {"status": "PASS", "value": best, "threshold": thr["G48"], "rows": sorted(rows[k]["job_id"] for k in hit), "note": f"过的关键行 {hit}；" + desc}
     elif any(k in bad for k in KEY_ROWS):
@@ -166,6 +174,9 @@ def judge(db_dir: str) -> dict:
     else:
         out["G48"] = {"status": "FAIL", "value": best, "threshold": thr["G48"], "rows": sorted(rows[k]["job_id"] for k in KEY_ROWS), "note": f"关键三行最低的微动差 {best:+.4f} dex；" + desc}
     # G51
+    if why3b:
+        out["G51"] = {"status": "NA", "value": None, "threshold": thr["G51"], "rows": [], "note": why3b}
+        return out
     up = {k: round(table[k]["dlog_f1"] - dl3b, 4) for k in BACK_ROWS if k in table}
     hit = [k for k, v in up.items() if v >= MIN_BACK]
     n51 = f"3b 的 Δlog 微动两次平均 {dl3b:+.4f} dex（{ {j: round(g[2], 4) for j, g in ref.items()} }）；还原行比 3b 高 {up}"

@@ -9,6 +9,8 @@
 噪声：F 重划网格标准差约 0.6 mm；微动重划网格标准差 0.011 到 0.014 dex（b28 提议第 6 节，h 1.94、2.06 各 10 对；和 facts.json 的转动噪声 0.012 同值是巧合），
 两次运行之差约 0.017 dex。3 mm 和 0.05 dex 都大于差值噪声的 2.5 倍；路线 1 对微动只容许比 3b 差 log10 1.05 = 0.021 dex，约 1.2 倍差值噪声，是软条件，
 路线 1 的"更好"主要看 F。超过 A：b28 的两条路线，只描述。
+15 行是 13 个设计：r2_02 和 r2_15、r2_03 和 r2_14 的 u13 相同，只差入口偏移（+1.5 对 +1.0）；选点的批内距离按 (u13, e / 3) 算。G50 按行数计。
+3b 的基准取主行（−0.0738），门槛在选点时就按它定了；b30 的 G51 取主行和 h 1.94 复算的平均（−0.0700），差 0.004 dex，是有意的。
 """
 from __future__ import annotations
 
@@ -21,7 +23,7 @@ import numpy as np
 
 GATES = {
     "G49": "15 行里至少一行比 3b 好。过：3b 附近还能改进，前沿往这个方向推。"
-           "不过：这 15 个代理选的点里没有明显比 3b 好的，不证明 3b 是局部最好。没有一行过、而且不可判的行 ≥ 3：不适用",
+           "不过：这 15 个代理选的点里没有明显比 3b 好的，不证明 3b 是局部最好。没有一行过、而且有行没提交或没算完，或不可判的行 ≥ 3：不适用",
     "G50": "15 行里至少 8 行保留 3b 一半以上的优势（ΔF ≥ 4.84 mm 且 Δlog 微动 ≤ −0.0369 dex，相对同去骨量的 A 族）。"
            "过：3b 附近单位距离 0.15 以内，代理挑的点多数保住了 3b 一半以上的优势，3b 不是孤立的一个点；"
            "不过：3b 的优势在邻域里多数保不住一半，3b 接近孤立点，用它当候选要小心。不到 8 行、但加上不可判的行能到 8 行：不适用",
@@ -132,6 +134,8 @@ def judge(db_dir: str) -> dict:
             return None, "缺微动"
         if r["job_id"] not in Fv:
             return None, "fields 里缺界面节点"
+        if not math.isfinite(Fv[r["job_id"]]):
+            return None, "F 不是有限数"
         b /= 1000
         if not (cb[0] <= b <= cb[-1]):
             return None, f"去骨 {b:.2f} 在曲线外"
@@ -158,8 +162,11 @@ def judge(db_dir: str) -> dict:
     if err:
         desc += f"；代理 FE 减预测 平均 {np.mean(list(err.values())):+.3f}，RMSE {np.sqrt(np.mean(np.square(list(err.values())))):.3f} dex（描述）"
     out = {}
+    unfinished = [lab for lab, w in unusable.items() if w in ("没提交", "没算完")]
     if better:
         out["G49"] = {"status": "PASS", "value": len(better), "threshold": 1, "rows": sorted(rows[lab]["job_id"] for lab in better), "note": f"比 3b 好的 {better}；" + desc}
+    elif unfinished:                                        # 复核 N1：批没算完不判不过
+        out["G49"] = {"status": "NA", "value": 0, "threshold": 1, "rows": [], "note": f"没有一行比 3b 好，但批还没算完 {unfinished}；" + desc}
     elif len(unusable) >= NA_UNUSABLE:
         out["G49"] = {"status": "NA", "value": 0, "threshold": 1, "rows": [], "note": f"没有一行比 3b 好，不可判的 {len(unusable)} 行 ≥ {NA_UNUSABLE}；" + desc}
     else:

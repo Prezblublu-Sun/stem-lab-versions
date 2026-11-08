@@ -20,7 +20,7 @@ import numpy as np
 
 GATES = {
     "G46": "RS-1 48 行上，b28 代理（选点时冻结）的 log10 RMSE ≤ 0.07 dex（只算有微动的行），且标定后 90 % 区间的覆盖 ≥ 0.70（分母 48，没有微动的行算没覆盖）。"
-           "没有微动的行超过 8 行：不适用。过：在环带的随机总体上，代理的误差和标定区间可信，可以靠代理在环带排序再用 FE 核对；不外推到代理挑出的最优点、可放置的子集和 R2 的重训版。"
+           "有行没提交或没算完：不适用（批还没算完）；算失败、缺微动或 tag 重复的行超过 8 行：不适用。过：在环带的随机总体上，代理的误差和标定区间可信，可以靠代理在环带排序再用 FE 核对；不外推到代理挑出的最优点、可放置的子集和 R2 的重训版。"
            "不过：环带上代理的误差比标定的大，环带要继续靠 FE 铺点",
 }
 T = "db_ws_p13_a105_91e458e3_"
@@ -122,7 +122,7 @@ def describe_A(db_dir: str, R: list, got: dict) -> str:
     beat, table = [], {}
     for lab, r in got.items():
         b = pos(r["bone_total_mm3"])
-        if b is None or not (cb[0] <= b / 1000 <= cb[-1]) or r["job_id"] not in Fv:
+        if b is None or not (cb[0] <= b / 1000 <= cb[-1]) or r["job_id"] not in Fv or not math.isfinite(Fv[r["job_id"]]):
             continue
         b /= 1000
         dF = Fv[r["job_id"]] - float(np.interp(b, cb, cF))
@@ -150,6 +150,8 @@ def judge(db_dir: str) -> dict:
     kinds = {k: sorted(lab for lab, w in bad.items() if w == k) for k in ("没提交", "tag 重复", "算失败", "没算完", "缺微动")}
     kinds = {k: v for k, v in kinds.items() if v}
     thr = [MAX_RMSE, MIN_COVER]
+    if kinds.get("没提交") or kinds.get("没算完"):                # 复核 N1：批没算完不判
+        return {"G46": {"status": "NA", "value": None, "threshold": thr, "rows": [], "note": f"批还没算完：{kinds}"}}
     if len(bad) > MAX_BAD:
         return {"G46": {"status": "NA", "value": None, "threshold": thr, "rows": [], "note": f"{len(bad)} 行没有微动（多于 {MAX_BAD}）：{kinds}"}}
     err = {lab: math.log10(pos(r["f1_p95_um"])) - PRED[lab][1] for lab, r in got.items()}

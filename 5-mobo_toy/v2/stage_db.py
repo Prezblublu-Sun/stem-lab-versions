@@ -3118,7 +3118,7 @@ def _urow_tag(prefix: str, lab: str, e: float) -> str:
 
 
 def _of1_single_factor(rows_def, ph, ref_phys: dict) -> list:
-    """OF-1（11-08 审查 30-6）：OF1_U_A 给出 A 的 m 1.0 版的设计和截骨；"量±步"行比 OF1_U_A 恰好改这一个坐标、改这一步；
+    """OF-1（11-08 审查 30-6）：OF1_U_A 给出 A 的 m 1.0 版的设计和截骨；"量±步"行比 OF1_U_A 恰好改这一个坐标、改这一步，入口偏移 0；
     "3b_back_量"行比 b28 的 3b（FAM1_ROWS）恰好改这一个坐标、改成 OF1_U_A 的值，入口偏移同 3b。不符 → problems。"""
     np = _np()
     names, out = list(ph.vars), []
@@ -3150,6 +3150,8 @@ def _of1_single_factor(rows_def, ph, ref_phys: dict) -> list:
             out.append(f"OF-1 {lab}: {name} {u[k]:.6f} != A's {uA[k]:.6f} or entry offset {e:g} != 3b's {f3[1]:g}")
         elif step is not None and abs((u[k] - base[k]) - step) > 1e-9:
             out.append(f"OF-1 {lab}: {name} moved {u[k] - base[k]:+.6f}, label says {step:+g}")
+        elif step is not None and float(e) != 0.0:
+            out.append(f"OF-1 {lab}: entry offset {e:g}, one-factor rows of A at m {WS2_M:g} must be at 0")
     return out
 
 
