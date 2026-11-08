@@ -37,7 +37,7 @@ while :; do
     if [ -f "$d/DONE" ]; then n_done=$((n_done+1))
     elif [ -f "$d/FAILED.json" ]; then n_failed=$((n_failed+1))
     elif [ -f "$d/CLAIMED" ] || [ -f "$d/SOLVED" ]; then n_claimed=$((n_claimed+1))
-    elif [ -f "$d/READY" ]; then n_ready=$((n_ready+1)); a=$(( $(date +%s) - $(stat -c %Y "$d/READY") )); [ "$a" -gt 2400 ] && oldest="$j ${a}s"
+    elif [ -f "$d/READY" ]; then n_ready=$((n_ready+1)); a=$(( $(date +%s) - $(stat -c %Y "$d/READY") )); [ "$a" -gt 7200 ] && oldest="$j ${a}s"
     fi
   done
   now="$(date -u +%H:%M) done $n_done failed $n_failed ready $n_ready claimed $n_claimed of $N"

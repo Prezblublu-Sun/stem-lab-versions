@@ -197,9 +197,15 @@ def prep(jid: str) -> str:
     if st0 not in ("NEW",):
         return st0
     spec = json.loads((d / "spec.json").read_text())
-    if spec.get("foam_refine") is not None and spec.get("kind") not in ("design", "variant"):   # 界面加密只对柄的建模有意义
-        _fail(d, "L1", "prep", f"foam_refine is only for design / variant jobs, not kind {spec.get('kind')!r}")
-        return "FAILED"
+    if spec.get("foam_refine") is not None:                                 # 界面加密只对柄的建模有意义（foam_refine.unsupported）
+        try:
+            import foam_refine as FRF
+            why, lvl = FRF.unsupported(spec), "L1"
+        except Exception as e:                                              # noqa: BLE001  钩子模块读不了 = 不建模
+            why, lvl = f"foam_refine: {type(e).__name__}: {e}", "L3"
+        if why:
+            _fail(d, lvl, "prep", why)
+            return "FAILED"
     try:
         fm = femur_for(spec)
         if spec["kind"] == "bench":                          # Lamé 压配对照（M1 界面代码路径）

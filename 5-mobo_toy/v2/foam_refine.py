@@ -25,6 +25,12 @@ BONE_GROUPS = ("cortex", "cancellous")
 INFO: dict = {}
 
 
+def unsupported(spec: dict) -> str | None:
+    """jobs.prep 在建模前问：这个作业能不能用 foam_refine。只有柄的建模（kind design / variant）可以；不能 → 原因。"""
+    k = spec.get("kind")
+    return None if k in ("design", "variant") else f"foam_refine is only for design / variant jobs, not kind {k!r}"
+
+
 def validate(fr: dict, h_int: float) -> dict:
     """补默认值后的参数；不合法 → ValueError。"""
     if not isinstance(fr, dict) or set(fr) - set(KEYS) or "h" not in fr or not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in fr.values()):
