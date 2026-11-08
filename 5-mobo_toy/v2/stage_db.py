@@ -1,9 +1,9 @@
 """3406 数据库（db3406）的批量提交器 v1.5（D1 = v0 + 审查修正 + 采纳 CD-0 种子 + 第二轮审查修正；D2 = 批次 b2 + 并行喂料；v1.3 = 批次 b1b；v1.4 = 批次 b2b；
-v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2）；v1.7 = 批次 b7（AL-3，局部候选）；v1.8 = 批次 b14（候选 A 的 m / α 单因素扫描）；v1.9 = 批次 b8、b12（第二周计划第二版）；v1.10 = 批次 b7m（AL-3′，m ≥ 1.0）；v1.11 = 批次 b15（A 的 m 1.0 版 × α）；v1.12 = 批次 b16、b17、b18（第三版计划的 VAL-1、TQ-0、MU-1）；v1.13 = 批次 b19（WL-1）；v1.14 = 批次 b9p、b11p（CD-2″、OW-2）；v1.15 = 批次 b20、b21（AL-4m）；v1.16 = 批次 b22（OW-3）；v1.17 = 批次 b23（OW-4）；v1.18 = 批次 b24（TQ-1、PF-1 的冒烟）；v1.19 = 批次 b25（OPT-1，F、微动、去骨三目标）；v1.20 = 批次 b26、b27（STS-1，候选 × 坐起 1714 N）；v1.21 = 批次 b28（FAM-1，离 A 0.25 到 0.75 的环带）；v1.22 = 批次 b28c（b28 初判赢家的条件行）；v1.23 = 批次 b29、b30、b31（RS-1 环带随机、OF-1 单因素、R2 第二轮））。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
+v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2）；v1.7 = 批次 b7（AL-3，局部候选）；v1.8 = 批次 b14（候选 A 的 m / α 单因素扫描）；v1.9 = 批次 b8、b12（第二周计划第二版）；v1.10 = 批次 b7m（AL-3′，m ≥ 1.0）；v1.11 = 批次 b15（A 的 m 1.0 版 × α）；v1.12 = 批次 b16、b17、b18（第三版计划的 VAL-1、TQ-0、MU-1）；v1.13 = 批次 b19（WL-1）；v1.14 = 批次 b9p、b11p（CD-2″、OW-2）；v1.15 = 批次 b20、b21（AL-4m）；v1.16 = 批次 b22（OW-3）；v1.17 = 批次 b23（OW-4）；v1.18 = 批次 b24（TQ-1、PF-1 的冒烟）；v1.19 = 批次 b25（OPT-1，F、微动、去骨三目标）；v1.20 = 批次 b26、b27（STS-1，候选 × 坐起 1714 N）；v1.21 = 批次 b28（FAM-1，离 A 0.25 到 0.75 的环带）；v1.22 = 批次 b28c（b28 初判赢家的条件行）；v1.23 = 批次 b29、b30、b31（RS-1 环带随机、OF-1 单因素、R2 第二轮）；v1.24 = 批次 b32、b32b（F5 界面加密的冒烟））。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
 （第 1.3 / 1.4 节分层与无偏集、第 1.6 节命名 / 查重 / 版本陷阱、第 1.8 节检查 13 / 14、第 2.1–2.7 节、第 3.2 节 CR-T；用户 2026-10-25 批准两天部分）。
-不改 8 个哈希文件（code_hash 必须是 6d7af243d0）、不改 jobs.py / stage_neckopt.py / stage_deck.py / stage_v2a.py / tpl_record.py；提交只走 jobs.submit。
+不改 8 个哈希文件（code_hash 必须是 6d7af243d0）、不改 jobs.py（例外：v1.24 的 F5 钩子 foam_refine，五天计划，用户"整份批准"）/ stage_neckopt.py / stage_deck.py / stage_v2a.py / tpl_record.py；提交只走 jobs.submit。
 
-    python v2/stage_db.py dry-run b1|b2|b1b|b2b|b3|b4|b5|b6|b7|b7m|b14|b8|b12|b15|b16|b17|b18|b19|b9p|b11p|b20|b21|b22|b23|b24|b25|b26|b27|b28|b28c|b29|b30|b31 [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
+    python v2/stage_db.py dry-run b1|b2|b1b|b2b|b3|b4|b5|b6|b7|b7m|b14|b8|b12|b15|b16|b17|b18|b19|b9p|b11p|b20|b21|b22|b23|b24|b25|b26|b27|b28|b28c|b29|b30|b31|b32|b32b [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
                                                           预期 id、查重结果（hash8 / 物理键）、种子采纳、参照与参照核对；末尾 DRY-RUN-JSON。什么都不写
                                                           （b2 另印 G2 核对、CR-1 / CR-T 选点、放宽计数、槽时估计、b1 优先级的当前判断）
     python v2/stage_db.py feed b1|b2 [--once] [--poll 60] 喂料器（只在 Linux 上跑；b1 与 b2 可以同时跑，见"并行喂料"）：
@@ -75,6 +75,12 @@ v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2�
        截骨 18、20、22 mm 在 e 0 都装不下，没有放进来。判据 experiments/b30_of1/gates.py 的 G48、G51。
     b31 = R2，层 R2，stage db_al，source al_adaptive，15 行：b28 的 3b 周围单位距离 0.15 以内，按"比 3b 更好"的概率选，过 8 个位姿的放置检查。
        判据 experiments/b31_r2/gates.py 的 G49、G50。
+
+批次 b32、b32b（v1.24，2026-11-08，experiments/b32_f5smoke/、b32b_f5smoke07/，五天计划的"F5 钩子"加冒烟 2 行，用户"整份批准"）：
+    A 的 m 1.0 版 e +2（F5_SMOKE_BASE = A 族曲线上那一行，带粘接、h 2.0，已有 h 1.94 和 h 1.4 的行）只改三处：只解摩擦；加 foam_refine
+    {"h": h}（v2/foam_refine.py：骨在柄骨界面 1.5 mm 以内用 h，4 mm 处长回 h_int）；slip_tol = 2.5e-4 × 2.0 / h。b32 是 h 1.0，b32b 是 h 0.7，
+    b32b 等 b32 的实测槽时出来再喂。层 F5 smoke，stage db_fd，source fid_f5，重作业（is_heavy 认 foam_refine），一次一个。
+    底行没 DONE、底行的 h_int / 入口偏移 / m / cfg / slip_tol 不是预期的、foam_refine 不合法 → problems。判据 experiments/b32_f5smoke/gates.py 的 G52。
 
 批次 b28c（v1.22，2026-11-08，experiments/b28c_cond/，用户"批准 17 行"里的条件行，最多 15 行）：
     b28 的 15 行算完后，按 experiments/b28_fam/proposal.md 第 4 节写定的初判规则选出赢家（FAM1C_WINNERS，最多 5 个）。每个赢家 3 行：
@@ -366,7 +372,7 @@ AUTO_ACK_MAX_RATE = 0.15
 FIRST_N, FIRST_N_MAX_FAILED = 10, 2         # 本批最先完成的 10 个喂料器自己提交的行里 FAILED > 2 → 每层都停（规划 G1）
 SLOW_START_LAYERS = ("NZ-1", "FD-0 h2.5", "FD-0 h1.4", "BD mesh", "BD h2.0", "SF-1", "CR-1", "FD-0 h2.4", "BD b2",
                      "CR-T", "NZ-2", "FD-1 h1.4", "CD-1", "CD-1 rand", "BD offset", "BD sts", "AL-1", "AL-1 sts", "AL-1 rand",
-                     "AL-2", "AL-2 sts", "AL-2 rand", "AL-3", "AL-3 sts", "AL-3 rand", "WS m", "WS alpha", "NZ-3", "W-0 alpha", "W-0 L", "CY-1", "AL-3m", "AL-3m sts", "AL-3m rand", "WS m alpha", "TQ-0", "MU-1", "WL-1", "CD-2", "OW-2", "OW-3", "OW-4", "OW-4 cy", "OW-4 h1.4", "TQ-1 smoke", "PF-1 smoke", "WS m2", "AL-4m", "AL-4m sts", "AL-4m rand", "OPT-1", "STS-1", "STS-1 mesh", "FAM-1", "FAM-1 ctrl", "FAM-1 rep", "FAM-1 h1.4", "FAM-1 sts", "RS-1", "OF-1", "R2")
+                     "AL-2", "AL-2 sts", "AL-2 rand", "AL-3", "AL-3 sts", "AL-3 rand", "WS m", "WS alpha", "NZ-3", "W-0 alpha", "W-0 L", "CY-1", "AL-3m", "AL-3m sts", "AL-3m rand", "WS m alpha", "TQ-0", "MU-1", "WL-1", "CD-2", "OW-2", "OW-3", "OW-4", "OW-4 cy", "OW-4 h1.4", "TQ-1 smoke", "PF-1 smoke", "WS m2", "AL-4m", "AL-4m sts", "AL-4m rand", "OPT-1", "STS-1", "STS-1 mesh", "FAM-1", "FAM-1 ctrl", "FAM-1 rep", "FAM-1 h1.4", "FAM-1 sts", "RS-1", "OF-1", "R2", "F5 smoke")
                                             # 新层慢启动（REF 串行、CD-0 是种子：不在内）
 SLOW_START_CAP = 2                          # … DONE 不到 SLOW_START_DONE 行之前，该层在飞（NEW / READY / CLAIMED / SOLVED）最多 2 行
 SLOW_START_DONE = 2
@@ -380,7 +386,8 @@ _ALLOW_NON_LINUX = False                    # 只给测试：feed 默认只在 L
 # 规格键分类：物理键进 spec（影响建模 / 求解 / 后处理）；角色键由本模块重写；元数据键丢掉。三者之外的键 → SystemExit
 PHYS_KEYS = frozenset({"design", "h_int", "min_A0", "model", "h_cut", "slip_tol", "delta", "mu", "torque", "E_canc", "interference",
                        "lagrange", "cycles", "collar_rule", "femur_id", "neck_axis", "margin_check", "ref_cut_mm", "a_bounds_max", "cfg",
-                       "entry_offset", "margin", "h_far", "bond_collar", "import_stem", "import_e", "export", "intact_substituted_h", "torsion", "pose_fixed"})
+                       "entry_offset", "margin", "h_far", "bond_collar", "import_stem", "import_e", "export", "intact_substituted_h", "torsion", "pose_fixed",
+                       "foam_refine"})
 ROLE_KEYS = frozenset({"kind", "bond_only", "fric_only", "intact_job"})
 META_KEYS = frozenset({"created", "stage", "tag", "gate", "source_job", "load_case", "deck_code", "ofat", "jitter", "collar_w_original",
                        "keep_odb", "db_layer", "db_cond", "femur_model_version"})   # 后三个：主会话 CD-0 种子 spec 里的记录键（jobs.prep / post 不读）
@@ -436,14 +443,14 @@ LAYER_SOURCE = {"REF": "intact_ref", "CD-0": "cond_anchor", "NZ-1": "noise", "FD
                 "CD-2": "cond_anchor", "OW-2": "bound_scan", "OW-3": "bound_scan", "OW-4": "cond_anchor", "OW-4 cy": "cycle_variant", "OW-4 h1.4": "fid_h14", "TQ-1 smoke": "cond_anchor", "PF-1 smoke": "cond_anchor",
                 "WS m2": "bound_scan", "AL-4m": "al_adaptive", "AL-4m sts": "al_adaptive", "AL-4m rand": "al_random", "OPT-1": "al_adaptive", "STS-1": "cond_anchor", "STS-1 mesh": "noise",
                 "FAM-1": "al_adaptive", "FAM-1 ctrl": "noise", "FAM-1 rep": "noise", "FAM-1 h1.4": "fid_h14", "FAM-1 sts": "cond_anchor",
-                "RS-1": "corner", "OF-1": "bound_scan", "R2": "al_adaptive"}
+                "RS-1": "corner", "OF-1": "bound_scan", "R2": "al_adaptive", "F5 smoke": "fid_f5"}
 LAYER_SELECTION = {"REF": "reference", "VAL-1": "reference", "SF-1": "iid", "CR-T": "corner_test", "CD-1 rand": "iid", "AL-1": "adaptive", "AL-1 sts": "adaptive",
                    "AL-1 rand": "iid", "AL-2": "adaptive", "AL-2 sts": "adaptive", "AL-2 rand": "iid",
                    "AL-3": "adaptive", "AL-3 sts": "adaptive", "AL-3 rand": "iid",
                    "AL-3m": "adaptive", "AL-3m sts": "adaptive", "AL-3m rand": "iid",
                    "AL-4m": "adaptive", "AL-4m sts": "adaptive", "AL-4m rand": "iid", "OPT-1": "adaptive", "FAM-1": "adaptive", "R2": "adaptive"}          # 其余层 stratum（tools/db_export.DB_STAGE_RULES：db_sf = sf / iid，db_cr = corner / stratum，
                                                 # db_crt = corner_test / corner_test，db_bd = offset_variant；AL 的非随机选点在排除集 E）
-BATCHES = ("b1", "b2", "b1b", "b2b", "b3", "b4", "b5", "b6", "b7", "b14", "b8", "b12", "b7m", "b15", "b16", "b17", "b18", "b19", "b9p", "b11p", "b20", "b21", "b22", "b23", "b24", "b25", "b26", "b27", "b28", "b28c", "b29", "b30", "b31")
+BATCHES = ("b1", "b2", "b1b", "b2b", "b3", "b4", "b5", "b6", "b7", "b14", "b8", "b12", "b7m", "b15", "b16", "b17", "b18", "b19", "b9p", "b11p", "b20", "b21", "b22", "b23", "b24", "b25", "b26", "b27", "b28", "b28c", "b29", "b30", "b31", "b32", "b32b")
 B2B_SOURCE_BATCHES = ("b2",)                # b2b：这些批次清单里已 DONE 的只解摩擦设计行各配一个 h 2.0 只粘接作业
 B2B_LAYER = "BD b2"
 B1B_H = 2.4                                 # b1b 的粗网格档（h 2.5 的完整股骨建模失败，见模块说明"批次 b1b"）
@@ -629,6 +636,9 @@ R2_ROWS = (('r2_01', 1.5, 305.228, 5378.68, (0.901301582867005, 0.98228305957598
            ('r2_15', 1.0, 354.757, 6194.49, (0.8702724068036358, 0.9953888573126235, 0.007572725804663523, 0.35209539384036836, 0.25465879908816885, 0.9758816154908511, 0.0722336351418306, 0.7719060935046652, 0.2869020986015642, 0.4652736304382381, 0.22226688351124793, 0.12827056958608876, 0.18416382752395435)))
 # 11-08 审查：b29–b31 的判据都和 A 族曲线这 7 行比，提交前要全是 DONE；OF-1 单因素的基点 = A 的 m 1.0 版的 u13（u_m = 1/3）
 UROW_CURVE = tuple(_A + s for s in ("ow_m1_e+2.5_8a2bd628", "ow_m1_e+2_c9ca96c8", "ow_m1_e+1.5_52dc478a", "ow_m1_e+1_fea69910", "ow_m1_e+0.5_c17f7b2a", "m1_2a79b613", "ow_m1_e-0.5_03b0a7bc"))
+F5_SMOKE_BASE = UROW_CURVE[1]               # b32、b32b：A 的 m 1.0 版 e +2（带粘接的 h 2.0 行）加 F5，只解摩擦
+F5_SMOKE_H = {"b32": (1.0,), "b32b": (0.7,)}   # h 0.7 等 h 1.0 的实测槽时出来再喂（第二模型审查 5：外推约 6.8 h，worker 上限 6 h）
+F5_SLIP_REF = 2.5e-4                         # 生产 slip_tol；F5 行按 2.0 / h 放大，弹性滑移上限仍 0.5 µm（同 stage_deck.M_SLIP14 的规则）
 OF1_U_A = (0.9224089721043953, 0.9784708535831516, 0.0, 0.3333333333333333, 0.2791256826572715, 0.9994729461601736, 0.0988668021424858, 0.6404879353047572, 0.3732744534276327, 0.6395583174132404, 0.2160783393538479, 0.0, 0.08621872496401692)
 AL_STS = "F3839"                            # 稳健问题的选点另加一行起身 3839 N（δ 0.10，只解摩擦），验收稳健目标用
 
@@ -749,11 +759,12 @@ def phys_diff(a: dict, b: dict | None) -> list:
 
 
 def is_heavy(spec: dict | None) -> bool:
-    """重作业：完整股骨参照（3406 h 2.0 时内存估计约 7 GB）与 h_int ≤ 1.4 的作业。spec 读不到 → 按重作业算（保守）。"""
+    """重作业：完整股骨参照（3406 h 2.0 时内存估计约 7 GB）、h_int ≤ 1.4 的作业、界面加密（foam_refine，h 1.0 时节点是生产网格的 2.2 倍，
+    h 0.7 时 4 倍，11-08 本机冒烟）。spec 读不到 → 按重作业算（保守）。"""
     if spec is None:
         return True
     h = spec.get("h_int")
-    return spec.get("kind") == "intact" or (isinstance(h, (int, float)) and float(h) <= HEAVY_H + 1e-9)
+    return spec.get("kind") == "intact" or (isinstance(h, (int, float)) and float(h) <= HEAVY_H + 1e-9) or spec.get("foam_refine") is not None
 
 
 def needs_ref(spec: dict) -> bool:
@@ -774,7 +785,8 @@ def cond_id(spec: dict) -> str:
     mu = f"|mu{float(spec['mu']):g}" if spec.get("mu") is not None else ""
     tq = f"|T{spec['torsion']['def']}{float(spec['torsion']['T_Nm']):g}" if spec.get("torsion") else ""
     pf = "|pose" + ",".join(f"{k}{float(v):+g}" for k, v in sorted(spec["pose_fixed"].items())) if spec.get("pose_fixed") else ""
-    return f"d{float(spec['delta']):g}|{load}|{h}|slip{float(spec['slip_tol']):g}{cyc}{mu}{tq}{pf}"
+    f5 = f"|f5h{float(spec['foam_refine']['h']):g}" if spec.get("foam_refine") else ""
+    return f"d{float(spec['delta']):g}|{load}|{h}|slip{float(spec['slip_tol']):g}{cyc}{mu}{tq}{pf}{f5}"
 
 
 def model_set(spec: dict) -> str:
@@ -1234,6 +1246,8 @@ def build(batch: str = "b1") -> dict:
         return build_b28()
     if batch == "b28c":
         return build_b28c()
+    if batch in F5_SMOKE_H:
+        return build_b32(batch)
     if batch in UROW_BATCHES:
         return build_urows(batch)
     unreadable = []
@@ -3205,6 +3219,40 @@ def build_urows(batch: str) -> dict:
         rows.append(r)
         keys.append(key)
     return _finish_batch(batch, rows, keys, qspecs, by_h8, by_phys, warn, problems, {H_PROD: REF_H2}, ws_tpl=ws_tpl, ws_control=ctrl_id)
+
+
+def build_b32(batch: str = "b32") -> dict:
+    """b32、b32b = F5 冒烟（模块说明"批次 b32、b32b"）：F5_SMOKE_BASE 只解摩擦、加 foam_refine、slip_tol 按 2.0 / h 放大，档位 F5_SMOKE_H[batch]。"""
+    import foam_refine as FRF
+    qspecs, by_h8, by_phys, warn = _batch_ctx()
+    problems, rows, keys = [], [], []
+    base = F5_SMOKE_BASE
+    src = _spec_of(base, qspecs)
+    st = J.state(J.QROOT / base) if (J.QROOT / base).is_dir() else "absent"
+    if src is None or st != "DONE":
+        problems.append(f"{batch}: the base row {base} is {st} (must be DONE with a readable spec)")
+        return _finish_batch(batch, rows, keys, qspecs, by_h8, by_phys, warn, problems, {H_PROD: REF_H2})
+    want = {"h_int": H_PROD, "entry_offset": 2.0, "m": WS2_M, "cfg": None, "foam_refine": None, "slip_tol": F5_SLIP_REF}
+    got = {"h_int": src.get("h_int"), "entry_offset": src.get("entry_offset"), "m": src.get("design", {}).get("m"), "cfg": src.get("cfg"), "foam_refine": src.get("foam_refine"),
+           "slip_tol": src.get("slip_tol")}
+    if any(got[k] != v and not (isinstance(v, float) and isinstance(got[k], (int, float)) and abs(float(got[k]) - v) < 1e-9) for k, v in want.items()):
+        problems.append(f"{batch}: the base row {base} has {got}, expected {want}")
+    p_ = _phys(src, base)
+    tag0 = src.get("tag") or _tag_of(base)                # p13_a105_91e458e3_ow_m1_e+2
+    for h in F5_SMOKE_H[batch]:
+        fr = {"h": float(h)}
+        try:
+            FRF.validate(fr, float(p_["h_int"]))
+        except ValueError as ex:
+            problems.append(f"{batch} h {h:g}: {ex}")
+        spec = _variant(p_, "db_fd", f"{tag0}_f5h{h:g}", "fric", foam_refine=fr, slip_tol=round(F5_SLIP_REF * H_PROD / float(h), 9))
+        if not is_heavy(spec):
+            problems.append(f"{batch} h {h:g}: is_heavy() does not see foam_refine")
+        r = _row(f"F5S_h{h:g}", "F5 smoke", spec, base, None, extra={"e_forced": 2.0})
+        r.update(unbiased=False, in_E=True)
+        rows.append(r)
+        keys.append(r["key"])
+    return _finish_batch(batch, rows, keys, qspecs, by_h8, by_phys, warn, problems, {H_PROD: REF_H2})
 
 
 def build_b28c() -> dict:

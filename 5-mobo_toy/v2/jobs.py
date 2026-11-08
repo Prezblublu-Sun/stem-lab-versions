@@ -197,6 +197,9 @@ def prep(jid: str) -> str:
     if st0 not in ("NEW",):
         return st0
     spec = json.loads((d / "spec.json").read_text())
+    if spec.get("foam_refine") is not None and spec.get("kind") not in ("design", "variant"):   # 界面加密只对柄的建模有意义
+        _fail(d, "L1", "prep", f"foam_refine is only for design / variant jobs, not kind {spec.get('kind')!r}")
+        return "FAILED"
     try:
         fm = femur_for(spec)
         if spec["kind"] == "bench":                          # Lamé 压配对照（M1 界面代码路径）
@@ -240,11 +243,22 @@ def prep(jid: str) -> str:
             if spec.get("pose_fixed"):                              # 号固定、只移动位姿，见 pose_fixed.py
                 import pose_fixed as PF
                 pl = PF.apply(st, fm, pl, spec["pose_fixed"])
+            if spec.get("foam_refine") is not None:                 # 界面附近的骨加密，见 foam_refine.py（只替换本建模进程的尺寸场）
+                if spec.get("model") != "m1":
+                    _fail(d, "L1", "prep", "foam_refine needs model m1")
+                    return "FAILED"
+                import foam_refine as FRF
+                FRF.install(spec["foam_refine"], spec["h_int"])
             if spec.get("model") == "m1":
                 info = M1.build(st, fm, pl, d, "m", h_int=spec["h_int"], h_far=spec.get("h_far"),
                                 delta=spec.get("delta"), mu=spec.get("mu"), torque=spec.get("torque", True),
                                 E_canc=spec.get("E_canc"), slip_tol=spec.get("slip_tol"), lagrange=spec.get("lagrange"),
                                 interference=spec.get("interference"), cycles=spec.get("cycles"))
+                if spec.get("foam_refine") is not None:
+                    if not FRF.INFO:                                 # 尺寸场没被调用 = 钩子没生效，不能当加密结果
+                        _fail(d, "L3", "prep", "foam_refine: the size field hook was not called")
+                        return "FAILED"
+                    info["foam_refine"] = dict(FRF.INFO)
                 if spec.get("bond_collar") is not None:          # 粘接模型的领：tied（默认）/ contact（只受压、可掀起），见 bond_collar.py
                     import bond_collar as BC
                     info.update(BC.apply(d, spec, fm.cfg))
@@ -294,6 +308,9 @@ def prep(jid: str) -> str:
         level = getattr(e, "level", "L3")
         _fail(d, level, "prep", f"{type(e).__name__}: {e}\n{traceback.format_exc()[-1500:]}")
         return "FAILED"
+    finally:
+        if spec.get("foam_refine") is not None and "foam_refine" in sys.modules:   # 钩子是进程级的，建完还原（foam_refine.uninstall）
+            sys.modules["foam_refine"].uninstall()
 
 
 def intact_ref(h_int: float, E_canc: float | None = None, femur_id: str | None = None) -> dict:

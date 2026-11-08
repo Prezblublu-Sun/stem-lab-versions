@@ -82,7 +82,7 @@ import traceback
 
 import numpy as np
 
-EXPORTER_VERSION = "db_export 0.2.4 (2026-11-04, torsion and pose columns)"
+EXPORTER_VERSION = "db_export 0.2.5 (2026-11-08, foam_refine column; F5 rows get fidelity h<h_int>+f5h<h> and foam_refine in cond_key)"
 FEMUR_ID = "sawbone3406"
 FEMUR_VERSIONS = {FEMUR_ID: ("3406R_v1_hollowcore", True)}          # plan 2.1: hollow-core model until the user answers
 EXPECTED_CODE_HASH = "6d7af243d0"
@@ -96,7 +96,7 @@ HASHED_FILES = ("femur_real.py", "geom3d.py", "fe3d_geom.py", "model3d_v2.py", "
                 "model3d_m1.py", "post_m1.py")
 # not in the job hash but able to change results (plan 1.6 trap 2) + the modules that compute labels in this export
 AUX_FILES = ("inp_writer.py", "v2/jobs.py", "v2/femur_3406.py", "v2/collar_rule.py", "v2/stability.py", "v2/bond_collar.py",
-             "v2/torsion_load.py", "v2/pose_fixed.py",
+             "v2/torsion_load.py", "v2/pose_fixed.py", "v2/foam_refine.py",
              "v2/import_stem.py", "v2/resorption.py", "v2/shielding.py", "abaqus/odb_export.py")
 # femur geometry key (plan 1.6 trap 3), SAME definition as v2/stage_db.femur_geom_key() (D1): role -> file; the STEP paths are the
 # ones femur_3406.load_cfg() puts into cfg['femur'] (= these files under the code root)
@@ -238,6 +238,7 @@ def _build_columns():
     _c("entry_offset_forced_mm", "float", "mm", -20, 20, req="optional", source=S + " entry_offset")
     _c("torsion", "json", "", req="optional", source=S + " torsion (v2/torsion_load.py)", desc="non-empty: a couple on the head nodes on top of load_vec_N; torque_stem_axis_Nmm does not include it")
     _c("pose", "json", "", req="optional", source=S + " pose_fixed (v2/pose_fixed.py)", desc="non-empty: the size is the nominal one and only the pose moved; the cavity follows the stem")
+    _c("foam_refine", "json", "", req="optional", source=S + " foam_refine (v2/foam_refine.py)", desc="non-empty: bone within dist_min of the stem-bone interface meshed at h (F5); h_int_mm is the production size elsewhere")
     _c("cfg_override", "json", "", req="optional", source=S + " cfg")
     _c("bond_only", "bool", "", req="spec", source=S)
     _c("fric_only", "bool", "", req="spec", source=S)
@@ -1320,7 +1321,7 @@ def export_job(P: Pipeline, ctx: Context, jd: pathlib.Path, with_fields: bool):
                bond_only=bool(spec.get("bond_only")), fric_only=bool(spec.get("fric_only")), cfg_override=spec.get("cfg"),
                h_int_mm=_num(spec.get("h_int")), delta_spec_mm=_num(spec.get("delta")), entry_offset_forced_mm=_num(spec.get("entry_offset")),
                collar_rule=spec.get("collar_rule"), margin_check=spec.get("margin_check"), a_bounds_max=_num(spec.get("a_bounds_max")),
-               torsion=spec.get("torsion"), pose=spec.get("pose_fixed"),
+               torsion=spec.get("torsion"), pose=spec.get("pose_fixed"), foam_refine=spec.get("foam_refine"),
                ref_cut_mm=_num(spec.get("ref_cut_mm")), min_A0_mm2=_num(spec.get("min_A0")), source_job=spec.get("source_job"),
                intact_job_spec=spec.get("intact_job"))
     fid = spec.get("femur_id")
@@ -1462,9 +1463,11 @@ def export_job(P: Pipeline, ctx: Context, jd: pathlib.Path, with_fields: bool):
         except Exception as e:  # noqa: BLE001
             errs.append(f"load moments: {type(e).__name__}: {e}")
     # ---- condition key
-    row["fidelity"] = f"h{float(spec.get('h_int', float('nan'))):g}"
+    fr = spec.get("foam_refine")
+    row["fidelity"] = f"h{float(spec.get('h_int', float('nan'))):g}" + (f"+f5h{float(fr['h']):g}" if isinstance(fr, dict) and fr.get("h") is not None else "")
     cfg_other = {k: v for k, v in (spec.get("cfg") or {}).items() if k != "load"}
-    row["cond_key"] = sha1(jdump({"delta": row["delta_mm"] if row["delta_mm"] is not None else row["delta_spec_mm"], "mu": row["mu"],
+    f5_key = {"foam_refine": fr} if fr is not None else {}           # only F5 rows: older rows keep their cond_key bit for bit
+    row["cond_key"] = sha1(jdump({**f5_key, "delta": row["delta_mm"] if row["delta_mm"] is not None else row["delta_spec_mm"], "mu": row["mu"],
                                   "E_canc": row["E_canc_MPa"] if row["E_canc_MPa"] is not None else spec.get("E_canc"),
                                   "R": row["load_R_N"], "af": row["alpha_front_deg"], "as": row["alpha_sagit_deg"],
                                   "hcr": row["head_coupling_radius_mm"], "h_far": row["h_far_mm"], "slip_tol": row["slip_tol"],

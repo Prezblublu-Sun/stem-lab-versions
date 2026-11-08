@@ -257,7 +257,8 @@ try:
 
     # ---------------------------------------------------------------- G
     import db_export as DX
-    ok("G: exporter version and the two AUX files", "0.2.4" in DX.EXPORTER_VERSION and "v2/torsion_load.py" in DX.AUX_FILES and "v2/pose_fixed.py" in DX.AUX_FILES)
+    ver = tuple(int(x) for x in DX.EXPORTER_VERSION.split()[1].split("."))          # 11-08: 0.2.5 adds foam_refine
+    ok("G: exporter version >= 0.2.4 and the two AUX files", ver >= (0, 2, 4) and "v2/torsion_load.py" in DX.AUX_FILES and "v2/pose_fixed.py" in DX.AUX_FILES)
     src = (ROOT / "tools/db_export.py").read_text(encoding="utf-8")
     ok("G: the columns are optional now and filled from the spec", '_c("torsion", "json", "", req="optional"' in src and '_c("pose", "json", "", req="optional"' in src and 'torsion=spec.get("torsion"), pose=spec.get("pose_fixed"),' in src)
     src = (ROOT / "v2/stage_al.py").read_text(encoding="utf-8")

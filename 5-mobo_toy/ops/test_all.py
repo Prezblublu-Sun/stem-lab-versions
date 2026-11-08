@@ -27,7 +27,7 @@ PY = str(PY) if PY.exists() else sys.executable
 ENV = {**os.environ, "PYTHONUTF8": "1", "PYTHONDONTWRITEBYTECODE": "1"}
 ALL_TRIGGERS = ("v2/jobs.py", "v2/stage_db.py", "v2/tpl_record.py", "v2/collar_rule.py", "v2/stage_al.py", "v2/al_local.py",
                 "v2/stage_neckopt.py", "v2/stage_deck.py", "v2/stage_v2a.py", "v2/stability.py", "v2/femur_3406.py",
-                "v2/torsion_load.py", "v2/pose_fixed.py", "v2/bond_collar.py", "v2/resorption.py", "v2/shielding.py", "inp_writer.py")
+                "v2/torsion_load.py", "v2/pose_fixed.py", "v2/foam_refine.py", "v2/bond_collar.py", "v2/resorption.py", "v2/shielding.py", "inp_writer.py")
 DOC_ONLY_PREFIXES = ("docs/", "ops/", "experiments/", "conclusions/", "AGENTS.md", "CLAUDE.md", "README.md", "STATE.md", ".claude/")
 
 

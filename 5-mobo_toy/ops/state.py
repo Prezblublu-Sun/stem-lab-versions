@@ -26,7 +26,7 @@ PLAN = pathlib.Path(r"H:\projects\application\research-log\neck_implant_2026-10-
 # 部署到 Linux 并影响作业的文件（8 个哈希文件之外）；tools/db_export.py 在 Windows 上跑，只比 HEAD
 DEPLOYED = ["v2/jobs.py", "v2/stage_db.py", "v2/stage_al.py", "v2/al_local.py", "v2/tpl_record.py", "v2/stage_deck.py",
             "v2/stage_neckopt.py", "v2/stage_v2a.py", "v2/stability.py", "v2/collar_rule.py", "v2/femur_3406.py",
-            "v2/torsion_load.py", "v2/pose_fixed.py", "v2/bond_collar.py", "v2/resorption.py", "v2/shielding.py", "inp_writer.py"]
+            "v2/torsion_load.py", "v2/pose_fixed.py", "v2/foam_refine.py", "v2/bond_collar.py", "v2/resorption.py", "v2/shielding.py", "inp_writer.py"]
 LOCAL_ONLY = ["tools/db_export.py", "tools/db_qa.py", "tools/db_archive.py", "v2/solve_worker.py", "v2/remote.py"]
 
 
