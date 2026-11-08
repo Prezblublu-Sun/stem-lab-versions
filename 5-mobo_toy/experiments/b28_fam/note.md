@@ -8,3 +8,9 @@
 - 2026-11-08：修订后的判据在 10 个人造情形上给出预期结果（prep/test_gates_b28.py）；加共享曲线噪声后，预测全对时 G41 通过的概率 0.88（prep/power2.py）。
 - 2026-11-08：用户"批准修订判据"，approval.md 已补。stage_db v1.21 提交 aef8509 并推到 J:（推送前 33 个测试文件全过），部署到 Linux（md5 53c851c9，VERSION aef8509）。
 - 2026-11-08 01:05 UTC：实时干跑 17 行全新，problems 和 warnings 都是空的；作业的 tag 与判据里的 tag_of、CONTROLS 一致。rows.json 由这次干跑冻结。
+- 2026-11-08 01:05 UTC：喂料门六道全过（含 --require-review），喂料器启动，Linux PID 2212275。慢启动先提交 0b、0o 和 2 行对照。
+- 2026-11-08 约 01:10 UTC：FAM1_0o（db_al_fam1_0o_e+1_3aafc5fa）prep 失败，L3：皮质里 4 个退化四面体，h 2、1.94、m 24、algo 1 和 10 都试过。没有进求解，是网格划分失败，不是力学失败。按 proposal 第 8 节"FE 失败，如实记录，不补选"。后果：按修订后的判据，G41 只能判过或不适用，G42 判不适用。怎么处理等结果出来请用户定。
+- 2026-11-08 01:30 UTC：用户"启动 worker"。删 worker.STOP，start_worker.ps1 启动，PID 18200，3 槽 × 5 核；01:30:08 领走 0b。
+- 2026-11-08 03:26 UTC：17 行算完，16 DONE，1 FAILED（0o，prep 网格）。监视器用 `prep/data/watch_b28.sh`（同一把锁，0o 记为已知失败）。
+- 2026-11-08 03:30 UTC：只看 Linux 结果的描述，不是判定：14 行微动 FE 减预测在 −0.075 到 +0.064 dex，RMSE 约 0.043，平均 −0.015。两行对照重划后微动差 0.000 和 +0.005 dex。
+- 2026-11-08 03:30 UTC：按 proposal 第 4 节的初判规则（`prep/prelim_winners.py`），初判赢家 3b、1b、0b，名单和余量表在 `experiments/b28c_cond/note.md`。

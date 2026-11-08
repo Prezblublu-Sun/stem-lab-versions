@@ -1,9 +1,9 @@
 """3406 数据库（db3406）的批量提交器 v1.5（D1 = v0 + 审查修正 + 采纳 CD-0 种子 + 第二轮审查修正；D2 = 批次 b2 + 并行喂料；v1.3 = 批次 b1b；v1.4 = 批次 b2b；
-v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2）；v1.7 = 批次 b7（AL-3，局部候选）；v1.8 = 批次 b14（候选 A 的 m / α 单因素扫描）；v1.9 = 批次 b8、b12（第二周计划第二版）；v1.10 = 批次 b7m（AL-3′，m ≥ 1.0）；v1.11 = 批次 b15（A 的 m 1.0 版 × α）；v1.12 = 批次 b16、b17、b18（第三版计划的 VAL-1、TQ-0、MU-1）；v1.13 = 批次 b19（WL-1）；v1.14 = 批次 b9p、b11p（CD-2″、OW-2）；v1.15 = 批次 b20、b21（AL-4m）；v1.16 = 批次 b22（OW-3）；v1.17 = 批次 b23（OW-4）；v1.18 = 批次 b24（TQ-1、PF-1 的冒烟）；v1.19 = 批次 b25（OPT-1，F、微动、去骨三目标）；v1.20 = 批次 b26、b27（STS-1，候选 × 坐起 1714 N）；v1.21 = 批次 b28（FAM-1，离 A 0.25 到 0.75 的环带））。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
+v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2）；v1.7 = 批次 b7（AL-3，局部候选）；v1.8 = 批次 b14（候选 A 的 m / α 单因素扫描）；v1.9 = 批次 b8、b12（第二周计划第二版）；v1.10 = 批次 b7m（AL-3′，m ≥ 1.0）；v1.11 = 批次 b15（A 的 m 1.0 版 × α）；v1.12 = 批次 b16、b17、b18（第三版计划的 VAL-1、TQ-0、MU-1）；v1.13 = 批次 b19（WL-1）；v1.14 = 批次 b9p、b11p（CD-2″、OW-2）；v1.15 = 批次 b20、b21（AL-4m）；v1.16 = 批次 b22（OW-3）；v1.17 = 批次 b23（OW-4）；v1.18 = 批次 b24（TQ-1、PF-1 的冒烟）；v1.19 = 批次 b25（OPT-1，F、微动、去骨三目标）；v1.20 = 批次 b26、b27（STS-1，候选 × 坐起 1714 N）；v1.21 = 批次 b28（FAM-1，离 A 0.25 到 0.75 的环带）；v1.22 = 批次 b28c（b28 初判赢家的条件行））。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
 （第 1.3 / 1.4 节分层与无偏集、第 1.6 节命名 / 查重 / 版本陷阱、第 1.8 节检查 13 / 14、第 2.1–2.7 节、第 3.2 节 CR-T；用户 2026-10-25 批准两天部分）。
 不改 8 个哈希文件（code_hash 必须是 6d7af243d0）、不改 jobs.py / stage_neckopt.py / stage_deck.py / stage_v2a.py / tpl_record.py；提交只走 jobs.submit。
 
-    python v2/stage_db.py dry-run b1|b2|b1b|b2b|b3|b4|b5|b6|b7|b7m|b14|b8|b12|b15|b16|b17|b18|b19|b9p|b11p|b20|b21|b22|b23|b24|b25|b26|b27|b28 [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
+    python v2/stage_db.py dry-run b1|b2|b1b|b2b|b3|b4|b5|b6|b7|b7m|b14|b8|b12|b15|b16|b17|b18|b19|b9p|b11p|b20|b21|b22|b23|b24|b25|b26|b27|b28|b28c [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
                                                           预期 id、查重结果（hash8 / 物理键）、种子采纳、参照与参照核对；末尾 DRY-RUN-JSON。什么都不写
                                                           （b2 另印 G2 核对、CR-1 / CR-T 选点、放宽计数、槽时估计、b1 优先级的当前判断）
     python v2/stage_db.py feed b1|b2 [--once] [--poll 60] 喂料器（只在 Linux 上跑；b1 与 b2 可以同时跑，见"并行喂料"）：
@@ -64,7 +64,13 @@ v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2�
     b28 = FAM-1，层 FAM-1，stage db_al，source al_adaptive，只解摩擦，基线条件，15 行：离 A 单位距离 0.25 到 0.75 的环带里按"离开 A 的方向"分 5 族，每族 3 行
        （打分最好、距离 ≥ 0.45 里最好、不确定度最大）。选点在 experiments/b28_fam/prep/（0 FE）：打分规则 = G41 的两条路线，m ≥ 1，盒内，8 个位姿过放置检查。
        这里写死 u13、e，以及放置复查时模板化的号和去骨量，build 核对。另加层 FAM-1 ctrl 2 行，stage db_nz，source noise，带粘接：A 的 m 1.0 版 e +1、+2 × h 1.94，
-       参照 b1 的 REF_h1.94（楼梯），阴性对照。A 的 m 1.0 版必须 DONE。判据是 experiments/b28_fam/gates.py 的 G41–G44。
+       参照 b1 的 REF_h1.94（楼梯），阴性对照。A 的 m 1.0 版必须 DONE。判据是 experiments/b28_fam/gates.py 的 G41–G45。
+
+批次 b28c（v1.22，2026-11-08，experiments/b28c_cond/，用户"批准 17 行"里的条件行，最多 15 行）：
+    b28 的 15 行算完后，按 experiments/b28_fam/proposal.md 第 4 节写定的初判规则选出赢家（FAM1C_WINNERS，最多 5 个）。每个赢家 3 行：
+       层 FAM-1 rep，stage db_nz，source noise，h 1.94 重划复算，带粘接，参照 b1 的 REF_h1.94；层 FAM-1 h1.4，stage db_fd，source fid_h14，带粘接，参照 REF_h1.4，重作业；
+       层 FAM-1 sts，stage db_cd，source cond_anchor，坐起 1714 N，只解摩擦。物理都从 b28 的主行来，只改 h_int（和 h 1.4 的 slip_tol）或 cfg.load。
+       赢家的 b28 主行必须 DONE。tag = 主行 tag + "_h1.94" / "_h1.4" / "_F1714"，与 b28 的 gates.py 一致。
 
 批次 b26、b27（v1.20，2026-11-04，experiments/b26_sts1714/，用户"批准 19 行"）：
     b26 = STS-1，层 STS-1，stage db_cd，source cond_anchor，只解摩擦，15 行：当前候选只把头力换成坐起 1714 N（D13_STS），其余同基线行。基线行必须 DONE。
@@ -350,7 +356,7 @@ AUTO_ACK_MAX_RATE = 0.15
 FIRST_N, FIRST_N_MAX_FAILED = 10, 2         # 本批最先完成的 10 个喂料器自己提交的行里 FAILED > 2 → 每层都停（规划 G1）
 SLOW_START_LAYERS = ("NZ-1", "FD-0 h2.5", "FD-0 h1.4", "BD mesh", "BD h2.0", "SF-1", "CR-1", "FD-0 h2.4", "BD b2",
                      "CR-T", "NZ-2", "FD-1 h1.4", "CD-1", "CD-1 rand", "BD offset", "BD sts", "AL-1", "AL-1 sts", "AL-1 rand",
-                     "AL-2", "AL-2 sts", "AL-2 rand", "AL-3", "AL-3 sts", "AL-3 rand", "WS m", "WS alpha", "NZ-3", "W-0 alpha", "W-0 L", "CY-1", "AL-3m", "AL-3m sts", "AL-3m rand", "WS m alpha", "TQ-0", "MU-1", "WL-1", "CD-2", "OW-2", "OW-3", "OW-4", "OW-4 cy", "OW-4 h1.4", "TQ-1 smoke", "PF-1 smoke", "WS m2", "AL-4m", "AL-4m sts", "AL-4m rand", "OPT-1", "STS-1", "STS-1 mesh", "FAM-1", "FAM-1 ctrl")
+                     "AL-2", "AL-2 sts", "AL-2 rand", "AL-3", "AL-3 sts", "AL-3 rand", "WS m", "WS alpha", "NZ-3", "W-0 alpha", "W-0 L", "CY-1", "AL-3m", "AL-3m sts", "AL-3m rand", "WS m alpha", "TQ-0", "MU-1", "WL-1", "CD-2", "OW-2", "OW-3", "OW-4", "OW-4 cy", "OW-4 h1.4", "TQ-1 smoke", "PF-1 smoke", "WS m2", "AL-4m", "AL-4m sts", "AL-4m rand", "OPT-1", "STS-1", "STS-1 mesh", "FAM-1", "FAM-1 ctrl", "FAM-1 rep", "FAM-1 h1.4", "FAM-1 sts")
                                             # 新层慢启动（REF 串行、CD-0 是种子：不在内）
 SLOW_START_CAP = 2                          # … DONE 不到 SLOW_START_DONE 行之前，该层在飞（NEW / READY / CLAIMED / SOLVED）最多 2 行
 SLOW_START_DONE = 2
@@ -419,14 +425,14 @@ LAYER_SOURCE = {"REF": "intact_ref", "CD-0": "cond_anchor", "NZ-1": "noise", "FD
                 "VAL-1": "intact_ref", "TQ-0": "cond_anchor", "MU-1": "cond_anchor", "WL-1": "bound_scan",
                 "CD-2": "cond_anchor", "OW-2": "bound_scan", "OW-3": "bound_scan", "OW-4": "cond_anchor", "OW-4 cy": "cycle_variant", "OW-4 h1.4": "fid_h14", "TQ-1 smoke": "cond_anchor", "PF-1 smoke": "cond_anchor",
                 "WS m2": "bound_scan", "AL-4m": "al_adaptive", "AL-4m sts": "al_adaptive", "AL-4m rand": "al_random", "OPT-1": "al_adaptive", "STS-1": "cond_anchor", "STS-1 mesh": "noise",
-                "FAM-1": "al_adaptive", "FAM-1 ctrl": "noise"}
+                "FAM-1": "al_adaptive", "FAM-1 ctrl": "noise", "FAM-1 rep": "noise", "FAM-1 h1.4": "fid_h14", "FAM-1 sts": "cond_anchor"}
 LAYER_SELECTION = {"REF": "reference", "VAL-1": "reference", "SF-1": "iid", "CR-T": "corner_test", "CD-1 rand": "iid", "AL-1": "adaptive", "AL-1 sts": "adaptive",
                    "AL-1 rand": "iid", "AL-2": "adaptive", "AL-2 sts": "adaptive", "AL-2 rand": "iid",
                    "AL-3": "adaptive", "AL-3 sts": "adaptive", "AL-3 rand": "iid",
                    "AL-3m": "adaptive", "AL-3m sts": "adaptive", "AL-3m rand": "iid",
                    "AL-4m": "adaptive", "AL-4m sts": "adaptive", "AL-4m rand": "iid", "OPT-1": "adaptive", "FAM-1": "adaptive"}          # 其余层 stratum（tools/db_export.DB_STAGE_RULES：db_sf = sf / iid，db_cr = corner / stratum，
                                                 # db_crt = corner_test / corner_test，db_bd = offset_variant；AL 的非随机选点在排除集 E）
-BATCHES = ("b1", "b2", "b1b", "b2b", "b3", "b4", "b5", "b6", "b7", "b14", "b8", "b12", "b7m", "b15", "b16", "b17", "b18", "b19", "b9p", "b11p", "b20", "b21", "b22", "b23", "b24", "b25", "b26", "b27", "b28")
+BATCHES = ("b1", "b2", "b1b", "b2b", "b3", "b4", "b5", "b6", "b7", "b14", "b8", "b12", "b7m", "b15", "b16", "b17", "b18", "b19", "b9p", "b11p", "b20", "b21", "b22", "b23", "b24", "b25", "b26", "b27", "b28", "b28c")
 B2B_SOURCE_BATCHES = ("b2",)                # b2b：这些批次清单里已 DONE 的只解摩擦设计行各配一个 h 2.0 只粘接作业
 B2B_LAYER = "BD b2"
 B1B_H = 2.4                                 # b1b 的粗网格档（h 2.5 的完整股骨建模失败，见模块说明"批次 b1b"）
@@ -533,6 +539,7 @@ FAM1_ROWS = (("0b", 1.5, 316.943, 5319.45, (0.8151747744098643, 0.97921455604420
              ("4x", 2.5, 298.105, 5162.05, (0.6876255268674525, 0.9589231335342329, 0.0444754547814674, 0.3976104770901137, 0.17100727152264, 0.8838044994257479, 0.14165991909780135, 0.5651933896685438, 0.37708664610395387, 0.4784255731877985, 0.26633789302980226, 0.1739454412648285, 0.0610778919808741)))
 FAM1_CTRL = (("e+1", _A + "ow_m1_e+1_fea69910"), ("e+2", _A + "ow_m1_e+2_c9ca96c8"))   # b28 的阴性对照：基线行 × h 1.94
 FAM1_CTRL_H = 1.94
+FAM1C_WINNERS = ("3b", "1b", "0b")         # b28c：b28 的初判赢家标签（FAM1_ROWS 的第一列），b28 的 15 行算完后按 proposal 第 4 节的规则填，最多 5 个
 AL_STS = "F3839"                            # 稳健问题的选点另加一行起身 3839 N（δ 0.10，只解摩擦），验收稳健目标用
 
 # ---------------------------------------------------------------- 批次 b2（规划 1.3 / 1.4、2.2 D2、2.4 SF-1 / CR-1、3.2 CR-T、2.5 放宽计数）
@@ -1135,6 +1142,8 @@ def build(batch: str = "b1") -> dict:
         return build_b27()
     if batch == "b28":
         return build_b28()
+    if batch == "b28c":
+        return build_b28c()
     unreadable = []
     qspecs = scan_queue(unreadable)
     by_h8 = _by_h8(qspecs)
@@ -3000,6 +3009,48 @@ def build_b28() -> dict:
         rows.append(r)
         keys.append(r["key"])
     return _finish_batch("b28", rows, keys, qspecs, by_h8, by_phys, warn, problems, {H_PROD: REF_H2, FAM1_CTRL_H: ref}, ws_tpl=ws_tpl, ws_control=ctrl_id)
+
+
+def build_b28c() -> dict:
+    """b28c = b28 初判赢家的条件行（模块说明"批次 b28c"）：每个赢家 h 1.94 复算、h 1.4、坐起 1714 N。
+    名单为空、超过 5 个、有重复或未知标签、参照不在 b1 清单里 → SystemExit；赢家的主行没 DONE、参照没 DONE → problems。"""
+    np = _np()
+    qspecs, by_h8, by_phys, warn = _batch_ctx()
+    problems, rows, keys = [], [], []
+    known = {x[0]: x for x in FAM1_ROWS}
+    if not FAM1C_WINNERS or len(FAM1C_WINNERS) > 5 or len(set(FAM1C_WINNERS)) != len(FAM1C_WINNERS) or set(FAM1C_WINNERS) - set(known):
+        raise SystemExit(f"b28c: FAM1C_WINNERS {FAM1C_WINNERS!r} must be 1 to 5 distinct labels of FAM1_ROWS")
+    b1_ids, err = recorded_ids(B3_REF_BATCH)
+    if err:
+        raise SystemExit(err)
+    refs = {}
+    for h in (FAM1_CTRL_H, HEAVY_H):
+        j0 = b1_ids.get(f"REF_h{h:g}")
+        if not j0:
+            raise SystemExit(f"b28c: the {B3_REF_BATCH} manifest has no submitted REF_h{h:g}")
+        st = J.state(J.QROOT / j0)
+        if st != "DONE":
+            problems.append(f"b28c: reference REF_h{h:g} = {j0} is {st} (must be DONE)")
+        refs[h] = j0
+    ph = b2_phase()
+    for lab in FAM1C_WINNERS:
+        _, e, _a0, _bone, u = known[lab]
+        tag = f"fam1_{lab}_e{e:+g}"
+        main = _variant(_phys(ph.spec_of(np.asarray(u, float), tag, bonded=True), f"db_al {tag}"), "db_al", tag, "fric", entry_offset=float(e))
+        main_id = expected_id(main)
+        st = J.state(J.QROOT / main_id) if (J.QROOT / main_id).is_dir() else "absent"
+        if st != "DONE":
+            problems.append(f"b28c {lab}: the b28 row {main_id} is {st} (must be DONE)")
+        p_ = _phys(main, main_id)
+        for key, layer, spec, ref_key in (
+                (f"FAM1R_{lab}", "FAM-1 rep", _variant(p_, "db_nz", f"{tag}_h{FAM1_CTRL_H:g}", "full", intact_job=refs[FAM1_CTRL_H], h_int=FAM1_CTRL_H), f"REF_h{FAM1_CTRL_H:g}"),
+                (f"FAM1H_{lab}", "FAM-1 h1.4", _variant(p_, "db_fd", f"{tag}_h{HEAVY_H:g}", "full", intact_job=refs[HEAVY_H], h_int=HEAVY_H, slip_tol=H14_SLIP_TOL), f"REF_h{HEAVY_H:g}"),
+                (f"FAM1S_{lab}", "FAM-1 sts", _variant(p_, "db_cd", f"{tag}_{STS1_LOAD}", "fric", cfg={"load": dict(STS_LOADS[STS1_LOAD])}), None)):
+            r = _row(key, layer, spec, main_id, None, ref_key=ref_key, extra={"e_forced": float(e)})
+            r.update(unbiased=False, in_E=True)
+            rows.append(r)
+            keys.append(key)
+    return _finish_batch("b28c", rows, keys, qspecs, by_h8, by_phys, warn, problems, {H_PROD: REF_H2, FAM1_CTRL_H: refs[FAM1_CTRL_H], HEAVY_H: refs[HEAVY_H]})
 
 
 def build_b20() -> dict:
