@@ -1,9 +1,9 @@
 """3406 数据库（db3406）的批量提交器 v1.5（D1 = v0 + 审查修正 + 采纳 CD-0 种子 + 第二轮审查修正；D2 = 批次 b2 + 并行喂料；v1.3 = 批次 b1b；v1.4 = 批次 b2b；
-v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2）；v1.7 = 批次 b7（AL-3，局部候选）；v1.8 = 批次 b14（候选 A 的 m / α 单因素扫描）；v1.9 = 批次 b8、b12（第二周计划第二版）；v1.10 = 批次 b7m（AL-3′，m ≥ 1.0）；v1.11 = 批次 b15（A 的 m 1.0 版 × α）；v1.12 = 批次 b16、b17、b18（第三版计划的 VAL-1、TQ-0、MU-1）；v1.13 = 批次 b19（WL-1）；v1.14 = 批次 b9p、b11p（CD-2″、OW-2）；v1.15 = 批次 b20、b21（AL-4m）；v1.16 = 批次 b22（OW-3）；v1.17 = 批次 b23（OW-4）；v1.18 = 批次 b24（TQ-1、PF-1 的冒烟）；v1.19 = 批次 b25（OPT-1，F、微动、去骨三目标）；v1.20 = 批次 b26、b27（STS-1，候选 × 坐起 1714 N））。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
+v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2）；v1.7 = 批次 b7（AL-3，局部候选）；v1.8 = 批次 b14（候选 A 的 m / α 单因素扫描）；v1.9 = 批次 b8、b12（第二周计划第二版）；v1.10 = 批次 b7m（AL-3′，m ≥ 1.0）；v1.11 = 批次 b15（A 的 m 1.0 版 × α）；v1.12 = 批次 b16、b17、b18（第三版计划的 VAL-1、TQ-0、MU-1）；v1.13 = 批次 b19（WL-1）；v1.14 = 批次 b9p、b11p（CD-2″、OW-2）；v1.15 = 批次 b20、b21（AL-4m）；v1.16 = 批次 b22（OW-3）；v1.17 = 批次 b23（OW-4）；v1.18 = 批次 b24（TQ-1、PF-1 的冒烟）；v1.19 = 批次 b25（OPT-1，F、微动、去骨三目标）；v1.20 = 批次 b26、b27（STS-1，候选 × 坐起 1714 N）；v1.21 = 批次 b28（FAM-1，离 A 0.25 到 0.75 的环带））。规划：research-log/neck_implant_2026-10-02/3406数据库规划_两天一周一月_2026-10-25.md
 （第 1.3 / 1.4 节分层与无偏集、第 1.6 节命名 / 查重 / 版本陷阱、第 1.8 节检查 13 / 14、第 2.1–2.7 节、第 3.2 节 CR-T；用户 2026-10-25 批准两天部分）。
 不改 8 个哈希文件（code_hash 必须是 6d7af243d0）、不改 jobs.py / stage_neckopt.py / stage_deck.py / stage_v2a.py / tpl_record.py；提交只走 jobs.submit。
 
-    python v2/stage_db.py dry-run b1|b2|b1b|b2b|b3|b4|b5|b6|b7|b7m|b14|b8|b12|b15|b16|b17|b18|b19|b9p|b11p|b20|b21|b22|b23|b24|b25|b26|b27 [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
+    python v2/stage_db.py dry-run b1|b2|b1b|b2b|b3|b4|b5|b6|b7|b7m|b14|b8|b12|b15|b16|b17|b18|b19|b9p|b11p|b20|b21|b22|b23|b24|b25|b26|b27|b28 [--root <只读副本>]  只打印：每个 spec 的键、层、stage、源作业、相对源 spec.json 的变体（键 旧 -> 新）、
                                                           预期 id、查重结果（hash8 / 物理键）、种子采纳、参照与参照核对；末尾 DRY-RUN-JSON。什么都不写
                                                           （b2 另印 G2 核对、CR-1 / CR-T 选点、放宽计数、槽时估计、b1 优先级的当前判断）
     python v2/stage_db.py feed b1|b2 [--once] [--poll 60] 喂料器（只在 Linux 上跑；b1 与 b2 可以同时跑，见"并行喂料"）：
@@ -59,6 +59,12 @@ v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2�
 批次 b15（v1.11，2026-11-02，用户"先补 3 行"，放宽 α 之前的检查）= 候选 A 的 m 1.0 版 × α 50 / 55 / 60，3 行，全部带粘接，层 WS m alpha，source bound_scan，stage db_ws。
     b14 的 α 收益是在 m 0.5 上测的，而台架用 m 1.0 版。对照 = b14 的 WS_m1（必须 DONE），所以这里只改 m 和 α 两个键，其余物理都与 A 相同。这 3 行都在 v1 盒外，stage_al.load_training 不用它们训练。
     不可行、入口偏移离开 A 的 e*、模板化报错、对照 WS_m1 不是 DONE → 问题，feed 拒绝。规则在看结果前写定：3406_m_alpha扫描_b14_2026-11-02.md 第 8 节。
+
+批次 b28（v1.21，2026-11-08，experiments/b28_fam/，用户"批准 17 行"）：
+    b28 = FAM-1，层 FAM-1，stage db_al，source al_adaptive，只解摩擦，基线条件，15 行：离 A 单位距离 0.25 到 0.75 的环带里按"离开 A 的方向"分 5 族，每族 3 行
+       （打分最好、距离 ≥ 0.45 里最好、不确定度最大）。选点在 experiments/b28_fam/prep/（0 FE）：打分规则 = G41 的两条路线，m ≥ 1，盒内，8 个位姿过放置检查。
+       这里写死 u13、e，以及放置复查时模板化的号和去骨量，build 核对。另加层 FAM-1 ctrl 2 行，stage db_nz，source noise，带粘接：A 的 m 1.0 版 e +1、+2 × h 1.94，
+       参照 b1 的 REF_h1.94（楼梯），阴性对照。A 的 m 1.0 版必须 DONE。判据是 experiments/b28_fam/gates.py 的 G41–G44。
 
 批次 b26、b27（v1.20，2026-11-04，experiments/b26_sts1714/，用户"批准 19 行"）：
     b26 = STS-1，层 STS-1，stage db_cd，source cond_anchor，只解摩擦，15 行：当前候选只把头力换成坐起 1714 N（D13_STS），其余同基线行。基线行必须 DONE。
@@ -344,7 +350,7 @@ AUTO_ACK_MAX_RATE = 0.15
 FIRST_N, FIRST_N_MAX_FAILED = 10, 2         # 本批最先完成的 10 个喂料器自己提交的行里 FAILED > 2 → 每层都停（规划 G1）
 SLOW_START_LAYERS = ("NZ-1", "FD-0 h2.5", "FD-0 h1.4", "BD mesh", "BD h2.0", "SF-1", "CR-1", "FD-0 h2.4", "BD b2",
                      "CR-T", "NZ-2", "FD-1 h1.4", "CD-1", "CD-1 rand", "BD offset", "BD sts", "AL-1", "AL-1 sts", "AL-1 rand",
-                     "AL-2", "AL-2 sts", "AL-2 rand", "AL-3", "AL-3 sts", "AL-3 rand", "WS m", "WS alpha", "NZ-3", "W-0 alpha", "W-0 L", "CY-1", "AL-3m", "AL-3m sts", "AL-3m rand", "WS m alpha", "TQ-0", "MU-1", "WL-1", "CD-2", "OW-2", "OW-3", "OW-4", "OW-4 cy", "OW-4 h1.4", "TQ-1 smoke", "PF-1 smoke", "WS m2", "AL-4m", "AL-4m sts", "AL-4m rand", "OPT-1", "STS-1", "STS-1 mesh")
+                     "AL-2", "AL-2 sts", "AL-2 rand", "AL-3", "AL-3 sts", "AL-3 rand", "WS m", "WS alpha", "NZ-3", "W-0 alpha", "W-0 L", "CY-1", "AL-3m", "AL-3m sts", "AL-3m rand", "WS m alpha", "TQ-0", "MU-1", "WL-1", "CD-2", "OW-2", "OW-3", "OW-4", "OW-4 cy", "OW-4 h1.4", "TQ-1 smoke", "PF-1 smoke", "WS m2", "AL-4m", "AL-4m sts", "AL-4m rand", "OPT-1", "STS-1", "STS-1 mesh", "FAM-1", "FAM-1 ctrl")
                                             # 新层慢启动（REF 串行、CD-0 是种子：不在内）
 SLOW_START_CAP = 2                          # … DONE 不到 SLOW_START_DONE 行之前，该层在飞（NEW / READY / CLAIMED / SOLVED）最多 2 行
 SLOW_START_DONE = 2
@@ -412,14 +418,15 @@ LAYER_SOURCE = {"REF": "intact_ref", "CD-0": "cond_anchor", "NZ-1": "noise", "FD
                 "NZ-3": "noise", "W-0 alpha": "bound_scan", "W-0 L": "bound_scan", "CY-1": "cycle_variant",
                 "VAL-1": "intact_ref", "TQ-0": "cond_anchor", "MU-1": "cond_anchor", "WL-1": "bound_scan",
                 "CD-2": "cond_anchor", "OW-2": "bound_scan", "OW-3": "bound_scan", "OW-4": "cond_anchor", "OW-4 cy": "cycle_variant", "OW-4 h1.4": "fid_h14", "TQ-1 smoke": "cond_anchor", "PF-1 smoke": "cond_anchor",
-                "WS m2": "bound_scan", "AL-4m": "al_adaptive", "AL-4m sts": "al_adaptive", "AL-4m rand": "al_random", "OPT-1": "al_adaptive", "STS-1": "cond_anchor", "STS-1 mesh": "noise"}
+                "WS m2": "bound_scan", "AL-4m": "al_adaptive", "AL-4m sts": "al_adaptive", "AL-4m rand": "al_random", "OPT-1": "al_adaptive", "STS-1": "cond_anchor", "STS-1 mesh": "noise",
+                "FAM-1": "al_adaptive", "FAM-1 ctrl": "noise"}
 LAYER_SELECTION = {"REF": "reference", "VAL-1": "reference", "SF-1": "iid", "CR-T": "corner_test", "CD-1 rand": "iid", "AL-1": "adaptive", "AL-1 sts": "adaptive",
                    "AL-1 rand": "iid", "AL-2": "adaptive", "AL-2 sts": "adaptive", "AL-2 rand": "iid",
                    "AL-3": "adaptive", "AL-3 sts": "adaptive", "AL-3 rand": "iid",
                    "AL-3m": "adaptive", "AL-3m sts": "adaptive", "AL-3m rand": "iid",
-                   "AL-4m": "adaptive", "AL-4m sts": "adaptive", "AL-4m rand": "iid", "OPT-1": "adaptive"}          # 其余层 stratum（tools/db_export.DB_STAGE_RULES：db_sf = sf / iid，db_cr = corner / stratum，
+                   "AL-4m": "adaptive", "AL-4m sts": "adaptive", "AL-4m rand": "iid", "OPT-1": "adaptive", "FAM-1": "adaptive"}          # 其余层 stratum（tools/db_export.DB_STAGE_RULES：db_sf = sf / iid，db_cr = corner / stratum，
                                                 # db_crt = corner_test / corner_test，db_bd = offset_variant；AL 的非随机选点在排除集 E）
-BATCHES = ("b1", "b2", "b1b", "b2b", "b3", "b4", "b5", "b6", "b7", "b14", "b8", "b12", "b7m", "b15", "b16", "b17", "b18", "b19", "b9p", "b11p", "b20", "b21", "b22", "b23", "b24", "b25", "b26", "b27")
+BATCHES = ("b1", "b2", "b1b", "b2b", "b3", "b4", "b5", "b6", "b7", "b14", "b8", "b12", "b7m", "b15", "b16", "b17", "b18", "b19", "b9p", "b11p", "b20", "b21", "b22", "b23", "b24", "b25", "b26", "b27", "b28")
 B2B_SOURCE_BATCHES = ("b2",)                # b2b：这些批次清单里已 DONE 的只解摩擦设计行各配一个 h 2.0 只粘接作业
 B2B_LAYER = "BD b2"
 B1B_H = 2.4                                 # b1b 的粗网格档（h 2.5 的完整股骨建模失败，见模块说明"批次 b1b"）
@@ -508,6 +515,24 @@ OPT1_ROWS = ((1.75, 307.553, 5520.15, (0.9238734473034518, 0.9880550814685174, 0
              (0.5, 425.391, 7695.43, (0.9341569996053715, 0.9873188003607447, 0.005681831748659506, 0.3333333333333333, 0.26754467144631905, 0.984853255553452, 0.1080535987507047, 0.6309090423837912, 0.3606274717609309, 0.6315438489117637, 0.23640153101577277, 0.025287237519955638, 0.11624080821406796)),
              (0.25, 423.483, 7966.38, (0.9540817222306555, 0.9803405568860086, 0.006949525841130198, 0.3333333333333333, 0.30664190807811126, 0.9966706768647708, 0.07946121323748254, 0.6835860418864987, 0.33349636910683983, 0.6256084119439757, 0.23251368939551958, 0.019578439336608404, 0.10046854237054983)),
              (0.0, 468.445, 8410.79, (0.9295018662433129, 0.9996995317168558, 0.0009951799356235995, 0.3333333333333333, 0.2757106676371542, 0.9851306897367607, 0.09503493719216276, 0.6506385821989001, 0.3729435879868641, 0.6211644224335073, 0.21092460454500472, 0.005803008392504591, 0.10503181932260096)))
+# b28：(标签, 入口偏移, 放置复查时模板化的号 mm², 去骨 mm³, u13)，标签 = 族号 + 角色（b 最好、o 外圈、x 探索），来自 experiments/b28_fam/prep/data/fam1_rows.json
+FAM1_ROWS = (("0b", 1.5, 316.943, 5319.45, (0.8151747744098643, 0.9792145560442088, 0.0005097931495173641, 0.3651743841221586, 0.27686167971822156, 0.9862890039465495, 0.10011370354591215, 0.7243739245236769, 0.433782565637235, 0.7168606631937815, 0.4326824442554854, 0.06492109018568895, 0.16003012212603243)),
+             ("0o", 1.0, 291.313, 5136.56, (0.7416029752764219, 0.9452041072361137, 0.0049672315550910685, 0.35798003031185527, 0.38696940213153574, 0.9816862074530162, 0.21127914632429334, 0.7707893541048161, 0.609269558034536, 0.3734362568222404, 0.21973870923432792, 0.004645930791640071, 0.17775637209881756)),
+             ("0x", 2.0, 245.482, 4922.81, (0.719098743403547, 0.9770657345546347, 0.024072315066181613, 0.33814026335662944, 0.40840760860471925, 0.7814399903595854, 0.28164562761847467, 0.5820334636159936, 0.6295745645541458, 0.5693665286023428, 0.23073253440139802, 0.04756408671945648, 0.036998230245107185)),
+             ("1b", 2.0, 349.708, 5310.19, (0.7851727428209799, 0.9932991211511448, 0.015288544061092117, 0.3380577981781537, 0.09952512294121321, 0.9584060145972627, 0.02222323345147066, 0.6668040315496991, 0.32909420977400367, 0.8103021751399987, 0.20854089634176312, 0.10244429627364429, 0.20681407962131204)),
+             ("1o", 0.5, 307.294, 4686.74, (0.6004595343152879, 0.8924146805718808, 0.00011299972387193678, 0.34690720687714444, 0.12230745578330765, 0.6060593354119055, 0.008569945439368384, 0.8412975698365481, 0.4706635484364171, 0.8860304853238422, 0.18017619779954863, 0.07847710805294701, 0.3941575376888594)),
+             ("1x", 0.5, 309.547, 5630.77, (0.7973766083225152, 0.9584225697839849, 0.03319191067626582, 0.3832388958289568, 0.22290505619493875, 0.9043696092241611, 0.14669189022948728, 0.8392646084764447, 0.6663358325277611, 0.6464749010722304, 0.07642717376034072, 0.06994295937302089, 0.11748609502378163)),
+             ("2b", 0.5, 289.111, 6181.92, (0.9022200369822886, 0.9993217867484465, 0.012361893540560392, 0.3339484512325495, 0.42628767874211004, 0.8012637073428658, 0.15402217956131198, 0.8605487368774485, 0.2706981891666819, 0.6386366435554924, 0.20077171626561097, 0.053341161287702187, 0.44128456835080854)),
+             ("2o", 0.0, 319.986, 6819.32, (0.9022200369822886, 0.9993217867484465, 0.012361893540560392, 0.3339484512325495, 0.42628767874211004, 0.8012637073428658, 0.15402217956131198, 0.8605487368774485, 0.2706981891666819, 0.6386366435554924, 0.20077171626561097, 0.053341161287702187, 0.44128456835080854)),
+             ("2x", 2.0, 264.316, 4677.33, (0.7470245893333101, 0.9606546669388001, 0.03462210060999056, 0.4401208470076896, 0.2213979679309333, 0.975004365766363, 0.24413272684930323, 0.6898032984360125, 0.2344615519999725, 0.6053609633288533, 0.0994712172742158, 0.006900820146572424, 0.19991816240510385)),
+             ("3b", 1.5, 305.313, 5361.64, (0.8911481315067205, 0.9934411425099255, 0.0029234742922938485, 0.37084252264237794, 0.26286437405138124, 0.9780866915772244, 0.11918235342362452, 0.7523666282135032, 0.28640972175110246, 0.46547128019726336, 0.19274979271519735, 0.10459201785394324, 0.2024907419248294)),
+             ("3o", 0.5, 334.423, 6623.28, (0.9097908741179369, 0.9932482251431306, 0.030260296682760028, 0.3346667272012543, 0.28004431614321157, 0.9005172842835136, 0.03009945576080436, 0.9090286441966418, 0.31319504318750413, 0.38905310770906915, 0.1487970879394891, 0.23042916150497655, 0.021928898628228985)),
+             ("3x", 0.5, 360.082, 5541.68, (0.5159044311089684, 0.9968382670757313, 0.027166300360043322, 0.4444297523926939, 0.21000839142118882, 0.7666087133788168, 0.033976298486097414, 0.8762769466421393, 0.6067769078816451, 0.5435325573439871, 0.14166647596288057, 0.07806579641078404, 0.11153889209782719)),
+             ("4b", 2.0, 340.398, 5088.77, (0.7899223370966193, 0.9714865194921449, 0.0004679497542485134, 0.371776564033574, 0.11425869290686308, 0.9109415966912181, 0.13396830255166817, 0.5610573023608824, 0.35458966750911197, 0.5432410061680841, 0.13466082400417745, 0.014634466587615793, 0.12360593789804826)),
+             ("4o", 2.5, 299.029, 4859.14, (0.8270292986795835, 0.9018448599120685, 0.03134338173132872, 0.36918084395530026, 0.08073576981358646, 0.9792461817627999, 0.18895207563147315, 0.5092004099408287, 0.3043730029392667, 0.6523614546106055, 0.5271724004375096, 0.1391037541208775, 0.2264503828061699)),
+             ("4x", 2.5, 298.105, 5162.05, (0.6876255268674525, 0.9589231335342329, 0.0444754547814674, 0.3976104770901137, 0.17100727152264, 0.8838044994257479, 0.14165991909780135, 0.5651933896685438, 0.37708664610395387, 0.4784255731877985, 0.26633789302980226, 0.1739454412648285, 0.0610778919808741)))
+FAM1_CTRL = (("e+1", _A + "ow_m1_e+1_fea69910"), ("e+2", _A + "ow_m1_e+2_c9ca96c8"))   # b28 的阴性对照：基线行 × h 1.94
+FAM1_CTRL_H = 1.94
 AL_STS = "F3839"                            # 稳健问题的选点另加一行起身 3839 N（δ 0.10，只解摩擦），验收稳健目标用
 
 # ---------------------------------------------------------------- 批次 b2（规划 1.3 / 1.4、2.2 D2、2.4 SF-1 / CR-1、3.2 CR-T、2.5 放宽计数）
@@ -1108,6 +1133,8 @@ def build(batch: str = "b1") -> dict:
         return build_b26()
     if batch == "b27":
         return build_b27()
+    if batch == "b28":
+        return build_b28()
     unreadable = []
     qspecs = scan_queue(unreadable)
     by_h8 = _by_h8(qspecs)
@@ -2916,6 +2943,65 @@ def build_b27() -> dict:
     return _finish_batch("b27", rows, order, q2, by_h8, by_phys, warn, problems, ref_id, ref_by_key=ref_by_key)
 
 
+def build_b28() -> dict:
+    """b28 = FAM-1（模块说明"批次 b28"）：环带 15 个新设计，入口偏移固定，只解摩擦；加 2 行阴性对照（h 1.94，带粘接）。
+    A 的 m 1.0 版没 DONE、m < 1、不可行、偏移或号或去骨量和 0 FE 记录不符、模板化报错、h 1.94 参照没 DONE → problems；对照基线没 DONE → SystemExit（load_source）。"""
+    np = _np()
+    qspecs, by_h8, by_phys, warn = _batch_ctx()
+    problems, rows, keys, ws_tpl = [], [], [], {}
+    b1_ids, err = recorded_ids(B3_REF_BATCH)
+    if err:
+        raise SystemExit(err)
+    ref = b1_ids.get(f"REF_h{FAM1_CTRL_H:g}")
+    if not ref:
+        raise SystemExit(f"b28: the {B3_REF_BATCH} manifest has no submitted REF_h{FAM1_CTRL_H:g} (the h {FAM1_CTRL_H:g} stair reference)")
+    st_ref = J.state(J.QROOT / ref)
+    if st_ref != "DONE":
+        problems.append(f"b28: reference REF_h{FAM1_CTRL_H:g} = {ref} is {st_ref} (must be DONE)")
+    base = CODES[WS_BASE]
+    p_a = _phys(load_source(base, "design", qspecs), base)
+    ctrl_id = expected_id(_variant(p_a, "db_ws", f"{_tag_of(base)}_m{WS2_M:g}", "full", intact_job=REF_H2, design={**p_a["design"], "m": WS2_M}))
+    st = J.state(J.QROOT / ctrl_id) if (J.QROOT / ctrl_id).is_dir() else "absent"
+    if st != "DONE":
+        problems.append(f"b28: the A family row WS_m{WS2_M:g} = {ctrl_id} is {st} (must be DONE)")
+    ref_phys = {k: v for k, v in {**p_a, "design": {**p_a["design"], "m": WS2_M}}.items() if k in PHYS_KEYS}
+    allowed = {"design", "h_cut", "entry_offset"}             # 审查 R8：环带行相对 A 的 m 1.0 版只能改设计、截骨和入口偏移，条件全同
+    ph = b2_phase()
+    for n, (lab, e, A0, bone, u) in enumerate(FAM1_ROWS, 1):
+        tag = f"fam1_{lab}_e{e:+g}"
+        key = f"FAM1_{lab}"
+        spec = _variant(_phys(ph.spec_of(np.asarray(u, float), tag, bonded=True), f"db_al {tag}"), "db_al", tag, "fric", entry_offset=float(e))
+        if float(spec["design"]["m"]) < WS2_M - 1e-9:
+            problems.append(f"{key}: m {spec['design']['m']:g} < {WS2_M:g}")
+        sp = {k: v for k, v in spec.items() if k in PHYS_KEYS}
+        extra_keys = sorted(k for k in set(ref_phys) | set(sp) if ref_phys.get(k) != sp.get(k) and k not in allowed)
+        if extra_keys:
+            problems.append(f"{key}: physics differs from the A row outside {sorted(allowed)}: {extra_keys}")
+        try:
+            t = ws_templating(spec)
+            ws_tpl[tag] = t
+            if not t["feasible"]:
+                problems.append(f"{key}: 0-FE templating is not feasible at entry offset {e:g} ({t['reason']}); prep would fail, no FE can run")
+            elif t["e_star"] != float(e):
+                problems.append(f"{key}: entry offset {t['e_star']:g} != {e:g}")
+            elif abs(t["A0_star"] - A0) > 0.01 or abs(t["bone_mm3"] - bone) > 0.5:
+                problems.append(f"{key}: size {t['A0_star']:.3f} or bone {t['bone_mm3']:.2f} differs from the 0-FE record {A0:.3f}, {bone:.2f}")
+        except Exception as ex:                         # noqa: BLE001  模板化核对不了 = 不提交
+            problems.append(f"{key}: 0-FE templating failed: {type(ex).__name__}: {str(ex)[:300]}")
+        r = _row(key, "FAM-1", spec, ctrl_id, None, extra={"pool_idx": None, "layer_pos": n, "cond": None, "e_star": float(e), "e_forced": float(e), "al_group": "fam1", "al_problem": "F_f1_bone_ring"})
+        r.update(unbiased=False, in_E=True)
+        rows.append(r)
+        keys.append(key)
+    for lab, j in FAM1_CTRL:
+        p_ = _phys(load_source(j, "base_row", qspecs), j)
+        spec = _variant(p_, "db_nz", f"{_sts1_tag(j)}_h{FAM1_CTRL_H:g}", "full", intact_job=ref, h_int=FAM1_CTRL_H)
+        r = _row(f"FAM1C_{lab}", "FAM-1 ctrl", spec, j, None, ref_key=f"REF_h{FAM1_CTRL_H:g}", extra={"e_forced": spec.get("entry_offset")})
+        r.update(unbiased=False, in_E=True)
+        rows.append(r)
+        keys.append(r["key"])
+    return _finish_batch("b28", rows, keys, qspecs, by_h8, by_phys, warn, problems, {H_PROD: REF_H2, FAM1_CTRL_H: ref}, ws_tpl=ws_tpl, ws_control=ctrl_id)
+
+
 def build_b20() -> dict:
     """b20 = AL-4m 的 A 部分（模块说明"批次 b20、b21"）：设计 A 的形状 × m 1.6、1.75、2.0。对照 WS_m1.5 必须 DONE；不可行、模板化报错、偏移不是写定的值 → problems。"""
     qspecs, by_h8, by_phys, warn = _batch_ctx()
@@ -3619,7 +3705,7 @@ def _man_row(r: dict) -> dict:
 
 
 B2_LAYERS = ("SF-1", "CR-1", "CR-T", "CD-1 rand", "BD offset", "AL-1", "AL-1 sts", "AL-1 rand", "AL-2", "AL-2 sts", "AL-2 rand",
-             "AL-3", "AL-3 sts", "AL-3 rand", "WS m", "WS alpha", "W-0 alpha", "W-0 L", "AL-3m", "AL-3m sts", "AL-3m rand", "WS m alpha", "WL-1", "OW-2", "OW-3", "WS m2", "AL-4m", "AL-4m sts", "AL-4m rand", "OPT-1")
+             "AL-3", "AL-3 sts", "AL-3 rand", "WS m", "WS alpha", "W-0 alpha", "W-0 L", "AL-3m", "AL-3m sts", "AL-3m rand", "WS m alpha", "WL-1", "OW-2", "OW-3", "WS m2", "AL-4m", "AL-4m sts", "AL-4m rand", "OPT-1", "FAM-1")
 B2_ROW_FIELDS = ("cr_idx", "layer_pos", "bonded_planned", "sf_bo_overlap", "bo_twins", "adopted_role_from", "unbiased", "in_E", "e_star", "e_group",
                  "e_forced", "e_margin_eff", "sobol_idx", "cond", "al_group", "al_problem", "al_score", "al_p")
 

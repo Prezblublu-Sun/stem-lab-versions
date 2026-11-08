@@ -1,0 +1,26 @@
+{
+ "predictions right": {
+  "P_G41_pass": 0.9046,
+  "expected_families": 1.1264,
+  "expected_rows_confirmed": 1.13245,
+  "P_family": [
+   0.062,
+   0.047,
+   0.143,
+   0.874,
+   0.0
+  ]
+ },
+ "no improvement": {
+  "P_G41_pass": 0.0,
+  "expected_families": 0.0,
+  "expected_rows_confirmed": 0.0,
+  "P_family": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ]
+ }
+}
