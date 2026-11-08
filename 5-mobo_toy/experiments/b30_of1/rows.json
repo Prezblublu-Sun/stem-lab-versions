@@ -1,0 +1,53 @@
+{
+ "stage_db_batch": "b30",
+ "rows": [
+  {
+   "label": "OF1_rho_tip-0.15",
+   "job_id": "db_ws_of1_rho_tip-0.15_e+0_d08162ca"
+  },
+  {
+   "label": "OF1_rho_tip+0.15",
+   "job_id": "db_ws_of1_rho_tip+0.15_e+0_657ef1b1"
+  },
+  {
+   "label": "OF1_q-0.15",
+   "job_id": "db_ws_of1_q-0.15_e+0_70329721"
+  },
+  {
+   "label": "OF1_q-0.30",
+   "job_id": "db_ws_of1_q-0.30_e+0_d7a35cc3"
+  },
+  {
+   "label": "OF1_n_a-0.15",
+   "job_id": "db_ws_of1_n_a-0.15_e+0_c7ee901f"
+  },
+  {
+   "label": "OF1_n_a+0.15",
+   "job_id": "db_ws_of1_n_a+0.15_e+0_fab11efa"
+  },
+  {
+   "label": "OF1_g_ap-0.15",
+   "job_id": "db_ws_of1_g_ap-0.15_e+0_4ee4c816"
+  },
+  {
+   "label": "OF1_g_ap+0.15",
+   "job_id": "db_ws_of1_g_ap+0.15_e+0_3e7047ec"
+  },
+  {
+   "label": "OF1_tau_a+0.15",
+   "job_id": "db_ws_of1_tau_a+0.15_e+0_838d5f23"
+  },
+  {
+   "label": "OF1_tau_a+0.30",
+   "job_id": "db_ws_of1_tau_a+0.30_e+0_044a6707"
+  },
+  {
+   "label": "OF1_3b_back_n_a",
+   "job_id": "db_ws_of1_3b_back_n_a_e+1.5_dba18464"
+  },
+  {
+   "label": "OF1_3b_back_tau_a",
+   "job_id": "db_ws_of1_3b_back_tau_a_e+1.5_e679c42e"
+  }
+ ]
+}
