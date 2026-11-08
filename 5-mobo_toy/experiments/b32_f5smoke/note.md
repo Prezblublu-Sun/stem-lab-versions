@@ -8,3 +8,11 @@
 - 停之前已提交的行照常求解。部署后才写 prep.json 的只有 `db_al_rs1_13_e+0_be8cddd2`（13:10:10，READY）；它的 prep 子进程可能在 13:09:42 之前就起了，用的是旧 jobs.py。就算用了新的，新 jobs.py 对不带 foam_refine 的作业网格逐项不变（上面的检查）。
 - 处理：jobs.py 在仓库里换回 f2e5fbe 的内容（md5 899c370d），推送后用 deploy.py 部署，再用 `ops/feed_gate.py --start` 重启三个喂料器。b29 到 b31 全部算完后，再把 F5 版的 jobs.py 提交、部署，然后喂 b32。这期间 `v2/tests/test_foam_refine.py` 的 E 节跳过并打印原因。
 - 以后要部署 AUX_FILES 里的文件，先确认没有喂料器在跑。`v2/foam_refine.py` 也影响结果，喂 b32 前把它加进 stage_db 的 AUX_FILES（b29 到 b31 的清单里没有它，那时它们已经结束）。
+
+## 2026-11-08 13:58 UTC 重启
+
+- 2ba5272 推到 J:（37/37），13:55 UTC 用 deploy.py 部署 jobs.py，Linux 上 md5 回到 899c370d。三批都过了 `feed_gate --check --require-review`，13:55 到 13:57 UTC 用 `--start` 重启喂料器，清单接上：b29 DONE 11、b30 DONE 9、b31 DONE 6，没有失败。监视器 13:58 UTC 重新挂上。
+
+## 2026-11-08 部署门 5
+
+- 用户"加上"：`ops/deploy.py` 加了门 5（6dccbf7）。要推的文件属于辅助代码（stage_db 和 db_export 两份 AUX_FILES 的并集，含 jobs.py、foam_refine.py），而 Linux 上有喂料器活着，就拒绝；只有用户明确说时才用 `--allow-aux-with-feeders`。ops 测试 25/25。
