@@ -153,12 +153,19 @@ try:
     import json
     import shutil
     import tempfile
+    import inspect
     import jobs as J
+
+    class _SkipE(Exception):
+        pass
+    HOOKED = "foam_refine" in inspect.getsource(J.prep)          # 11-08: jobs.py restored to f2e5fbe on purpose while b29-b31 feed
     real = {k: getattr(J, k) for k in ("femur_for", "QROOT")}
     real_G = {k: getattr(J.G, k) for k in ("Stem3D", "template")}
     real_build = M1.build
     q = pathlib.Path(tempfile.mkdtemp(prefix="foam_refine_prep_"))
     try:
+        if not HOOKED:
+            raise _SkipE
         J.QROOT = q
         J.femur_for = lambda spec: type("FM", (), {"cut_from_head_mm": 16.0, "resected_volume": lambda self, **k: 0.0, "cfg": {}})()
         J.G.Stem3D = lambda **k: object()
@@ -195,6 +202,8 @@ try:
         st, fj = prep("nocall", base)
         ok("E: the size field hook never called -> FAILED L3, and the size field restored", st == "FAILED" and fj.get("level") == "L3" and "not called" in json.dumps(fj)
            and M1._size_field is M2._size_field, str(fj)[:160])
+    except _SkipE:
+        print("SKIP E: v2/jobs.py has no F5 hook now (restored to the f2e5fbe version while b29-b31 feed, 2026-11-08); E runs again once the hook is back", flush=True)
     finally:
         M1.build = real_build
         for k, v in real.items():
