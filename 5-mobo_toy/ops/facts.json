@@ -12,5 +12,5 @@
  "foam_E_MPa": 155.0,
  "foam_nu": 0.3,
  "mesh_noise_rot_dex": 0.012,
- "db_latest": "v0.11"
+ "db_latest": "v0.12"
 }

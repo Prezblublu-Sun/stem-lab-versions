@@ -1,0 +1,88 @@
+{
+ "batch": "b28_fam",
+ "db": "v0.12",
+ "db_rows": 1348,
+ "gates_sha256": "9215f08abcfaeb1e5d229139083af78ce571c9ad9d80ab102483f916617e93b3",
+ "judged_utc": "2026-11-08T06:44:07Z",
+ "replay": false,
+ "gates": {
+  "G43": {
+   "desc": "2 行阴性对照（A 的 m 1.0 版 e +1、e +2，h 1.94）相对 A 族曲线微动差 ≤ 0.04 dex、F 差 ≤ 2 mm。不过：G41 判为不适用",
+   "status": "PASS",
+   "value": {
+    "e+1": [
+     1.35,
+     -0.0002
+    ],
+    "e+2": [
+     -0.07,
+     0.0055
+    ]
+   },
+   "threshold": [
+    2.0,
+    0.04
+   ],
+   "rows": [
+    "db_nz_p13_a105_91e458e3_ow_m1_e+1_h1.94_2aef4bc2",
+    "db_nz_p13_a105_91e458e3_ow_m1_e+2_h1.94_259889a9"
+   ],
+   "note": "（ΔF mm, Δlog10 微动）"
+  },
+  "G42": {
+   "desc": "15 行全部算完时，微动代理的 log10 RMSE ≤ 0.10 dex，且标定后 90 % 区间的覆盖 ≥ 0.70。过：代理在环带也能用；不过：环带只能靠 FE 铺点。有行失败或缺数据：不适用",
+   "status": "NA",
+   "value": null,
+   "threshold": [
+    0.1,
+    0.7
+   ],
+   "rows": [],
+   "note": "不是 15 行都有微动：{'0o': '算失败'}；缺的行的预测 {'0o': 63.0} µm"
+  },
+  "G41": {
+   "desc": "5 个方向族里至少 1 个族有一行超过 A，且它的 h 1.94 重划复算也超过 A。过：在这些族里开第二轮（另行批准）；不过：15 行都算完、都可比，且没有一行超过 A，和 G42 一起读。有行没算完、算失败或缺数据时不判不过，判不适用",
+   "status": "PASS",
+   "value": 1,
+   "threshold": 1,
+   "rows": [
+    "db_al_fam1_0b_e+1.5_b73e1d20",
+    "db_al_fam1_0o_e+1_3aafc5fa",
+    "db_al_fam1_0x_e+2_3fdb462d",
+    "db_al_fam1_1b_e+2_133f608f",
+    "db_al_fam1_1o_e+0.5_e0ed6210",
+    "db_al_fam1_1x_e+0.5_4e84b12a",
+    "db_al_fam1_2b_e+0.5_1520c171",
+    "db_al_fam1_2o_e+0_b6d81b20",
+    "db_al_fam1_2x_e+2_be786390",
+    "db_al_fam1_3b_e+1.5_58336253",
+    "db_al_fam1_3o_e+0.5_db3c6655",
+    "db_al_fam1_3x_e+0.5_02199e09",
+    "db_al_fam1_4b_e+2_dc1f9936",
+    "db_al_fam1_4o_e+2.5_999a8204",
+    "db_al_fam1_4x_e+2.5_133e2940"
+   ],
+   "note": "确认的赢家 ['3b']，族 ['3']；待复算 []；不可用 {'0o': '算失败'}；逐行 {'0b': {'bone': 5.319, 'dF_mm': 6.34, 'dlog_f1': 0.046, 'beats': False}, '0x': {'bone': 4.923, 'dF_mm': -8.72, 'dlog_f1': 0.4534, 'beats': False}, '1b': {'bone': 5.31, 'dF_mm': 6.04, 'dlog_f1': 0.0296, 'beats': False}, '1o': {'bone': 4.687, 'dF_mm': 3.19, 'dlog_f1': 0.4336, 'beats': False}, '1x': {'bone': 5.631, 'dF_mm': -6.99, 'dlog_f1': 0.5131, 'beats': False}, '2b': {'bone': 6.182, 'dF_mm': 9.94, 'dlog_f1': 0.1072, 'beats': False}, '2o': {'bone': 6.819, 'dF_mm': 13.64, 'dlog_f1': 0.1131, 'beats': False}, '2x': {'bone': 4.677, 'dF_mm': -10.39, 'dlog_f1': 0.3153, 'beats': False}, '3b': {'bone': 5.362, 'dF_mm': 9.68, 'dlog_f1': -0.0738, 'beats': True, 'replicate': {'dF_mm': 10.16, 'dlog_f1': -0.0661, 'beats': True}}, '3o': {'bone': 6.623, 'dF_mm': 5.62, 'dlog_f1': 0.0817, 'beats': False}, '3x': {'bone': 5.542, 'dF_mm': -3.08, 'dlog_f1': 0.6645, 'beats': False}, '4b': {'bone': 5.089, 'dF_mm': 3.3, 'dlog_f1': 0.1323, 'beats': False}, '4o': {'bone': 4.859, 'dF_mm': -2.68, 'dlog_f1': 0.213, 'beats': False}, '4x': {'bone': 5.162, 'dF_mm': -8.02, 'dlog_f1': 0.3796, 'beats': False}}；tag 重复 []"
+  },
+  "G44": {
+   "desc": "G41 的每个赢家，坐起 1714 N 的转动 ≤ 相同去骨量下 A 族坐起转动的 1.10 倍。没有赢家，或去骨量在坐起曲线外：不适用",
+   "status": "PASS",
+   "value": 0.968,
+   "threshold": 1.1,
+   "rows": [
+    "db_cd_fam1_3b_e+1.5_F1714_40294d2d"
+   ],
+   "note": "坐起转动比 A 族：{'3b': 0.968}"
+  },
+  "G45": {
+   "desc": "G41 的每个赢家，h 1.4 对 h 2.0 的微动差 ≤ +0.062 dex（v0.11 里 11 对细网格的最大值）。过：赢家的微动对网格的敏感程度不超过已有设计；不过：赢家对网格敏感，报告时写明。没有赢家：不适用",
+   "status": "PASS",
+   "value": 0.0085,
+   "threshold": 0.062,
+   "rows": [
+    "db_fd_fam1_3b_e+1.5_h1.4_d536e2ad"
+   ],
+   "note": "h 1.4 减 h 2.0 的 log10 微动：{'3b': 0.0085}"
+  }
+ }
+}
