@@ -6,3 +6,5 @@
 - 2026-11-08：第二模型审查（Claude Sonnet 5.5，Fable 因额度没跑成），结论"改完再批"，见 review.md。按 R1–R18 在看结果前修订 gates.py：G41、G42 数据不全时判不适用，G44 先查范围，新增 G45（赢家 h 1.4 网格敏感度），写明 N3、CREF 来源；阈值和路线不变。build_b28 加了物理键比对。修订后 gates.py sha256 9215f08abcfaeb1e5d229139083af78ce571c9ad9d80ab102483f916617e93b3。
 - 2026-11-08：gates.py 是批准之后用整文件重写改的，守护钩子没有拦整文件写入；随后一次 Edit 被拦下。已停手，等用户重新批准修订后的判据，见 docs/adr/ADR-007。没有提交，没有喂料。
 - 2026-11-08：修订后的判据在 10 个人造情形上给出预期结果（prep/test_gates_b28.py）；加共享曲线噪声后，预测全对时 G41 通过的概率 0.88（prep/power2.py）。
+- 2026-11-08：用户"批准修订判据"，approval.md 已补。stage_db v1.21 提交 aef8509 并推到 J:（推送前 33 个测试文件全过），部署到 Linux（md5 53c851c9，VERSION aef8509）。
+- 2026-11-08 01:05 UTC：实时干跑 17 行全新，problems 和 warnings 都是空的；作业的 tag 与判据里的 tag_of、CONTROLS 一致。rows.json 由这次干跑冻结。
