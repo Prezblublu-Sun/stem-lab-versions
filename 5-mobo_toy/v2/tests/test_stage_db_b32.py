@@ -74,7 +74,7 @@ def queue(name):
 try:
     ok("A: b32 in BATCHES, layer F5 smoke -> fid_f5, slow start, code_hash unchanged, foam_refine a physics key",
        {"b32", "b32b"} <= set(DB.BATCHES) and DB.LAYER_SOURCE["F5 smoke"] == "fid_f5" and "F5 smoke" in DB.SLOW_START_LAYERS and J.code_hash() == DB.DB_CODE_HASH
-       and "foam_refine" in DB.PHYS_KEYS and DB.F5_SMOKE_H == {"b32": (1.0,), "b32b": (0.7,)})
+       and "foam_refine" in DB.PHYS_KEYS and DB.F5_SMOKE_H == {"b32": (1.0,), "b32b": (0.7,)} and "v2/foam_refine.py" in DB.AUX_FILES)
     queue("rows")
     rows, probs = [], []
     for b in ("b32", "b32b"):

@@ -380,7 +380,8 @@ WAIT_EVERY = 10                             # 没有提交时：第 1 轮及之�
 HEARTBEAT_S = 600.0                         # 不论有没有待提交的行：每 10 min 一行 HEARTBEAT
 _mono = time.monotonic                      # HEARTBEAT 的计时（测试换成假时钟）
 CODE_ROOT = HERE.parent                     # Linux：~/mobo_toy_v2/code
-AUX_FILES = ("inp_writer.py", "v2/collar_rule.py", "v2/jobs.py", "v2/stability.py", "v2/femur_3406.py", "abaqus/odb_export.py", "v2/torsion_load.py", "v2/pose_fixed.py")
+AUX_FILES = ("inp_writer.py", "v2/collar_rule.py", "v2/jobs.py", "v2/stability.py", "v2/femur_3406.py", "abaqus/odb_export.py", "v2/torsion_load.py", "v2/pose_fixed.py",
+             "v2/foam_refine.py")   # 11-08：F5 钩子；b29–b31 结束后才加（喂料器把新文件也当成变化）
 _ALLOW_NON_LINUX = False                    # 只给测试：feed 默认只在 Linux 上跑
 
 # 规格键分类：物理键进 spec（影响建模 / 求解 / 后处理）；角色键由本模块重写；元数据键丢掉。三者之外的键 → SystemExit
