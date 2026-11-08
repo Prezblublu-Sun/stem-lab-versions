@@ -9,6 +9,8 @@ E. review_packet builds a packet for b25 with gates.py, build_b25 and OPT1_ROWS 
 F. judge replays b23_ow4 on v0.9 in a temp copy (never writes into the repo) and reproduces the recorded G30 value.
 G. qa_compare on the latest version reports no new failure.
 H. watch_remote.sh parses (bash -n) and refuses a stale lock only when the pid is alive.
+I. deploy gate 5: the result files are the union of the two AUX_FILES lists; pushing one of them while a feeder is alive is refused,
+   other files and an idle Linux pass; main() checks gate 5 before it writes anything to Linux.
 """
 import contextlib
 import hashlib
@@ -144,6 +146,20 @@ try:
         ok("H: a stale lock (dead pid) does not refuse; a missing manifest exits 4", r.returncode == 4, r.stdout.decode()[:120])
     else:
         ok("H: skipped, no Git bash", True)
+    # ---------------------------------------------------------------- I
+    import deploy as DP
+    aux = DP.result_files()
+    ok("I: result files = both AUX_FILES lists (jobs.py, foam_refine.py, inp_writer.py in; stage_db.py, gates out)",
+       {"v2/jobs.py", "v2/foam_refine.py", "inp_writer.py", "v2/collar_rule.py", "abaqus/odb_export.py"} <= aux and "v2/stage_db.py" not in aux
+       and not any(x.endswith("gates.py") for x in aux), str(sorted(aux)))
+    why = DP.aux_gate(["v2/jobs.py", "v2/stage_db.py"], aux, ["b29 123", "b30 456"])
+    ok("I: an AUX file while feeders are alive -> refused, names the file and the feeders", why is not None and why.startswith("门 5") and "v2/jobs.py" in why
+       and "b29 123" in why and "v2/stage_db.py" not in why.split("是喂料器")[0], why)
+    ok("I: a non-AUX file while feeders are alive -> passes", DP.aux_gate(["v2/stage_db.py", "v2/tests/test_x.py"], aux, ["b29 123"]) is None)
+    ok("I: an AUX file with no feeder alive -> passes", DP.aux_gate(["v2/jobs.py"], aux, []) is None)
+    src = (ROOT / "ops" / "deploy.py").read_text(encoding="utf-8")
+    ok("I: main() runs gate 5 before the first write to Linux, and the override is an explicit flag",
+       0 < src.index("why = aux_gate(") < src.index("cat > .{p.name}.new") and "--allow-aux-with-feeders" in src)
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

@@ -3,17 +3,22 @@
     PYTHONUTF8=1 .venv-mobo/Scripts/python.exe ops/deploy.py --check                 # 只比对，不写（随时可跑）
     ... ops/deploy.py --files v2/stage_db.py v2/tests/x.py        # 推这些文件（必须已提交、已推到 j）
     ... ops/deploy.py --files ... --allow-dirty                   # 例外：用户明确要求推未提交的文件时才用，VERSION 记 dirty
+    ... ops/deploy.py --files ... --allow-aux-with-feeders        # 例外：用户明确要求在喂料器跑着时推辅助代码时才用
 
 门（不过就退出，什么都不推）：
   1 冻结完好（ops/check_freeze.py）；
   2 要推的每个文件在工作区与 HEAD 相同（去 CR 比），除非 --allow-dirty；
   3 HEAD 已在远程 j/master 上（git merge-base --is-ancestor HEAD j/master），除非 --allow-dirty；
-  4 推完逐文件比 Linux 的 LF md5 与本地一致，不一致报错。
+  4 推完逐文件比 Linux 的 LF md5 与本地一致，不一致报错；
+  5 要推的文件里有辅助代码（不进 code_hash、但影响结果：v2/stage_db.py 和 tools/db_export.py 两份 AUX_FILES 的并集，按源码读），
+    而 Linux 上有喂料器活着（logs/db_feed_<批次>.pid 的进程在）→ 拒绝，除非 --allow-aux-with-feeders。喂料器每轮核对辅助代码的 md5，
+    变了就停，重启也拒绝（2026-11-08 13:09 UTC 部署 F5 版 jobs.py 时 b29–b31 就这样停了，见 experiments/b32_f5smoke/note.md）。
 VERSION 内容：git=<HEAD>[-dirty]  deployed=<UTC>  by=ops/deploy.py  files=<n>；deployed_md5.txt 每行 "<lf md5> <路径>"（SYNC 列表里存在的文件）。
 """
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import pathlib
@@ -51,11 +56,40 @@ def remote_md5(rels: list[str]) -> dict[str, str]:
     return res
 
 
+def result_files() -> set[str]:
+    """不进 code_hash、但影响结果的文件：v2/stage_db.py 和 tools/db_export.py 里 AUX_FILES 的并集（路径相对代码根，按源码读，不 import）。"""
+    out = set()
+    for rel in ("v2/stage_db.py", "tools/db_export.py"):
+        tree = ast.parse((ROOT / rel).read_text(encoding="utf-8"))
+        vals = [ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "AUX_FILES" for t in n.targets)]
+        if len(vals) != 1:
+            raise SystemExit(f"门 5：{rel} 里找到 {len(vals)} 个 AUX_FILES，应为 1 个")
+        out |= set(vals[0])
+    return out
+
+
+def live_feeders() -> list[str]:
+    """Linux 上活着的喂料器：['b29 2432401', ...]。"""
+    out = R.sh(f"cd ~/{R.RBASE}/logs && for f in db_feed_*.pid; do [ -f \"$f\" ] || continue; p=$(cat \"$f\"); "
+               f"kill -0 \"$p\" 2>/dev/null && echo \"${{f#db_feed_}} $p\"; done; true", timeout=60)
+    return [ln.replace(".pid", "").strip() for ln in out.splitlines() if ln.strip()]
+
+
+def aux_gate(rels: list[str], aux: set[str], live: list[str]) -> str | None:
+    """门 5：要推辅助代码而有喂料器活着 → 拒绝的原因；否则 None。"""
+    hit = sorted(set(rels) & aux)
+    if hit and live:
+        return (f"门 5：{', '.join(hit)} 是喂料器核对的辅助代码（不进 code_hash、但影响结果），Linux 上有喂料器在跑：{'; '.join(live)}。"
+                "现在推，它们下一轮就停，重启也会被拒。等它们跑完再推；用户明确要这样做时才加 --allow-aux-with-feeders")
+    return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--files", nargs="*", default=[])
     ap.add_argument("--allow-dirty", action="store_true")
+    ap.add_argument("--allow-aux-with-feeders", action="store_true")
     a = ap.parse_args()
 
     r = subprocess.run([sys.executable, str(ROOT / "ops" / "check_freeze.py"), "--quiet"], cwd=str(ROOT))
@@ -103,6 +137,13 @@ def main() -> int:
     hashed = set(json.loads((ROOT / "docs" / "freeze" / "M1-3406-v1.json").read_text(encoding="utf-8"))["hashed_files"])
     if hashed & set(rels):
         print("门 1：哈希文件不部署（code_hash 按字节算）：" + ", ".join(sorted(hashed & set(rels)))); return 1
+    aux = result_files()
+    if set(rels) & aux:
+        why = aux_gate(rels, aux, live_feeders())
+        if why and not a.allow_aux_with_feeders:
+            print(why); return 1
+        if why:
+            print("注意：" + why.replace("门 5：", "") + "（--allow-aux-with-feeders，照推）")
     print(f"推 {len(rels)} 个文件到 Linux（HEAD {head}{'-dirty' if a.allow_dirty else ''}）…")
     for rel in rels:
         p = pathlib.PurePosixPath(rel)          # 按 LF 字节推，先写临时文件再改名，import 不会读到半个文件
