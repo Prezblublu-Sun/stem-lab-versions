@@ -16,3 +16,7 @@
 ## 2026-11-08 部署门 5
 
 - 用户"加上"：`ops/deploy.py` 加了门 5（6dccbf7）。要推的文件属于辅助代码（stage_db 和 db_export 两份 AUX_FILES 的并集，含 jobs.py、foam_refine.py），而 Linux 上有喂料器活着，就拒绝；只有用户明确说时才用 `--allow-aux-with-feeders`。ops 测试 25/25。
+
+## 2026-11-08 20:01 UTC 喂 b32
+
+- b29 19:59 UTC 结束（b29 到 b31 共 75 行全 DONE），20:00 UTC 起导出 v0.13，作业清单冻住（1423 个）后部署 99c1610（F5 版 jobs.py md5 aa61a884，foam_refine.py 进 AUX_FILES）。b32 干跑 1 行新行、没有问题；队列里没有别的作业；rows.json 提交 d34b33e；喂料门全过，20:01 UTC 起喂料器，h 1.0 一行标成重作业提交。根盘余 31 GB。
