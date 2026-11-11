@@ -33,7 +33,8 @@
     CLAIMED          本机 worker 已认领（mv READY CLAIMED，原子）
     SOLVED           本机已推回 <name>_csv/ 与 solve.json    ← worker 写
     DONE             后处理完成，result.json 已写           ← post 写
-    FAILED.json      任一阶段失败：{"level": L1–L5, "stage": prep|solve|post, "reason": …}
+    FAILED.json      任一阶段失败：{"level": L1–L5, "stage": prep|solve|post, "reason": …, "code": 名字, "klass": 类}
+                     level 说在哪一步失败；code / klass 说是哪一种、接下来怎么办（result_codes.py；2026-11-11 起写，旧记录没有这两个键）
 
 本机只做求解；建模、后处理、判定都在这里。所有步骤幂等：已有 DONE / FAILED.json 的作业不再处理。
 """
@@ -130,9 +131,17 @@ def submit(spec: dict) -> str:
     return jid
 
 
-def _fail(d: pathlib.Path, level: str, stage: str, reason: str) -> None:
-    (d / "FAILED.json").write_text(json.dumps({"level": level, "stage": stage, "reason": reason[-3000:],
-                                               "time": time.strftime("%Y-%m-%d %H:%M:%S")}))
+def _fail(d: pathlib.Path, level: str, stage: str, reason: str, code: str | None = None) -> None:
+    """写 FAILED.json。code = 源头知道的结局名字（result_codes.CODES）；没给就从 level / stage / reason 的文字认。
+    记失败这件事本身不能失败：result_codes 读不了时照旧只写原来的四个键。"""
+    rec = {"level": level, "stage": stage, "reason": reason[-3000:], "time": time.strftime("%Y-%m-%d %H:%M:%S")}
+    try:
+        import result_codes as RC
+        r = RC.classify(level, stage, reason, code)
+        rec["code"], rec["klass"] = r.code, r.klass
+    except Exception:                                                       # noqa: BLE001
+        pass
+    (d / "FAILED.json").write_text(json.dumps(rec))
 
 
 def _merge(a: dict, b: dict) -> None:
@@ -204,7 +213,7 @@ def prep(jid: str) -> str:
         except Exception as e:                                              # noqa: BLE001  钩子模块读不了 = 不建模
             why, lvl = f"foam_refine: {type(e).__name__}: {e}", "L3"
         if why:
-            _fail(d, lvl, "prep", why)
+            _fail(d, lvl, "prep", why, code="invalid_spec" if lvl == "L1" else "hook_error")
             return "FAILED"
     try:
         fm = femur_for(spec)
@@ -218,7 +227,7 @@ def prep(jid: str) -> str:
             info["templating"] = None
         else:
             if spec.get("fric_only") and (spec.get("bond_only") or spec.get("model") != "m1"):
-                _fail(d, "L1", "prep", "fric_only needs model m1 and excludes bond_only")
+                _fail(d, "L1", "prep", "fric_only needs model m1 and excludes bond_only", code="invalid_spec")
                 return "FAILED"
             mc = spec.get("margin_check")                            # 余量检查密度：None = sparse（原样）；"dense" 见 collar_rule.py
             if spec.get("collar_rule") == "wrap_fit":              # 领包住假体颈、整圈落在骨截面上（collar_rule.py，只替换本建模进程）
@@ -244,14 +253,14 @@ def prep(jid: str) -> str:
                 _fail(d, "L1", "prep", f"templating: {pl['reason']}")
                 return "FAILED"
             if pl["A0"] < spec.get("min_A0", 0.0):
-                _fail(d, "L1", "prep", f"shoulder {pl['A0']:.0f} mm² < prosthetic neck {spec['min_A0']:.0f} mm²")
+                _fail(d, "L1", "prep", f"shoulder {pl['A0']:.0f} mm² < prosthetic neck {spec['min_A0']:.0f} mm²", code="shoulder_below_neck")
                 return "FAILED"
             if spec.get("pose_fixed"):                              # 号固定、只移动位姿，见 pose_fixed.py
                 import pose_fixed as PF
                 pl = PF.apply(st, fm, pl, spec["pose_fixed"])
             if spec.get("foam_refine") is not None:                 # 界面附近的骨加密，见 foam_refine.py（只替换本建模进程的尺寸场）
                 if spec.get("model") != "m1":
-                    _fail(d, "L1", "prep", "foam_refine needs model m1")
+                    _fail(d, "L1", "prep", "foam_refine needs model m1", code="invalid_spec")
                     return "FAILED"
                 import foam_refine as FRF
                 FRF.install(spec["foam_refine"], spec["h_int"])
@@ -262,7 +271,7 @@ def prep(jid: str) -> str:
                                 interference=spec.get("interference"), cycles=spec.get("cycles"))
                 if spec.get("foam_refine") is not None:
                     if not FRF.INFO:                                 # 尺寸场没被调用 = 钩子没生效，不能当加密结果
-                        _fail(d, "L3", "prep", "foam_refine: the size field hook was not called")
+                        _fail(d, "L3", "prep", "foam_refine: the size field hook was not called", code="hook_error")
                         return "FAILED"
                     info["foam_refine"] = dict(FRF.INFO)
                 if spec.get("bond_collar") is not None:          # 粘接模型的领：tied（默认）/ contact（只受压、可掀起），见 bond_collar.py
@@ -275,7 +284,7 @@ def prep(jid: str) -> str:
                     info["pose_fixed"] = pl["pose_fixed"]
             else:
                 if st.has_collar:
-                    _fail(d, "L1", "prep", "collar is implemented only in the M1 interface model (spec model = m1)")
+                    _fail(d, "L1", "prep", "collar is implemented only in the M1 interface model (spec model = m1)", code="invalid_spec")
                     return "FAILED"
                 info = M.build(st, fm, pl, d, "m", h_int=spec["h_int"], h_far=spec.get("h_far"),
                                delta=spec.get("delta"), mu=spec.get("mu"), torque=spec.get("torque", True),
@@ -385,7 +394,7 @@ def post(jid: str) -> str:
     bad = {k: v for k, v in solve.items() if v.get("status") != "OK"}
     if bad:
         k, v = next(iter(bad.items()))
-        _fail(d, v.get("status", "L4"), "solve", f"{k}: {v.get('reason', '')}")
+        _fail(d, v.get("status", "L4"), "solve", f"{k}: {v.get('reason', '')}", code=v.get("code"))   # code：求解端知道时写的（run_abaqus / solve_worker）
         return "FAILED"
     try:
         fm = femur_for(spec)
@@ -434,7 +443,7 @@ def post(jid: str) -> str:
                 (d / f).unlink()
         return "DONE"
     except Exception as e:                                                  # noqa: BLE001
-        _fail(d, "L5", "post", f"{type(e).__name__}: {e}\n{traceback.format_exc()[-1500:]}")
+        _fail(d, "L5", "post", f"{type(e).__name__}: {e}\n{traceback.format_exc()[-1500:]}", code="post_exception")
         return "FAILED"
 
 

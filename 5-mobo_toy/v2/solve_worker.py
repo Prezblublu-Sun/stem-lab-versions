@@ -7,7 +7,16 @@
 4. 一个作业的全部单元结束后，把 QoI 需要的 CSV（摩擦：RELEASE/LOAD_CONTACT；粘接：LOAD_ENER、LOAD_S；
    完整股骨：LOAD_ENER）和 solve.json 推回 Linux 的作业目录，写 SOLVED；删除本地 odb 等大文件，留日志。
 停止：本机建 v2/runs/worker.STOP，或 Linux 上建 ~/mobo_toy_v2/queue/STOP；在跑的单元会先跑完。
-ssh 失败写日志、等 30 s 再试（WiFi 断连）；求解失败照实写进 solve.json，由 Linux 判级。
+ssh 失败写日志、等一会儿再试（WiFi 断连）；求解失败照实写进 solve.json，由 Linux 判级。
+
+环境问题不算作业的结果（2026-11-11；名字见 result_codes.py 的 AUTO_RETRY，做法借自 AiiDA 的传输重试）：
+* 传输失败（ssh 自己失败，退出码 255 或超时）和许可取不到，都不是这个作业的性质。作业放回队列（CLAIMED → READY），不写失败。
+* 等待按次数翻倍：RETRY_WAIT0 = 20 s 起，到 RETRY_WAIT_MAX = 300 s 封顶。连续 RETRY_MAX = 5 次以后写标记文件
+  v2/runs/worker.PAUSED_transport.json 或 worker.PAUSED_license.json（ops/state.py 会报），worker 不退出，继续按 300 s 试；
+  恢复后自己删标记。
+* 同一个作业最多放回 RELEASE_MAX = 3 次；再失败就照旧写成失败（code = transport_failed / license_unavailable），不让一个作业堵住队列。
+* 超时不放回：同一个作业再算一遍多半还是超时。它照旧是失败，code = solve_timeout。
+本模块知道是哪一种失败时在 solve.json 里写 code（fetch_error、runner_exception、export_incomplete）。
 """
 from __future__ import annotations
 
@@ -15,6 +24,7 @@ import io
 import json
 import pathlib
 import shutil
+import subprocess
 import sys
 import tarfile
 import time
@@ -24,6 +34,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE))
 import remote as R  # noqa: E402
+import result_codes as RC  # noqa: E402
 import run_abaqus as RA  # noqa: E402
 
 import os  # noqa: E402
@@ -41,6 +52,44 @@ STOP_LOCAL = HERE / "runs" / "worker.STOP"
 KEEP = {"fric": ["RELEASE_CONTACT.csv", "LOAD_CONTACT.csv"], "bond": ["LOAD_ENER.csv", "LOAD_S.csv"],
         "intact": ["LOAD_ENER.csv", "LOAD_S.csv"]}      # 完整股骨的应力场：应力屏蔽对比图要用（2026-09-28 23:00）
 Q = "~/mobo_toy_v2/queue"
+RETRY_WAIT0 = 20         # s，第一次环境失败后等多久；之后每次翻倍
+RETRY_WAIT_MAX = 300     # s，封顶
+RETRY_MAX = 5            # 连续失败这么多次 = 暂停：写标记文件，继续按封顶的间隔试
+RELEASE_MAX = 3          # 同一个作业最多放回队列这么多次，再失败就写成失败
+TO_RELEASE: list[str] = []          # 要放回队列、但 ssh 还没成功的作业
+
+
+class TransportError(R.RemoteError):
+    """ssh 自己失败（连不上、断了、超时），不是远端命令失败。"""
+
+
+class Backoff:
+    """连续的环境失败：等 20、40、80、160、300、300 … s；第 RETRY_MAX 次起算暂停（标记文件），成功一次就清零。"""
+
+    def __init__(self, kind: str):
+        self.kind, self.n, self.until = kind, 0, 0.0
+
+    @property
+    def marker(self) -> pathlib.Path:
+        return LOG.parent / f"worker.PAUSED_{self.kind}.json"
+
+    def fail(self, what: str) -> float:
+        self.n += 1
+        w = float(min(RETRY_WAIT0 * 2 ** (self.n - 1), RETRY_WAIT_MAX))
+        self.until = time.time() + w
+        if self.n == RETRY_MAX:
+            self.marker.parent.mkdir(parents=True, exist_ok=True)
+            self.marker.write_text(json.dumps({"kind": self.kind, "since": time.strftime("%Y-%m-%d %H:%M:%S"), "n_fail": self.n,
+                                               "what": what[:300]}, ensure_ascii=False), encoding="utf-8")
+            log(f"PAUSED ({self.kind}): {self.n} failures in a row; still trying every {RETRY_WAIT_MAX} s; marker {self.marker.name}")
+        return w
+
+    def ok(self) -> None:
+        if self.n >= RETRY_MAX:
+            log(f"RESUMED ({self.kind}) after {self.n} failures")
+        if self.n:
+            self.marker.unlink(missing_ok=True)
+        self.n, self.until = 0, 0.0
 
 
 def log(msg: str) -> None:
@@ -76,9 +125,14 @@ def fetch(jid: str) -> list[pathlib.Path]:
     # keep.json（可选）：该作业要推回的 CSV 清单，由建模端写；没有则用本文件的 KEEP
     # abaqus_v6.env（可选）：该作业自己的 Abaqus 环境设置，放在作业目录里只对这一个作业生效。用途：本机可用内存紧张时
     # 给大模型限内存（memory = "12 gb"），让求解器走核外，而不是申请不到内存直接退出（2026-09-29 16:22 的两次 L4）
-    r = R._ssh(f"cd {Q}/{jid} && tar -cf - *.inp $(ls keep.json abaqus_v6.env 2>/dev/null)", timeout=600)
-    if r.returncode != 0:
-        raise R.RemoteError(f"fetch {jid}: {r.stderr.decode(errors='replace')[-500:]}")
+    try:
+        r = R._ssh(f"cd {Q}/{jid} && tar -cf - *.inp $(ls keep.json abaqus_v6.env 2>/dev/null)", timeout=600)
+    except subprocess.TimeoutExpired as e:
+        raise TransportError(f"fetch {jid}: ssh timeout after {e.timeout:g} s") from e
+    if r.returncode == 255:                                        # ssh 自己的退出码：连不上或断了
+        raise TransportError(f"fetch {jid}: {r.stderr.decode(errors='replace')[-500:]}")
+    if r.returncode != 0:                                          # 远端的 tar 失败：作业目录的问题，不是传输
+        raise RuntimeError(f"fetch {jid}: remote tar exit {r.returncode}: {r.stderr.decode(errors='replace')[-500:]}")
     with tarfile.open(fileobj=io.BytesIO(r.stdout)) as tf:
         tf.extractall(d, filter="data")
     inps = sorted(d.glob("*.inp"), key=lambda p: (kind_of(p.stem) != "fric", p.name))  # 摩擦模型先跑
@@ -105,7 +159,7 @@ def push(jid: str, results: dict) -> None:
                 for f in _keep_list(d, stem):
                     p = d / f"{stem}_csv" / f
                     if not p.exists():
-                        r["status"], r["reason"] = "L5", f"missing export {p.name}"
+                        r["status"], r["reason"], r["code"] = "L5", f"missing export {p.name}", "export_incomplete"
                         continue
                     tf.add(p, arcname=f"{stem}_csv/{f}")
         data = json.dumps(results, indent=1, default=str).encode()
@@ -130,6 +184,15 @@ def cleanup(jid: str) -> None:
                 p.unlink(missing_ok=True)
 
 
+def release_pending() -> None:
+    """把 TO_RELEASE 里的作业放回队列（CLAIMED → READY；mv 不改时间，作业回到原来的位置）。ssh 失败抛 RemoteError，下次再试。"""
+    while TO_RELEASE:
+        jid = TO_RELEASE[0]
+        R.sh(f"cd {Q}/{jid} && [ -e CLAIMED ] && [ ! -e SOLVED ] && mv CLAIMED READY || true", timeout=60)
+        TO_RELEASE.pop(0)
+        log(f"{jid}: released back to READY")
+
+
 def stop_requested() -> bool:
     if STOP_LOCAL.exists():
         return True
@@ -144,31 +207,45 @@ def main():
     pending_units: list[tuple[str, pathlib.Path]] = []
     jobs: dict[str, dict] = {}                          # jid -> {"left": n, "results": {}}
     running = {}
-    backoff = 0
+    net, lic = Backoff("transport"), Backoff("license")
+    released: dict[str, int] = {}                       # jid -> 已放回队列几次
     with ThreadPoolExecutor(SLOTS) as ex:
         while True:
             try:
                 if not pending_units and len(running) < SLOTS:
+                    release_pending()                                   # 先把要放回的作业放回去：停下或等许可时也不把它留在 CLAIMED
                     if stop_requested():
                         if not running:
                             log("stop requested; exiting")
                             return
-                    else:
+                    elif time.time() >= lic.until:
                         for jid in claim_next(1):
                             try:
                                 inps = fetch(jid)
+                            except TransportError as e:                             # 不是这个作业的问题：放回去，等网络
+                                if released.get(jid, 0) < RELEASE_MAX:
+                                    released[jid] = released.get(jid, 0) + 1
+                                    TO_RELEASE.append(jid)
+                                    raise
+                                log(f"{jid}: fetch failed {RELEASE_MAX + 1} times: {e}")
+                                try:
+                                    push(jid, {"fetch": {"status": "L4", "reason": f"fetch failed: {e}", "code": "transport_failed"}})
+                                except R.RemoteError:                               # 连失败都推不回去：放回队列，不留在 CLAIMED
+                                    TO_RELEASE.append(jid)
+                                    raise
+                                continue
                             except Exception as e:                                  # noqa: BLE001
                                 log(f"{jid}: fetch failed: {e}")
-                                push(jid, {"fetch": {"status": "L4", "reason": f"fetch failed: {e}"}})
+                                push(jid, {"fetch": {"status": "L4", "reason": f"fetch failed: {e}", "code": "fetch_error"}})
                                 continue
                             jobs[jid] = {"left": len(inps), "results": {}}
                             pending_units += [(jid, p) for p in inps]
                             log(f"{jid}: claimed, {len(inps)} units")
-                backoff = 0
+                        net.ok()
             except R.RemoteError as e:
-                backoff = min(backoff + 30, 300)
-                log(f"ssh error (retry in {backoff} s): {str(e)[:300]}")
-                time.sleep(backoff)
+                w = net.fail(str(e))
+                log(f"ssh error (retry in {w:.0f} s, {net.n} in a row): {str(e)[:300]}")
+                time.sleep(w)
                 continue
             while pending_units and len(running) < SLOTS:
                 jid, inp = pending_units.pop(0)
@@ -182,11 +259,22 @@ def main():
                 try:
                     r = fut.result()
                 except Exception as e:                                              # noqa: BLE001
-                    r = {"status": "L4", "reason": f"runner exception: {type(e).__name__}: {e}"}
+                    r = {"status": "L4", "reason": f"runner exception: {type(e).__name__}: {e}", "code": "runner_exception"}
                 jobs[jid]["results"][inp.stem] = r
                 jobs[jid]["left"] -= 1
                 log(f"{jid}/{inp.stem}: {r.get('status')} {r.get('wall_s', 0):.0f} s {r.get('reason', '')[:120]}")
                 if jobs[jid]["left"] == 0:
+                    env = sorted({str(x.get("code")) for x in jobs[jid]["results"].values()} & RC.AUTO_RETRY)
+                    if env and released.get(jid, 0) < RELEASE_MAX:      # 许可取不到：不是这个作业的结果，放回去，过一会儿再领
+                        released[jid] = released.get(jid, 0) + 1
+                        w = lic.fail(f"{jid}: {env[0]}")
+                        log(f"{jid}: {env[0]}: released back to the queue ({released[jid]} of {RELEASE_MAX}); next claim in {w:.0f} s")
+                        cleanup(jid)
+                        jobs.pop(jid)
+                        TO_RELEASE.append(jid)
+                        continue
+                    if any(x.get("status") == "OK" for x in jobs[jid]["results"].values()):
+                        lic.ok()
                     for attempt in range(10):
                         try:
                             push(jid, jobs[jid]["results"])

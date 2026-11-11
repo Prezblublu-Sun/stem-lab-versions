@@ -110,10 +110,26 @@ def linux_gates(batch: str) -> list[str]:
     return problems
 
 
+def feed_tokens(batch: str) -> str:
+    """来历（ops/provenance.py），写进喂料日志的那一行：完整提交号、未提交改动的条数、批次目录里 rows.json / gates.py /
+    approval.md 的 sha256。只含字母、数字、= 和空格，放进远端的 echo 不用再转义。"""
+    sys.path.insert(0, str(ROOT / "ops"))
+    import provenance
+    bd = batch_dir(batch)
+    rec = provenance.record("feed", {k: (bd / f if bd else ROOT / "missing") for k, f in (("rows", "rows.json"), ("gates", "gates.py"), ("approval", "approval.md"))})
+    g = rec["git"]
+    out = f"commit={g.get('commit', 'unknown')} dirty={g.get('n_dirty', 'unknown')} " + " ".join(
+        f"{k}_sha256={(rec['inputs'][k] or {}).get('sha256', 'none')}" for k in ("rows", "gates", "approval"))
+    if not re.fullmatch(r"[0-9A-Za-z_= ]+", out):
+        raise SystemExit(f"feed_tokens: unexpected characters in {out!r}")
+    return out
+
+
 def start_feeder(batch: str, session: str) -> str:
     import remote as R
+    tokens = feed_tokens(batch)
     return R.sh(f"cd ~/{R.RBASE}/code && [ -e ../logs/db_feed_{batch}.pid ] && kill -0 $(cat ../logs/db_feed_{batch}.pid) 2>/dev/null && {{ echo REFUSED pid alive; exit 2; }}; "
-                f"echo \"started by {session} $(date -u +%FT%TZ) git={subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], capture_output=True, cwd=str(ROOT)).stdout.decode().strip()}\" >> ../logs/db_feed_{batch}.out; "
+                f"echo \"started by {session} $(date -u +%FT%TZ) git={subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], capture_output=True, cwd=str(ROOT)).stdout.decode().strip()} {tokens}\" >> ../logs/db_feed_{batch}.out; "
                 f"(setsid nohup taskset -c 4-11 nice -n 19 ../run.sh v2/stage_db.py feed {batch} >> ../logs/db_feed_{batch}.out 2>&1 < /dev/null & echo $! > ../logs/db_feed_{batch}.pid); "
                 f"sleep 45; cat ../logs/db_feed_{batch}.pid; cut -c1-200 ../logs/db_feed_{batch}.out | tail -n 6", timeout=120)
 

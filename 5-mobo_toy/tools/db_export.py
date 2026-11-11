@@ -82,7 +82,7 @@ import traceback
 
 import numpy as np
 
-EXPORTER_VERSION = "db_export 0.2.5 (2026-11-08, foam_refine column; F5 rows get fidelity h<h_int>+f5h<h> and foam_refine in cond_key)"
+EXPORTER_VERSION = "db_export 0.2.6 (2026-11-11, result_class / result_code columns; manifest.export_provenance)"
 FEMUR_ID = "sawbone3406"
 FEMUR_VERSIONS = {FEMUR_ID: ("3406R_v1_hollowcore", True)}          # plan 2.1: hollow-core model until the user answers
 EXPECTED_CODE_HASH = "6d7af243d0"
@@ -273,6 +273,12 @@ def _build_columns():
     _c("fail_level", "str", "", req="optional", source="FAILED.json level (L1..L5)")
     _c("fail_stage", "str", "", req="optional", source="FAILED.json stage")
     _c("fail_reason", "str", "", req="optional", source="FAILED.json reason (first 500 chars)")
+    _c("result_code", "str", "", req="optional", source="FAILED.json code (jobs._fail writes it from 2026-11-11 on); else finalize: "
+       "v2/result_codes.for_job(status, fail_level, fail_stage, fail_reason)",
+       desc="what kind of outcome: ok for a DONE row, a name from v2/result_codes.CODES for a FAILED row, empty for an unfinished row")
+    _c("result_class", "str", "", req="optional", source="finalize: the class of result_code (v2/result_codes.CODES)",
+       desc="OK / DESIGN / NUMERIC / ENV / ERROR / SKIP / UNKNOWN: what to do next and what a selection strategy may be told; "
+            "fail_level says where it failed, this says what kind of failure it is")
     _c("n_tet_cortex", "int", "1", 0, None, req="optional", source=P)
     _c("n_tet_cancellous", "int", "1", 0, None, req="optional", source=P)
     _c("n_tet_stem", "int", "1", 0, None, req="optional", source=P)
@@ -1358,7 +1364,8 @@ def export_job(P: Pipeline, ctx: Context, jd: pathlib.Path, with_fields: bool):
     # ---- FAILED
     if (jd / "FAILED.json").exists():
         fj = _read_json(jd / "FAILED.json", errs, "FAILED.json") or {}
-        row.update(fail_level=fj.get("level"), fail_stage=fj.get("stage"), fail_reason=str(fj.get("reason", ""))[:500])
+        row.update(fail_level=fj.get("level"), fail_stage=fj.get("stage"), fail_reason=str(fj.get("reason", ""))[:500],
+                   result_code=fj.get("code"))                      # None for records before 2026-11-11: finalize fills it from the text
     # ---- prep
     prep = None
     if (jd / "prep.json").exists():
@@ -2264,6 +2271,26 @@ def replicate_groups(rows: list) -> dict:
     return out
 
 
+def _repo_module(rel: str):
+    """Load a module of this repo by path (finalize only: `emit` runs from stdin on Linux and has no repo around it)."""
+    import importlib.util
+    p = pathlib.Path(__file__).resolve().parents[1] / rel
+    spec = importlib.util.spec_from_file_location("_db_export_" + p.stem, p)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod                                       # dataclasses / NamedTuple look their module up by name
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def apply_result_codes(rows: list, RC=None) -> None:
+    """result_code / result_class of every finished row (v2/result_codes.py). A code the job itself wrote wins over the text."""
+    RC = RC or _repo_module("v2/result_codes.py")
+    for r in rows:
+        res = RC.for_job(str(r.get("status")), r.get("fail_level"), r.get("fail_stage"), r.get("fail_reason"),
+                         r.get("result_code") if str(r.get("status")) == "FAILED" else None)
+        r["result_code"], r["result_class"] = (res.code, res.klass) if res else (None, None)
+
+
 def finalize_rows(rows: list, E_scan: dict, prov: dict) -> tuple[list, list, dict]:
     """Provenance, E, unbiased, split, OOD, replicates. Returns (rows, errors, E_info). Pure (no I/O) for testing."""
     errs = []
@@ -2272,6 +2299,7 @@ def finalize_rows(rows: list, E_scan: dict, prov: dict) -> tuple[list, list, dic
         if r["job_id"] in seen:
             errs.append(f"{r['job_id']}: exported in more than one batch")
         seen[r["job_id"]] = r
+    apply_result_codes(rows)
     for r in rows:
         r["provenance"] = r.get("provenance") or "rule"              # emit sets rule / the D1 manifest or seed file
         pv = prov.get(r["job_id"])
@@ -2461,6 +2489,11 @@ def write_scalars(out: pathlib.Path, rows: list) -> None:
 
 def finalize(out: pathlib.Path, db_root: str | None, provenance, allow_errors: bool, registry: str | None = None) -> int:
     out = pathlib.Path(out).resolve()
+    # which code and which inputs this finalize ran with (ops/provenance.py), taken before anything is written
+    here = pathlib.Path(__file__).resolve()
+    export_prov = _repo_module("ops/provenance.py").record("export", {
+        "exporter": here, "result_codes": here.parents[1] / "v2" / "result_codes.py", "jobs_list": out / "jobs.txt",
+        **{f"provenance_{i}": pp for i, pp in enumerate(provenance or [])}})
     rows, E, inv, ctxs = _load_rows(out)
     prov = _load_provenance(provenance)
     rows, errs, einfo = finalize_rows(rows, E, prov)
@@ -2539,6 +2572,8 @@ def finalize(out: pathlib.Path, db_root: str | None, provenance, allow_errors: b
            "split_rule": SPLIT_RULE, "batches": [c.get("batch") for c in ctxs], "contexts": ctxs,
            "skipped_batch_dirs": [p.name for p in batch_dirs(out)[1]], "replicate_groups": einfo["replicate_groups"],
            "femur_registry": {"path": str(reg_path) if reg_path else None, "info": rinfo, "updated": reg_updated},
+           "by_result_class": {k: sum(1 for r in rows if str(r.get("result_class")) == k) for k in sorted({str(r.get("result_class")) for r in rows})},
+           "export_provenance": export_prov,
            "finalize_errors": errs, "finalize_warnings": warns, "rows_with_export_errors": export_errs, "files": files}
     (out / "manifest.json").write_text(json.dumps(man, indent=1, sort_keys=True, default=_jdefault))
     rg = einfo["replicate_groups"]

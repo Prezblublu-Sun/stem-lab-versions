@@ -973,6 +973,65 @@ def test_archive_stream_never_hangs():
         DA.ssh_base = orig
 
 
+# ------------------------------------------------------------------------------------------------ result codes, export provenance
+def test_result_code_columns():
+    """result_code / result_class sit right after fail_reason; finalize fills them for finished rows only; a code the job itself
+    wrote wins over the text; a FAILED row with nothing recorded is UNKNOWN, never ok; a stale code on a DONE row is ignored."""
+    i = DX.COLNAMES.index("fail_reason")
+    assert DX.COLNAMES[i + 1:i + 3] == ["result_code", "result_class"], DX.COLNAMES[i:i + 4]
+    assert {c["name"] for c in DX.schema_dict()["columns"]} >= {"result_code", "result_class"}
+    rows = [dict(job_id="a", status="DONE"),
+            dict(job_id="b", status="FAILED", fail_level="L4", fail_stage="solve", fail_reason="m_fric: TOO MANY ATTEMPTS MADE FOR THIS INCREMENT"),
+            dict(job_id="c", status="FAILED", fail_level="L4", fail_stage="solve", fail_reason="m_fric: timeout > 21600 s", result_code="solve_timeout"),
+            dict(job_id="d", status="FAILED", fail_level="L3", fail_stage="prep", fail_reason="whatever", result_code="prep_out_of_memory"),
+            dict(job_id="e", status="FAILED"),
+            dict(job_id="f", status="READY"),
+            dict(job_id="g", status="FAILED", fail_level="L4", fail_stage="solve", fail_reason="x", result_code="no_such_code"),
+            dict(job_id="h", status="DONE", result_code="not_converged"),
+            dict(job_id="i", status="FAILED", fail_level="L3", fail_stage="prep", fail_reason="BuildError: L3: meshing failed after retries: algo 1")]
+    DX.apply_result_codes(rows)
+    got = {r["job_id"]: (r["result_code"], r["result_class"]) for r in rows}
+    assert got == {"a": ("ok", "OK"), "b": ("not_converged", "NUMERIC"), "c": ("solve_timeout", "ENV"), "d": ("prep_out_of_memory", "ENV"),
+                   "e": ("unclassified", "UNKNOWN"), "f": (None, None), "g": ("unclassified", "UNKNOWN"), "h": ("ok", "OK"),
+                   "i": ("mesh_failed", "NUMERIC")}, got
+    assert DQ.ENUMS["result_class"] == {r[1] for r in got.values() if r[1]} | {"DESIGN", "ERROR", "SKIP"}
+
+
+def test_finalize_records_export_provenance_and_result_classes():
+    """manifest.json holds what this finalize ran with: the commit of this repo, its uncommitted changes, the sha256 of the exporter
+    and of the result code table; a missing jobs.txt is None, not an error. scalars.csv carries the two result columns."""
+    rows = [_row("j1", "x", "iid", "d1", has_prep=True, femur_geom_key="K1", femur_geom_verified=True,
+                 femur_geom_basis="files_older_than_prep", t_prep_utc="2026-10-24T01:00:00Z"),
+            dict(_row("j2", "x", "iid", "d2", has_prep=True, femur_geom_key="K1", femur_geom_verified=True,
+                      femur_geom_basis="files_older_than_prep", t_prep_utc="2026-10-24T01:00:00Z"),
+                 status="FAILED", fail_level="L4", fail_stage="solve", fail_reason="m_fric: TOO MANY ATTEMPTS MADE FOR THIS INCREMENT")]
+    ctxs = [dict(_ctx("b0", "K1", "2026-10-23T23:40:47Z", "2026-10-26T00:00:00Z"), queue_complete=True)]
+    einfo = {"E_jobs": {}, "n_E": 0, "replicate_groups": {"fric": [], "bond": []}}
+    orig = (DX._load_rows, DX.finalize_rows)
+
+    def fin(rows_, E, prov):
+        DX.apply_result_codes(rows_)
+        return rows_, [], einfo
+    try:
+        DX._load_rows = lambda out: ([dict(r) for r in rows], {}, {}, [dict(c) for c in ctxs])
+        DX.finalize_rows = fin
+        root, out = _tmpdir("finprov_root"), _tmpdir("finprov_out")
+        (out / "export").mkdir()
+        DX.finalize(out, str(root), None, True)
+    finally:
+        DX._load_rows, DX.finalize_rows = orig
+    man = json.loads((out / "manifest.json").read_text())
+    ep = man["export_provenance"]
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(TOOLS), capture_output=True).stdout.decode().strip()
+    assert ep["action"] == "export" and len(head) == 40 and ep["git"]["commit"] == head and isinstance(ep["git"]["dirty"], list), ep["git"]
+    assert ep["inputs"]["exporter"] == {"file": "tools/db_export.py", "sha256": hashlib.sha256((TOOLS / "db_export.py").read_bytes()).hexdigest()}
+    assert ep["inputs"]["result_codes"]["file"] == "v2/result_codes.py" and ep["inputs"]["jobs_list"] is None, ep["inputs"]
+    assert man["by_result_class"] == {"NUMERIC": 1, "OK": 1}, man["by_result_class"]
+    with open(out / "scalars.csv", encoding="utf-8", newline="") as fh:
+        got = {r["job_id"]: (r["status"], r["result_code"], r["result_class"]) for r in csv.DictReader(fh)}
+    assert got == {"j1": ("DONE", "ok", "OK"), "j2": ("FAILED", "not_converged", "NUMERIC")}, got
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for fn in fns:

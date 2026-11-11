@@ -105,3 +105,26 @@ H: 是 USB 盒里的 2 TB 盘，11-01 掉过一次。worker 的 cwd、代码、`
 - D:（含 E:）有坏扇区，页面文件和 Abaqus、SolidWorks 还在上面；大作业前把 Abaqus scratch 指到 G:，并设 `memory=`（10-24）。
 - C: 常年快满（Abaqus 默认 scratch 在 C:）。
 - `_fe_backup` 47 GB（10-23 的 FE 原始备份）不在 J: 上。
+
+## 11 失败的结局：类和名字（11-11 起）
+
+L1 到 L5 说在哪一步失败。类和名字说是哪一种、接下来怎么办。名字表在 `v2/result_codes.py`，只有这一处。
+
+| 类 | 含义 | 接下来 |
+|---|---|---|
+| OK 完成 | 算完了 | |
+| DESIGN 设计不可行 | 设计在这根骨上放不进去 | 不重试 |
+| NUMERIC 没算出来 | 网格或求解在数值上失败 | 换设置才值得重试 |
+| ENV 环境 | 内存、超时、许可、传输 | 不是设计的性质 |
+| ERROR 出错 | 规格的组合不合法，或代码抛异常 | 先修 |
+| SKIP 跳过 | 有意不算 | |
+| UNKNOWN 待查 | 从记录里分不出来 | 人看；必要时在名字表里加一条规则 |
+
+- **写在哪里**：`FAILED.json` 多两个键 `code`、`klass`（`jobs._fail`）；数据库多两列 `result_code`、`result_class`（导出器 0.2.6）；判定的 `result.json` 多一项 `outcomes`。旧记录没有 `code`，导出和判定时从文字现认，结果一样。
+- **看一个批次**：`ops/outcomes.py experiments/<批次> --db <版本目录>`，只读。判定时自动打印同一张表。有待查的行只提醒，不拦（用户 11-11 定）。
+- **worker 自己重试的只有两种**：传输失败和许可取不到。作业放回队列（`CLAIMED → READY`），不写失败；等待 20 s 起翻倍，300 s 封顶；同一个作业最多放回 3 次，再失败才写成失败。
+- **worker 暂停**：连续 5 次环境失败后写 `v2/runs/worker.PAUSED_transport.json` 或 `worker.PAUSED_license.json`，`STATE.md` 会报。worker 不退出，每 300 s 试一次，恢复后自己删标记。不用人去删。
+- **超时和建模超内存不自动重试**：再算一遍多半还是一样。要重算用 `v2/maint.py requeue`。
+- **新增一种失败**：在 `v2/result_codes.py` 的 `CODES` 里加名字；只有文字的再在 `_RULES` 里加一条；在 `ops/tests/test_ops.py` 的 J 段加一个例子。测试会查源码里写的每个名字都在表里。
+
+来历（`ops/provenance.py`）：判定写进 `result.json` 的 `provenance`，导出写进 `manifest.json` 的 `export_provenance`，喂料写进喂料日志的开头那一行。记的是提交号、未提交的改动、输入文件的 sha256。

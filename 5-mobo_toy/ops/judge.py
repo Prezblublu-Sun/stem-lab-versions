@@ -3,6 +3,10 @@
     PYTHONUTF8=1 .venv-mobo/Scripts/python.exe ops/judge.py experiments/b23_ow4 --db "../../db3406/v0.9"
 
 检查：批次目录要有 approval.md（没有 = 未批准，拒绝判定，除非 --replay）；gates.py 的 sha256 写进 result.json。
+判据表下面再报本批各行的结局（ops/outcomes.py，类和名字见 v2/result_codes.py：完成、设计不可行、没算出来、环境、出错、跳过、待查），也写进 result.json 的 outcomes。
+这只是报告：不改任何判据的结果，不改退出码。批次没有 rows.json 时不报。
+来历（ops/provenance.py）在跑判据之前取，写进 result.json 的 provenance：本仓库的提交号和未提交的改动，
+gates.py、approval.md、rows.json、数据版本的 manifest.json 和 scalars.csv 的 sha256。
 退出码：有 FAIL 1；全 PASS 0；有 NA 但无 FAIL 也是 0（NA 要人工补判，表里标明）。
 """
 from __future__ import annotations
@@ -14,6 +18,10 @@ import json
 import pathlib
 import sys
 import time
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import outcomes  # noqa: E402
+import provenance  # noqa: E402
 
 
 def main() -> int:
@@ -32,21 +40,25 @@ def main() -> int:
     man = db / "manifest.json"
     if not man.exists():
         print(f"{db} 不是导出的版本目录（没有 manifest.json）"); return 2
+    prov = provenance.record("judge", {"gates": gp, "approval": bd / "approval.md", "rows": bd / "rows.json",
+                                       "db_manifest": man, "db_scalars": db / "scalars.csv"})
     spec = importlib.util.spec_from_file_location("gates", gp)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     res = mod.judge(str(db))
     sha = hashlib.sha256(gp.read_bytes()).hexdigest()
+    oc = outcomes.outcomes(bd, db)
     out = {"batch": bd.name, "db": db.name, "db_rows": json.loads(man.read_text(encoding="utf-8")).get("n_rows"),
            "gates_sha256": sha, "judged_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "replay": a.replay,
-           "gates": {k: {"desc": mod.GATES.get(k, ""), **v} for k, v in res.items()}}
+           "gates": {k: {"desc": mod.GATES.get(k, ""), **v} for k, v in res.items()}, "outcomes": oc, "provenance": prov}
     (bd / "result.json").write_text(json.dumps(out, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     print(f"| 判据 | 结果 | 值 | 阈值 | 说明 |\n|---|---|---|---|---|")
     n_fail = 0
     for k, v in res.items():
         n_fail += v["status"] == "FAIL"
         print(f"| {k} | {v['status']} | {v['value'] if v['value'] is not None else '—'} | {v['threshold']} | {str(v['note'])[:140]} |")
-    print(f"\n数据 {db.name}（{out['db_rows']} 行），gates.py sha256 {sha[:12]}，result.json 已写。")
+    print("\n" + outcomes.table(oc))
+    print(f"\n数据 {db.name}（{out['db_rows']} 行），gates.py sha256 {sha[:12]}，{provenance.one_line(prov)}，result.json 已写。")
     return 1 if n_fail else 0
 
 

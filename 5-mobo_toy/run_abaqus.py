@@ -3,6 +3,8 @@
 * 并发上限可配（config.yaml abaqus.max_concurrent）；许可获取失败排队重试，不直接判失败。
 * 判定：.sta 最后有 "COMPLETED SUCCESSFULLY" 为 OK；否则 L4（求解不收敛/出错）；超时判 L4。
 * odb 导出失败判 L5。任何失败都返回原因，由调用方写进 runs.csv，不静默吞掉。
+* 本模块自己知道是哪一种失败时，返回里带 code（名字见 v2/result_codes.py：solve_timeout、license_unavailable、
+  export_incomplete）；求解器自己的报错不带 code，由 Linux 端从 reason 的文字认。
 """
 from __future__ import annotations
 
@@ -61,7 +63,7 @@ def run_job(inp: pathlib.Path, *, cpus: int | None = None, timeout: float | None
             subprocess.run(["cmd", "/c", LAUNCHER, "terminate", f"job={job}"], cwd=workdir,
                            capture_output=True, text=True)
             return {"job": job, "status": "L4", "wall_s": time.perf_counter() - t0,
-                    "reason": f"timeout > {timeout} s", "tries": attempt}
+                    "reason": f"timeout > {timeout} s", "tries": attempt, "code": "solve_timeout"}
         (workdir / f"{job}.runner.log").write_text(out, encoding="utf-8")
         sta, log, msg = _read(workdir / f"{job}.sta"), _read(workdir / f"{job}.log"), _read(workdir / f"{job}.msg")
         if "COMPLETED SUCCESSFULLY" in sta:
@@ -78,7 +80,7 @@ def run_job(inp: pathlib.Path, *, cpus: int | None = None, timeout: float | None
         return {"job": job, "status": "L4", "wall_s": time.perf_counter() - t0, "reason": reason,
                 "tries": attempt}
     return {"job": job, "status": "L4", "wall_s": time.perf_counter() - t0,
-            "reason": f"license unavailable after {tries_max} tries", "tries": tries_max}
+            "reason": f"license unavailable after {tries_max} tries", "tries": tries_max, "code": "license_unavailable"}
 
 
 def _first_error(*texts: str) -> str:
@@ -117,7 +119,7 @@ def run_and_export(inp: pathlib.Path, export_script: pathlib.Path | None = None,
     e = export_odb(inp.with_suffix(".odb"), inp.parent / f"{inp.stem}_csv", script=export_script)
     r["export"] = e["status"]
     if e["status"] != "OK":
-        r["status"], r["reason"] = "L5", e["reason"]
+        r["status"], r["reason"], r["code"] = "L5", e["reason"], "export_incomplete"
     else:
         r["odb_meta"] = e["meta"]
     return r

@@ -84,8 +84,10 @@ def serve(n_prep: int = 5, poll: float = 10.0) -> None:
             st = J.state(d)
             if p.returncode != 0 and st == "NEW":
                 sig = f" (signal {-p.returncode})" if p.returncode < 0 else ""
+                # 被杀（9）或段错误（11）= gmsh 在内存上限下的典型表现（见 PREP_MEM_GB 的说明）；别的退出码分不出来，留给人看
                 J._fail(d, "L3", "prep", f"prep process exited with code {p.returncode}{sig} under a {PREP_MEM_GB:g} GB memory limit; "
-                                         f"see prep.log in the job directory")
+                                         f"see prep.log in the job directory",
+                        code="prep_out_of_memory" if p.returncode in (-9, -11) else "prep_crashed")
                 st = "FAILED"
             print(f"{time.strftime('%H:%M:%S')} prep {k}: {st}" + (f" (exit {p.returncode})" if p.returncode else ""), flush=True)
         time.sleep(poll)

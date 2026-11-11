@@ -33,7 +33,8 @@ FORCE_TOL = 1e-3          # |sum of bone-side contact forces - applied load| / |
 H_PROD = 2.0
 ENUMS = {"status": {"DONE", "FAILED", "SOLVED", "CLAIMED", "READY", "NEW", "MISSING"}, "kind": {"design", "variant", "intact"},
          "selection": set(DX.SELECTIONS), "split": {"train", "val", "test"}, "export_status": {"ok", "error"},
-         "bounds_version": {"v1", "v2"}, "femur_geom_basis": {"files_older_than_prep", "registry", "no_prep"}}
+         "bounds_version": {"v1", "v2"}, "femur_geom_basis": {"files_older_than_prep", "registry", "no_prep"},
+         "result_class": {"OK", "DESIGN", "NUMERIC", "ENV", "ERROR", "SKIP", "UNKNOWN"}}
 
 
 def parse(cell: str, typ: str):

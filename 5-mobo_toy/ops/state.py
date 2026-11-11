@@ -205,8 +205,14 @@ def windows_section() -> list[str]:
         rc, t = run(["tasklist", "/FI", f"PID eq {pid}", "/NH"])
         alive = pid in t
     out.append(f"**worker**：pid `{pid or '无'}` {'活着' if alive else '不在'}；`worker.STOP` {'存在（不会自动重启）' if (runs / 'worker.STOP').exists() else '不存在'}")
+    for m in sorted(runs.glob("worker.PAUSED_*.json")):          # solve_worker.Backoff：连续 5 次环境失败后写，恢复后自己删
+        try:
+            j = json.loads(m.read_text(encoding="utf-8"))
+            out.append(f"**worker 暂停（{j.get('kind')}）**：从 {j.get('since')} 起连续失败，还在每 300 s 试一次。最近的原因：`{str(j.get('what'))[:150]}`")
+        except (OSError, ValueError) as e:
+            out.append(f"**worker 暂停**：`{m.name}` 读不了（{e}）")
     rc, t = run(["tasklist", "/FI", "IMAGENAME eq standard.exe", "/NH"])
-    n_abq = sum(1 for ln in t.splitlines() if ln.lower().startswith("standard.exe"))
+    n_abq =sum(1 for ln in t.splitlines() if ln.lower().startswith("standard.exe"))
     out.append(f"**Abaqus 求解进程**：{n_abq}")
     log = runs / "worker.log"
     if log.exists():
