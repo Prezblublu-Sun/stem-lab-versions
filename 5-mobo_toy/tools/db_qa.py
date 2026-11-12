@@ -649,7 +649,9 @@ def main(argv=None) -> int:
         if len(d["failures"]) > a.max_list:
             print(f"        ... {len(d['failures']) - a.max_list} more")
     out = pathlib.Path(a.json_out) if a.json_out else db / "qa_report.json"
-    out.write_text(json.dumps({"db": str(db), "n_rows": len(q.rows), "n_fail": n_fail, "checks": res}, indent=1, default=str))
+    mp = db / "manifest.json"                # which finalize this report is about: db_export.py publish refuses a report for another manifest
+    man_sha = __import__("hashlib").sha256(mp.read_bytes()).hexdigest() if mp.is_file() else None
+    out.write_text(json.dumps({"db": str(db), "manifest_sha256": man_sha, "n_rows": len(q.rows), "n_fail": n_fail, "checks": res}, indent=1, default=str))
     print(f"{n_fail} of {len(res)} checks FAIL; report {out}")
     return 1 if n_fail else 0
 

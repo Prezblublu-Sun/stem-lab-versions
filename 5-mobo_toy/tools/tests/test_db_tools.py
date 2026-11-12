@@ -1160,7 +1160,18 @@ def test_publish_freezes_a_version():
     assert fin() == 0
     assert DX.publish(out, check=True) == 3                                       # not published yet
     assert DX.publish(out) == 3 and not (out / DX.PUBLISHED_NAME).exists()        # no QA report
+    man = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+    assert "qa_report.json" not in man["files"] and "scalars.csv" in man["files"]
     (out / "qa_report.json").write_text("{}", encoding="utf-8")
+    assert DX.publish(out) == 3 and not (out / DX.PUBLISHED_NAME).exists()        # a QA report that does not say which manifest it checked
+    (out / "qa_report.json").write_text(json.dumps({"manifest_sha256": "0" * 64}), encoding="utf-8")
+    assert DX.publish(out) == 3 and not (out / DX.PUBLISHED_NAME).exists()        # a QA report of another finalize
+    assert fin() == 0                                                             # finalize again with the stale report in place:
+    man = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+    assert "qa_report.json" not in man["files"]                                   # the manifest still does not list it
+    assert DX.publish(out) == 3 and not (out / DX.PUBLISHED_NAME).exists()        # and the stale report is still refused
+    qa_ok = json.dumps({"manifest_sha256": hashlib.sha256((out / "manifest.json").read_bytes()).hexdigest()})
+    (out / "qa_report.json").write_text(qa_ok, encoding="utf-8")
     (out / "stray.txt").write_text("x", encoding="utf-8")
     assert DX.publish(out) == 3 and not (out / DX.PUBLISHED_NAME).exists()        # a file the manifest does not list
     (out / "stray.txt").unlink()
@@ -1179,7 +1190,7 @@ def test_publish_freezes_a_version():
         assert "published" in str(e)
     (out / "qa_report.json").write_text('{"changed": 1}', encoding="utf-8")
     assert DX.publish(out, check=True) == 3
-    (out / "qa_report.json").write_text("{}", encoding="utf-8")
+    (out / "qa_report.json").write_text(qa_ok, encoding="utf-8")
     (out / "scalars.csv").write_bytes(sc + b"x")
     assert DX.publish(out, check=True) == 3
     (out / "scalars.csv").write_bytes(sc)

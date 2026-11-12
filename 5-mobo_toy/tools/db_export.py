@@ -2568,7 +2568,9 @@ def publish(out: pathlib.Path, check: bool = False) -> int:
     """Mark a version directory as published, or (--check) verify that a published one is still what was published.
 
     Publishing needs: manifest.json; every file it lists present with the listed size and sha256; no file on disk that it does not list
-    (except manifest.json, qa_report.json and PUBLISHED.json); qa_report.json. It then writes PUBLISHED.json with the sha256 of manifest.json
+    (except manifest.json, qa_report.json and PUBLISHED.json); a qa_report.json that tools/db_qa.py wrote for THIS manifest (the report
+    carries the sha256 of the manifest.json it checked: QA runs after finalize, so finalize cannot list the report, and a report left from
+    an earlier finalize of the same directory is refused). It then writes PUBLISHED.json with the sha256 of manifest.json
     and of qa_report.json. After that finalize refuses to run on this directory: a published version does not change. Documents are edited at
     the database root only; the copies in the version directory are frozen with the manifest.
     Exit code: 0 published / still as published; 3 not publishable / changed since; 2 usage."""
@@ -2578,12 +2580,21 @@ def publish(out: pathlib.Path, check: bool = False) -> int:
         print(f"{out}: no manifest.json (run finalize first)")
         return 2
     man = json.loads(mp.read_text(encoding="utf-8"))
-    errs = verify_members(out, man.get("files") or {})
-    listed = set(man.get("files") or {})
+    listed = {k: v for k, v in (man.get("files") or {}).items() if k not in PUBLISH_OUTSIDE}    # a manifest written before 2026-11-12 may list them
+    errs = verify_members(out, listed)
+    listed = set(listed)
     errs += [f"{p.relative_to(out).as_posix()}: on disk but not in manifest.files" for p in sorted(out.rglob("*"))
              if p.is_file() and p.relative_to(out).as_posix() not in listed and p.name not in PUBLISH_OUTSIDE and not p.name.endswith(".part")]
     if not qp.is_file():
         errs.append("qa_report.json: missing (run tools/db_qa.py on this version first)")
+    else:
+        try:
+            qa_for = json.loads(qp.read_text(encoding="utf-8")).get("manifest_sha256")
+        except (ValueError, AttributeError):
+            qa_for = None
+        if qa_for != sha256_file(mp):
+            errs.append("qa_report.json: not written for this manifest.json (" + ("no manifest_sha256 in the report" if not qa_for else f"it checked {qa_for[:12]}")
+                        + "): run tools/db_qa.py again after finalize")
     now = {"version_dir": out.name, "manifest_sha256": sha256_file(mp), "qa_report_sha256": sha256_file(qp) if qp.is_file() else None,
            "exporter_version": man.get("exporter_version"), "n_rows": man.get("n_rows")}
     if check:
@@ -2687,7 +2698,7 @@ def finalize(out: pathlib.Path, db_root: str | None, provenance, allow_errors: b
     (out / "splits.json").write_text(json.dumps(splits, indent=1, sort_keys=True))
     files = {}
     for p in sorted(out.rglob("*")):
-        if p.is_file() and p.name != "manifest.json" and not p.name.endswith(".part"):
+        if p.is_file() and not (p.parent == out and p.name in PUBLISH_OUTSIDE) and not p.name.endswith(".part"):    # the QA report is written after this
             files[p.relative_to(out).as_posix()] = {"sha256": sha256_file(p), "size": p.stat().st_size}
     man = {"version_dir": out.name, "finalized_utc": now_utc(), "exporter_version": EXPORTER_VERSION, "n_rows": len(rows),
            "by_status": {k: sum(1 for r in rows if str(r.get("status")) == k) for k in sorted({str(r.get("status")) for r in rows})},

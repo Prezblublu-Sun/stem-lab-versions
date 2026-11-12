@@ -1,0 +1,12 @@
+{
+ "format": "stage_db rows_in 1",
+ "batch": "b34",
+ "form": "variants",
+ "note": "R2（b31）里比 3b 好、b33 没有挑的四行（r2_05、r2_06、r2_08、r2_14）的坐起 1714 N 行。层 R2 sts 是已有的层（b33 用过）。",
+ "rows": [
+  {"key": "R2S_r2_05", "layer": "R2 sts", "base": "db_al_r2_05_e+1.5_07e94cd0", "cond": {"load": "F1714"}},
+  {"key": "R2S_r2_06", "layer": "R2 sts", "base": "db_al_r2_06_e+1_71c6ee2d", "cond": {"load": "F1714"}},
+  {"key": "R2S_r2_08", "layer": "R2 sts", "base": "db_al_r2_08_e+1.5_4a1a76ac", "cond": {"load": "F1714"}},
+  {"key": "R2S_r2_14", "layer": "R2 sts", "base": "db_al_r2_14_e+1_c143792e", "cond": {"load": "F1714"}}
+ ]
+}
