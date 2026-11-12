@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>stem-lab 操作台</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --line: #dfe2e8; --text: #1c2330; --dim: #667085;
+    --track: #e6e9ef; --fill: #3b6fd4; --warn: #c9821a; --bad: #c8453b; --good: #2e8b57;
+    --queue: #8a93a5; --run: #3b6fd4; --stop: #a37c2c; --pick: #eaf0fc; --field: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --panel: #1c2027; --line: #2c323c; --text: #e4e7ec; --dim: #98a2b3;
+      --track: #2a303a; --fill: #6b9bf0; --warn: #e0a84a; --bad: #ef6b60; --good: #58c08a;
+      --queue: #7a8496; --run: #6b9bf0; --stop: #c9a45a; --pick: #232c3d; --field: #14171c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", sans-serif; }
+  main { max-width: 1480px; margin: 0 auto; padding: 16px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; margin-bottom: 10px; }
+  h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  h2 { font-size: 14px; margin: 20px 0 8px; font-weight: 600; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  h2 small { font-weight: 400; color: var(--dim); }
+  h3 { font-size: 13.5px; margin: 16px 0 6px; font-weight: 600; }
+  h3 small { font-weight: 400; color: var(--dim); margin-left: 8px; }
+  .dim { color: var(--dim); }
+  .num { font-variant-numeric: tabular-nums; }
+  #home { min-width: 0; overflow-wrap: anywhere; }
+  #live { margin-left: auto; }
+  #live.off { color: var(--bad); font-weight: 600; }
+  .bar2 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; }
+  #msg { min-height: 38px; }
+  #msg.err { border-color: var(--bad); color: var(--bad); }
+  #msg.warn { border-color: var(--warn); }
+  .cols { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; align-items: start; }
+  @media (max-width: 980px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+  .card { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+  .card + .card { margin-top: 10px; }
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 5px 10px 5px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--dim); font-weight: 400; font-size: 12.5px; white-space: nowrap; }
+  td.nowrap { white-space: nowrap; }
+  td.wrap { overflow-wrap: anywhere; min-width: 10em; }
+  tr:last-child td { border-bottom: 0; }
+  tr.pick { cursor: pointer; }
+  tr.pick:hover td, tr.on td { background: var(--pick); }
+  .badge { display: inline-block; padding: 0 8px; border-radius: 10px; font-size: 12px; line-height: 20px;
+    border: 1px solid var(--line); white-space: nowrap; }
+  .b-运行中 { color: var(--run); border-color: var(--run); }
+  .b-已暂停, .b-已停止 { color: var(--stop); border-color: var(--stop); }
+  .b-已结束 { color: var(--good); border-color: var(--good); }
+  .b-读不出来 { color: var(--bad); border-color: var(--bad); }
+  .counts { display: flex; flex-wrap: wrap; gap: 2px 12px; }
+  .counts span { white-space: nowrap; }
+  td.tasks { min-width: 5.5em; white-space: nowrap; }
+  .counts span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px;
+    margin-right: 5px; background: var(--c); }
+  .t-失败 { color: var(--bad); } .t-完成 { color: var(--good); } .t-运行 { color: var(--run); } .t-停止 { color: var(--stop); }
+  .err { color: var(--bad); overflow-wrap: anywhere; }
+  .empty { color: var(--dim); padding: 4px 0; }
+  button { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line);
+    border-radius: 6px; padding: 3px 12px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--fill); color: var(--fill); }
+  button:disabled { color: var(--dim); opacity: .55; cursor: default; }
+  button.main { background: var(--fill); border-color: var(--fill); color: #fff; }
+  button.main:hover:not(:disabled) { color: #fff; opacity: .9; }
+  button.x { border: 0; padding: 0 2px 0 4px; background: none; color: var(--dim); }
+  input, select, textarea { font: inherit; color: var(--text); background: var(--field); border: 1px solid var(--line);
+    border-radius: 6px; padding: 3px 8px; min-width: 0; }
+  textarea { width: 100%; min-height: 64px; resize: vertical; font-family: Consolas, "Cascadia Mono", monospace; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 6px 0; }
+  .row > label { color: var(--dim); min-width: 4.5em; }
+  .row .grow { flex: 1 1 12em; }
+  .ops { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0 2px; }
+  .ops .gap { width: 12px; }
+  .kv { display: grid; grid-template-columns: 5.5em minmax(0, 1fr); gap: 3px 10px; }
+  .kv > div { overflow-wrap: anywhere; }
+  .kv > .k { color: var(--dim); }
+  .head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+  .head .id { font-weight: 600; font-size: 16px; }
+  code, .mono { font-family: Consolas, "Cascadia Mono", monospace; font-size: 12.5px; overflow-wrap: anywhere; }
+  pre { margin: 6px 0 0; padding: 8px; background: var(--bg); border-radius: 6px; overflow-x: auto; font-size: 12px; }
+  details summary { cursor: pointer; color: var(--dim); }
+  .box { border: 1px dashed var(--line); border-radius: 8px; padding: 8px 12px; margin-top: 8px; }
+  .hide { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>stem-lab 操作台</h1>
+    <span class="dim" id="home"></span>
+    <span class="dim num" id="live">正在读…</span>
+  </header>
+
+  <div class="bar2">
+    <strong>值守</strong>
+    <span id="watch" class="num">…</span>
+    <button id="btn-refresh" title="现在就叫一次所有运行中实验的插件报任务状态">现在看一眼</button>
+  </div>
+  <div class="bar2" id="msg"><span class="dim">在这里显示每次操作的结果。</span></div>
+
+  <div class="cols">
+    <div>
+      <h2>新建实验</h2>
+      <div class="card" id="new">
+        <div class="row"><label for="new-plugin">插件</label><select id="new-plugin" class="grow"></select></div>
+        <div class="row"><label for="new-note">说明</label><input id="new-note" class="grow" placeholder="想做什么"></div>
+        <div class="row"><label for="new-tags">标签</label><input id="new-tags" class="grow" placeholder="可以不写；多个用逗号隔开">
+          <button class="main" id="btn-new">新建</button></div>
+      </div>
+
+      <h2>实验<small id="n-exp"></small></h2>
+      <div class="card scroll" id="exps"></div>
+
+      <h2>插件<small id="n-plugins"></small><button id="btn-reload" title="重新读一遍插件文件夹">重新读插件</button></h2>
+      <div id="plugins"></div>
+
+      <h2>核对记录<button id="btn-check-all">核对所有实验</button></h2>
+      <div class="card scroll" id="checks"><div class="empty">还没有核对。核对是看每个实验的记录有没有被改过或删过。</div></div>
+    </div>
+
+    <div>
+      <h2>一个实验<small id="n-sel"></small></h2>
+      <div id="detail"><div class="card empty">在左边的表里点一个实验。</div></div>
+    </div>
+  </div>
+</main>
+
+<script>
+const EVERY = 3000;
+const STATES = ["排队", "运行", "完成", "失败", "停止"];
+const OPS = ["启动", "暂停", "继续", "停止", "重试"];
+const COLOR = {排队: "queue", 运行: "run", 完成: "good", 失败: "bad", 停止: "stop"};
+const HEAD = {"Content-Type": "application/json", "X-Stemlab-Desk": "1"};
+
+let S = null;          // 上一次读到的现状
+let sel = decodeURIComponent(location.hash.slice(1)) || null;   // 选中的实验
+let D = null;          // 选中实验的九项
+let lastState = "", lastDetail = "", formKey = "";
+
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === false || v === null || v === undefined) continue;
+    if (k === "class") el.className = v;
+    else if (k === "style") el.style.cssText = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat(3)) {
+    if (kid === null || kid === undefined || kid === false) continue;
+    el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  }
+  return el;
+}
+const $ = id => document.getElementById(id);
+const fill = (el, ...kids) => { (typeof el === "string" ? $(el) : el).replaceChildren(...kids.flat(3).filter(k => k !== null && k !== undefined && k !== false)); };
+const clock = iso => iso ? iso.slice(5, 16).replace("T", " ") + ":" + iso.slice(17, 19) : "";
+const short = sha => (sha || "").slice(0, 10);
+const pluginText = p => p && p.name ? `${p.name} ${p.version || ""}（${p.category || ""}）` : "";
+
+function say(text, kind) {
+  const el = $("msg");
+  el.className = "bar2" + (kind ? " " + kind : "");
+  fill(el, h("span", {class: "dim num"}, new Date().toTimeString().slice(0, 8)), h("span", {}, text));
+}
+
+async function getJson(url) {
+  const r = await fetch(url, {cache: "no-store"});
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.status);
+  return j;
+}
+
+async function act(body) {
+  let j = null, ok = false;
+  try {
+    const r = await fetch("/api/do", {method: "POST", headers: HEAD, body: JSON.stringify(body)});
+    j = await r.json();
+    ok = r.ok;
+    say(j.message || j.error || "没有回话", ok ? (j.warn ? "warn" : "") : "err");
+  } catch (err) {
+    say("操作台服务连不上，这一次没有做。", "err");
+  }
+  await tick();
+  return ok ? j : null;
+}
+
+function counts(c) {
+  const have = STATES.filter(s => c && c[s]);
+  if (!have.length) return h("span", {class: "dim"}, "没有任务");
+  return h("div", {class: "counts num"}, have.map(s => h("span", {style: `--c: var(--${COLOR[s]})`}, `${s} ${c[s]}`)));
+}
+
+function table(heads, rows, empty) {
+  if (!rows.length) return h("div", {class: "empty"}, empty);
+  return h("table", {}, h("tr", {}, heads.map(t => h("th", {}, t))), rows);
+}
+
+// ---- 左边：值守、实验表、插件 ------------------------------------------
+
+function renderWatch(w) {
+  let text;
+  if (!w.on) text = "没有开。任务状态只在你点「现在看一眼」时更新。";
+  else if (w.holding) {
+    text = `开着，每 ${w.every} 秒叫一次运行中实验的插件报任务状态。`;
+    if (w.last_time) text += `上一次 ${clock(w.last_time)}，${w.last_seen.length ? "看了 " + w.last_seen.join("、") : "没有运行中的实验"}。`;
+  } else if (w.elsewhere) text = `别处已经在值守（进程 ${w.elsewhere}），这里等着。`;
+  else text = `开着，每 ${w.every} 秒一次。现在还没有实验可看。`;
+  const kids = [text];
+  if (w.last_error) kids.push(h("span", {class: "err"}, `　上一次出了问题：${w.last_error}`));
+  for (const [id, err] of Object.entries(w.unreadable || {})) kids.push(h("span", {class: "err"}, `　${id} 的记录读不了：${err}`));
+  fill("watch", kids);
+}
+
+function renderState(s) {
+  $("home").textContent = s.home;
+  renderWatch(s.watch);
+
+  const pick = $("new-plugin"), had = pick.value;
+  fill(pick, s.plugins.map(p => h("option", {value: p.name}, `${p.name} ${p.version}（${p.category}）`)));
+  if (s.plugins.some(p => p.name === had)) pick.value = had;
+  $("btn-new").disabled = !s.plugins.length;
+
+  $("n-exp").textContent = `${s.experiments.length} 个，新的在上`;
+  fill("exps", table(["编号", "状态", "插件", "说明", "任务", "问题", "最后有变化"],
+    [...s.experiments].reverse().map(e => h("tr", {class: "pick" + (e.id === sel ? " on" : ""), "data-id": e.id, onclick: () => choose(e.id)},
+      h("td", {class: "nowrap"}, e.id),
+      h("td", {}, h("span", {class: "badge b-" + e.status}, e.status)),
+      h("td", {class: "nowrap"}, pluginText(e.plugin)),
+      h("td", {class: "wrap"}, e.error ? h("span", {class: "err"}, e.error) : [e.note, (e.tags || []).map(t => [" ", h("span", {class: "badge"}, t)])]),
+      h("td", {class: "tasks"}, e.error ? "" : counts(e.counts)),
+      h("td", {class: "num" + (e.problems ? " t-失败" : "")}, e.error ? "" : e.problems),
+      h("td", {class: "nowrap num"}, clock(e.updated)))),
+    "还没有实验。在上面新建一个。"));
+
+  $("n-plugins").textContent = `装着 ${s.plugins.length} 个` + (s.plugin_errors.length ? `，装不上 ${s.plugin_errors.length} 个` : "");
+  fill("plugins",
+    s.plugins.map(p => h("div", {class: "card"},
+      h("div", {class: "head"}, h("span", {class: "id"}, p.name), h("span", {class: "dim"}, `版本 ${p.version}　类别 ${p.category}`)),
+      h("div", {}, p.what),
+      h("div", {class: "dim mono"}, p.folder),
+      h("h3", {}, "要哪几项设置"),
+      table(["设置", "要求", "是什么"], p.settings.map(x => h("tr", {}, h("td", {class: "nowrap"}, x.name),
+        h("td", {class: "nowrap"}, x.required ? "必填" : "可以不填"), h("td", {class: "wrap"}, x.what))), "不要设置"),
+      h("h3", {}, "怎么启动、停止、报任务状态"),
+      h("div", {}, p.hooks.length ? "它自己写了：" + p.hooks.join("、") : "一个都没写"),
+      h("h3", {}, "产出什么"),
+      table(["产出", "是什么"], p.outputs.map(x => h("tr", {}, h("td", {class: "nowrap"}, x.name), h("td", {class: "wrap"}, x.what))), "没有报产出"))),
+    !s.plugins.length && h("div", {class: "card empty"}, "没有装任何插件。"),
+    s.plugin_errors.map(e => h("div", {class: "card err"}, "装不上：" + e)));
+}
+
+// ---- 右边：一个实验的九项 ----------------------------------------------
+
+function choose(id) {
+  sel = id; D = null; lastDetail = ""; formKey = "";
+  history.replaceState(null, "", id ? "#" + encodeURIComponent(id) : location.pathname);
+  for (const tr of document.querySelectorAll("#exps tr.pick")) tr.classList.toggle("on", tr.dataset.id === id);
+  $("n-sel").textContent = id || "";
+  fill("detail", h("div", {class: "card empty"}, id ? "正在读…" : "在左边的表里点一个实验。"));
+  if (id) tick();
+}
+
+function skeleton() {
+  // 会跟着记录变的地方（v-…）每次重画；要打字的地方（f-…）只在换实验时重建，免得打到一半被冲掉
+  fill("detail", h("div", {class: "card"},
+    h("div", {id: "v-head"}),
+    h("h3", {}, "1 编号　2 插件　3 说明　4 标签"),
+    h("div", {id: "v-info"}),
+    h("div", {id: "f-info", class: "box"}),
+    h("h3", {}, "5 实际设置", h("small", {id: "v-frozen"})),
+    h("div", {class: "scroll", id: "v-settings"}),
+    h("div", {id: "f-set"}),
+    h("h3", {}, "6 操作"), h("div", {id: "v-ops"}),
+    h("h3", {}, "7 任务"), h("div", {class: "scroll", id: "v-tasks"}),
+    h("h3", {}, "8 产出"), h("div", {class: "scroll", id: "v-outputs"}),
+    h("h3", {}, "9 问题"), h("div", {id: "v-problems"}),
+    h("h3", {}, "来历"), h("div", {id: "v-prov"}),
+    h("div", {id: "v-check"})));
+}
+
+function settingBody(c) {
+  if (c.kind === "值") return ["值　", h("code", {}, JSON.stringify(c.value))];
+  if (c.kind === "复制") return ["文件（原文存了一份）　", h("code", {}, c.stored || c.path)];
+  return ["文件（只记位置）　", h("code", {}, c.path)];
+}
+function settingSource(src) {
+  if (src.kind === "实验产出") return h("a", {href: "#" + src.experiment, onclick: ev => { ev.preventDefault(); choose(src.experiment); }},
+    `实验 ${src.experiment} 的产出「${src.output}」`);
+  return `其他来源，${src.from || "没写从哪来"}` + (src.when ? `，${src.when}` : "");
+}
+
+function renderDetail(v) {
+  const p = v.plugin || {};
+  fill("v-head",
+    h("div", {class: "head"}, h("span", {class: "id"}, "实验 " + v.id), h("span", {class: "badge b-" + v.status}, v.status),
+      h("span", {class: "dim num"}, `新建于 ${clock(v.created)}　最后有变化 ${clock(v.updated)}`)),
+    !v.plugin_installed && h("div", {class: "err"}, `这个实验用的插件「${p.name}」现在没装上。只能看，不能操作。`),
+    h("div", {class: "ops"},
+      OPS.map(op => h("button", {class: op === "启动" ? "main" : "", disabled: !v.can.includes(op),
+        title: v.can.includes(op) ? "" : `现在是「${v.status}」，不能${op}`, onclick: () => act({action: "op", op, exp: v.id})}, op)),
+      h("span", {class: "gap"}),
+      h("button", {disabled: !v.can_refresh, title: "叫这个实验的插件报一次任务状态", onclick: () => act({action: "refresh", exp: v.id})}, "看一眼"),
+      h("button", {onclick: () => check(v.id)}, "核对记录")));
+
+  fill("v-info", h("div", {class: "kv"},
+    h("div", {class: "k"}, "1 编号"), h("div", {}, v.id),
+    h("div", {class: "k"}, "2 插件"), h("div", {}, pluginText(p), h("span", {class: "dim"}, `　文件哈希 ${short(p.files_sha256)}`)),
+    h("div", {class: "k"}, "3 说明"), h("div", {}, v.note || h("span", {class: "dim"}, "（没写）"),
+      v.notes.map(n => h("div", {}, h("span", {class: "dim num"}, `备注 ${clock(n.time)}　`), n.text))),
+    h("div", {class: "k"}, "4 标签"), h("div", {}, v.tags.length ? v.tags.map(t => h("span", {class: "badge", style: "margin-right:6px"}, t,
+      h("button", {class: "x", title: "去掉这个标签", onclick: () => act({action: "tag", exp: v.id, remove: [t]})}, "×"))) : h("span", {class: "dim"}, "（没有）"))));
+
+  $("v-frozen").textContent = v.frozen ? "已存定，不能再改。要改就新建一个实验。" : "还没存定，启动时存定。";
+  const names = [...new Set([...v.wanted.map(w => w.name), ...Object.keys(v.settings)])];
+  fill("v-settings", table(["设置", "要求", "内容", "来路", "哈希", "填于"], names.map(name => {
+    const s = v.settings[name], w = v.wanted.find(x => x.name === name);
+    const need = w ? (w.required ? "必填" : "可以不填") : "";
+    if (!s) return h("tr", {}, h("td", {class: "nowrap"}, name), h("td", {class: "nowrap"}, need),
+      h("td", {class: w && w.required ? "err" : "dim", colspan: "4"}, "（没填）" + (w && w.what ? "　" + w.what : "")));
+    return h("tr", {}, h("td", {class: "nowrap"}, name), h("td", {class: "nowrap"}, need),
+      h("td", {class: "wrap"}, settingBody(s.content)), h("td", {class: "wrap"}, settingSource(s.source)),
+      h("td", {class: "nowrap mono"}, short(s.content.sha256)), h("td", {class: "nowrap num"}, clock(s.time)));
+  }), "这个插件不要设置。"));
+
+  fill("v-ops", v.operations.map(o => h("div", {class: "num"}, h("span", {class: "dim"}, clock(o.time) + "　"), o.op)));
+
+  fill("v-tasks", table(["任务", "状态", "机器", "经过"], Object.entries(v.tasks).map(([name, t]) => h("tr", {},
+    h("td", {class: "wrap"}, name), h("td", {class: "nowrap t-" + t.state}, t.state), h("td", {class: "nowrap"}, t.machine),
+    h("td", {class: "wrap num dim"}, t.history.map(x => `${x.state}${x.stage ? "/" + x.stage : ""} ${clock(x.time).slice(6)}`).join(" → ")))),
+    "还没有任务。"));
+
+  fill("v-outputs", table(["产出", "位置", "哈希", "说明", "登记于"], v.outputs.map(o => h("tr", {},
+    h("td", {class: "nowrap"}, o.name), h("td", {class: "wrap mono"}, o.path), h("td", {class: "nowrap mono"}, short(o.sha256)),
+    h("td", {class: "wrap"}, o.what), h("td", {class: "nowrap num"}, clock(o.time)))), "还没有产出。"));
+
+  fill("v-problems", v.problems.length ? v.problems.map((pr, i) => {
+    const d = h("details", {"data-i": i}, h("summary", {}, "原样的报错"), h("pre", {}, pr.raw || "（没有）"));
+    return h("div", {style: "margin-bottom:6px"}, h("span", {class: "dim num"}, clock(pr.time) + "　"),
+      h("span", {class: "err"}, (pr.task ? `任务 ${pr.task}：` : "") + pr.error), pr.raw ? d : null);
+  }) : h("div", {class: "empty"}, "没有。"));
+
+  const prov = v.provenance || {}, at = prov.plugin_at_start || {};
+  const known = ["code_commit", "code_dirty", "machine", "python", "plugin_at_start"];
+  fill("v-prov", Object.keys(prov).length ? h("div", {class: "kv"},
+    h("div", {class: "k"}, "代码提交"), h("div", {class: "mono"}, prov.code_dirty === null || prov.code_dirty === undefined
+      ? (prov.code_commit || "") : short(prov.code_commit) + (prov.code_dirty ? "，有没提交的改动" : "")),
+    h("div", {class: "k"}, "机器"), h("div", {}, prov.machine),
+    h("div", {class: "k"}, "Python"), h("div", {}, prov.python),
+    h("div", {class: "k"}, "启动时插件"), h("div", {}, `${at.name || ""} ${at.version || ""}`, h("span", {class: "dim"}, `　文件哈希 ${short(at.files_sha256)}`)),
+    Object.entries(prov).filter(([k]) => !known.includes(k)).map(([k, val]) => [h("div", {class: "k"}, k), h("div", {}, typeof val === "string" ? val : JSON.stringify(val))]))
+    : h("div", {class: "empty"}, "启动时才记。"));
+
+  const key = `${v.id}|${v.frozen}|${v.plugin_installed}`;
+  if (key !== formKey) { formKey = key; buildForms(v); }
+}
+
+function buildForms(v) {
+  // 备注和标签：随时可以加
+  const note = h("input", {class: "grow", placeholder: "加一条备注"});
+  const tag = h("input", {class: "grow", placeholder: "加标签；多个用逗号隔开"});
+  const addNote = async () => { if (note.value.trim() && await act({action: "note", exp: v.id, text: note.value})) note.value = ""; };
+  const addTag = async () => { const add = splitTags(tag.value); if (add.length && await act({action: "tag", exp: v.id, add})) tag.value = ""; };
+  note.addEventListener("keydown", ev => { if (ev.key === "Enter") addNote(); });
+  tag.addEventListener("keydown", ev => { if (ev.key === "Enter") addTag(); });
+  fill("f-info",
+    h("div", {class: "row"}, h("label", {}, "备注"), note, h("button", {onclick: addNote}, "记下")),
+    h("div", {class: "row"}, h("label", {}, "标签"), tag, h("button", {onclick: addTag}, "加上")));
+
+  // 填设置：只在启动前、插件装着的时候有
+  if (v.frozen || !v.plugin_installed || !v.wanted.length) { fill("f-set"); return; }
+  const name = h("select", {class: "grow"}, v.wanted.map(w => h("option", {value: w.name}, `${w.name}（${w.required ? "必填" : "可以不填"}）`)));
+  const what = h("div", {class: "dim"});
+  const kind = h("select", {class: "grow"},
+    h("option", {value: "值"}, "一个值"),
+    h("option", {value: "复制"}, "一个文件或文件夹，启动时把原文复制进实验"),
+    h("option", {value: "位置"}, "一个文件或文件夹，只记位置和哈希，不复制"),
+    h("option", {value: "产出"}, "另一个实验的产出"));
+  const value = h("textarea", {placeholder: '能当 JSON 读就当 JSON，否则当文字。例：["p1", "p2"]'});
+  const path = h("input", {class: "grow", placeholder: "这台机器上的完整路径"});
+  const fromExp = h("select", {class: "grow"}), output = h("select", {class: "grow"});
+  const source = h("input", {class: "grow", placeholder: "从哪拿的"}), when = h("input", {placeholder: "什么时候拿的，可以不写"});
+  const rValue = h("div", {class: "row"}, value);
+  const rPath = h("div", {class: "row"}, h("label", {}, "文件位置"), path);
+  const rFrom = h("div", {class: "row"}, h("label", {}, "哪个实验"), fromExp, h("label", {}, "哪项产出"), output);
+  const rSource = h("div", {class: "row"}, h("label", {}, "来路"), source, when);
+
+  const outputsOf = id => ((S ? S.experiments : []).find(e => e.id === id) || {}).outputs || [];
+  const fillOutputs = () => fill(output, outputsOf(fromExp.value).map(o => h("option", {value: o}, o)));
+  const fillFrom = () => {
+    const had = fromExp.value;
+    const has = (S ? S.experiments : []).filter(e => e.id !== v.id && (e.outputs || []).length);
+    fill(fromExp, has.length ? [...has].reverse().map(e => h("option", {value: e.id}, `${e.id}　${e.note || ""}`))
+      : h("option", {value: ""}, "（还没有哪个实验有产出）"));
+    if (has.some(e => e.id === had)) fromExp.value = had;
+    fillOutputs();
+  };
+  const show = () => {
+    const k = kind.value;
+    rValue.classList.toggle("hide", k !== "值");
+    rPath.classList.toggle("hide", k !== "复制" && k !== "位置");
+    rFrom.classList.toggle("hide", k !== "产出");
+    rSource.classList.toggle("hide", k === "产出");
+    if (k === "产出") fillFrom();
+    what.textContent = (v.wanted.find(w => w.name === name.value) || {}).what || "";
+  };
+  kind.addEventListener("change", show);
+  name.addEventListener("change", show);
+  fromExp.addEventListener("change", fillOutputs);
+  fromExp.addEventListener("focus", fillFrom);
+
+  const submit = async () => {
+    const body = {action: "set", exp: v.id, name: name.value, kind: kind.value};
+    if (kind.value === "值") body.value = value.value;
+    else if (kind.value === "产出") { body.from_exp = fromExp.value; body.output = output.value; }
+    else body.path = path.value;
+    if (kind.value !== "产出") { body.source = source.value; body.when = when.value; }
+    if (await act(body)) { value.value = ""; path.value = ""; }
+  };
+  fill("f-set", h("div", {class: "box"},
+    h("div", {class: "dim"}, "填一项设置。再填同一项就是改，两次都留在记录里。启动之后不能再改。"),
+    h("div", {class: "row"}, h("label", {}, "设置"), name),
+    what,
+    h("div", {class: "row"}, h("label", {}, "内容"), kind),
+    rValue, rPath, rFrom, rSource,
+    h("div", {class: "row"}, h("button", {class: "main", onclick: submit}, "填上"))));
+  show();
+}
+
+const splitTags = text => text.split(/[,，、\s]+/).map(t => t.trim()).filter(Boolean);
+
+// ---- 核对记录 ----------------------------------------------------------
+
+function checkLine(c) {
+  return h("div", {class: c.found.length ? "err" : ""}, `${c.id}　` + (c.found.length ? c.found.join("；") : "记录完好"));
+}
+async function check(id) {
+  try {
+    const j = await getJson("/api/check" + (id ? "?exp=" + encodeURIComponent(id) : ""));
+    const lines = j.checked.map(checkLine);
+    const head = h("div", {class: "dim num"}, `核对于 ${clock(j.time)}`);
+    if (id) fill("v-check", h("div", {class: "box"}, head, lines));
+    else fill("checks", head, lines.length ? lines : h("div", {class: "empty"}, "还没有实验。"));
+    const bad = j.checked.filter(c => c.found.length).length;
+    say(bad ? `核对出 ${bad} 个实验的记录有问题。` : `核对了 ${j.checked.length} 个实验，记录完好。`, bad ? "err" : "");
+  } catch (err) { say("核对没有做成：" + err.message, "err"); }
+}
+
+// ---- 定时读 ------------------------------------------------------------
+
+let busy = false, again = false;
+async function tick() {
+  if (busy) { again = true; return; }   // 正在读：读完马上再读一次，免得刚做的操作要等下一轮才显示
+  busy = true;
+  const live = $("live");
+  try {
+    const s = await getJson("/api/state");
+    S = s;
+    const text = JSON.stringify({...s, time: ""});
+    if (text !== lastState) { lastState = text; renderState(s); }
+    if (sel) {
+      const asked = sel;
+      try {
+        const v = await getJson("/api/exp/" + encodeURIComponent(asked));
+        const dt = JSON.stringify(v);
+        if (asked !== sel) again = true;   // 读的工夫换了一个实验：这一份不要
+        else if (dt !== lastDetail) {
+          if (!D) skeleton();
+          D = v; lastDetail = dt;
+          renderDetail(v);
+        }
+      } catch (err) {
+        if (asked === sel) {
+          D = null; lastDetail = ""; formKey = "";
+          fill("detail", h("div", {class: "card err"}, `${sel}：${err.message}`));
+        }
+      }
+    }
+    live.className = "dim num";
+    live.textContent = `更新于 ${clock(s.time)}，每 ${EVERY / 1000} 秒一次`;
+  } catch (err) {
+    live.className = "off";
+    live.textContent = "操作台服务连不上，显示的是旧的";
+  } finally {
+    busy = false;
+    if (again) { again = false; tick(); }
+  }
+}
+
+$("btn-new").addEventListener("click", async () => {
+  const j = await act({action: "new", plugin: $("new-plugin").value, note: $("new-note").value, tags: splitTags($("new-tags").value)});
+  if (j) { $("new-note").value = ""; $("new-tags").value = ""; choose(j.id); }
+});
+$("btn-refresh").addEventListener("click", () => act({action: "refresh"}));
+$("btn-reload").addEventListener("click", () => act({action: "reload"}));
+$("btn-check-all").addEventListener("click", () => check(null));
+window.addEventListener("hashchange", () => {
+  const id = decodeURIComponent(location.hash.slice(1)) || null;
+  if (id !== sel) choose(id);
+});
+
+$("n-sel").textContent = sel || "";
+tick();
+setInterval(() => { if (!document.hidden) tick(); }, EVERY);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); });
+</script>
+</body>
+</html>

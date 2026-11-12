@@ -1,0 +1,13 @@
+[
+  {
+    "name": "这台机器",
+    "kind": "本机",
+    "disks": ["C:/"]
+  },
+  {
+    "name": "一台远端机器",
+    "kind": "ssh",
+    "ssh": ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "ServerAliveInterval=30", "用户@地址"],
+    "disks": ["/"]
+  }
+]
