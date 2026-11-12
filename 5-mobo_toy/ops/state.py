@@ -1,6 +1,8 @@
 """生成 STATE.md：仓库、冻结哈希、部署版本、Linux 队列与喂料器、Windows worker、数据库版本。只读；失败的部分写进文件，不抛异常。
 
-    PYTHONUTF8=1 .venv-mobo/Scripts/python.exe ops/state.py [--no-linux] [--out STATE.md]
+    PYTHONUTF8=1 .venv-mobo/Scripts/python.exe ops/state.py [--no-linux] [--out STATE.md] [--html [STATE.html]]
+
+--html：同样的内容再写成一个自带数据的网页，双击就能看。它是只读的状态页：每次重新跑本脚本才刷新。STATE.md 和 STATE.html 都不进 git。
 
 规则：STATE.md 不手改；每个数字都来自本脚本当次读取。Linux 只跑只读命令（ls、md5sum、cat、stage_db.py status）。
 """
@@ -282,10 +284,70 @@ def reorg_section() -> list[str]:
     return out
 
 
+def _inline(s: str) -> str:
+    """One line of the state text as HTML: escaped, then `code` and **bold**."""
+    s = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
+    return re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", s)
+
+
+def to_html(lines: list[str], title: str = "STATE") -> str:
+    """The same content as STATE.md as one self-contained page: the data is in the page, nothing is loaded from anywhere, so it opens by a
+    double click (a page that reads a json file next to it does not: browsers refuse that for local files)."""
+    out, i, n = [], 0, len(lines)
+    while i < n:
+        ln = lines[i]
+        if ln.startswith("```"):
+            j = i + 1
+            while j < n and not lines[j].startswith("```"):
+                j += 1
+            out.append("<pre>" + "\n".join(x.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") for x in lines[i + 1:j]) + "</pre>")
+            i = j + 1
+        elif ln.startswith("|"):
+            j = i
+            while j < n and lines[j].startswith("|"):
+                j += 1
+            rows = [[c.strip() for c in x.strip().strip("|").split("|")] for x in lines[i:j]]
+            body = [r for k, r in enumerate(rows) if not (k == 1 and all(set(c) <= set("-: ") for c in r))]
+            head, rest = (body[0], body[1:]) if len(rows) > 1 and len(body) < len(rows) else (None, body)
+            t = ["<table>"]
+            if head:
+                t.append("<thead><tr>" + "".join(f"<th>{_inline(c)}</th>" for c in head) + "</tr></thead>")
+            t.append("<tbody>" + "".join("<tr>" + "".join(f"<td>{_inline(c)}</td>" for c in r) + "</tr>" for r in rest) + "</tbody></table>")
+            out.append("".join(t))
+            i = j
+        elif ln.startswith("## "):
+            out.append(f"<h2>{_inline(ln[3:])}</h2>")
+            i += 1
+        elif ln.startswith("# "):
+            out.append(f"<h1>{_inline(ln[2:])}</h1>")
+            i += 1
+        elif ln.startswith("- "):
+            j = i
+            while j < n and lines[j].startswith("- "):
+                j += 1
+            out.append("<ul>" + "".join(f"<li>{_inline(x[2:])}</li>" for x in lines[i:j]) + "</ul>")
+            i = j
+        else:
+            if ln.strip():
+                out.append(f"<p>{_inline(ln)}</p>")
+            i += 1
+    css = ("body{font:15px/1.55 system-ui,'Segoe UI','Microsoft YaHei',sans-serif;margin:0;padding:24px 16px;background:#fbfaf7;color:#1c1b19}"
+           "main{max-width:1100px;margin:0 auto}h1{font-size:22px}h2{font-size:17px;margin-top:28px;border-bottom:1px solid #d9d5cb;padding-bottom:4px}"
+           "table{border-collapse:collapse;margin:8px 0;display:block;overflow-x:auto}th,td{border:1px solid #d9d5cb;padding:4px 9px;text-align:left;vertical-align:top}"
+           "th{background:#efece4}code,pre{font-family:Consolas,'Cascadia Mono',monospace;font-size:13px}code{background:#efece4;padding:0 3px;border-radius:3px}"
+           "pre{background:#efece4;padding:10px;overflow-x:auto;border-radius:4px}"
+           "@media (prefers-color-scheme:dark){body{background:#1b1a18;color:#e8e5dd}h2,th,td{border-color:#45423b}th,code,pre{background:#2a2825}}")
+    return (f'<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+            f"<title>{_inline(title)}</title><style>{css}</style></head><body><main>" + "\n".join(out) + "</main></body></html>\n")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-linux", action="store_true")
     ap.add_argument("--out", default=str(ROOT / "STATE.md"))
+    ap.add_argument("--html", nargs="?", const=str(ROOT / "STATE.html"), default=None,
+                    help="同样的内容再写成一个自带数据的网页（默认 STATE.html），双击就能看；不进 git")
     a = ap.parse_args()
     t0 = time.time()
     git_rows, g = git_section()
@@ -305,6 +367,9 @@ def main() -> int:
     ]
     pathlib.Path(a.out).write_text("\n".join(parts), encoding="utf-8", newline="\n")
     print(f"wrote {a.out}")
+    if a.html:
+        pathlib.Path(a.html).write_text(to_html(parts, "股骨柄项目状态 " + time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())), encoding="utf-8", newline="\n")
+        print(f"wrote {a.html}")
     return 0
 
 

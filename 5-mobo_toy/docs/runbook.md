@@ -128,3 +128,26 @@ L1 到 L5 说在哪一步失败。类和名字说是哪一种、接下来怎么�
 - **新增一种失败**：在 `v2/result_codes.py` 的 `CODES` 里加名字；只有文字的再在 `_RULES` 里加一条；在 `ops/tests/test_ops.py` 的 J 段加一个例子。测试会查源码里写的每个名字都在表里。
 
 来历（`ops/provenance.py`）：判定写进 `result.json` 的 `provenance`，导出写进 `manifest.json` 的 `export_provenance`，喂料写进喂料日志的开头那一行。记的是提交号、未提交的改动、输入文件的 sha256。
+
+## 12 行文件批次（11-11 起，`stage_db.py` v1.26）
+
+新批次不用往 `stage_db.py` 里加构造函数：批次目录里放 `rows_in.json`，批次名不用 `BATCHES` 里已有的。写法和规则见 `experiments/README.md` 的"行文件批次"。和旧批次不同的只有三步：
+
+1. `approval.md` 要记 `rows_in.json` 的 sha256（去掉 CR 后算；喂料门不过时会把这个值打出来）。
+2. 喂料前把它部署到 Linux：`ops/deploy.py --files experiments/<批次目录>/rows_in.json`。往 Linux 写要用户明说。
+3. 喂料门多比一项：Linux 上那份和本地相同。
+
+干跑、存 `rows.json`、喂料、监视、导出、判定都和原来一样。选点脚本读结局用 `ops/outcomes.py experiments/<批次> --db <版本目录> --json`。
+
+判定（`ops/judge.py`）11-11 起真的比对 `approval.md` 里的哈希：判据在批准之后变了就拒绝，`--replay` 时只提醒。
+
+## 13 导出、发布、清单、状态页的几件小事（11-11 起）
+
+- **数据库多了 F。** 导出器 0.2.6 起 `scalars.csv` 有 `F`（床支撑，网格版）和它用到的 4 列，整理时从界面点云算。判据要用 F 就读这一列。见 `experiments/README.md`。
+- **发布一个版本**：`tools/db_export.py publish --out <版本目录>`。它先核对清单里每个文件的哈希、要求有 `qa_report.json`、不许有清单外的文件，然后写 `PUBLISHED.json`。发布之后 `finalize` 拒绝再跑这个目录。`publish --out <版本目录> --check` 随时核对一个已发布的版本有没有被动过。文档只在数据库根目录改。
+  - v0.14 还没有发布。它目录里的 `CHANGELOG.md` 和 `DATA_CARD.md` 和清单对不上，现在去发布会被拒绝。是修清单还是记为已知例外，要用户定。
+- **下一次导出前**：`tools/db_export.py schema` 重新生成数据库根目录的 `schema.json`（多了 7 列）；CHANGELOG 记 0.2.6 和 `jobs.py` 的新 md5；导出后把 `ops/facts.json` 的 `db_latest` 改成新版本，不改提交会被拦。
+- **喂料清单**：`ops/fetch_feed_manifests.py` 列出 Linux 上的清单和仓库里的差别，加 `--write` 取回。Linux 这边只读。有批次目录的放 `experiments/<批次>/feed_manifest.json`，其余放 `experiments/_feed_manifests/`。批次喂完后取一次。
+- **两套"批次"编号是两回事。** 实验批次是 b1 到 b33（`experiments/`、`stage_db.py`）。导出的分片是 b000 到 b023（`db3406/<版本>/export/`、`fields/iface_b0xx_*.npz`），只是导出时按 60 行切的块，和实验批次没有对应关系。
+- **状态页**：`ops/state.py --html` 在 `STATE.md` 之外再写一个 `STATE.html`，自带数据，双击就能看。两个文件都是每次重新生成的，不进 git。
+- **`db_latest`** 现在由 `ops/check_facts.py` 对着磁盘上最大的版本目录查，不再对 `STATE.md`。

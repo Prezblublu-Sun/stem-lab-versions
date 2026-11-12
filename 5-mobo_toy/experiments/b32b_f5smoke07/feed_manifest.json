@@ -1,0 +1,108 @@
+{
+ "batch": "b32b",
+ "created_utc": "2026-11-08T21:20:55Z",
+ "updated_utc": "2026-11-09T01:38:33Z",
+ "code_hash": "6d7af243d0",
+ "femur_geom_key": {
+  "key": "9281cd8eac10eace",
+  "files": {
+   "femur_3406.py": {
+    "path": "femur_3406.py",
+    "sha256": "89f94074b92e2da16d86517175475b6596d300a99cd7d7f2e2fd10f1af5d48f8"
+   },
+   "step_cortical": {
+    "path": "3406R_cortical.STEP",
+    "sha256": "9b1bf9494728c3533c9cd04db8669008c97dd88701ffea56cd7e12e6bd8cab1f"
+   },
+   "step_cancellous": {
+    "path": "3406R_cancellous_v2.STEP",
+    "sha256": "3455b8c9c21bb9f1eae62da357744b4ee1235939c8bc058fb29d0d109c0c7940"
+   }
+  }
+ },
+ "aux_md5": {
+  "inp_writer.py": "3935453e03d82cb7d648b3b5b396abc8",
+  "v2/collar_rule.py": "ad84b819968cfa24d141a5f541370127",
+  "v2/jobs.py": "aa61a88442b23dfab2e243df1f04f9d1",
+  "v2/stability.py": "f690ce4d12a0f4dfed47dc43913fe197",
+  "v2/femur_3406.py": "5d50ff0301c4e0c8d438af0697edc7e4",
+  "abaqus/odb_export.py": null,
+  "v2/torsion_load.py": "bc454f707e14329db4dd41921c4dd2e1",
+  "v2/pose_fixed.py": "9a82e1e48877a614532df6512abb96c8",
+  "v2/foam_refine.py": "bd3d109e7d7cd1bae7fc9c1b53e58e61"
+ },
+ "aux_root": "/home/linux-user/mobo_toy_v2/code",
+ "femur_model_version": "3406R_v1_hollowcore",
+ "hollow_core": true,
+ "seeds": [],
+ "order": [
+  "F5S_h0.7"
+ ],
+ "rows": {
+  "F5S_h0.7": {
+   "key": "F5S_h0.7",
+   "layer": "F5 smoke",
+   "stage": "db_fd",
+   "source": "fid_f5",
+   "selection": "stratum",
+   "design_code": null,
+   "source_job": "db_ws_p13_a105_91e458e3_ow_m1_e+2_c9ca96c8",
+   "condition_id": "d0.1|stair|h2|slip0.000714286|f5h0.7",
+   "bonded": false,
+   "model_set": "fric",
+   "intact_job": null,
+   "heavy": true,
+   "exclusive": false,
+   "femur_model_version": "3406R_v1_hollowcore",
+   "hollow_core": true,
+   "pool_idx": null,
+   "partner_of": null,
+   "expected_id": "db_fd_p13_a105_91e458e3_ow_m1_e+2_f5h0.7_c8481330",
+   "id": "db_fd_p13_a105_91e458e3_ow_m1_e+2_f5h0.7_c8481330",
+   "dedup": "new",
+   "dedup_via": null,
+   "seed": null,
+   "ack_failed": null,
+   "status": "submitted",
+   "state": "DONE",
+   "submitted_utc": "2026-11-08T21:20:55Z",
+   "times_utc": {
+    "spec": "2026-11-08T21:20:55Z",
+    "solved": "2026-11-09T01:38:20Z",
+    "done": "2026-11-09T01:38:24Z",
+    "ready": "2026-11-08T21:21:41Z",
+    "claimed": "2026-11-08T21:21:44Z"
+   },
+   "finished_ts": 1794188304.3594272,
+   "held_reason": null,
+   "failed_logged": false
+  }
+ },
+ "gates": {
+  "F5_smoke": {
+   "layer": "F5 smoke",
+   "held": false,
+   "held_utc": null,
+   "held_ts": null,
+   "reasons": [],
+   "kinds": [],
+   "ack_failed": [],
+   "first10_ack": false,
+   "releases": [],
+   "auto_acked": []
+  }
+ },
+ "events": [
+  {
+   "utc": "2026-11-08T21:20:55Z",
+   "event": "start",
+   "pid": 2677196
+  },
+  {
+   "utc": "2026-11-08T21:20:55Z",
+   "event": "h14_mode",
+   "mode": "heavy",
+   "why": "heavy (one heavy job at a time beside light jobs; DB_H14_EXCLUSIVE absent, no word 'exclusive' in DB_H14_REF_OK)"
+  }
+ ]
+}

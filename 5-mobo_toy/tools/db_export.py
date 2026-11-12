@@ -41,6 +41,8 @@ Sub-commands
             registry (<db-root>/femur_registry.json: femur_id -> femur_geom_key bound to job time); writes scalars.csv,
             scalars.npz, splits.json, manifest.json, femur_registry.json and copies schema.json / DATA_CARD.md /
             CHANGELOG.md / README.md from the db root when present.
+  publish   Mark a finalized, QA'd version directory as published (writes PUBLISHED.json with the sha256 of manifest.json and qa_report.json
+            after checking every file against manifest.files). finalize refuses a published directory. `publish --check` verifies one later.
   schema    Write schema.json (every column: type, unit, range, source, when it must be filled).
   info      Print the environment the exporter would use (code hash, aux md5, femur key, cache, free disk).
 
@@ -82,7 +84,7 @@ import traceback
 
 import numpy as np
 
-EXPORTER_VERSION = "db_export 0.2.6 (2026-11-11, result_class / result_code columns; manifest.export_provenance)"
+EXPORTER_VERSION = "db_export 0.2.6 (2026-11-11, result_class / result_code columns; F (bed support) columns; manifest.export_provenance)"
 FEMUR_ID = "sawbone3406"
 FEMUR_VERSIONS = {FEMUR_ID: ("3406R_v1_hollowcore", True)}          # plan 2.1: hollow-core model until the user answers
 EXPECTED_CODE_HASH = "6d7af243d0"
@@ -92,6 +94,16 @@ DESIGN_VARS = ("L", "alpha", "h_cut", "m", "rho_tip", "q", "lam", "g_ml", "g_ap"
 BOUNDS = {"v1": {"L": (20.0, 45.0), "alpha": (15.0, 45.0), "h_cut": (16.0, 32.0), "m": (0.5, 2.0), "rho_tip": (0.10, 0.50),
                  "q": (0.5, 3.0), "lam": (1.0, 2.2), "g_ml": (0.35, 0.65), "g_ap": (0.35, 0.65), "n_a": (2.0, 6.0),
                  "n_p": (2.0, 6.0), "tau_a": (-0.30, 0.30), "tau_p": (-0.30, 0.30)}}   # stage_neckopt.PHASES[11..14]
+# Bed support F ("床支撑" of the FEA indicator template, one of the optimisation targets): F = sum A / max(t, t_floor) over the stem-body
+# interface nodes with zeta <= zeta_max and |theta| <= theta_max. t = -d_canal (foam thickness between the stem face and the canal wall),
+# zeta = distance from cref towards distal along the neck axis, theta = angle about the stem axis from the calcar side. Constants of the 3406
+# femur: another femur needs its own. The same numbers as mesh_F in the judging files of b28 and later (b25 carries the old axis); they are
+# also in ops/facts.json (bed_F_*), and a test holds the two together. This is the MESH version (from the exported interface nodes). The
+# 0-FE version that selection scripts use (experiments/b28_fam/prep/data/opt3_geom.py) samples the surface itself and is not a column yet.
+BED_F = {"zeta_max_mm": 15.0, "theta_max_deg": 45.0, "t_floor_mm": 0.25,
+         "u_neck": (0.92228, 0.06137, 0.38162),                                       # geometry.json neck_axis.u, model frame, toward the head
+         "cref": (37.65271204198696, 0.8509371708090849, 41.89415555538172),         # geometry.json stems.sb13_a105_91e458e3.cut_centre (A's cut centre)
+         "n3": (0.381, 0.025, -0.924)}                                                # distal direction projected on the neck section, calcar side
 HASHED_FILES = ("femur_real.py", "geom3d.py", "fe3d_geom.py", "model3d_v2.py", "post.py", "config_v2a.yaml",
                 "model3d_m1.py", "post_m1.py")
 # not in the job hash but able to change results (plan 1.6 trap 2) + the modules that compute labels in this export
@@ -379,6 +391,13 @@ def _build_columns():
     _c("field_index", "int", "1", 0, None, req="fric", source=F)
     _c("field_n_nodes", "int", "1", 1, None, req="fric", source=F)
     _c("field_n_tri", "int", "1", 0, None, req="fric", source=F)
+    _c("F", "float", "mm", 0, None, req="optional", source="finalize: bed_support() on the row's interface point cloud (fields shard)",
+       desc="bed support, mesh version: sum A / max(t, 0.25 mm) over stem-body nodes with zeta <= 15 mm and |theta| <= 45 deg; t = -d_canal; "
+            "3406 constants in manifest.bed_F; empty for rows without a point cloud")
+    _c("F_area_mm2", "float", "mm2", 0, None, req="optional", source="finalize: bed_support()", desc="nodal area inside the F zone")
+    _c("F_n_nodes", "int", "1", 0, None, req="optional", source="finalize: bed_support()", desc="stem-body nodes inside the F zone")
+    _c("F_t_min_mm", "float", "mm", None, None, req="optional", source="finalize: bed_support()", desc="smallest t = -d_canal inside the F zone (before the 0.25 mm floor)")
+    _c("F_frac_floor", "float", "1", 0, 1, req="optional", source="finalize: bed_support()", desc="share of the zone's area where t < 0.25 mm, so the floor decides")
     _c("tri_area_ratio", "float", "1", 0.9, 1.1, req="fric", source=F, desc="sum of triangle areas / sum of nodal pair areas")
     _c("iface_force_load_N", "json", "N", req="optional", source=F + " sum of bone-side CNORMF+CSHEARF at LOAD")
     _c("iface_force_err_load", "float", "1", 0, 0.05, req="optional", source=F, desc="|sum F - load| / |load| at LOAD")
@@ -2271,6 +2290,60 @@ def replicate_groups(rows: list) -> dict:
     return out
 
 
+def bed_support(X: np.ndarray, area: np.ndarray, d_canal: np.ndarray, collar: np.ndarray, P0: np.ndarray, ax: np.ndarray) -> dict:
+    """F and what it is made of, for one interface point cloud (BED_F). The arithmetic is, line for line, mesh_F of the judging files of b28
+    and later, so the values agree to the last bit. Pure."""
+    N3, C = np.array(BED_F["n3"]), np.array(BED_F["cref"])
+    U = np.array(BED_F["u_neck"]) / np.linalg.norm(list(BED_F["u_neck"]))
+    body = ~collar
+    X, w, t = X[body], area[body], -d_canal[body]
+    q = X - P0
+    rad = q - (q @ ax)[:, None] * ax
+    em = N3 - (N3 @ ax) * ax
+    em /= np.linalg.norm(em)
+    ep = np.array([0.0, 1.0, 0.0]) - ax[1] * ax
+    ep /= np.linalg.norm(ep)
+    th = np.degrees(np.arctan2(rad @ ep, rad @ em))
+    m = (-(X - C) @ U <= BED_F["zeta_max_mm"]) & (np.abs(th) <= BED_F["theta_max_deg"])
+    n, a_sum = int(m.sum()), float(w[m].sum())
+    return {"F": float((w[m] / np.maximum(t[m], BED_F["t_floor_mm"])).sum()), "F_area_mm2": a_sum, "F_n_nodes": n,
+            "F_t_min_mm": float(t[m].min()) if n else None,
+            "F_frac_floor": float(w[m][t[m] < BED_F["t_floor_mm"]].sum() / a_sum) if a_sum > 0 else None}
+
+
+BED_F_COLS = ("F", "F_area_mm2", "F_n_nodes", "F_t_min_mm", "F_frac_floor")
+
+
+def apply_bed_support(out: pathlib.Path, rows: list) -> tuple[int, list]:
+    """Fill the F columns of every 3406 row that has a point cloud (field_shard, field_index), reading the shards under out/fields.
+    Returns (rows filled, errors). A shard that is missing, or holds another job at that index, is an error for that row; the row keeps empty
+    F columns. Rows of another femur are left empty: the constants are the 3406 femur's."""
+    for r in rows:
+        for k in BED_F_COLS:
+            r[k] = None
+    by_shard, errs, n = {}, [], 0
+    for r in rows:
+        if r.get("field_shard") and r.get("field_index") is not None and r.get("femur_id") == FEMUR_ID:
+            by_shard.setdefault(str(r["field_shard"]), []).append(r)
+    for name in sorted(by_shard):
+        p = out / "fields" / f"{name}.npz"
+        if not p.is_file():
+            errs += [f"{r['job_id']}: field shard {name}.npz is missing, F not computed" for r in by_shard[name]]
+            continue
+        z = np.load(p, allow_pickle=False)
+        jobs = [str(j) for j in z["job_id"]]
+        off, frame, X_, ar, dc, co = z["off"], z["frame"], z["X"], z["area"], z["d_canal"], z["collar"]
+        for r in by_shard[name]:
+            j = int(r["field_index"])
+            if not 0 <= j < len(jobs) or jobs[j] != r["job_id"]:
+                errs.append(f"{r['job_id']}: field shard {name}.npz index {j} holds {jobs[j] if 0 <= j < len(jobs) else 'nothing'}, F not computed")
+                continue
+            a, b = int(off[j]), int(off[j + 1])
+            r.update(bed_support(X_[a:b], ar[a:b], dc[a:b], co[a:b], frame[j, 0], frame[j, 1]))
+            n += 1
+    return n, errs
+
+
 def _repo_module(rel: str):
     """Load a module of this repo by path (finalize only: `emit` runs from stdin on Linux and has no repo around it)."""
     import importlib.util
@@ -2487,8 +2560,59 @@ def write_scalars(out: pathlib.Path, rows: list) -> None:
     os.replace(out / "scalars.npz.part", out / "scalars.npz")
 
 
+PUBLISHED_NAME = "PUBLISHED.json"
+PUBLISH_OUTSIDE = ("manifest.json", "qa_report.json", PUBLISHED_NAME)       # files of a version dir that manifest.files does not list
+
+
+def publish(out: pathlib.Path, check: bool = False) -> int:
+    """Mark a version directory as published, or (--check) verify that a published one is still what was published.
+
+    Publishing needs: manifest.json; every file it lists present with the listed size and sha256; no file on disk that it does not list
+    (except manifest.json, qa_report.json and PUBLISHED.json); qa_report.json. It then writes PUBLISHED.json with the sha256 of manifest.json
+    and of qa_report.json. After that finalize refuses to run on this directory: a published version does not change. Documents are edited at
+    the database root only; the copies in the version directory are frozen with the manifest.
+    Exit code: 0 published / still as published; 3 not publishable / changed since; 2 usage."""
+    out = pathlib.Path(out).resolve()
+    mp, qp, pp = out / "manifest.json", out / "qa_report.json", out / PUBLISHED_NAME
+    if not mp.is_file():
+        print(f"{out}: no manifest.json (run finalize first)")
+        return 2
+    man = json.loads(mp.read_text(encoding="utf-8"))
+    errs = verify_members(out, man.get("files") or {})
+    listed = set(man.get("files") or {})
+    errs += [f"{p.relative_to(out).as_posix()}: on disk but not in manifest.files" for p in sorted(out.rglob("*"))
+             if p.is_file() and p.relative_to(out).as_posix() not in listed and p.name not in PUBLISH_OUTSIDE and not p.name.endswith(".part")]
+    if not qp.is_file():
+        errs.append("qa_report.json: missing (run tools/db_qa.py on this version first)")
+    now = {"version_dir": out.name, "manifest_sha256": sha256_file(mp), "qa_report_sha256": sha256_file(qp) if qp.is_file() else None,
+           "exporter_version": man.get("exporter_version"), "n_rows": man.get("n_rows")}
+    if check:
+        if not pp.is_file():
+            print(f"{out.name}: not published (no {PUBLISHED_NAME})")
+            return 3
+        was = json.loads(pp.read_text(encoding="utf-8"))
+        errs += [f"{k}: published {was.get(k)!r}, now {now[k]!r}" for k in now if was.get(k) != now[k]]
+        print(f"{out.name}: published {was.get('published_utc')}; {len(errs)} difference(s) since")
+        for e in errs[:40]:
+            print("  CHANGED", e)
+        return 3 if errs else 0
+    if pp.is_file():
+        print(f"{out.name}: already published ({json.loads(pp.read_text(encoding='utf-8')).get('published_utc')}); use --check to verify it")
+        return 3
+    if errs:
+        print(f"{out.name}: not publishable, {len(errs)} problem(s):")
+        for e in errs[:40]:
+            print("  PROBLEM", e)
+        return 3
+    pp.write_text(json.dumps({**now, "published_utc": now_utc(), "published_by": EXPORTER_VERSION}, indent=1) + "\n", encoding="utf-8")
+    print(f"{out.name}: published ({now['n_rows']} rows, manifest {now['manifest_sha256'][:12]}, qa_report {now['qa_report_sha256'][:12]})")
+    return 0
+
+
 def finalize(out: pathlib.Path, db_root: str | None, provenance, allow_errors: bool, registry: str | None = None) -> int:
     out = pathlib.Path(out).resolve()
+    if (out / PUBLISHED_NAME).is_file():
+        raise SystemExit(f"{out} is published ({PUBLISHED_NAME} exists): a published version is not finalized again. Export a new version directory.")
     # which code and which inputs this finalize ran with (ops/provenance.py), taken before anything is written
     here = pathlib.Path(__file__).resolve()
     export_prov = _repo_module("ops/provenance.py").record("export", {
@@ -2497,6 +2621,8 @@ def finalize(out: pathlib.Path, db_root: str | None, provenance, allow_errors: b
     rows, E, inv, ctxs = _load_rows(out)
     prov = _load_provenance(provenance)
     rows, errs, einfo = finalize_rows(rows, E, prov)
+    n_bed, bed_errs = apply_bed_support(out, rows)                   # F from the interface point clouds of this version
+    errs += bed_errs
     for pp in provenance or []:                                      # keep the override files with the version (audit)
         pp = pathlib.Path(pp).resolve()
         dst = out / "provenance" / pp.name
@@ -2574,6 +2700,8 @@ def finalize(out: pathlib.Path, db_root: str | None, provenance, allow_errors: b
            "femur_registry": {"path": str(reg_path) if reg_path else None, "info": rinfo, "updated": reg_updated},
            "by_result_class": {k: sum(1 for r in rows if str(r.get("result_class")) == k) for k in sorted({str(r.get("result_class")) for r in rows})},
            "export_provenance": export_prov,
+           "bed_F": {**{k: (list(v) if isinstance(v, tuple) else v) for k, v in BED_F.items()}, "version": "mesh", "n_rows": n_bed,
+                     "note": "F = sum A / max(t, t_floor) over stem-body nodes with zeta <= zeta_max and |theta| <= theta_max; constants of the 3406 femur"},
            "finalize_errors": errs, "finalize_warnings": warns, "rows_with_export_errors": export_errs, "files": files}
     (out / "manifest.json").write_text(json.dumps(man, indent=1, sort_keys=True, default=_jdefault))
     rg = einfo["replicate_groups"]
@@ -2680,6 +2808,9 @@ def main(argv=None) -> int:
     f.add_argument("--registry", help="femur registry json (default <db-root>/femur_registry.json)")
     f.add_argument("--provenance", nargs="*")
     f.add_argument("--allow-errors", action="store_true")
+    pb = sub.add_parser("publish")
+    pb.add_argument("--out", required=True)
+    pb.add_argument("--check", action="store_true", help="verify a published version against its PUBLISHED.json; write nothing")
     s = sub.add_parser("schema")
     s.add_argument("--out", default="H:/projects/Femoral implant generation/db3406/schema.json")
     i = sub.add_parser("info")
@@ -2701,6 +2832,8 @@ def main(argv=None) -> int:
         return cmd_pull(a)
     if a.cmd == "finalize":
         return finalize(pathlib.Path(a.out), a.db_root, a.provenance, a.allow_errors, registry=a.registry)
+    if a.cmd == "publish":
+        return publish(pathlib.Path(a.out), check=a.check)
     if a.cmd == "schema":
         return cmd_schema(a)
     return cmd_info(a)

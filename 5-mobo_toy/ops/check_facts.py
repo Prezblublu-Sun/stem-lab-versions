@@ -7,7 +7,9 @@ Checked:
   code_hash      a 10-hex value within 40 chars after "code_hash" that is not the fact
   hashed files   docs/freeze/M1-3406-v1.json lists exactly facts.hashed_files
   neck axis      the known-wrong baked vector (first 8 digits of its components) anywhere; the right vector may be restated freely
-  db_latest      "最新版本 | `vX.Y`" in STATE.md must be facts.db_latest (STATE.md is generated, so a mismatch means facts.json is stale)
+  db_latest      must be the highest version directory under the database root that has a manifest.json (looked up on disk, not in STATE.md:
+                 until 2026-11-11 it was compared with STATE.md, a generated file that had gone stale together with it). No database root at
+                 hand (H: unplugged) = not checked.
 Exempt: experiments/*/gates.py that have an approval.md (frozen by rule; listed as 'frozen'), ops/facts.json itself, this file, .git, docs/freeze.
 --list prints every place a fact is restated, for the one-place audit.
 """
@@ -24,6 +26,7 @@ DEFAULT_PATHS = [ROOT / "AGENTS.md", ROOT / "CLAUDE.md", ROOT / "README.md", ROO
                  ROOT / "v2", ROOT / "tools", pathlib.Path(r"H:/projects/application/research-log/neck_implant_2026-10-02/代理_2026-11-04"),
                  pathlib.Path(r"H:/projects/application/research-log/neck_implant_2026-10-02/opt_F微动去骨_2026-11-04"),
                  pathlib.Path(r"H:/projects/application/research-log/neck_implant_2026-10-02/结果整理_2026-11-03/scripts")]
+DB_ROOT = ROOT.parents[1] / "db3406"
 EXT = {".md", ".py", ".json", ".txt", ".sh", ".yaml"}
 # tests carry fake hashes and the known-wrong axis on purpose; results / runs / out / reports hold historical hashes of earlier code versions
 SKIP_PARTS = {".git", "__pycache__", "_packet", "work", "legacy", "freeze", "node_modules", ".venv-mobo", ".venv-gpu", "tests", "results", "runs", "out", "reports", "audit3"}
@@ -42,6 +45,19 @@ def files(paths: list[pathlib.Path]):
             for f in p.rglob("*"):
                 if f.is_file() and f.suffix.lower() in EXT and f.name not in SKIP_NAMES and not (set(f.parts) & SKIP_PARTS) and f.stat().st_size < 3_000_000:
                     yield f
+
+
+def latest_db(db_root: pathlib.Path) -> str | None:
+    """The highest v<major>.<minor> directory of the database root that has a manifest.json; None when there is none (or no root)."""
+    best = None
+    if db_root.is_dir():
+        for d in db_root.iterdir():
+            m = re.fullmatch(r"v(\d+)\.(\d+)", d.name)
+            if m and (d / "manifest.json").is_file():
+                k = (int(m.group(1)), int(m.group(2)))
+                if best is None or k > best[0]:
+                    best = (k, d.name)
+    return best[1] if best else None
 
 
 def frozen_gates() -> set[pathlib.Path]:
@@ -92,11 +108,9 @@ def check(paths: list[pathlib.Path], facts: dict, list_only: bool = False) -> tu
         listed = json.loads(fzj.read_text(encoding="utf-8")).get("hashed_files")
         if listed is not None and sorted(listed) != sorted(facts["hashed_files"]):
             conflicts.append(f"docs/freeze/M1-3406-v1.json hashed_files {listed} != facts.json")
-    st = ROOT / "STATE.md"
-    if st.exists():
-        m = re.search(r"最新版本 \| `(v[0-9.]+)`", st.read_text(encoding="utf-8", errors="replace"))
-        if m and m.group(1) != facts["db_latest"]:
-            conflicts.append(f"STATE.md says db {m.group(1)}, facts.json says {facts['db_latest']} (update facts.json)")
+    newest = latest_db(DB_ROOT)
+    if newest is not None and newest != facts["db_latest"]:
+        conflicts.append(f"the newest database version on disk is {newest}, facts.json says {facts['db_latest']} (update facts.json)")
     return conflicts, frozen, restate
 
 

@@ -76,6 +76,26 @@ v1.5 = 批次 b3 + 已知规律失败的自动确认；v1.6 = 批次 b6（AL-2�
     b31 = R2，层 R2，stage db_al，source al_adaptive，15 行：b28 的 3b 周围单位距离 0.15 以内，按"比 3b 更好"的概率选，过 8 个位姿的放置检查。
        判据 experiments/b31_r2/gates.py 的 G49、G50。
 
+行文件批次（v1.26，2026-11-11，用户"本对话要完成这一轮重构，可以操作"；设计见《配进来的六个设计》第 3 条）：
+    批次名不在 BATCHES 里、而 <代码根>/experiments/<批次>_<名字>/rows_in.json 存在时，作业表从这个文件来（build_file）。旧的 36 个批次一个字不动。
+    文件：{"format": "stage_db rows_in 1", "batch": 批次名, "form": "variants", "layers": {新层名: {"source": 已有的来源之一}},
+           "rows": [{"key": 行键, "layer": 层名, "base": 基线行的作业号, "cond": {条件名: 取值}}]}。每行恰好一个条件。
+    基线行：队列里一个 3406 的 variant、m1、h 2.0、楼梯载荷、没有任何条件键；必须 DONE。新行 = 基线行的物理键 + 条件改的键，tag = 基线行的 tag + 后缀。
+    条件（写法和原来各批的构造函数逐字相同，所以同一个基线行、同一个条件得到同一个作业号；有测试逐个比对 b24、b26、b28c、b32、b32b、b33）：
+        mesh: 1.94 | 2.06 | 1.4         db_nz（1.4 是 db_fd，加 slip_tol），带粘接，参照 = b1 清单里的 REF_h<h>，后缀 _h<h>
+        load: "F1714" | "F3839"         db_cd，只解摩擦，cfg.load = STS_LOADS，后缀 _<名字>
+        torsion: {def: A|B, T_Nm}       db_cd，只解摩擦；A 的预载 1000 N 沿柄轴（按设计算），B 用 F3839；后缀 _TA<T> / _TB<T>
+        pose: {de, ds, rot_deg, dalpha_deg}   db_cd，只解摩擦，pose_fixed；后缀 _pf_de<±> _ds<±> _rot<±> _da<±>（只写给了的量）
+        foam_refine: {h}                db_fd，只解摩擦，slip_tol 按 2.0 / h 放大，重作业；后缀 _f5h<h>
+    新的一种条件要写代码（加一个分支和它的测试），不是写数据。两个条件叠在一行、带载荷的网格行（要先有同网格同载荷的参照）现在不支持。
+    form "new_designs"（_build_file_designs，写法同 build_urows 和 build_b25）：{"layer", "stage": db_al | db_ws, "tag_prefix", "mode": fric | full,
+           "al_problem", 可选 "al_group"、"requires_done": [必须 DONE 的作业号]、"layers", "rows": [{"label", "e", "A0", "bone_mm3", "u13": 13 个单位坐标}]}。
+        检查一条不减：A 的 m 1.0 版必须 DONE、m ≥ 1、物理键只许在设计 / 截骨 / 入口偏移上和 A 行不同、0 FE 模板化复核（可行、偏移、号、去骨量）。
+        换一个选点策略 = 换一个写这个文件的脚本，stage_db.py 不用动。有测试逐个比对 b25、b30、b31。b30 的"恰好改一个因素"检查不在这里。
+        新层可以声明 selection：stratum 或 adaptive。iid 不许：独立同分布的行必须由代码里带种子的规则抽。
+    层：新层必须在文件里声明 source，并且一律慢启动。行的 unbiased = False、in_E = True。
+    文件的 sha256（去 CR 后算）记进清单的 rows_in；重启时不同 → 拒绝，喂料中变了或没了 → 写清单后停止，和辅助代码同样处理。
+
 批次 b33（v1.25，2026-11-08，experiments/b33_r2cand/，五天计划 CAND 的复核部分，用户"整份批准"、"先写 CAND"）：
     b31（R2）里比 3b 好的 7 行，按离"比 3b 好"门槛的余量（F 以 0.6 mm、微动以 0.029 dex 为单位，满足的路线里两项余量取小，两条路线取大）排，
     取前 3 个不同的设计（R2C_WINNERS）。每个 3 行，写法同 b28c（build_cond）：层 R2 rep（db_nz，noise，h 1.94，带粘接，REF_h1.94）、
@@ -1204,7 +1224,9 @@ def build(batch: str = "b1") -> dict:
     """批次的作业表（有序）+ 查重（hash8 + 物理键）+ 种子采纳 + 检查。读一次队列（全部 spec.json）与阶段 13 / 14 状态文件，不写任何东西。
     结构性问题（源作业缺失 / 没 DONE / 未分类的键 / 查重碰撞 / 批内重复 id）→ SystemExit；逐行检查与种子的问题收进 problems。"""
     if batch not in BATCHES:
-        raise SystemExit(f"unknown batch {batch!r} (known: {list(BATCHES)})")
+        if rows_in_path(batch) is not None:               # 行文件批次（v1.26）：批次名不在 BATCHES 里、批次目录里有 rows_in.json
+            return build_file(batch)
+        raise SystemExit(f"unknown batch {batch!r} (known: {list(BATCHES)}; or a batch with experiments/<batch>_*/{ROWS_IN_NAME})")
     if batch == "b2":
         return build_b2()
     if batch == "b2b":
@@ -3318,6 +3340,296 @@ def build_cond(batch: str) -> dict:
     return _finish_batch(batch, rows, keys, qspecs, by_h8, by_phys, warn, problems, {H_PROD: REF_H2, FAM1_CTRL_H: refs[FAM1_CTRL_H], HEAVY_H: refs[HEAVY_H]})
 
 
+# ================================================================ 行文件批次（v1.26；模块说明"行文件批次"）
+ROWS_IN_NAME = "rows_in.json"
+ROWS_IN_FORMAT = "stage_db rows_in 1"
+ROWS_IN_ROOT = CODE_ROOT / "experiments"       # Linux：~/mobo_toy_v2/code/experiments/<批次>_<名字>/rows_in.json（测试里换成临时目录）
+ROWS_IN_MAX = 200
+FILE_BATCH_RE = re.compile(r"[a-z][a-z0-9]{1,15}")
+FILE_KEY_RE = re.compile(r"[A-Za-z0-9_.+-]{1,60}")
+FILE_LAYER_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9 .+-]{0,30}")
+FILE_MESH_H = (*NZ_H, HEAVY_H)                  # 有 b1 参照的网格档：1.94、2.06、1.4
+FILE_CONDS = ("mesh", "load", "torsion", "pose", "foam_refine")
+FILE_FORMS = ("variants", "new_designs")
+_POSE_SHORT = {"de": "de", "ds": "ds", "rot_deg": "rot", "dalpha_deg": "da"}
+
+
+def _lf_sha256(raw: bytes) -> str:
+    """去掉 CR 再算：Windows 工作区是 CRLF，部署到 Linux 的是 LF，两边要得到同一个值。"""
+    return hashlib.sha256(raw.replace(b"\r\n", b"\n")).hexdigest()
+
+
+def rows_in_path(batch: str) -> pathlib.Path | None:
+    """行文件批次的输入 <ROWS_IN_ROOT>/<批次>_*/rows_in.json。批次名在 BATCHES 里、名字不合规、没有文件 → None；多于一个 → SystemExit。"""
+    if batch in BATCHES or not FILE_BATCH_RE.fullmatch(batch or ""):
+        return None
+    hits = sorted(p for p in ROWS_IN_ROOT.glob(f"{batch}_*/{ROWS_IN_NAME}") if p.is_file())
+    if len(hits) > 1:
+        raise SystemExit(f"batch {batch}: more than one {ROWS_IN_NAME} under {ROWS_IN_ROOT}: {[str(h.parent.name) for h in hits]}")
+    return hits[0] if hits else None
+
+
+def known_batch(batch: str) -> bool:
+    return batch in BATCHES or rows_in_path(batch) is not None
+
+
+def rows_in_sha256(batch: str) -> str | None:
+    p = rows_in_path(batch)
+    return _lf_sha256(p.read_bytes()) if p else None
+
+
+def _file_layers(batch: str, declared: dict, used: list, selections: tuple = ()) -> None:
+    """行文件里用到的层：已有的层照用（声明了就必须和 LAYER_SOURCE 一致）；新层必须声明 source，取值只能是已有的来源之一，
+    登记进 LAYER_SOURCE，并且一律慢启动（加进 SLOW_START_LAYERS）。选点方式：条件行不许声明（= stratum，条件行从来不是独立同分布的）；
+    新设计可以声明 selections 里的一种（stratum 或 adaptive；iid 不许，独立同分布的行必须由代码里带种子的规则抽）。"""
+    global SLOW_START_LAYERS
+    sources = sorted(set(LAYER_SOURCE.values()))
+    if not isinstance(declared, dict) or set(declared) - set(used):
+        raise SystemExit(f"batch {batch}: layers must be an object whose names are all used by rows; unused: {sorted(set(declared or {}) - set(used))}")
+    for L in dict.fromkeys(used):
+        decl = declared.get(L)
+        if decl is not None and (not isinstance(decl, dict) or "source" not in decl or set(decl) - {"source", *(("selection",) if selections else ())}
+                                 or ("selection" in decl and decl["selection"] not in selections)):
+            raise SystemExit(f"batch {batch}: layer {L!r} must be declared as {{\"source\": ...}}"
+                             + (f" with an optional selection from {list(selections)}" if selections else "") + f", got {decl!r}")
+        if L in LAYER_SOURCE:
+            if decl is not None and (decl["source"] != LAYER_SOURCE[L] or decl.get("selection", LAYER_SELECTION.get(L, "stratum")) != LAYER_SELECTION.get(L, "stratum")):
+                raise SystemExit(f"batch {batch}: layer {L!r} exists with source {LAYER_SOURCE[L]!r} and selection {LAYER_SELECTION.get(L, 'stratum')!r}, the file says {decl!r}")
+            continue
+        if decl is None or decl["source"] not in sources:
+            raise SystemExit(f"batch {batch}: layer {L!r} is new: declare it under layers with a source from {sources}")
+        if not FILE_LAYER_RE.fullmatch(L) or L.replace(" ", "_") in {RELEASE_ALL, *BATCHES, batch}:
+            raise SystemExit(f"batch {batch}: layer name {L!r} is not usable (letters, digits, space, . + -; its release file must not "
+                             "be named like a batch or ALL)")
+        LAYER_SOURCE[L] = decl["source"]
+        if decl.get("selection", "stratum") != "stratum":
+            LAYER_SELECTION[L] = decl["selection"]
+        if L not in SLOW_START_LAYERS:
+            SLOW_START_LAYERS = (*SLOW_START_LAYERS, L)
+
+
+def _file_base(batch: str, key: str, base: str, qspecs: dict, problems: list) -> dict:
+    """基线行：队列里一个 3406 的 variant、m1 模型、h 2.0、楼梯载荷，没有任何条件键。不是这种 → SystemExit；没 DONE → problems。"""
+    src = _spec_of(base, qspecs) if isinstance(base, str) else None
+    if src is None:
+        raise SystemExit(f"{batch} {key}: base {base!r} has no readable spec.json under {J.QROOT}")
+    why = [f"{k} {src.get(k)!r}" for k, want in (("kind", "variant"), ("femur_id", FEMUR_ID), ("model", "m1"), ("h_int", H_PROD)) if src.get(k) != want]
+    why += [f"stage {src.get('stage')!r}"] if str(src.get("stage")) not in DB_STAGES else []
+    why += [f"{k} {src.get(k)!r}" for k in ("cfg", "bond_only", "torsion", "pose_fixed", "foam_refine") if src.get(k)]
+    if why:
+        raise SystemExit(f"{batch} {key}: base {base} is not a baseline row (want a 3406 m1 variant at h {H_PROD:g}, stair load, "
+                         f"no cfg / bond_only / torsion / pose_fixed / foam_refine): " + "; ".join(why))
+    st = J.state(J.QROOT / base)
+    if st != "DONE":
+        problems.append(f"{batch} {key}: the base row {base} is {st} (must be DONE)")
+    return src
+
+
+def _build_file_designs(batch: str, p: pathlib.Path, raw: bytes, doc: dict) -> dict:
+    """form new_designs（模块说明"行文件批次"）：写死 u13 和入口偏移的新设计，写法同 build_urows（b29、b30、b31）和 build_b25。
+    检查一条不减：A 的 m 1.0 版必须 DONE、m 下限、物理键只允许在设计 / 截骨 / 入口偏移上不同、0 FE 模板化复核（可行、偏移、号、去骨量）；
+    requires_done 里的作业必须 DONE（b29–b31 的 A 族曲线 7 行就这样写）。b30 那种"恰好改一个因素"的检查不在这里，要的话是新代码。"""
+    np = _np()
+    need = {"format", "batch", "form", "layer", "stage", "tag_prefix", "mode", "al_problem", "rows"}
+    if set(doc) - need - {"note", "layers", "al_group", "requires_done"} or need - set(doc):
+        raise SystemExit(f"{p}: new_designs needs {sorted(need)} (optional: note, layers, al_group, requires_done); "
+                         f"unknown {sorted(set(doc) - need - {'note', 'layers', 'al_group', 'requires_done'})}, missing {sorted(need - set(doc))}")
+    layer, stage, prefix, mode, problem = doc["layer"], doc["stage"], doc["tag_prefix"], doc["mode"], doc["al_problem"]
+    group, req, defs = doc.get("al_group", prefix), doc.get("requires_done", []), doc["rows"]
+    if stage not in ("db_al", "db_ws") or mode not in ("fric", "full") or not isinstance(prefix, str) or not re.fullmatch(r"[a-z][a-z0-9]{1,11}", prefix) \
+            or not isinstance(layer, str) or not isinstance(problem, str) or not problem or not isinstance(group, str) or not group:
+        raise SystemExit(f"{p}: stage must be db_al or db_ws, mode fric or full, tag_prefix lower-case letters and digits, layer / al_problem / al_group text")
+    if not isinstance(req, list) or not all(isinstance(j, str) and j for j in req):
+        raise SystemExit(f"{p}: requires_done must be a list of job ids")
+    if not isinstance(defs, list) or not 1 <= len(defs) <= ROWS_IN_MAX:
+        raise SystemExit(f"{p}: rows must be a list of 1 to {ROWS_IN_MAX} rows")
+
+    def isnum(v) -> bool:
+        return not isinstance(v, bool) and isinstance(v, (int, float)) and math.isfinite(float(v))
+
+    for i, rd in enumerate(defs):
+        if not isinstance(rd, dict) or set(rd) != {"label", "e", "A0", "bone_mm3", "u13"} or not isinstance(rd["label"], str) \
+                or not re.fullmatch(r"[A-Za-z0-9_.+-]{1,40}", rd["label"]) or not all(isnum(rd[k]) for k in ("e", "A0", "bone_mm3")) \
+                or not isinstance(rd["u13"], list) or len(rd["u13"]) != 13 or not all(isnum(x) and 0.0 <= float(x) <= 1.0 for x in rd["u13"]):
+            raise SystemExit(f"{p}: row {i} must be {{label, e, A0, bone_mm3, u13}} with a plain label, numbers, and 13 unit coordinates in [0, 1]; got {str(rd)[:200]}")
+    _file_layers(batch, doc.get("layers") or {}, [layer], selections=("stratum", "adaptive"))
+    qspecs, by_h8, by_phys, warn = _batch_ctx()
+    problems, rows, keys, ws_tpl = [], [], [], {}
+    load_source(REF_H2, "intact", qspecs)
+    base = CODES[WS_BASE]
+    p_a = _phys(load_source(base, "design", qspecs), base)
+    ctrl_id = expected_id(_variant(p_a, "db_ws", f"{_tag_of(base)}_m{WS2_M:g}", "full", intact_job=REF_H2, design={**p_a["design"], "m": WS2_M}))
+    st = J.state(J.QROOT / ctrl_id) if (J.QROOT / ctrl_id).is_dir() else "absent"
+    if st != "DONE":
+        problems.append(f"{batch}: the A family row WS_m{WS2_M:g} = {ctrl_id} is {st} (must be DONE)")
+    for j in req:
+        s = J.state(J.QROOT / j) if (J.QROOT / j).is_dir() else "absent"
+        if s != "DONE":
+            problems.append(f"{batch}: the required row {j} is {s} (must be DONE)")
+    ref_phys = {k: v for k, v in {**p_a, "design": {**p_a["design"], "m": WS2_M}}.items() if k in PHYS_KEYS}
+    allowed = {"design", "h_cut", "entry_offset"}
+    ph = b2_phase()
+    for n, rd in enumerate(defs, 1):
+        lab, e, A0, bone, u = rd["label"], float(rd["e"]), float(rd["A0"]), float(rd["bone_mm3"]), rd["u13"]
+        tag = _urow_tag(prefix, lab, e)
+        key = f"{prefix.upper()}_{tag[len(prefix) + 1:tag.rindex('_e')]}"
+        spec = _variant(_phys(ph.spec_of(np.asarray(u, float), tag, bonded=True), f"{stage} {tag}"), stage, tag, mode,
+                        intact_job=REF_H2 if mode == "full" else None, entry_offset=float(e))
+        if float(spec["design"]["m"]) < WS2_M - 1e-9:
+            problems.append(f"{key}: m {spec['design']['m']:g} < {WS2_M:g}")
+        sp = {k: v for k, v in spec.items() if k in PHYS_KEYS}
+        extra_keys = sorted(k for k in set(ref_phys) | set(sp) if ref_phys.get(k) != sp.get(k) and k not in allowed)
+        if extra_keys:
+            problems.append(f"{key}: physics differs from the A row outside {sorted(allowed)}: {extra_keys}")
+        try:
+            t = ws_templating(spec)
+            ws_tpl[tag] = t
+            if not t["feasible"]:
+                problems.append(f"{key}: 0-FE templating is not feasible at entry offset {e:g} ({t['reason']}); prep would fail, no FE can run")
+            elif t["e_star"] != float(e):
+                problems.append(f"{key}: entry offset {t['e_star']:g} != {e:g}")
+            elif abs(t["A0_star"] - A0) > 0.01 or abs(t["bone_mm3"] - bone) > 0.5:
+                problems.append(f"{key}: size {t['A0_star']:.3f} or bone {t['bone_mm3']:.2f} differs from the 0-FE record {A0:.3f}, {bone:.2f}")
+        except Exception as ex:                         # noqa: BLE001  模板化核对不了 = 不提交
+            problems.append(f"{key}: 0-FE templating failed: {type(ex).__name__}: {str(ex)[:300]}")
+        r = _row(key, layer, spec, ctrl_id, None, extra={"pool_idx": None, "layer_pos": n, "cond": None, "e_star": float(e), "e_forced": float(e), "al_group": group, "al_problem": problem})
+        r.update(unbiased=False, in_E=True)
+        rows.append(r)
+        keys.append(key)
+    if len(set(keys)) != len(keys):
+        raise SystemExit(f"{p}: labels give repeated row keys {sorted(k for k in set(keys) if keys.count(k) > 1)}")
+    return _finish_batch(batch, rows, keys, qspecs, by_h8, by_phys, warn, problems, {H_PROD: REF_H2}, ws_tpl=ws_tpl, ws_control=ctrl_id, form="new_designs",
+                         rows_in={"file": f"experiments/{p.parent.name}/{p.name}", "sha256": _lf_sha256(raw)})
+
+
+def build_file(batch: str) -> dict:
+    """行文件批次（模块说明"行文件批次"）：每行 = 一个已 DONE 的基线行 × 一个条件。条件的写法和 b24、b26、b28c / b33、b32 的构造函数逐字相同，
+    所以同一个基线行、同一个条件得到同一个作业号。文件格式不对、键或层不合规、基线行不是基线行、条件不认识或取值不合规、
+    参照不在 b1 清单里 → SystemExit；基线行或参照没 DONE、钩子的检查不过 → problems。"""
+    p = rows_in_path(batch)
+    if p is None:
+        raise SystemExit(f"batch {batch}: no {ROWS_IN_NAME} under {ROWS_IN_ROOT}/{batch}_*")
+    raw = p.read_bytes()
+    try:
+        doc = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as e:
+        raise SystemExit(f"{p}: not readable as JSON ({e})") from None
+    if not isinstance(doc, dict) or doc.get("format") != ROWS_IN_FORMAT or doc.get("batch") != batch or doc.get("form") not in FILE_FORMS:
+        raise SystemExit(f"{p}: must be an object with format {ROWS_IN_FORMAT!r}, batch {batch!r} and a form from {list(FILE_FORMS)}; "
+                         f"got format {doc.get('format') if isinstance(doc, dict) else None!r}, batch {doc.get('batch') if isinstance(doc, dict) else None!r}, "
+                         f"form {doc.get('form') if isinstance(doc, dict) else None!r}")
+    if doc["form"] == "new_designs":
+        return _build_file_designs(batch, p, raw, doc)
+    if set(doc) - {"format", "batch", "form", "layers", "rows", "note"}:
+        raise SystemExit(f"{p}: variants takes format, batch, form, layers, rows (and an optional note); unknown {sorted(set(doc) - {'format', 'batch', 'form', 'layers', 'rows', 'note'})}")
+    defs = doc.get("rows")
+    if not isinstance(defs, list) or not 1 <= len(defs) <= ROWS_IN_MAX:
+        raise SystemExit(f"{p}: rows must be a list of 1 to {ROWS_IN_MAX} rows")
+    for i, rd in enumerate(defs):
+        if not isinstance(rd, dict) or set(rd) != {"key", "layer", "base", "cond"} or not isinstance(rd["key"], str) \
+                or not FILE_KEY_RE.fullmatch(rd["key"]) or not isinstance(rd["layer"], str) or not isinstance(rd["cond"], dict) or len(rd["cond"]) != 1:
+            raise SystemExit(f"{p}: row {i} must be {{key, layer, base, cond}} with a plain key and exactly one condition, got {rd!r}")
+        if next(iter(rd["cond"])) not in FILE_CONDS:
+            raise SystemExit(f"{p}: row {rd['key']}: unknown condition {next(iter(rd['cond']))!r} (known: {list(FILE_CONDS)}); "
+                             "a new kind of condition is new code, not new data")
+    _file_layers(batch, doc.get("layers") or {}, [rd["layer"] for rd in defs])
+    qspecs, by_h8, by_phys, warn = _batch_ctx()
+    problems, rows, keys = [], [], []
+    load_source(REF_H2, "intact", qspecs)
+    refs, ref_id, fms = {}, {H_PROD: REF_H2}, {}
+
+    def num(key, what, v) -> float:
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(float(v)):
+            raise SystemExit(f"{batch} {key}: {what} must be a number, got {v!r}")
+        return float(v)
+
+    for rd in defs:
+        key, layer, base = rd["key"], rd["layer"], rd["base"]
+        (name, arg), = rd["cond"].items()
+        src = _file_base(batch, key, base, qspecs, problems)
+        p_ = _phys(src, base)
+        tag0 = src.get("tag") or _tag_of(base)
+        mode, ref_h = "fric", None
+        if name == "mesh":                                   # 同 build_cond：h 1.94 / 2.06 = db_nz，h 1.4 = db_fd 加 slip_tol；都带粘接、用同网格的参照
+            hv = num(key, "mesh", arg)
+            h = next((x for x in FILE_MESH_H if abs(x - hv) < 1e-9), None)
+            if h is None:
+                raise SystemExit(f"{batch} {key}: mesh {arg!r} has no intact reference (known: {list(FILE_MESH_H)})")
+            if h not in refs:
+                b1_ids, err = recorded_ids(B3_REF_BATCH)
+                if err:
+                    raise SystemExit(err)
+                j0 = b1_ids.get(f"REF_h{h:g}")
+                if not j0:
+                    raise SystemExit(f"{batch}: the {B3_REF_BATCH} manifest has no submitted REF_h{h:g}")
+                st = J.state(J.QROOT / j0)
+                if st != "DONE":
+                    problems.append(f"{batch}: reference REF_h{h:g} = {j0} is {st} (must be DONE)")
+                refs[h] = ref_id[h] = j0
+            stage, mode, ref_h, suffix = ("db_fd" if h == HEAVY_H else "db_nz"), "full", h, f"_h{h:g}"
+            changes = {"h_int": h, **({"slip_tol": H14_SLIP_TOL} if h == HEAVY_H else {})}
+        elif name == "load":                                 # 同 build_b26：只把头力换成 STS_LOADS 里的一档
+            if arg not in STS_LOADS:
+                raise SystemExit(f"{batch} {key}: load {arg!r} is not one of {sorted(STS_LOADS)}")
+            stage, suffix, changes = "db_cd", f"_{arg}", {"cfg": {"load": dict(STS_LOADS[arg])}}
+        elif name == "torsion":                              # 同 build_b24：定义 A 的预载沿柄轴（按设计算），定义 B 用 F3839 的头力
+            import torsion_load as TL
+            if not isinstance(arg, dict) or set(arg) != {"def", "T_Nm"} or arg["def"] not in TL.DEFS:
+                raise SystemExit(f"{batch} {key}: torsion must be {{def: one of {list(TL.DEFS)}, T_Nm: number}}, got {arg!r}")
+            tq = {"def": arg["def"], "T_Nm": num(key, "T_Nm", arg["T_Nm"])}
+            try:
+                TL.validate(tq)
+            except ValueError as ex:
+                raise SystemExit(f"{batch} {key}: {ex}") from None
+            if tq["def"] == "A":
+                import tpl_record as TR
+                rule_ = TR.spec_rule(src)
+                fk = (rule_.femur_id, json.dumps(rule_.neck_axis, sort_keys=True, default=float))
+                if fk not in fms:
+                    fms[fk] = TR.base_femur(rule_.femur_id, rule_.neck_axis)
+                cfg = {"load": TL.axial_load(fms[fk].pose(p_["design"]["alpha"], 0.0)[1], TQ1S_PRELOAD)}
+            else:
+                cfg = {"load": dict(STS_LOADS[CD2_LOAD])}
+            stage, suffix, changes = "db_cd", f"_T{tq['def']}{tq['T_Nm']:g}", {"cfg": cfg, "torsion": tq}
+        elif name == "pose":                                 # 同 build_b24：号固定、只移动位姿（pose_fixed.py 的四个量）
+            import pose_fixed as PF
+            if not isinstance(arg, dict) or not arg or set(arg) - set(PF.KEYS):
+                raise SystemExit(f"{batch} {key}: pose must set some of {list(PF.KEYS)}, got {arg!r}")
+            pf = {k: num(key, k, arg[k]) for k in PF.KEYS if k in arg}
+            try:
+                PF.validate(pf)
+            except ValueError as ex:
+                raise SystemExit(f"{batch} {key}: {ex}") from None
+            stage, suffix, changes = "db_cd", "_pf" + "".join(f"_{_POSE_SHORT[k]}{v:+g}" for k, v in pf.items()), {"pose_fixed": pf}
+        else:                                                # foam_refine，同 build_b32：界面附近的骨加密，slip_tol 按 2.0 / h 放大
+            import foam_refine as FRF
+            if not isinstance(arg, dict) or set(arg) != {"h"}:
+                raise SystemExit(f"{batch} {key}: foam_refine must be {{h: number}}, got {arg!r}")
+            fr = {"h": num(key, "foam_refine h", arg["h"])}
+            if fr["h"] <= 0:
+                raise SystemExit(f"{batch} {key}: foam_refine h must be positive, got {arg['h']!r}")
+            try:
+                FRF.validate(fr, float(p_["h_int"]))
+            except ValueError as ex:
+                problems.append(f"{batch} {key}: {ex}")
+            if src.get("slip_tol") is None or abs(float(src["slip_tol"]) - F5_SLIP_REF) > 1e-12:
+                problems.append(f"{batch} {key}: the base row {base} has slip_tol {src.get('slip_tol')!r}, expected {F5_SLIP_REF:g}")
+            stage, suffix = "db_fd", f"_f5h{fr['h']:g}"
+            changes = {"foam_refine": fr, "slip_tol": round(F5_SLIP_REF * H_PROD / fr["h"], 9)}
+        spec = _variant(p_, stage, tag0 + suffix, mode, intact_job=refs.get(ref_h), **changes)
+        if name == "foam_refine" and not is_heavy(spec):
+            problems.append(f"{batch} {key}: is_heavy() does not see foam_refine")
+        r = _row(key, layer, spec, base, None, ref_key=f"REF_h{ref_h:g}" if ref_h else None,
+                 extra={"e_forced": spec.get("entry_offset"), "file_cond": {name: changes.get("torsion") or changes.get("pose_fixed") or changes.get("foam_refine") or arg}})
+        r.update(unbiased=False, in_E=True)
+        rows.append(r)
+        keys.append(key)
+    if len(set(keys)) != len(keys):
+        raise SystemExit(f"{p}: repeated row keys {sorted(k for k in set(keys) if keys.count(k) > 1)}")
+    return _finish_batch(batch, rows, keys, qspecs, by_h8, by_phys, warn, problems, ref_id, form="variants",
+                         rows_in={"file": f"experiments/{p.parent.name}/{p.name}", "sha256": _lf_sha256(raw)})
+
+
 def build_b20() -> dict:
     """b20 = AL-4m 的 A 部分（模块说明"批次 b20、b21"）：设计 A 的形状 × m 1.6、1.75、2.0。对照 WS_m1.5 必须 DONE；不可行、模板化报错、偏移不是写定的值 → problems。"""
     qspecs, by_h8, by_phys, warn = _batch_ctx()
@@ -4035,6 +4347,8 @@ def open_manifest(batch: str, b: dict, gk: dict, log, aux: dict | None = None) -
         man = {"batch": batch, "created_utc": _utc(), "updated_utc": None, "code_hash": b["code_hash"], "femur_geom_key": gk,
                "aux_md5": aux, "aux_root": str(CODE_ROOT), "femur_model_version": FEMUR_MODEL_VERSION, "hollow_core": HOLLOW_CORE,
                "seeds": b["seeds"], "order": [r["key"] for r in rows], "rows": {r["key"]: _man_row(r) for r in rows}, "gates": {}, "events": []}
+        if b.get("rows_in"):
+            man["rows_in"] = dict(b["rows_in"])
         if "init_median" in b:
             man.update(init_median=b["init_median"]["job_id"], init_median_rule=INIT_MEDIAN_RULE)
         if batch == "b2":
@@ -4062,6 +4376,9 @@ def open_manifest(batch: str, b: dict, gk: dict, log, aux: dict | None = None) -
         diff.append(f"manifest femur_geom_key {(man.get('femur_geom_key') or {}).get('key')} != current {gk['key']}")
     if "aux_md5" in man and man["aux_md5"] != aux:
         diff.append("aux file md5 changed since the manifest was written: " + "; ".join(aux_changes(man["aux_md5"], aux)))
+    if (man.get("rows_in") or {}).get("sha256") != (b.get("rows_in") or {}).get("sha256"):
+        diff.append(f"{ROWS_IN_NAME} changed since the manifest was written (sha256 {str((man.get('rows_in') or {}).get('sha256'))[:12]} -> "
+                    f"{str((b.get('rows_in') or {}).get('sha256'))[:12]})")
     if batch == "b2":
         old_i, new_i = man.get("b2") or {}, b2_manifest_info(b)
         for k in ("pool_sha256", "cr_tpl_sha256", "evaluated_sha256", "order"):
@@ -4852,6 +5169,9 @@ def feed(batch: str = "b1", poll: float = POLL_S, once: bool = False, max_unclai
                 if ch:
                     _halt(man, mp, "aux code files changed while feeding (not in code_hash, but they affect results): " + "; ".join(ch)
                           + "; stopped (restore them, or start a new batch name)")
+                if man.get("rows_in") and rows_in_sha256(batch) != man["rows_in"]["sha256"]:
+                    _halt(man, mp, f"{ROWS_IN_NAME} changed or disappeared while feeding (sha256 differs from the manifest); stopped "
+                                   "(restore it, or start a new batch name)")
                 with submit_mutex() as got_lock:
                     if not got_lock:
                         log(f"WARNING pass skipped: the pass mutex {submit_lock_path()} was not free within {SUBMIT_LOCK_TIMEOUT_S:g} s")
@@ -4957,12 +5277,14 @@ def main(argv=None) -> int:
     import argparse
     ap = argparse.ArgumentParser(description="db3406 batch submitter v1.2 (dry-run / feed / status; select for b2)")
     ap.add_argument("cmd", choices=["dry-run", "feed", "status", "select"])
-    ap.add_argument("batch", choices=list(BATCHES))
+    ap.add_argument("batch", help=f"one of {list(BATCHES)}, or a batch with experiments/<batch>_*/{ROWS_IN_NAME}")
     ap.add_argument("--root", help="dry-run / status / select only: read <root>/queue and <root>/results (a copy) instead of ~/mobo_toy_v2 "
                                    "(select writes into <root>/results)")
     ap.add_argument("--once", action="store_true", help="feed only: one pass, then exit")
     ap.add_argument("--poll", type=float, default=POLL_S, help="feed only: seconds between passes (default 60)")
     a = ap.parse_args(argv)
+    if not known_batch(a.batch):
+        ap.error(f"argument batch: invalid choice: {a.batch!r} (choose from {list(BATCHES)}, or a batch with experiments/<batch>_*/{ROWS_IN_NAME} under {ROWS_IN_ROOT})")
     if a.root:
         if a.cmd == "feed":
             ap.error("--root is for dry-run / status / select only (the feeder works on the live ~/mobo_toy_v2 queue)")

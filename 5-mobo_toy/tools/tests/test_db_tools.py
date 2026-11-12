@@ -14,6 +14,7 @@ import hashlib
 import io
 import json
 import lzma
+import math
 import os
 import pathlib
 import subprocess
@@ -1030,6 +1031,159 @@ def test_finalize_records_export_provenance_and_result_classes():
     with open(out / "scalars.csv", encoding="utf-8", newline="") as fh:
         got = {r["job_id"]: (r["status"], r["result_code"], r["result_class"]) for r in csv.DictReader(fh)}
     assert got == {"j1": ("DONE", "ok", "OK"), "j2": ("FAILED", "not_converged", "NUMERIC")}, got
+
+
+# ------------------------------------------------------------------------------------------------ bed support F
+def test_bed_support_by_hand():
+    """F = sum A / max(t, 0.25) over stem-body nodes with zeta <= 15 mm and |theta| <= 45 deg. Each node below is in or out for one reason."""
+    U = np.array(DX.BED_F["u_neck"]) / np.linalg.norm(DX.BED_F["u_neck"])
+    C, N3 = np.array(DX.BED_F["cref"]), np.array(DX.BED_F["n3"])
+    ax = -U                                                              # a stem that runs straight down the neck axis: zeta = distance along the stem
+    em = N3 - (N3 @ ax) * ax
+    em /= np.linalg.norm(em)
+    ep = np.array([0.0, 1.0, 0.0]) - ax[1] * ax
+    ep /= np.linalg.norm(ep)
+
+    def node(zeta, th, r=5.0):
+        return C + zeta * ax + r * (math.cos(math.radians(th)) * em + math.sin(math.radians(th)) * ep)
+
+    #            position              area   t     collar   in the zone?
+    nodes = [(node(5.0, 0.0),          2.0,   1.0,  False),  # yes: 2 / 1
+             (node(14.9, 44.0),        3.0,   0.5,  False),  # yes: 3 / 0.5
+             (node(10.0, -30.0),       1.0,   0.1,  False),  # yes, the floor decides: 1 / 0.25
+             (node(15.1, 0.0),         50.0,  1.0,  False),  # no: too deep
+             (node(5.0, 46.0),         50.0,  1.0,  False),  # no: outside the sector
+             (node(5.0, 180.0),        50.0,  1.0,  False),  # no: the lateral side
+             (node(5.0, 0.0),          50.0,  1.0,  True),   # no: a collar node
+             (node(-3.0, 10.0),        4.0,   2.0,  False)]  # yes: above the reference point still counts (zeta <= 15 has no lower bound): 4 / 2
+    X = np.array([n[0] for n in nodes])
+    area, dc, co = np.array([n[1] for n in nodes]), -np.array([n[2] for n in nodes]), np.array([n[3] for n in nodes])
+    r = DX.bed_support(X, area, dc, co, C, ax)
+    assert abs(r["F"] - (2 / 1 + 3 / 0.5 + 1 / 0.25 + 4 / 2)) < 1e-9, r
+    assert r["F_n_nodes"] == 4 and abs(r["F_area_mm2"] - 10.0) < 1e-12 and abs(r["F_t_min_mm"] - 0.1) < 1e-12 and abs(r["F_frac_floor"] - 0.1) < 1e-12, r
+    empty = DX.bed_support(X[3:7], area[3:7], dc[3:7], co[3:7], C, ax)
+    assert empty == {"F": 0.0, "F_area_mm2": 0.0, "F_n_nodes": 0, "F_t_min_mm": None, "F_frac_floor": None}, empty
+
+
+def test_bed_support_constants_are_the_facts_and_the_judging_files():
+    """One set of numbers: tools/db_export.BED_F = ops/facts.json = the literals in the judging file of b33 (b28 and later carry the same)."""
+    facts = json.loads((TOOLS.parent / "ops" / "facts.json").read_text(encoding="utf-8"))
+    assert list(DX.BED_F["u_neck"]) == facts["neck_axis_u"] and list(DX.BED_F["cref"]) == facts["bed_F_cref"] and list(DX.BED_F["n3"]) == facts["bed_F_n3"]
+    assert {k: DX.BED_F[k] for k in ("zeta_max_mm", "theta_max_deg", "t_floor_mm")} == facts["bed_F_zone"]
+    assert list(DX.BED_F["u_neck"]) != [round(v, 5) for v in facts["neck_axis_u_baked_wrong"]]
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("gates_b33_for_F", TOOLS.parent / "experiments" / "b33_r2cand" / ("gates" + ".py"))
+    gb = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gb)
+    assert np.array_equal(gb.N3, np.array(DX.BED_F["n3"])) and np.array_equal(gb.CREF, np.array(DX.BED_F["cref"]))
+    assert np.array_equal(gb.U_NECK, np.array(DX.BED_F["u_neck"]) / np.linalg.norm(list(DX.BED_F["u_neck"])))
+    db = pathlib.Path(r"H:/Projects/Femoral implant generation/db3406/v0.14")       # the version b33 was judged on
+    rows = []
+    with open(db / "scalars.csv", encoding="utf-8", newline="") as fh:
+        for x in csv.DictReader(fh):
+            if x["field_shard"] and x["field_shard"] in ("iface_b000_000", "iface_b023_000"):
+                rows.append({"job_id": x["job_id"], "femur_id": x["femur_id"], "field_shard": x["field_shard"], "field_index": int(x["field_index"])})
+    n, errs = DX.apply_bed_support(db, rows)
+    theirs = gb.mesh_F(str(db), {r["job_id"] for r in rows})
+    assert n == len(rows) == len(theirs) > 10 and not errs, (n, len(rows), len(theirs), errs[:2])
+    assert all(theirs[r["job_id"]] == r["F"] for r in rows), "the exporter's F must equal the judging file's mesh_F to the last bit"
+
+
+def test_apply_bed_support_and_finalize_columns():
+    """Rows get F from their shard and index; a missing shard, a wrong index and another femur leave F empty (the first two are errors);
+    finalize writes the five columns and manifest.bed_F."""
+    out = _tmpdir("bedF_out")
+    (out / "fields").mkdir()
+    (out / "export").mkdir()
+    U = np.array(DX.BED_F["u_neck"]) / np.linalg.norm(DX.BED_F["u_neck"])
+    C, ax = np.array(DX.BED_F["cref"]), -U
+    N3 = np.array(DX.BED_F["n3"])
+    em = N3 - (N3 @ ax) * ax
+    em /= np.linalg.norm(em)
+    Xa = np.array([C + 5.0 * ax + 5.0 * em, C + 20.0 * ax + 5.0 * em])                # one node in the zone, one too deep
+    Xb = np.array([C + 2.0 * ax + 4.0 * em])
+    frame = np.zeros((2, 4, 3))
+    frame[:, 0], frame[:, 1] = C, ax
+    np.savez(out / "fields" / "iface_t_000.npz", X=np.vstack([Xa, Xb]), area=np.array([2.0, 9.0, 3.0]), d_canal=np.array([-1.0, -1.0, -0.5]),
+             collar=np.array([False, False, False]), off=np.array([0, 2, 3]), frame=frame, job_id=np.array(["j1", "j2"]))
+    base = dict(femur_id=DX.FEMUR_ID)
+    rows = [dict(base, job_id="j1", field_shard="iface_t_000", field_index=0), dict(base, job_id="j2", field_shard="iface_t_000", field_index=1),
+            dict(base, job_id="j3", field_shard="iface_t_000", field_index=1),          # the index holds j2
+            dict(base, job_id="j4", field_shard="iface_gone_000", field_index=0),       # no such shard
+            dict(base, job_id="j5", field_shard=None, field_index=None),                # no point cloud (a bonded-only row, a failed row)
+            dict(job_id="j6", femur_id="ct_femur", field_shard="iface_t_000", field_index=0)]
+    n, errs = DX.apply_bed_support(out, rows)
+    got = {r["job_id"]: r["F"] for r in rows}
+    assert n == 2 and got == {"j1": 2.0, "j2": 6.0, "j3": None, "j4": None, "j5": None, "j6": None}, got
+    assert len(errs) == 2 and any("j3" in e and "holds j2" in e for e in errs) and any("j4" in e and "missing" in e for e in errs), errs
+    assert rows[0]["F_n_nodes"] == 1 and rows[0]["F_area_mm2"] == 2.0 and all(rows[4][k] is None for k in DX.BED_F_COLS)
+    i = DX.COLNAMES.index("field_n_tri")
+    assert DX.COLNAMES[i + 1:i + 6] == list(DX.BED_F_COLS), DX.COLNAMES[i:i + 7]
+    frows = [dict(_row("j1", "x", "iid", "d1", has_prep=True, femur_geom_key="K1", femur_geom_verified=True, femur_geom_basis="files_older_than_prep",
+                       t_prep_utc="2026-10-24T01:00:00Z"), field_shard="iface_t_000", field_index=0)]
+    ctxs = [dict(_ctx("b0", "K1", "2026-10-23T23:40:47Z", "2026-10-26T00:00:00Z"), queue_complete=True)]
+    einfo = {"E_jobs": {}, "n_E": 0, "replicate_groups": {"fric": [], "bond": []}}
+    orig = (DX._load_rows, DX.finalize_rows)
+    try:
+        DX._load_rows = lambda o: ([dict(r) for r in frows], {}, {}, [dict(c) for c in ctxs])
+        DX.finalize_rows = lambda rows_, E, prov: (rows_, [], einfo)
+        DX.finalize(out, str(_tmpdir("bedF_root")), None, True)
+    finally:
+        DX._load_rows, DX.finalize_rows = orig
+    man = json.loads((out / "manifest.json").read_text())
+    assert man["bed_F"]["n_rows"] == 1 and man["bed_F"]["version"] == "mesh" and man["bed_F"]["cref"] == list(DX.BED_F["cref"]) and man["bed_F"]["zeta_max_mm"] == 15.0
+    with open(out / "scalars.csv", encoding="utf-8", newline="") as fh:
+        (r1,) = list(csv.DictReader(fh))
+    assert (r1["F"], r1["F_n_nodes"], r1["F_area_mm2"], r1["F_t_min_mm"], r1["F_frac_floor"]) == ("2.0", "1", "2.0", "1.0", "0.0"), r1["F"]
+
+
+# ------------------------------------------------------------------------------------------------ publish
+def test_publish_freezes_a_version():
+    """publish needs every listed file intact, nothing unlisted, and a qa_report.json; it writes PUBLISHED.json; after that finalize refuses,
+    and --check tells when a file, the manifest or the QA report changed."""
+    out = _tmpdir("publish_out")
+    (out / "export").mkdir()
+    frows = [_row("j1", "x", "iid", "d1", has_prep=True, femur_geom_key="K1", femur_geom_verified=True, femur_geom_basis="files_older_than_prep", t_prep_utc="2026-10-24T01:00:00Z")]
+    ctxs = [dict(_ctx("b0", "K1", "2026-10-23T23:40:47Z", "2026-10-26T00:00:00Z"), queue_complete=True)]
+    einfo = {"E_jobs": {}, "n_E": 0, "replicate_groups": {"fric": [], "bond": []}}
+    orig = (DX._load_rows, DX.finalize_rows)
+
+    def fin():
+        DX._load_rows = lambda o: ([dict(r) for r in frows], {}, {}, [dict(c) for c in ctxs])
+        DX.finalize_rows = lambda rows_, E, prov: (rows_, [], einfo)
+        try:
+            return DX.finalize(out, str(_tmpdir("publish_root")), None, True)
+        finally:
+            DX._load_rows, DX.finalize_rows = orig
+
+    assert DX.publish(_tmpdir("publish_empty")) == 2                               # no manifest
+    assert fin() == 0
+    assert DX.publish(out, check=True) == 3                                       # not published yet
+    assert DX.publish(out) == 3 and not (out / DX.PUBLISHED_NAME).exists()        # no QA report
+    (out / "qa_report.json").write_text("{}", encoding="utf-8")
+    (out / "stray.txt").write_text("x", encoding="utf-8")
+    assert DX.publish(out) == 3 and not (out / DX.PUBLISHED_NAME).exists()        # a file the manifest does not list
+    (out / "stray.txt").unlink()
+    sc = (out / "scalars.csv").read_bytes()
+    (out / "scalars.csv").write_bytes(sc + b"x")
+    assert DX.publish(out) == 3 and not (out / DX.PUBLISHED_NAME).exists()        # a listed file that changed
+    (out / "scalars.csv").write_bytes(sc)
+    assert DX.publish(out) == 0
+    pub = json.loads((out / DX.PUBLISHED_NAME).read_text(encoding="utf-8"))
+    assert pub["manifest_sha256"] == hashlib.sha256((out / "manifest.json").read_bytes()).hexdigest() and pub["n_rows"] == 1 and pub["published_utc"]
+    assert DX.publish(out, check=True) == 0 and DX.publish(out) == 3              # still as published; publishing twice is refused
+    try:
+        fin()
+        raise AssertionError("finalize must refuse a published version")
+    except SystemExit as e:
+        assert "published" in str(e)
+    (out / "qa_report.json").write_text('{"changed": 1}', encoding="utf-8")
+    assert DX.publish(out, check=True) == 3
+    (out / "qa_report.json").write_text("{}", encoding="utf-8")
+    (out / "scalars.csv").write_bytes(sc + b"x")
+    assert DX.publish(out, check=True) == 3
+    (out / "scalars.csv").write_bytes(sc)
+    assert DX.publish(out, check=True) == 0
 
 
 if __name__ == "__main__":

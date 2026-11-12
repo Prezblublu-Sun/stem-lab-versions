@@ -1,0 +1,17 @@
+{
+ "format": "stage_db rows_in 1",
+ "batch": "bNN",
+ "form": "variants",
+ "note": "复制成 rows_in.json 再改。每行 = 一个已 DONE 的基线行 x 一个条件。条件只有五种：mesh、load、torsion、pose、foam_refine；新的一种条件要写代码。",
+ "layers": {
+  "XX-1 sts": {"source": "cond_anchor"},
+  "XX-1 h1.4": {"source": "fid_h14"}
+ },
+ "rows": [
+  {"key": "XX1S_A_m1", "layer": "XX-1 sts", "base": "db_ws_p13_a105_91e458e3_m1_2a79b613", "cond": {"load": "F1714"}},
+  {"key": "XX1H_A_m1", "layer": "XX-1 h1.4", "base": "db_ws_p13_a105_91e458e3_m1_2a79b613", "cond": {"mesh": 1.4}},
+  {"key": "XX1T_A_m1_A10", "layer": "TQ-1 smoke", "base": "db_ws_p13_a105_91e458e3_m1_2a79b613", "cond": {"torsion": {"def": "A", "T_Nm": 10}}},
+  {"key": "XX1P_A_m1_de+1", "layer": "PF-1 smoke", "base": "db_ws_p13_a105_91e458e3_m1_2a79b613", "cond": {"pose": {"de": 1.0}}},
+  {"key": "XX1F_A_m1_e+2_h1", "layer": "F5 smoke", "base": "db_ws_p13_a105_91e458e3_ow_m1_e+2_c9ca96c8", "cond": {"foam_refine": {"h": 1.0}}}
+ ]
+}

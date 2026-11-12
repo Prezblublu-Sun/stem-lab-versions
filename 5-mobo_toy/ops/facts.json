@@ -12,5 +12,12 @@
  "foam_E_MPa": 155.0,
  "foam_nu": 0.3,
  "mesh_noise_rot_dex": 0.012,
- "db_latest": "v0.12"
+ "bed_F_cref": [37.65271204198696, 0.8509371708090849, 41.89415555538172],
+ "bed_F_cref_source": "research-log p13_3406/visual_report_2026-10-25/data/geometry.json stems.sb13_a105_91e458e3.cut_centre (A's cut centre), model frame, mm",
+ "bed_F_n3": [0.381, 0.025, -0.924],
+ "bed_F_n3_source": "distal direction -z projected on the neck section, calcar side; as written in the judging files of b25 and later",
+ "bed_F_zone": {"zeta_max_mm": 15.0, "theta_max_deg": 45.0, "t_floor_mm": 0.25},
+ "bed_F_note": "F = sum A / max(t, 0.25) over stem-body interface nodes with zeta <= 15 mm and |theta| <= 45 deg; the depth axis is neck_axis_u. tools/db_export.py BED_F holds the same numbers (a test compares them). Database column F from exporter 0.2.6 on.",
+ "db_latest": "v0.14",
+ "db_latest_source": "the highest db3406/v*/ with a manifest.json; ops/check_facts.py compares with the disk"
 }

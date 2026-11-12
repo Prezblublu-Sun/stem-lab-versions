@@ -1,0 +1,183 @@
+{
+ "batch": "b16",
+ "created_utc": "2026-11-02T22:27:05Z",
+ "updated_utc": "2026-11-02T22:41:07Z",
+ "code_hash": "6d7af243d0",
+ "femur_geom_key": {
+  "key": "9281cd8eac10eace",
+  "files": {
+   "femur_3406.py": {
+    "path": "femur_3406.py",
+    "sha256": "89f94074b92e2da16d86517175475b6596d300a99cd7d7f2e2fd10f1af5d48f8"
+   },
+   "step_cortical": {
+    "path": "3406R_cortical.STEP",
+    "sha256": "9b1bf9494728c3533c9cd04db8669008c97dd88701ffea56cd7e12e6bd8cab1f"
+   },
+   "step_cancellous": {
+    "path": "3406R_cancellous_v2.STEP",
+    "sha256": "3455b8c9c21bb9f1eae62da357744b4ee1235939c8bc058fb29d0d109c0c7940"
+   }
+  }
+ },
+ "aux_md5": {
+  "inp_writer.py": "3935453e03d82cb7d648b3b5b396abc8",
+  "v2/collar_rule.py": "ad84b819968cfa24d141a5f541370127",
+  "v2/jobs.py": "8508a9a5b0ddd742cd849fcf11f35505",
+  "v2/stability.py": "f690ce4d12a0f4dfed47dc43913fe197",
+  "v2/femur_3406.py": "5d50ff0301c4e0c8d438af0697edc7e4",
+  "abaqus/odb_export.py": null
+ },
+ "aux_root": "/home/linux-user/mobo_toy_v2/code",
+ "femur_model_version": "3406R_v1_hollowcore",
+ "hollow_core": true,
+ "seeds": [],
+ "order": [
+  "VAL_n1200",
+  "VAL_n1200_far2.5",
+  "VAL_b500_far2.5"
+ ],
+ "rows": {
+  "VAL_n1200": {
+   "key": "VAL_n1200",
+   "layer": "VAL-1",
+   "stage": "db_ref",
+   "source": "intact_ref",
+   "selection": "reference",
+   "design_code": null,
+   "source_job": "sb_intact_h2_9c9d7fb5",
+   "condition_id": "intact|R1200_af10_as9|h2",
+   "bonded": false,
+   "model_set": "intact",
+   "intact_job": null,
+   "heavy": true,
+   "exclusive": false,
+   "femur_model_version": "3406R_v1_hollowcore",
+   "hollow_core": true,
+   "pool_idx": null,
+   "partner_of": null,
+   "expected_id": "db_ref_intact_val_n1200_00960229",
+   "id": "db_ref_intact_val_n1200_00960229",
+   "dedup": "new",
+   "dedup_via": null,
+   "seed": null,
+   "ack_failed": null,
+   "status": "submitted",
+   "state": "DONE",
+   "submitted_utc": "2026-11-02T22:27:06Z",
+   "times_utc": {
+    "spec": "2026-11-02T22:27:06Z",
+    "solved": "2026-11-02T22:35:03Z",
+    "done": "2026-11-02T22:35:07Z",
+    "ready": "2026-11-02T22:27:46Z",
+    "claimed": "2026-11-02T22:33:39Z"
+   },
+   "finished_ts": 1793658907.846362,
+   "held_reason": null,
+   "failed_logged": false
+  },
+  "VAL_n1200_far2.5": {
+   "key": "VAL_n1200_far2.5",
+   "layer": "VAL-1",
+   "stage": "db_ref",
+   "source": "intact_ref",
+   "selection": "reference",
+   "design_code": null,
+   "source_job": "sb_intact_h2_9c9d7fb5",
+   "condition_id": "intact|R1200_af10_as9|h2|far2.5",
+   "bonded": false,
+   "model_set": "intact",
+   "intact_job": null,
+   "heavy": true,
+   "exclusive": false,
+   "femur_model_version": "3406R_v1_hollowcore",
+   "hollow_core": true,
+   "pool_idx": null,
+   "partner_of": null,
+   "expected_id": "db_ref_intact_val_n1200_far2.5_db0fe73b",
+   "id": "db_ref_intact_val_n1200_far2.5_db0fe73b",
+   "dedup": "new",
+   "dedup_via": null,
+   "seed": null,
+   "ack_failed": null,
+   "status": "submitted",
+   "state": "DONE",
+   "submitted_utc": "2026-11-02T22:35:07Z",
+   "times_utc": {
+    "spec": "2026-11-02T22:35:07Z",
+    "solved": "2026-11-02T22:37:36Z",
+    "done": "2026-11-02T22:37:39Z",
+    "ready": "2026-11-02T22:35:53Z",
+    "claimed": "2026-11-02T22:36:06Z"
+   },
+   "finished_ts": 1793659059.370175,
+   "held_reason": null,
+   "failed_logged": false
+  },
+  "VAL_b500_far2.5": {
+   "key": "VAL_b500_far2.5",
+   "layer": "VAL-1",
+   "stage": "db_ref",
+   "source": "intact_ref",
+   "selection": "reference",
+   "design_code": null,
+   "source_job": "sb_intact_h2_9c9d7fb5",
+   "condition_id": "intact|R500_af-2.45_as3.28|h2|far2.5",
+   "bonded": false,
+   "model_set": "intact",
+   "intact_job": null,
+   "heavy": true,
+   "exclusive": false,
+   "femur_model_version": "3406R_v1_hollowcore",
+   "hollow_core": true,
+   "pool_idx": null,
+   "partner_of": null,
+   "expected_id": "db_ref_intact_val_b500_far2.5_578ac48d",
+   "id": "db_ref_intact_val_b500_far2.5_578ac48d",
+   "dedup": "new",
+   "dedup_via": null,
+   "seed": null,
+   "ack_failed": null,
+   "status": "submitted",
+   "state": "DONE",
+   "submitted_utc": "2026-11-02T22:38:07Z",
+   "times_utc": {
+    "spec": "2026-11-02T22:38:07Z",
+    "solved": "2026-11-02T22:40:19Z",
+    "done": "2026-11-02T22:40:22Z",
+    "ready": "2026-11-02T22:38:46Z",
+    "claimed": "2026-11-02T22:39:01Z"
+   },
+   "finished_ts": 1793659222.2290883,
+   "held_reason": null,
+   "failed_logged": false
+  }
+ },
+ "gates": {
+  "VAL-1": {
+   "layer": "VAL-1",
+   "held": false,
+   "held_utc": null,
+   "held_ts": null,
+   "reasons": [],
+   "kinds": [],
+   "ack_failed": [],
+   "first10_ack": false,
+   "releases": [],
+   "auto_acked": []
+  }
+ },
+ "events": [
+  {
+   "utc": "2026-11-02T22:27:05Z",
+   "event": "start",
+   "pid": 1008333
+  },
+  {
+   "utc": "2026-11-02T22:27:06Z",
+   "event": "h14_mode",
+   "mode": "heavy",
+   "why": "heavy (one heavy job at a time beside light jobs; DB_H14_EXCLUSIVE absent, no word 'exclusive' in DB_H14_REF_OK)"
+  }
+ ]
+}

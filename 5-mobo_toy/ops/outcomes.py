@@ -1,6 +1,7 @@
 """一个批次各行的结局。只读：只读批次的 rows.json 和一版数据库的 scalars.csv，不写任何文件。
 
     PYTHONUTF8=1 .venv-mobo/Scripts/python.exe ops/outcomes.py experiments/b31_r2 --db "../../db3406/v0.13"
+    ... ops/outcomes.py experiments/b31_r2 --db "../../db3406/v0.13" --json      # 给选点脚本读：每行的作业号、结局、该告诉策略什么
 
 类和名字见 v2/result_codes.py。数据库有 result_class / result_code 两列时（导出器 0.2.6 起）直接读；没有时从
 fail_level、fail_stage、fail_reason 现认，结果一样。
@@ -80,6 +81,23 @@ def outcomes(batch_dir: str | pathlib.Path, db_dir: str | pathlib.Path) -> dict 
             "tell": tell}
 
 
+def answer(batch_dir: str | pathlib.Path, db_dir: str | pathlib.Path) -> dict | None:
+    """The "tell" half of ask and tell, for a selection script: one entry per row of the batch, in the order of rows.json.
+    tell = "result": read the row's numbers from this database version by job_id; "infeasible": the design does not fit the bone;
+    "failed": the mesh or the solve failed numerically (may be physical); None: nothing about the design is known (environment, error,
+    skipped, cannot be told, or not in this version) -- do not treat it as a failure of the design."""
+    o = outcomes(batch_dir, db_dir)
+    if o is None:
+        return None
+    bad = {x["job_id"]: x for x in o["not_ok"]}
+    missing = {x["job_id"] for x in o["not_in_db"]}
+    rows = []
+    for label, jid in batch_rows(pathlib.Path(batch_dir) / "rows.json"):
+        k, c = ("OK", "ok") if jid not in bad and jid not in missing else (bad[jid]["klass"], bad[jid]["code"]) if jid in bad else (None, None)
+        rows.append({"label": label, "job_id": jid, "klass": k, "code": c, "tell": o["tell"][jid]})
+    return {"batch": pathlib.Path(batch_dir).resolve().name, "db": pathlib.Path(db_dir).resolve().name, "rows": rows}
+
+
 def table(o: dict | None) -> str:
     """The markdown table judge.py prints under the gates."""
     if o is None:
@@ -100,7 +118,11 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="一个批次各行的结局。只读，不写文件。")
     ap.add_argument("batch_dir")
     ap.add_argument("--db", required=True)
+    ap.add_argument("--json", action="store_true", help="每行一项的 JSON（answer），给选点脚本读")
     a = ap.parse_args()
+    if a.json:
+        print(json.dumps(answer(a.batch_dir, a.db), ensure_ascii=False, indent=1))
+        return 0
     print(table(outcomes(a.batch_dir, a.db)))
     return 0
 

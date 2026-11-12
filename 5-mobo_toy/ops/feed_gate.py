@@ -43,6 +43,23 @@ def batch_dir(batch: str, root: pathlib.Path = ROOT) -> pathlib.Path | None:
     return hits[0] if len(hits) == 1 else None
 
 
+def approval_sha(d: pathlib.Path) -> list[tuple[str, str]]:
+    """判据文件和 approval.md 里记的 sha256 对不对得上（原字节或去 CR 后，任一个对上就算）。返回 [(种类, 说明)]：
+    "none" = approval.md 里一个 sha256 都没有；"mismatch" = 有，但没有一个是判据文件的。两个文件缺一个 → 空（由别的检查报）。
+    喂料门和 ops/judge.py 共用这一个函数。"""
+    g, a = d / "gates.py", d / "approval.md"
+    if not (g.exists() and a.exists()):
+        return []
+    raw = g.read_bytes()
+    shas = {hashlib.sha256(raw).hexdigest(), hashlib.sha256(raw.replace(b"\r\n", b"\n")).hexdigest()}
+    found = set(re.findall(r"\b[0-9a-f]{64}\b", a.read_text(encoding="utf-8", errors="replace")))
+    if not found:
+        return [("none", f"{d.name}/approval.md names no sha256")]
+    if not (found & shas):
+        return [("mismatch", f"{d.name}/approval.md sha256 does not match gates.py (frozen file changed?)")]
+    return []
+
+
 def check_batch_dir(d: pathlib.Path | None, require_review: bool = False) -> tuple[list[str], list[str]]:
     """Gates 2 and 3 on one batch directory. Returns (problems, warnings)."""
     problems, warnings = [], []
@@ -51,19 +68,27 @@ def check_batch_dir(d: pathlib.Path | None, require_review: bool = False) -> tup
     for f in REQUIRED:
         if not (d / f).exists():
             problems.append(f"{d.name}/{f} missing")
-    g = d / "gates.py"
     a = d / "approval.md"
-    if g.exists() and a.exists():
-        raw = g.read_bytes()
+    problems += [msg for _, msg in approval_sha(d)]
+    ri = d / "rows_in.json"                               # 行文件批次（stage_db v1.26）：行和判据一起冻结，approval.md 也要记它的 sha256
+    if ri.exists() and a.exists():
+        raw = ri.read_bytes()
         shas = {hashlib.sha256(raw).hexdigest(), hashlib.sha256(raw.replace(b"\r\n", b"\n")).hexdigest()}
-        found = set(re.findall(r"\b[0-9a-f]{64}\b", a.read_text(encoding="utf-8", errors="replace")))
-        if not found:
-            problems.append(f"{d.name}/approval.md names no sha256")
-        elif not (found & shas):
-            problems.append(f"{d.name}/approval.md sha256 does not match gates.py (frozen file changed?)")
+        if not (set(re.findall(r"\b[0-9a-f]{64}\b", a.read_text(encoding="utf-8", errors="replace"))) & shas):
+            problems.append(f"{d.name}/approval.md does not name the sha256 of rows_in.json (the rows are frozen with the gates; "
+                            f"LF sha256 {hashlib.sha256(raw.replace(b'\r\n', b'\n')).hexdigest()})")
     if not (d / "review.md").exists():
         (problems if require_review else warnings).append(f"{d.name}/review.md missing: no second-model review")
     return problems, warnings
+
+
+def rows_in_local(batch: str) -> tuple[pathlib.Path, str] | None:
+    """行文件批次：(本地的 rows_in.json, 去 CR 后的 sha256)。不是行文件批次 → None。"""
+    bd = batch_dir(batch)
+    ri = bd / "rows_in.json" if bd else None
+    if ri is None or not ri.exists():
+        return None
+    return ri, hashlib.sha256(ri.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
 def local_gates(batch: str, require_review: bool) -> tuple[list[str], list[str]]:
@@ -98,6 +123,16 @@ def linux_gates(batch: str) -> list[str]:
         problems.append(f"gate 5: Linux VERSION '{ver}' is not git={head}; run ops/deploy.py --files v2/stage_db.py first")
     if md5r != lf_md5((ROOT / "v2" / "stage_db.py").read_bytes()):
         problems.append("gate 5: Linux v2/stage_db.py differs from the local file")
+    ril = rows_in_local(batch)
+    if ril is not None:                                   # 行文件要先部署到 Linux，喂料器在那里读它
+        rel = f"experiments/{ril[0].parent.name}/rows_in.json"
+        if not re.fullmatch(r"experiments/[A-Za-z0-9_.-]+/rows_in\.json", rel):
+            problems.append(f"gate 5: batch directory name {ril[0].parent.name!r} is not safe to use in a remote command")
+        else:
+            got = R.sh(f"f=~/{R.RBASE}/code/{rel}; if [ -f $f ]; then tr -d '\\r' < $f | sha256sum | cut -c1-64; else echo MISSING; fi", timeout=60).strip()
+            if got != ril[1]:
+                problems.append(f"gate 5: Linux code/{rel} is {'missing' if got == 'MISSING' else 'different from the local file'}; "
+                                f"run ops/deploy.py --files {rel} first")
     if feeder.startswith("FEEDER_ALIVE"):
         problems.append(f"gate 6: a feeder for {batch} is alive ({feeder})")
     if stops.strip():
@@ -112,14 +147,15 @@ def linux_gates(batch: str) -> list[str]:
 
 def feed_tokens(batch: str) -> str:
     """来历（ops/provenance.py），写进喂料日志的那一行：完整提交号、未提交改动的条数、批次目录里 rows.json / gates.py /
-    approval.md 的 sha256。只含字母、数字、= 和空格，放进远端的 echo 不用再转义。"""
+    approval.md / rows_in.json（行文件批次才有，没有记 none）的 sha256。只含字母、数字、= 和空格，放进远端的 echo 不用再转义。"""
     sys.path.insert(0, str(ROOT / "ops"))
     import provenance
     bd = batch_dir(batch)
-    rec = provenance.record("feed", {k: (bd / f if bd else ROOT / "missing") for k, f in (("rows", "rows.json"), ("gates", "gates.py"), ("approval", "approval.md"))})
+    names = (("rows", "rows.json"), ("gates", "gates.py"), ("approval", "approval.md"), ("rows_in", "rows_in.json"))
+    rec = provenance.record("feed", {k: (bd / f if bd else ROOT / "missing") for k, f in names})
     g = rec["git"]
     out = f"commit={g.get('commit', 'unknown')} dirty={g.get('n_dirty', 'unknown')} " + " ".join(
-        f"{k}_sha256={(rec['inputs'][k] or {}).get('sha256', 'none')}" for k in ("rows", "gates", "approval"))
+        f"{k}_sha256={(rec['inputs'][k] or {}).get('sha256', 'none')}" for k, _ in names)
     if not re.fullmatch(r"[0-9A-Za-z_= ]+", out):
         raise SystemExit(f"feed_tokens: unexpected characters in {out!r}")
     return out

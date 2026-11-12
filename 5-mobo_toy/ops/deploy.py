@@ -2,6 +2,7 @@
 
     PYTHONUTF8=1 .venv-mobo/Scripts/python.exe ops/deploy.py --check                 # 只比对，不写（随时可跑）
     ... ops/deploy.py --files v2/stage_db.py v2/tests/x.py        # 推这些文件（必须已提交、已推到 j）
+    ... ops/deploy.py --files experiments/b34_x/rows_in.json      # 行文件批次的行文件：Linux 上没有这个目录时先建（只对 experiments/ 下的路径建）
     ... ops/deploy.py --files ... --allow-dirty                   # 例外：用户明确要求推未提交的文件时才用，VERSION 记 dirty
     ... ops/deploy.py --files ... --allow-aux-with-feeders        # 例外：用户明确要求在喂料器跑着时推辅助代码时才用
 
@@ -29,6 +30,9 @@ import time
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "v2"))
 import remote as R  # noqa: E402
+
+
+SAFE_REL = __import__("re").compile(r"[A-Za-z0-9_.+-]+(/[A-Za-z0-9_.+-]+)*")
 
 
 def lf_md5(b: bytes) -> str:
@@ -124,6 +128,8 @@ def main() -> int:
     for rel in rels:
         if not (ROOT / rel).exists():
             print(f"没有 {rel}"); return 1
+        if not SAFE_REL.fullmatch(rel):
+            print(f"路径 {rel!r} 里有不能放进远端命令的字符（只许字母、数字、/ . _ + -）"); return 1
     if not a.allow_dirty:
         bad = []
         for rel in rels:
@@ -147,7 +153,8 @@ def main() -> int:
     print(f"推 {len(rels)} 个文件到 Linux（HEAD {head}{'-dirty' if a.allow_dirty else ''}）…")
     for rel in rels:
         p = pathlib.PurePosixPath(rel)          # 按 LF 字节推，先写临时文件再改名，import 不会读到半个文件
-        R.sh(f"cd ~/{R.RBASE}/code/{p.parent} && cat > .{p.name}.new && mv .{p.name}.new {p.name}", stdin=(ROOT / rel).read_bytes().replace(b"\r\n", b"\n"), timeout=600)
+        mk = f"mkdir -p ~/{R.RBASE}/code/{p.parent} && " if rel.startswith("experiments/") else ""   # 行文件批次的 rows_in.json：批次目录在 Linux 上还没有
+        R.sh(f"{mk}cd ~/{R.RBASE}/code/{p.parent} && cat > .{p.name}.new && mv .{p.name}.new {p.name}", stdin=(ROOT / rel).read_bytes().replace(b"\r\n", b"\n"), timeout=600)
     rm = remote_md5(rels)
     bad = [rel for rel in rels if rm.get(rel) != lf_md5((ROOT / rel).read_bytes())]
     if bad:

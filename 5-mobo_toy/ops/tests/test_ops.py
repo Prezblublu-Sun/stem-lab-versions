@@ -13,6 +13,9 @@ I. deploy gate 5: the result files are the union of the two AUX_FILES lists; pus
    other files and an idle Linux pass; main() checks gate 5 before it writes anything to Linux.
 J. result_codes: every rule has a hand-written case and gives the expected class and code; an unknown reason falls through to
    unclassified; outcomes on a synthetic batch; judge on a temp copy of b28 leaves every gate as recorded and reports the one mesh failure.
+L. rows files in the gates: approval names their sha256, the guard freezes them, deploy makes the directory.  M. the judge compares the approved hash.
+N. one definition in several places: code hash, hashed files, auxiliary files; db_latest is looked up on disk.
+O. fetch_feed_manifests: where each manifest goes, byte-for-byte copies, the index, updates of manifests that moved on.
 K. provenance: the commit of HEAD; changed and untracked files in a temp repo; the cap; no repo -> an error entry, no exception;
    inputs hashed by content; the judge of b28 recorded HEAD and the hashes of its gates.py and of the database it read.
 """
@@ -237,6 +240,15 @@ try:
        and [(x["label"], x["code"]) for x in oc["not_ok"]] == [("R1", "not_converged"), ("R2", "prep_out_of_memory"), ("R3", "solve_aborted")], str(oc))
     ok("J: tell = what a selection strategy may be told: the result, failed, or nothing (ENV, UNKNOWN and rows the database lacks)",
        oc["tell"] == {"job0": "result", "job1": "failed", "job2": None, "job3": None, "job4": None}, str(oc["tell"]))
+    an = OC.answer(jb, jdb)
+    ok("J: answer = one entry per row in file order with class, code and what to tell; a row the database lacks has no class and tells nothing",
+       [(x["label"], x["klass"], x["code"], x["tell"]) for x in an["rows"]] == [("R0", "OK", "ok", "result"), ("R1", "NUMERIC", "not_converged", "failed"),
+                                                                                 ("R2", "ENV", "prep_out_of_memory", None), ("R3", "UNKNOWN", "solve_aborted", None), ("R4", None, None, None)]
+       and an["batch"] == "j_batch" and an["db"] == "j_db", str(an)[:300])
+    rc, out = run_script("ops/outcomes.py", [str(ROOT / "experiments" / "b28_fam"), "--db", str(DBROOT / "v0.12"), "--json"])
+    a28 = json.loads(out) if rc == 0 else {}
+    ok("J: outcomes --json on b28 / v0.12: 17 rows, 16 results and one failed (the mesh failure)", rc == 0 and len(a28.get("rows", [])) == 17
+       and [x["tell"] for x in a28["rows"]].count("result") == 16 and [(x["label"], x["tell"]) for x in a28["rows"] if x["tell"] != "result"] == [("FAM1_0o", "failed")], out[:200])
     ok("J: the table names the UNKNOWN row and says a person must look", "R3（solve_aborted）" in OC.table(oc) and "有 1 行待查" in OC.table(oc))
     ok("J: a batch without rows.json -> None, and the table says so", OC.outcomes(tmp / "b23_ow4", DBROOT / "v0.9") is None and "不报" in OC.table(None))
     r23 = json.loads((tmp / "b23_ow4" / "result.json").read_text(encoding="utf-8"))
@@ -303,10 +315,141 @@ try:
     ok("K: feed_tokens for b33: the commit of HEAD, the dirty count, and the sha256 of rows.json, gates.py and approval.md",
        tk["commit"] == head and tk["dirty"] == str(st["n_dirty"]) and all(
            tk[f"{k}_sha256"] == hashlib.sha256((b33 / f).read_bytes()).hexdigest() for k, f in (("rows", "rows.json"), ("gates", "gates.py"), ("approval", "approval.md"))), str(tk)[:200])
-    ok("K: feed_tokens for a batch that does not exist says none and stays shell-safe", FG.feed_tokens("b99zz").count("_sha256=none") == 3)
+    ok("K: feed_tokens for a batch that does not exist says none and stays shell-safe", FG.feed_tokens("b99zz").count("_sha256=none") == 4)
+    ok("K: b33 is not a rows-file batch: its rows_in token is none", tk["rows_in_sha256"] == "none")
+
+    # ---------------------------------------------------------------- L
+    import guard_pretooluse as GP
+    lb = tmp / "exp_l" / "experiments" / "b98_test"
+    lb.mkdir(parents=True)
+    gname = "gates" + ".py"
+    for f, txt in (("proposal.md", "p"), (gname, "GATES = {}\n"), ("rows.json", "{}"), ("review.md", "r")):
+        (lb / f).write_text(txt, encoding="utf-8")
+    (lb / "rows_in.json").write_bytes(b'{"format": "stage_db rows_in 1",\r\n "rows": []}\r\n')
+    gsha = hashlib.sha256((lb / gname).read_bytes()).hexdigest()
+    rsha_lf = hashlib.sha256((lb / "rows_in.json").read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+    (lb / "approval.md").write_text(f"approved\n{gsha}\n", encoding="utf-8")
+    pr, _ = FG.check_batch_dir(lb)
+    ok("L: a rows-file batch whose approval.md does not name the sha256 of rows_in.json is a problem", len(pr) == 1 and "rows_in.json" in pr[0] and rsha_lf in pr[0], str(pr))
+    (lb / "approval.md").write_text(f"approved\n{gsha}\nrows_in {rsha_lf}\n", encoding="utf-8")
+    ok("L: with the LF sha256 of rows_in.json in approval.md (the file on disk is CRLF) the batch dir passes", FG.check_batch_dir(lb) == ([], []))
+    (lb / "rows_in.json").write_bytes(b'{"format": "stage_db rows_in 1",\r\n "rows": [1]}\r\n')
+    ok("L: rows_in.json edited after approval is a problem", [x for x in FG.check_batch_dir(lb)[0] if "rows_in.json" in x])
+    saved_root = GP.ROOT
+    GP.ROOT = tmp / "exp_l"
+    try:
+        fz = [p.name for p in GP.frozen_paths()]
+        (lb / "approval.md").unlink()
+        fz0 = [p.name for p in GP.frozen_paths()]
+    finally:
+        GP.ROOT = saved_root
+    ok("L: the guard treats rows_in.json as frozen once approval.md exists, and not before", "rows_in.json" in fz and gname in fz and "rows_in.json" not in fz0, f"{fz} {fz0}")
+    dsrc = (ROOT / "ops" / "deploy.py").read_text(encoding="utf-8")
+    ok("L: deploy makes the directory only for experiments/ paths and refuses unsafe path characters",
+       'if rel.startswith("experiments/") else ""' in dsrc and DP.SAFE_REL.fullmatch("experiments/b34_x/rows_in.json") and DP.SAFE_REL.fullmatch("v2/stage_db.py")
+       and not DP.SAFE_REL.fullmatch("experiments/b34 x/rows_in.json") and not DP.SAFE_REL.fullmatch("a;b") and not DP.SAFE_REL.fullmatch("$(x)/y"))
+    ok("L: b33 has no rows file, so the feed gate asks Linux for nothing more", FG.rows_in_local("b33") is None and FG.rows_in_local("b99zz") is None)
+
+    # ---------------------------------------------------------------- M
+    ok("M: approval_sha: b33 matches, b28 (two hashes in approval.md) matches, b23 names none", FG.approval_sha(ROOT / "experiments" / "b33_r2cand") == []
+       and FG.approval_sha(ROOT / "experiments" / "b28_fam") == [] and [k for k, _ in FG.approval_sha(ROOT / "experiments" / "b23_ow4")] == ["none"])
+    ok("M: the judge of b23 went ahead with a reminder and recorded approval_sha = none; the judge of b28 recorded ok",
+       r23.get("approval_sha") == "none" and r28.get("approval_sha") == "ok", f"{r23.get('approval_sha')} {r28.get('approval_sha')}")
+    cm = tmp / "b28_changed"
+    shutil.copytree(ROOT / "experiments" / "b28_fam", cm)
+    gm = cm / ("gates" + ".py")
+    gm.write_bytes(gm.read_bytes() + b"\n# one byte more\n")
+    (cm / "result.json").unlink()
+    rc, out = run_script("ops/judge.py", [str(cm), "--db", str(DBROOT / rec28_db)])
+    ok("M: a judging file changed after approval is refused: exit 2, no result.json written", rc == 2 and "不判定" in out and not (cm / "result.json").exists(), f"rc {rc} {out[-120:]}")
+    ok("M: the judge of b28 recorded the feed manifest fetched from Linux, and null for the rows file it does not have",
+       pv28["inputs"]["feed_manifest"] == {"file": pv28["inputs"]["feed_manifest"]["file"], "sha256": hashlib.sha256((ROOT / "experiments" / "b28_fam" / "feed_manifest.json").read_bytes()).hexdigest()}
+       and pv28["inputs"]["rows_in"] is None, str(pv28["inputs"].get("feed_manifest"))[:120])
+    rc, out = run_script("ops/judge.py", [str(cm), "--db", str(DBROOT / rec28_db), "--replay"])
+    rm = json.loads((cm / "result.json").read_text(encoding="utf-8")) if (cm / "result.json").exists() else {}
+    ok("M: with --replay the same batch is judged with a reminder and result.json says approval_sha = mismatch",
+       rc in (0, 1) and rm.get("approval_sha") == "mismatch" and rm.get("replay") is True and "提醒" in out, f"rc {rc} {rm.get('approval_sha')}")
     fsrc = (ROOT / "ops" / "feed_gate.py").read_text(encoding="utf-8")
     ok("K: start_feeder puts the tokens into the feed log line", "tokens = feed_tokens(batch)" in fsrc and "{tokens}" in fsrc.split("def start_feeder")[1].split("db_feed_{batch}.out")[0])
     ok("K: the judge of b23 (no rows.json) recorded rows = None", r23.get("provenance", {}).get("inputs", {}).get("rows", 0) is None)
+
+    # ---------------------------------------------------------------- N
+    import ast
+    import re as _re
+    import check_facts as CF
+    sys.path.insert(0, str(ROOT / "tools"))
+    import db_export as DX
+    facts = json.loads((ROOT / "ops" / "facts.json").read_text(encoding="utf-8"))
+    sdb = (ROOT / "v2" / "stage_db.py").read_text(encoding="utf-8")
+    sjobs = (ROOT / "v2" / "jobs.py").read_text(encoding="utf-8")
+    db_hash = _re.search(r'^DB_CODE_HASH = "([0-9a-f]{10})"', sdb, _re.M).group(1)
+    ok("N: one code hash in three places: db_export, stage_db, facts.json", DX.EXPECTED_CODE_HASH == db_hash == facts["code_hash"], f"{DX.EXPECTED_CODE_HASH} {db_hash} {facts['code_hash']}")
+    jobs_files = ast.literal_eval(_re.search(r"for f in (\(\"femur_real\.py\".*?\)):", sjobs, _re.S).group(1))
+    ok("N: one list of hashed files in three places, in the same order: db_export, jobs.code_hash, facts.json",
+       tuple(DX.HASHED_FILES) == tuple(jobs_files) == tuple(f.split("/", 1)[1] for f in facts["hashed_files"]), f"{DX.HASHED_FILES} {jobs_files}")
+
+    def aux_of(rel):
+        tree = ast.parse((ROOT / rel).read_text(encoding="utf-8"))
+        return set(next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "AUX_FILES" for t in n.targets)))
+
+    feeder_aux, export_aux = aux_of("v2/stage_db.py"), aux_of("tools/db_export.py")
+    only_export = {"v2/bond_collar.py", "v2/import_stem.py", "v2/resorption.py", "v2/shielding.py"}   # they shape labels at export or belong to hooks no feeder batch uses
+    ok("N: the exporter's auxiliary files hold every one the feeder checks; the four more are the known ones",
+       feeder_aux <= export_aux and export_aux - feeder_aux == only_export, f"feeder only {sorted(feeder_aux - export_aux)}; export only {sorted(export_aux - feeder_aux)}")
+    ld = tmp / "latest_db"
+    for v, with_manifest in (("v0.9", True), ("v0.13", True), ("v0.14", True), ("v0.15", False), ("vX", True), ("raw", True)):
+        (ld / v).mkdir(parents=True)
+        if with_manifest:
+            (ld / v / "manifest.json").write_text("{}", encoding="utf-8")
+    ok("N: latest_db = the highest version by number that has a manifest (0.14, not 0.9; 0.15 without a manifest does not count)",
+       CF.latest_db(ld) == "v0.14" and CF.latest_db(tmp / "no_such_root") is None and CF.latest_db(tmp / "exp_l") is None, str(CF.latest_db(ld)))
+    ok("N: facts.json db_latest is the newest version on disk", CF.latest_db(CF.DB_ROOT) in (None, facts["db_latest"]), f"{CF.latest_db(CF.DB_ROOT)} {facts['db_latest']}")
+    saved_dbroot = CF.DB_ROOT
+    CF.DB_ROOT = ld
+    try:
+        c2, _, _ = CF.check([tmp / "bad" / "nothing_here"], {**facts, "db_latest": "v0.13"})
+    finally:
+        CF.DB_ROOT = saved_dbroot
+    ok("N: a stale db_latest is a conflict", len(c2) == 1 and "v0.14" in c2[0] and "v0.13" in c2[0], str(c2))
+
+    # ---------------------------------------------------------------- O
+    import fetch_feed_manifests as FM
+    fe = tmp / "fm" / "experiments"
+    (fe / "b90_one").mkdir(parents=True)
+    (fe / "b91_a").mkdir()
+    (fe / "b91_b").mkdir()
+    remote_m = {"b90": b'{"batch": "b90"}', "b91": b'{"batch": "b91"}', "b7m": b'{"batch": "b7m"}', "b2": b'{"batch": "b2"}'}
+    pl0 = FM.plan(remote_m, fe)
+    ok("O: a batch with one directory goes there; without one, or with two, it goes to the pool; nothing is written by the plan",
+       {e["batch"]: e["file"] for e in pl0} == {"b90": "experiments/b90_one/feed_manifest.json", "b91": "experiments/_feed_manifests/db_manifest_b91.json",
+                                               "b7m": "experiments/_feed_manifests/db_manifest_b7m.json", "b2": "experiments/_feed_manifests/db_manifest_b2.json"}
+       and all(e["state"] == "new" for e in pl0) and [e["batch"] for e in pl0] == ["b2", "b7m", "b90", "b91"] and not (fe / FM.POOL).exists(), str(pl0)[:300])
+    FM.write(remote_m, fe)
+    idx = json.loads((fe / FM.POOL / "index.json").read_text(encoding="utf-8"))
+    ok("O: write copies byte for byte and records the sha256 in the index", (fe / "b90_one" / "feed_manifest.json").read_bytes() == remote_m["b90"]
+       and idx["b90"]["sha256"] == hashlib.sha256(remote_m["b90"]).hexdigest() and idx["b2"]["bytes"] == len(remote_m["b2"]) and set(idx) == set(remote_m))
+    t_first = idx["b2"]["fetched_utc"]
+    remote_m["b2"] = b'{"batch": "b2", "more": 1}'
+    pl1 = FM.plan(remote_m, fe)
+    ok("O: a second look says same for the untouched ones and changed for the one that moved on", {e["batch"]: e["state"] for e in pl1} == {"b2": "changed", "b7m": "same", "b90": "same", "b91": "same"})
+    FM.write(remote_m, fe)
+    idx2 = json.loads((fe / FM.POOL / "index.json").read_text(encoding="utf-8"))
+    ok("O: the changed one is updated in place and in the index; the others keep their first fetch time",
+       (fe / FM.POOL / "db_manifest_b2.json").read_bytes() == remote_m["b2"] and idx2["b2"]["sha256"] == hashlib.sha256(remote_m["b2"]).hexdigest()
+       and idx2["b90"]["fetched_utc"] == idx["b90"]["fetched_utc"] and all(e["state"] == "same" for e in FM.plan(remote_m, fe)), f"{t_first} {idx2['b2']['fetched_utc']}")
+    real_idx = json.loads((ROOT / "experiments" / FM.POOL / "index.json").read_text(encoding="utf-8"))
+    bad_real = [b for b, e in real_idx.items() if hashlib.sha256((ROOT / e["file"]).read_bytes()).hexdigest() != e["sha256"]]
+    ok(f"O: the {len(real_idx)} manifests in the repo still have the sha256 the index recorded", len(real_idx) >= 34 and not bad_real, str(bad_real))
+
+    # ---------------------------------------------------------------- P
+    import state as ST
+    page = ST.to_html(["# STATE.md", "由 `ops/state.py` 生成，a < b & c。", "", "## 1 仓库", "| 项 | 值 |", "|---|---|", "| HEAD | `d53e8de` **脏** |", "| x | 1 > 0 |", "",
+                       "**worker.log 末 3 行**：", "```", "2026-11-10 <claimed> & pushed", "```", "- 一条", "- 两条"], "状态 <页>")
+    ok("P: the state page is one self-contained file: a table with a header row, headings, a code block, a list; text is escaped",
+       page.startswith("<!doctype html>") and "<th>项</th><th>值</th>" in page and "<td>HEAD</td><td><code>d53e8de</code> <b>脏</b></td>" in page
+       and "<h2>1 仓库</h2>" in page and "<pre>2026-11-10 &lt;claimed&gt; &amp; pushed</pre>" in page and "<li>一条</li><li>两条</li>" in page
+       and "a &lt; b &amp; c" in page and "<td>1 &gt; 0</td>" in page and "<title>状态 &lt;页&gt;</title>" in page
+       and "http" not in page and "<script" not in page and "---" not in page, page[:200])
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

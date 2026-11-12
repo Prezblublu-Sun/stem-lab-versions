@@ -9,7 +9,7 @@
 挡什么：
   1. 8 个哈希文件（docs/freeze/M1-3406-v1.json 列的）；
   2. docs/freeze/ 下的冻结清单和 tar；
-  3. experiments/<批次>/gates.py 在同目录出现 approval.md 之后（判据冻结）；
+  3. experiments/<批次>/gates.py 在同目录出现 approval.md 之后（判据冻结）；同目录的 rows_in.json 也一样（行文件批次，行冻结）；
   4. Bash 命令里出现对上述路径的 rm / mv / 重定向写（粗匹配）。
 """
 from __future__ import annotations
@@ -36,6 +36,8 @@ def frozen_paths() -> list[pathlib.Path]:
         for d in exp.iterdir():
             if (d / "approval.md").exists() and (d / "gates.py").exists():
                 out.append(d / "gates.py")
+            if (d / "approval.md").exists() and (d / "rows_in.json").exists():      # 行文件批次：行和判据一起冻结
+                out.append(d / "rows_in.json")
     return out
 
 
