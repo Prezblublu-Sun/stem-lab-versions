@@ -151,3 +151,13 @@ L1 到 L5 说在哪一步失败。类和名字说是哪一种、接下来怎么�
 - **两套"批次"编号是两回事。** 实验批次是 b1 到 b33（`experiments/`、`stage_db.py`）。导出的分片是 b000 到 b023（`db3406/<版本>/export/`、`fields/iface_b0xx_*.npz`），只是导出时按 60 行切的块，和实验批次没有对应关系。
 - **状态页**：`ops/state.py --html` 在 `STATE.md` 之外再写一个 `STATE.html`，自带数据，双击就能看。两个文件都是每次重新生成的，不进 git。
 - **`db_latest`** 现在由 `ops/check_facts.py` 对着磁盘上最大的版本目录查，不再对 `STATE.md`。
+
+## 14 操作员的检查入口（2026-11-12）
+
+一条命令把只读的检查都跑一遍：`PYTHONUTF8=1 .venv-mobo/Scripts/python.exe ops/check_all.py`（不连 Linux 加 `--no-linux`）。它什么都不改，不启动任何东西。
+
+- 两张表：系统 13 项（冻结、事实表、提交、推送、Linux 上的代码和冻结、serve、队列、磁盘、worker、数据库最新版本、是否发布），批次每个一行（各行的结局、判定结果）。
+- 三种判断：过 = 现在是对的；注意 = 不是错，但下一步会被它挡住或要人知道；不过 = 现在就是错的。有"不过"时退出码 1。
+- 状态页（`ops/state.py --html`，写 `STATE.html`）把同两张表放在最前面。看状态先看这一节。
+- 它不代替三道门：部署门（`ops/deploy.py`）、喂料门（`ops/feed_gate.py <批次> --check`）、发布（`tools/db_export.py publish`）各自还要跑。
+- 扭转定义 A 的行，作业号只在 Linux 上算才对：它的载荷角度是算出来的，Windows 和 Linux 末位不同（2026-11-12 用 b24 的清单查到，3 行）。行文件批次的 `rows.json` 一律从 Linux 干跑冻结。

@@ -63,7 +63,7 @@ TMP = pathlib.Path(tempfile.mkdtemp(prefix="gates_b34_"))
 
 
 def run(spec, edit=None):
-    """spec: lab -> (ratio, status, force_err) or None (not submitted); default 0.95, DONE, 1e-6."""
+    """spec: lab -> (ratio, status, force_err[, load_N]) or None (not submitted); default 0.95, DONE, 1e-6, 1714."""
     rows = []
     for lab, j in g.MAIN.items():
         s = spec.get(lab, (0.95, "DONE", 1e-6))
@@ -72,6 +72,7 @@ def run(spec, edit=None):
         bone = float(by_id[j]["bone_total_mm3"])
         r = {c: "" for c in cols}
         r.update(tag=g.tag_of(j) + "_F1714", job_id=f"j_sts_{lab}", status=s[1], bone_total_mm3=repr(bone), iface_force_err_load="" if s[2] is None else repr(s[2]),
+                 load_R_N=repr(s[3] if len(s) > 3 else 1714.0),
                  rot_first_deg="" if s[0] is None else repr(s[0] * 10 ** float(np.interp(bone / 1000, sb, sr))))
         rows.append(r)
     base = [dict(by_id[j]) for j in sorted(KEEP)]
@@ -96,6 +97,16 @@ try:
     ok("C: exactly 1.10 x A -> PASS (the limit is <=)", v["status"] == "PASS" and abs(v["value"] - 1.10) < 1e-3)
     v = run({"r2_08": (1.12, "DONE", 1e-6)})
     ok("C: one design at 1.12 x A -> FAIL, the design is named", v["status"] == "FAIL" and abs(v["value"] - 1.12) < 1e-3 and "['r2_08']" in v["note"])
+    v = run({"r2_08": (1.1004, "DONE", 1e-6)})
+    ok("C: 1.1004 x A -> FAIL: the comparison uses the unrounded ratio (review R2)", v["status"] == "FAIL" and v["value"] == 1.1004, str((v["status"], v["value"])))
+    v = run({"r2_06": (0.95, "DONE", 1e-6, 2391.0)})
+    ok("C: a row with the right tag but another load -> NA, not PASS (review R3)", v["status"] == "NA" and "不是 1714 N" in v["note"])
+    ok("C: the pass direction says what the gate does not show (review R1)", "没有 h 1.94 复核" in g.GATES["G56"] and "一样可以进后面的比较" not in g.GATES["G56"])
+    rj = HERE / "rows.json"
+    if rj.exists():
+        fz = {r["label"]: r["job_id"] for r in json.loads(rj.read_text(encoding="utf-8"))["rows"]}
+        ok("A: the frozen rows.json holds one job per design, with the tag the gate looks for", sorted(g.tag_of(j) for j in fz.values()) == sorted(g.tag_of(j) + "_F1714" for j in g.MAIN.values())
+           and all(j.startswith("db_cd_") for j in fz.values()), str(fz))
     v = run({"r2_08": (1.12, "DONE", 1e-6), "r2_05": (0.9, "FAILED", None)})
     ok("C: one over the limit and one failed row -> still FAIL", v["status"] == "FAIL" and "算失败" in v["note"])
     v = run({"r2_05": (None, "FAILED", None)})

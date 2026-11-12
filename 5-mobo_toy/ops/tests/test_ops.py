@@ -450,6 +450,86 @@ try:
        and "<h2>1 仓库</h2>" in page and "<pre>2026-11-10 &lt;claimed&gt; &amp; pushed</pre>" in page and "<li>一条</li><li>两条</li>" in page
        and "a &lt; b &amp; c" in page and "<td>1 &gt; 0</td>" in page and "<title>状态 &lt;页&gt;</title>" in page
        and "http" not in page and "<script" not in page and "---" not in page, page[:200])
+
+    # ---------------------------------------------------------------- Q
+    import copy
+    import check_all as CA
+    GOOD = {"freeze_rc": 0, "facts_rc": 0, "frozen_code_hash": "6d7af243d0", "linux_asked": True, "h_free_gb": 300.0,
+            "git": {"head": "abc1234", "pushed": True, "dirty_pipeline": [], "dirty_other": ["AGENTS.md"]},
+            "head_md5": {"v2/jobs.py": "11111111", "v2/stage_db.py": "22222222"},
+            "linux": {"version_git": "abc1234", "md5": {"v2/jobs.py": "11111111", "v2/stage_db.py": "22222222"}, "code_hash": "6d7af243d0", "serve": True, "feeders": [],
+                      "queue": {"NEW": 0, "READY": 0, "CLAIMED": 9, "SOLVED": 9, "DONE": 8, "FAILED": 1}, "ready_unclaimed": 0, "ready_oldest_min": 0, "root_free_gb": 145.0, "stop_flags": []},
+            "worker": {"alive": True, "stop": False, "paused": []},
+            "db": {"name": "v0.14", "n_rows": 1434, "exporter": "x", "has_qa": True, "qa_fails": ["1", "7", "13"], "published": "ok"},
+            "batches": [{"name": "b33_r2cand", "approved": True, "has_rows": True, "judged": True, "rows_in": False, "n_rows": 9, "by_class": {"OK": 9}, "n_not_in_db": 0,
+                         "judged_db": "v0.14", "gates": {"G53": "PASS"}}]}
+
+    def st(inp):
+        c, b = CA.evaluate(inp)
+        return {n: s for n, s, _ in c + b}, " | ".join(d for _, _, d in c + b)
+
+    def var(**over):
+        x = copy.deepcopy(GOOD)
+        for k, v in over.items():
+            if isinstance(v, dict) and isinstance(x.get(k), dict):
+                x[k].update(v)
+            else:
+                x[k] = v
+        return x
+    s, d = st(GOOD)
+    ok("Q: everything in order -> every item is 过; a FAIL verdict of a gate is a result, not a failed check", set(s.values()) == {CA.OK} and len(s) == 14, str(s))
+    ok("Q: the tables say so in one line and list both tables", CA.tables(*CA.evaluate(GOOD))[0].startswith("**没有不过的项**：过 14，注意 0，不过 0")
+       and "| 系统 | 判断 | 说明 |" in CA.tables(*CA.evaluate(GOOD)) and "| `b33_r2cand` | 过 | 9 行：OK 9；判定：G53 PASS（v0.14） |" in CA.tables(*CA.evaluate(GOOD)))
+    bad_cases = {"a broken freeze": (var(freeze_rc=1), "冻结的 8 个文件"), "a facts conflict": (var(facts_rc=1), "文档和事实表"),
+                 "Linux unreachable when it was asked": (var(linux=None), "队列"),
+                 "hashed files changed on Linux": (var(linux={"code_hash": "ffffffffff"}), "Linux 上的冻结"),
+                 "a paused worker": (var(worker={"paused": ["transport"]}), "worker"),
+                 "READY jobs waiting 90 min while the worker was not stopped": (var(linux={"ready_unclaimed": 2, "ready_oldest_min": 90}), "队列"),
+                 "a feeder alive without serve": (var(linux={"serve": False, "feeders": ["b34"]}), "serve"),
+                 "Linux root disk under 30 GB": (var(linux={"root_free_gb": 12.0}), "Linux 磁盘"), "H: under 50 GB": (var(h_free_gb=20.0), "本机磁盘"),
+                 "a new QA failure": (var(db={"qa_fails": ["1", "7", "9", "13"]}), "数据库最新版本"),
+                 "a published version that changed": (var(db={"published": "changed"}), "最新版本已发布"),
+                 "no database version": (var(db=None), "数据库最新版本")}
+    for label, (inp, item) in bad_cases.items():
+        s, d = st(inp)
+        ok(f"Q: {label} -> 不过 on that item", s[item] == CA.BAD, f"{item}: {s[item]}")
+    unk = var()
+    unk["batches"][0]["by_class"] = {"OK": 8, "UNKNOWN": 1}
+    s, d = st(unk)
+    ok("Q: a batch with a row that cannot be told apart -> 不过, and it says a person must look", s["b33_r2cand"] == CA.BAD and "要人看过" in d)
+    note_cases = {"uncommitted pipeline files": (var(git={"dirty_pipeline": ["v2/stage_db.py"]}), "管线文件已提交"), "HEAD not pushed": (var(git={"pushed": False}), "已推到 J:"),
+                  "a file on Linux that is not HEAD": (var(linux={"md5": {"v2/jobs.py": "11111111", "v2/stage_db.py": "33333333"}}), "Linux 上的代码是 HEAD"),
+                  "VERSION on Linux names another commit": (var(linux={"version_git": "0000000"}), "Linux 上的代码是 HEAD"),
+                  "the worker is not running": (var(worker={"alive": False}), "worker"), "serve down with nothing to do": (var(linux={"serve": False}), "serve"),
+                  "the latest version is not published": (var(db={"published": None}), "最新版本已发布"), "no QA report": (var(db={"has_qa": False, "qa_fails": []}), "数据库最新版本"),
+                  "READY jobs while the worker is away": (var(linux={"ready_unclaimed": 1, "ready_oldest_min": 5}, worker={"alive": False}), "队列")}
+    for label, (inp, item) in note_cases.items():
+        s, d = st(inp)
+        ok(f"Q: {label} -> 注意, not 不过", s[item] == CA.NOTE and CA.BAD not in s.values(), f"{item}: {s[item]}")
+    s, d = st(var(linux={"ready_unclaimed": 2, "ready_oldest_min": 90}, worker={"alive": False, "stop": True}))
+    ok("Q: READY jobs waiting long while the user stopped the worker -> not 不过", s["队列"] == CA.NOTE)
+    s, d = st(var(linux=None, linux_asked=False))
+    ok("Q: --no-linux -> the five Linux items are 未查, nothing is 不过", [s[k] for k in ("Linux 上的代码是 HEAD", "Linux 上的冻结", "serve", "队列", "Linux 磁盘")] == [CA.SKIP] * 5 and CA.BAD not in s.values())
+    nb = var()
+    nb["batches"] = [dict(GOOD["batches"][0], name="b34_r2sts", approved=False, rows_in=True), dict(GOOD["batches"][0], name="b35_x", n_not_in_db=4, by_class={}, judged=False, gates={}),
+                     dict(GOOD["batches"][0], name="b23_ow4", has_rows=False)]
+    s, d = st(nb)
+    ok("Q: a batch without approval, a batch whose rows are not exported, an old batch without rows.json -> 注意, 注意, 过",
+       (s["b34_r2sts"], s["b35_x"], s["b23_ow4"]) == (CA.NOTE, CA.NOTE, CA.OK) and "还不能喂" in d and "4 行不在最新版本里" in d)
+    lx = CA._linux({"VERSION": ["git=5ed2ada | deployed=2026-11-12T09:20:00Z", "mtime 2026-11-12 09:20"], "MD5": ["0123456789abcdef0123456789abcdef  v2/jobs.py"], "CODEHASH": ["6d7af243d0"],
+                    "PROCS": ["379307 /home/u/venv/bin/python code/v2/stage_v2a.py serve --n-prep 2", "400 /home/u/venv/bin/python code/v2/stage_db.py feed b34"],
+                    "QUEUE": ["NEW 1", "READY 2", "CLAIMED 3016", "SOLVED 3016", "DONE 3001", "FAILED 126"], "READY_AGE": ["75 db_cd_x", "3 db_cd_y"],
+                    "DISK": ["/dev/sda2 457G 289G 145G 67% /"], "FLAGS": ["DB_H14_REF_OK", "STOP_DB_FEED"]})
+    ok("Q: the Linux block is read: commit, md5, serve, feeder, queue, oldest READY, free disk, stop file",
+       lx == {"version_git": "5ed2ada", "md5": {"v2/jobs.py": "01234567"}, "code_hash": "6d7af243d0", "serve": True, "feeders": ["b34"],
+              "queue": {"NEW": 1, "READY": 2, "CLAIMED": 3016, "SOLVED": 3016, "DONE": 3001, "FAILED": 126}, "ready_unclaimed": 2, "ready_oldest_min": 75,
+              "root_free_gb": 145.0, "stop_flags": ["STOP_DB_FEED"]} and CA._linux({}) is None, str(lx))
+    import review_packet as RP2
+    b34 = ROOT / "experiments" / "b34_r2sts"
+    if (b34 / "rows_in.json").exists():
+        text, _ = RP2.build("b34")
+        ok("Q: the review packet of a row-file batch holds the row file and the source of build_file", "## rows_in.json" in text and '"base": "db_al_r2_05_e+1.5_07e94cd0"' in text
+           and "def build_file(batch: str)" in text and "no build_b34" not in text)
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

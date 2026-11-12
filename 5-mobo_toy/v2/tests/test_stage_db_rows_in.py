@@ -389,6 +389,27 @@ try:
     finally:
         DB._ALLOW_NON_LINUX = False
         DB.disk_free_gib, DB.femur_geom_key, DB.aux_md5 = saved
+
+    # ---------------------------------------------------------------- H
+    # The real row files of the repository: built here (Windows, the fake queue) they give the job ids frozen from the Linux dry run.
+    queue("real_files")
+    DB.ROWS_IN_ROOT = REAL_ROWS
+    n_real = 0
+    for ri in sorted(EXP.glob("b*_*/rows_in.json")):
+        fz = ri.parent / "rows.json"
+        doc = json.loads(ri.read_text(encoding="utf-8"))
+        absent = [r["base"] for r in doc.get("rows", []) if "base" in r and not (J.QROOT / r["base"] / "spec.json").exists()]
+        if not fz.exists() or absent:
+            print(f"SKIP H: {ri.parent.name}: " + ("no frozen rows.json yet" if not fz.exists() else f"base rows not in the local fake queue {absent[:2]}"), flush=True)
+            continue
+        b_real = DB.build(doc["batch"])
+        got = {r["key"]: r["expected_id"] for r in b_real["rows"]}
+        want = {r["label"]: r["job_id"] for r in json.loads(fz.read_text(encoding="utf-8"))["rows"]}
+        n_real += 1
+        ok(f"H: {ri.parent.name}: its row file builds on Windows the {len(want)} job ids frozen from the Linux dry run; the sha256 is that of the file",
+           got == want and len(want) > 0 and b_real["rows_in"]["sha256"] == DB.rows_in_sha256(doc["batch"]),
+           str({k: (got.get(k), v) for k, v in want.items() if got.get(k) != v})[:300] + f" problems {b_real['problems'][:2]}")
+    ok("H: b34 (the first row-file batch of the repository) was among them", n_real >= 1 or not (EXP / "b34_r2sts" / "rows.json").exists(), str(n_real))
 finally:
     J.QROOT, J.RESULTS, DB.ROWS_IN_ROOT = REAL_Q, REAL_R, REAL_ROWS
     shutil.rmtree(BASE, ignore_errors=True)

@@ -40,13 +40,13 @@ CHECKLIST = """## 审查清单（逐条回答，写进 review.md）
 """
 
 
-def builder_source(batch: str) -> str:
+def builder_source(batch: str, fn_name: str | None = None) -> str:
     src = (ROOT / "v2" / "stage_db.py").read_text(encoding="utf-8")
     tree = ast.parse(src)
     lines = src.splitlines()
-    fn = next((n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == f"build_{batch}"), None)
+    fn = next((n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == (fn_name or f"build_{batch}")), None)
     if fn is None:
-        return f"(no build_{batch} in v2/stage_db.py: the rows come from experiments/{batch}_*/batch.py)"
+        return f"(no {fn_name or 'build_' + batch} in v2/stage_db.py: the rows come from experiments/{batch}_*/batch.py)"
     body = "\n".join(lines[fn.lineno - 1:fn.end_lineno])
     names = {n.id for n in ast.walk(fn) if isinstance(n, ast.Name)}
     consts = []
@@ -68,7 +68,14 @@ def build(batch: str) -> tuple[str, pathlib.Path]:
         if (d / f).exists():
             parts.append(f"## {f}\n\n" + (d / f).read_text(encoding="utf-8", errors="replace") + "\n")
     parts.append("## gates.py\n\n```python\n" + (d / "gates.py").read_text(encoding="utf-8", errors="replace") + "\n```\n")
-    parts.append(f"## v2/stage_db.py 里的 build_{batch}\n\n" + builder_source(batch) + "\n")
+    ri = d / "rows_in.json"
+    if ri.exists():                                         # 行文件批次：行在 rows_in.json 里，建行的是通用的 build_file（或新设计的那一个）
+        doc = json.loads(ri.read_text(encoding="utf-8"))
+        fn_name = "_build_file_designs" if doc.get("form") == "new_designs" else "build_file"
+        parts.append("## rows_in.json\n\n```json\n" + ri.read_text(encoding="utf-8", errors="replace") + "\n```\n")
+        parts.append(f"## v2/stage_db.py 里的 {fn_name}（行文件批次共用）\n\n" + builder_source(batch, fn_name) + "\n")
+    else:
+        parts.append(f"## v2/stage_db.py 里的 build_{batch}\n\n" + builder_source(batch) + "\n")
     if (d / "rows.json").exists():
         rows = json.loads((d / "rows.json").read_text(encoding="utf-8"))
         parts.append("## rows.json\n\n```json\n" + json.dumps(rows, ensure_ascii=False, indent=1)[:4000] + "\n```\n")

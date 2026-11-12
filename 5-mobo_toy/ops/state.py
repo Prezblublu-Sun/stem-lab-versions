@@ -352,9 +352,12 @@ def main() -> int:
     t0 = time.time()
     git_rows, g = git_section()
     dep_rows, blocks = deploy_section(not a.no_linux)
+    import check_all as CA                                   # 操作员的检查入口：同两张表放在最前面；复用上面那一次 ssh 的输出
+    chk, bat = CA.evaluate(CA.gather(not a.no_linux, blocks))
     parts = [
         "# STATE.md",
         f"由 `ops/state.py` 生成于 {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}（本机时间 {time.strftime('%H:%M')}），不要手改。",
+        "", "## 0 检查总表", "同 `ops/check_all.py`。过 = 现在是对的；注意 = 不是错，但下一步会被它挡住或要人知道；不过 = 现在就是错的。", "", *CA.tables(chk, bat),
         "", "## 1 仓库", "| 项 | 值 |", "|---|---|", *git_rows,
         "", "## 2 冻结模型 M1-3406-v1", "| 项 | 值 | 判断 |", "|---|---|---|", *freeze_section(),
         "", "## 3 部署版本（HEAD / 本地工作区 / Linux）", *dep_rows,
