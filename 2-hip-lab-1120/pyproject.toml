@@ -1,0 +1,35 @@
+[project]
+name = "stem-lab"
+version = "1.0.0"
+description = "stem-lab 1.0：管实验的系统。把股骨重建、FEA、代理、优化四类计算接到同一本账上"
+requires-python = ">=3.12"
+dependencies = [
+    "psutil>=7",            # 查进程在不在。Windows 上不能用 os.kill(pid, 0)
+    # 下面是带代码的包和插件里“怎么算”要的。版本钉在旧内核（M1-3406-v1）验证过的那一组上，两台机器由同一份锁装出来
+    "numpy==2.5.3",
+    "scipy==1.18.1",
+    "gmsh==4.15.2",         # 内核划网格、重建读 STEP（自带 OCC 内核）
+    "shapely==2.1.2",
+    "contourpy==1.4.0",
+    "pyyaml==6.0.3",
+    "matplotlib==3.11.2",   # 旧内核导入时要它，不画图
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9",
+    "import-linter>=2.16",  # 块之间谁能用谁，八条规则
+]
+
+[tool.uv]
+package = false             # stemlab 和 plugins 从仓库根目录直接跑，不装成包
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "tests_free", "plugins"]  # 固定的验收在 tests/；自由代码的测试在 tests_free/ 和各插件自己的 tests/
+pythonpath = ["."]
+addopts = "-q -p no:cacheprovider"
+markers = [
+    "cross: 要连上 Linux 那台才能跑的跨机测试",
+    "science: 物理上对不对，算例和容差由人定，不交给 AI",
+    "swap: 把界面和仪表盘整个换一份写法，再把固定的测试跑一遍；要几分钟",
+]

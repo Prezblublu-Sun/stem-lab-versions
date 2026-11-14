@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "machines": [
+    {
+      "name": "win",
+      "role": "desk",
+      "host": "DESKTOP-LQNAMNB",
+      "slots": 3
+    },
+    {
+      "name": "linux",
+      "role": "worker",
+      "host": "linuxworkstation",
+      "connect": {
+        "ssh": "linux-user@<linux-ip>",
+        "port": 22,
+        "options": ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "ServerAliveInterval=30"],
+        "bin": "C:/Windows/System32/OpenSSH"
+      },
+      "python": "/home/linux-user/stemlab-env/venv/bin/python",
+      "job_root": "/home/linux-user/stemlab-jobs",
+      "backup_root": "/home/linux-user/stemlab-backup"
+    }
+  ]
+}

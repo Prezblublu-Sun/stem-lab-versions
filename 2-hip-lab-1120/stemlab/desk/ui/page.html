@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>stem-lab 操作台</title>
+<style>
+  :root { --bg: #f6f7f8; --card: #fff; --ink: #1c2126; --soft: #5d6873; --line: #dfe3e7; --accent: #1f6feb; --bad: #b42318; --good: #1a7f37; --warn: #9a6700; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14171a; --card: #1d2125; --ink: #e6e9ec; --soft: #9aa5b1; --line: #30363d; --accent: #6ea8fe; --bad: #ff7b72; --good: #56d364; --warn: #e3b341; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 system-ui, "Microsoft YaHei", sans-serif; }
+  header { display: flex; gap: 16px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--card); flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0; }
+  nav button, button { font: inherit; padding: 4px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink); cursor: pointer; }
+  nav button.on { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: .45; cursor: default; }
+  main { display: grid; grid-template-columns: minmax(240px, 320px) 1fr; gap: 16px; padding: 16px; align-items: start; }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; overflow-x: auto; }
+  .card h2 { font-size: 14px; margin: 0 0 8px; }
+  .row { padding: 6px 8px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; }
+  .row:hover { background: var(--bg); }
+  .row.on { border-color: var(--accent); }
+  .soft { color: var(--soft); } .bad { color: var(--bad); } .good { color: var(--good); } .warn { color: var(--warn); }
+  .tag { display: inline-block; padding: 0 8px; border: 1px solid var(--line); border-radius: 10px; font-size: 12px; margin-right: 6px; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 4px 10px 4px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--soft); font-weight: 500; white-space: nowrap; }
+  input, select { font: inherit; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink); }
+  .bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+  pre { margin: 0; white-space: pre-wrap; word-break: break-all; font: 12px/1.45 ui-monospace, Consolas, monospace; }
+  svg text { fill: var(--soft); font-size: 11px; }
+  #said { min-height: 1.5em; }
+</style>
+</head>
+<body>
+<header>
+  <h1>stem-lab 操作台</h1>
+  <nav>
+    <button data-tab="experiments" class="on">实验</button>
+    <button data-tab="cases">骨（case）</button>
+    <button data-tab="items">登记的东西</button>
+  </nav>
+  <span id="said" class="soft"></span>
+</header>
+<main>
+  <div id="side"></div>
+  <div id="detail"></div>
+</main>
+<script>
+"use strict";
+const COLORS = ["#1f6feb", "#d1242f", "#1a7f37", "#9a6700", "#8250df", "#0a7ea4"];
+const state = { tab: "experiments", chosen: null, timer: null, types: null };
+const $ = (id) => document.getElementById(id);
+
+function el(tag, text, cls) {
+  const node = document.createElement(tag);
+  if (text !== undefined && text !== null) node.textContent = String(text);
+  if (cls) node.className = cls;
+  return node;
+}
+function say(text, cls) { const node = $("said"); node.textContent = text || ""; node.className = cls || "soft"; }
+async function get(path) {
+  const answer = await fetch(path, { cache: "no-store" });
+  const body = await answer.json();
+  if (!answer.ok) throw new Error(body.error || answer.status);
+  return body;
+}
+async function act(body) {
+  const answer = await fetch("/api/do", { method: "POST", body: JSON.stringify(body),
+    headers: { "Content-Type": "application/json", "X-Stemlab-Write": "1" } });
+  const said = await answer.json();
+  if (!said.ok) { say("被拒：" + said.refused, "bad"); return null; }
+  if (said.result && said.result.ran === false) say("插件出错：" + said.result.error, "bad"); else say("做了：" + body.op, "good");
+  return said;
+}
+function card(title) { const box = el("div", null, "card"); if (title) box.append(el("h2", title)); return box; }
+function table(columns, rows) {
+  const made = el("table"), head = el("tr");
+  columns.forEach((name) => head.append(el("th", name)));
+  made.append(head);
+  rows.forEach((cells) => { const line = el("tr"); cells.forEach((cell) => line.append(cell instanceof Node ? wrap(cell) : el("td", cell === null || cell === undefined ? "" : cell))); made.append(line); });
+  return made;
+}
+function wrap(node) { const cell = el("td"); cell.append(node); return cell; }
+function seconds(value) {
+  if (value === null || value === undefined) return "";
+  return value < 90 ? Math.round(value) + " 秒" : value < 5400 ? Math.round(value / 60) + " 分" : (value / 3600).toFixed(1) + " 时";
+}
+function itemText(item) { return item.id + " " + item.name + " v" + item.version + (item.bone_id ? "（" + item.bone_id + "）" : ""); }
+
+// ---------------------------------------------------------------- 图：数据由插件给，这里统一画
+function plot(form, data) {
+  const W = 560, H = 272, L = 56, B = 34, T = 24, R = 12;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.style.maxWidth = W + "px"; svg.style.width = "100%";
+  const add = (tag, attrs, text) => { const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, value)); if (text !== undefined) node.textContent = text; svg.append(node); return node; };
+  const number = (value) => typeof value === "number" && isFinite(value);
+  let xs = [], ys = [];
+  svg.legend = [];
+  const series = form === "bar" ? [{ name: "", x: data.values.map((_, index) => index), y: data.values }] : (data.series || []);
+  series.forEach((one) => one.x.forEach((value, index) => { if (number(value) && number(one.y[index])) { xs.push(value); ys.push(one.y[index]); } }));
+  if (!xs.length) { add("text", { x: L, y: H / 2 }, "还没有数"); return svg; }
+  let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  if (form === "bar") { x0 = -0.5; x1 = data.values.length - 0.5; y0 = Math.min(0, y0); }
+  if (x0 === x1) { x0 -= 1; x1 += 1; } if (y0 === y1) { y0 -= 1; y1 += 1; }
+  const px = (value) => L + (value - x0) / (x1 - x0) * (W - L - R), py = (value) => H - B - (value - y0) / (y1 - y0) * (H - B - T);
+  const short = (value) => Math.abs(value) >= 1e4 || (Math.abs(value) < 1e-2 && value !== 0) ? value.toExponential(1) : String(+value.toPrecision(3));
+  add("line", { x1: L, y1: H - B, x2: W - R, y2: H - B, stroke: "currentColor", "stroke-opacity": .35 });
+  add("line", { x1: L, y1: T, x2: L, y2: H - B, stroke: "currentColor", "stroke-opacity": .35 });
+  [y0, (y0 + y1) / 2, y1].forEach((value) => add("text", { x: L - 6, y: py(value) + 4, "text-anchor": "end" }, short(value)));
+  if (form === "bar") {
+    const width = (W - L - R) / data.values.length * 0.7;
+    data.values.forEach((value, index) => { if (!number(value)) return;
+      add("rect", { x: px(index) - width / 2, y: Math.min(py(value), py(0)), width, height: Math.abs(py(value) - py(0)), fill: COLORS[0] });
+      add("text", { x: px(index), y: H - B + 14, "text-anchor": "middle" }, String(data.labels[index]).slice(0, 12)); });
+    if (data.unit) add("text", { x: 4, y: 12 }, data.unit);
+  } else {
+    [x0, (x0 + x1) / 2, x1].forEach((value) => add("text", { x: px(value), y: H - B + 14, "text-anchor": "middle" }, short(value)));
+    series.forEach((one, order) => { const color = COLORS[order % COLORS.length], dots = [];
+      one.x.forEach((value, index) => { if (number(value) && number(one.y[index])) dots.push([px(value), py(one.y[index])]); });
+      if (form === "line" && dots.length > 1) add("polyline", { points: dots.map((dot) => dot.join(",")).join(" "), fill: "none", stroke: color, "stroke-width": 1.5 });
+      dots.forEach((dot) => add("circle", { cx: dot[0], cy: dot[1], r: form === "line" ? 2 : 2.6, fill: color }));
+      svg.legend.push([one.name, color]); });
+    add("text", { x: (L + W - R) / 2, y: H - 4, "text-anchor": "middle" }, data.x_label || "");
+    add("text", { x: 4, y: 12 }, data.y_label || "");
+  }
+  return svg;
+}
+function drawChart(shown) {
+  const box = card(shown.label + "（" + shown.name + "）");
+  if (shown.error) { box.append(el("div", "取这张图出错了（只显示在这里，不进记录）：" + shown.error, "bad")); return box; }
+  const data = shown.data || {};
+  if (shown.form === "table") box.append(table(data.columns || [], (data.rows || []).slice(0, 300)));
+  else if (shown.form === "image") { const picture = el("img"); picture.src = data.src || ""; picture.alt = shown.label; picture.style.maxWidth = "100%"; box.append(picture); }
+  else {
+    const drawn = plot(shown.form, data), legend = el("div", null, "bar");
+    (drawn.legend || []).forEach(([name, color]) => { if (name) { const mark = el("span", "● " + name); mark.style.color = color; legend.append(mark); } });
+    box.append(drawn, legend);
+  }
+  return box;
+}
+
+// ---------------------------------------------------------------- 实验页
+async function showExperiment(id) {
+  let found;
+  try { found = await get("/api/experiment/" + encodeURIComponent(id)); } catch (error) { $("detail").replaceChildren(el("div", "读不出这个实验：" + error.message, "bad")); return; }
+  const head = card(found.id + "  " + found.type);
+  head.append(el("span", found.label, "tag"), el("span", found.note, "soft"));
+  found.tags.forEach((tag) => head.append(el("span", tag, "tag")));
+  if (found.plugin_missing) head.append(el("div", "这个类型的插件现在装不上：能看，不能启动", "warn"));
+  const bar = el("div", null, "bar"), names = el("input"); names.placeholder = "点名重排的任务，空格隔开（可不填）"; names.size = 30;
+  const button = (text, enabled, run) => { const made = el("button", text); made.disabled = !enabled; made.onclick = async () => { await run(); refresh(); }; bar.append(made); };
+  button("启动", found.can.start, () => act({ op: "start", experiment: id, rerun: names.value.split(/\s+/).filter(Boolean) }));
+  bar.append(names);
+  button("停止", found.can.stop, () => act({ op: "stop", experiment: id }));
+  button("看一遍", found.rounds.length > 0, () => act({ op: "poll", experiment: id }));
+  button("克隆", true, async () => { const said = await act({ op: "clone", experiment: id }); if (said) state.chosen = said.result; });
+  head.append(bar);
+  const noteBar = el("div", null, "bar"), note = el("input"); note.placeholder = "加一条备注"; note.size = 40;
+  const save = el("button", "记下"); save.onclick = async () => { if (note.value.trim()) { await act({ op: "note", experiment: id, text: note.value }); refresh(); } };
+  noteBar.append(note, save); head.append(noteBar);
+  found.notes.forEach((one) => head.append(el("div", one.time + "  " + one.text, "soft")));
+
+  const inputs = card(found.frozen ? "输入（已经存定）" : "输入（第一次启动时存定）");
+  inputs.append(table(["输入", "收什么", "填的是", ""], found.inputs.map((row) => {
+    const box = el("span");
+    if (!found.frozen) { const ids = el("input"); ids.value = row.items.map((item) => item.id).join(" "); ids.size = 18; ids.placeholder = "编号";
+      const fill = el("button", "填"); fill.onclick = async () => { await act({ op: "fill", experiment: id, input: row.name, items: ids.value.split(/\s+/).filter(Boolean) }); refresh(); };
+      box.append(ids, " ", fill); }
+    return [(row.label || row.name) + (row.required ? "" : "（可选）"), row.kinds.join(" / ") + (row.many ? "，可多份" : ""),
+            row.items.map(itemText).join("；") || "还没填", box];
+  })));
+
+  const tasks = card("任务");
+  tasks.append(table(["任务", "状态", "结局", "阶段", "机器", "第几轮", "上次报是"], found.tasks.map((task) =>
+    [task.name, task.state, task.outcome ? (task.outcome_label || task.outcome) + "（" + task.category + "）" : "", task.stage, task.machine, task.round, seconds(task.seconds_since) + (task.seconds_since === null ? "" : "前")])));
+
+  const rounds = card("各轮");
+  found.rounds.slice().reverse().forEach((one) => {
+    rounds.append(el("div", `第 ${one.number} 轮　${one.result_label}${one.reason ? "：" + one.reason : ""}　用了 ${seconds(one.seconds)}` + (one.rerun.length ? "　重排 " + one.rerun.join(" ") : "")));
+    Object.entries(one.outputs).forEach(([name, item]) => { const line = el("div", "产物 " + name + " → " + itemText(item), "good"); line.style.cursor = "pointer"; line.onclick = () => showItem(item.id); rounds.append(line); });
+    const more = el("details"); more.append(el("summary", "这一轮的来历")); more.append(el("pre", JSON.stringify({ provenance: one.provenance, extra: one.extra }, null, 1))); rounds.append(more);
+  });
+  const problems = card("最近的问题");
+  if (!found.problems.length) problems.append(el("div", "没有", "soft"));
+  found.problems.slice().reverse().forEach((problem) => problems.append(el("div", `第 ${problem.round} 轮${problem.task ? "　" + problem.task : ""}　${problem.error}` + (problem.count > 1 ? `（连着 ${problem.count} 次）` : ""), "bad")));
+
+  const boxes = [head, inputs, tasks, rounds, problems];
+  for (const chart of found.charts) {
+    try { boxes.push(drawChart(await get(`/api/experiment/${encodeURIComponent(id)}/chart/${encodeURIComponent(chart.name)}`))); }
+    catch (error) { boxes.push(drawChart({ ...chart, error: error.message })); }
+  }
+  if (state.chosen === id && state.tab === "experiments") $("detail").replaceChildren(...boxes);
+}
+async function showExperiments() {
+  const listed = await get("/api/experiments");
+  if (!state.types) state.types = await get("/api/types");
+  const side = card("新建实验"), kind = el("select"), note = el("input"), make = el("button", "新建");
+  state.types.types.forEach((one) => { const option = el("option", one.name + "　" + one.label); option.value = one.name; kind.append(option); });
+  note.placeholder = "这个实验是做什么的"; note.style.width = "100%"; kind.style.width = "100%";
+  make.onclick = async () => { const said = await act({ op: "new", type: kind.value, note: note.value }); if (said) { state.chosen = said.result; refresh(); } };
+  side.append(kind, note, make);
+  Object.entries(state.types.errors).forEach(([name, why]) => side.append(el("div", "插件 " + name + " 装不上：" + why, "bad")));
+  const list = card("全部实验（" + listed.length + "）");
+  listed.slice().reverse().forEach((one) => {
+    const row = el("div", null, "row" + (one.id === state.chosen ? " on" : ""));
+    row.append(el("div", one.id + "  " + one.type), el("div", one.label + "　第 " + one.round + " 轮" + (one.problems ? "　问题 " + one.problems : ""), one.problems ? "warn" : "soft"), el("div", one.note, "soft"));
+    row.onclick = () => { state.chosen = one.id; refresh(); };
+    list.append(row);
+  });
+  $("side").replaceChildren(side, list);
+  if (state.chosen) await showExperiment(state.chosen); else $("detail").replaceChildren(el("div", "从左边挑一个实验，或者新建一个。", "soft"));
+}
+
+// ---------------------------------------------------------------- 登记的东西、case 页
+async function showItem(id) {
+  const found = await get("/api/item/" + encodeURIComponent(id));
+  const box = card(itemText(found.item) + "　" + (state.types ? state.types.kinds[found.item.kind] : found.item.kind));
+  box.append(el("div", "登记于 " + found.item.time + "　存法 " + found.item.storage, "soft"), el("div", "哈希 " + found.item.hash, "soft"));
+  box.append(el("pre", typeof found.content === "string" ? found.content : JSON.stringify(found.content, null, 1)));
+  const up = card("它是怎么来的"); up.append(el("pre", JSON.stringify(found.upstream, null, 1)));
+  const down = card("谁用了它"); down.append(el("pre", JSON.stringify(found.downstream, null, 1)));
+  $("detail").replaceChildren(box, up, down);
+}
+async function showItems(onlyCases) {
+  const listed = await get("/api/items");
+  if (!state.types) state.types = await get("/api/types");
+  const shown = listed.filter((item) => !onlyCases || item.id.startsWith("C"));
+  const list = card(onlyCases ? "骨这一层的东西（" + shown.length + "）" : "登记的东西（" + shown.length + "）");
+  shown.slice().reverse().forEach((item) => {
+    const row = el("div", null, "row");
+    row.append(el("div", itemText(item)), el("div", state.types.kinds[item.kind] + "　" + item.time, "soft"));
+    row.onclick = () => (onlyCases ? showCase(item.id) : showItem(item.id));
+    list.append(row);
+  });
+  $("side").replaceChildren(list);
+  $("detail").replaceChildren(el("div", "从左边挑一样。", "soft"));
+}
+async function showCase(id) {
+  const found = await get("/api/case/" + encodeURIComponent(id));
+  const box = card(itemText(found.case) + " 下面有什么");
+  box.append(table(["为什么在这下面", "是什么"], found.under.map((row) => {
+    const what = el("span", row.experiment ? row.experiment : itemText(row.item)); what.style.cursor = "pointer"; what.style.color = "var(--accent)";
+    what.onclick = () => { if (row.experiment) { state.tab = "experiments"; state.chosen = row.experiment; tabs(); refresh(); } else showItem(row.item.id); };
+    return [row.why, what];
+  })));
+  $("detail").replaceChildren(box);
+}
+
+function tabs() { document.querySelectorAll("nav button").forEach((button) => button.classList.toggle("on", button.dataset.tab === state.tab)); }
+async function refresh() {
+  try {
+    if (state.tab === "experiments") await showExperiments();
+  } catch (error) { say("读不出来：" + error.message, "bad"); }
+}
+document.querySelectorAll("nav button").forEach((button) => { button.onclick = async () => {
+  state.tab = button.dataset.tab; tabs();
+  try { if (state.tab === "experiments") await showExperiments(); else await showItems(state.tab === "cases"); } catch (error) { say("读不出来：" + error.message, "bad"); }
+}; });
+refresh();
+state.timer = setInterval(() => { if (state.tab === "experiments" && !document.querySelector("input:focus, select:focus")) refresh(); }, 5000);
+</script>
+</body>
+</html>

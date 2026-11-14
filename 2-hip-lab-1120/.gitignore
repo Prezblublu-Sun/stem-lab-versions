@@ -1,0 +1,10 @@
+# 数据不进 git
+/data/
+
+# 环境和缓存
+/.venv/
+/.cache/
+__pycache__/
+*.pyc
+/.pytest_cache/
+/.import_linter_cache/

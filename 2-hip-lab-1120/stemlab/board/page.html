@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>stem-lab 仪表盘</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --line: #dfe3e8; --text: #1c2430; --dim: #667085;
+    --ok: #1a7f4b; --warn: #b54708; --bad: #b42318; --run: #175cd3; --bar: #e4e7ec; --fill: #5b8def;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161c; --card: #1a2029; --line: #2c3540; --text: #e6e9ee; --dim: #98a2b3;
+      --ok: #47cd89; --warn: #fdb022; --bad: #f97066; --run: #84adff; --bar: #2c3540; --fill: #5b8def;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text);
+         font: 14px/1.5 system-ui, "Microsoft YaHei", "PingFang SC", sans-serif; }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  h1 { font-size: 18px; margin: 0; }
+  h2 { font-size: 14px; margin: 20px 0 8px; color: var(--dim); font-weight: 600; }
+  .dim { color: var(--dim); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+  .dot.off { background: var(--bad); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-width: 0; }
+  .card h3 { margin: 0 0 6px; font-size: 14px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .tag { font-size: 12px; padding: 0 6px; border-radius: 10px; border: 1px solid var(--line); color: var(--dim); white-space: nowrap; }
+  .tag.run { color: var(--run); border-color: var(--run); }
+  .tag.ok { color: var(--ok); border-color: var(--ok); }
+  .tag.warn { color: var(--warn); border-color: var(--warn); }
+  .tag.bad { color: var(--bad); border-color: var(--bad); }
+  .meter { display: grid; grid-template-columns: 4.5em 1fr auto; gap: 8px; align-items: center; margin: 3px 0; }
+  .bar { height: 6px; border-radius: 3px; background: var(--bar); overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--fill); }
+  .bar i.high { background: var(--warn); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--dim); font-weight: 500; font-size: 12px; }
+  tr:last-child td { border-bottom: 0; }
+  td.wide { word-break: break-word; }
+  .alert { padding: 6px 10px; border-radius: 6px; margin: 4px 0; background: var(--card); border: 1px solid var(--line); border-left-width: 4px; }
+  .alert.warn { border-left-color: var(--warn); }
+  .alert.info { border-left-color: var(--run); }
+  .scroll { overflow-x: auto; }
+  .empty { color: var(--dim); padding: 4px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>stem-lab 仪表盘</h1>
+  <span><span class="dot" id="dot"></span> <span class="dim" id="when">正在读……</span></span>
+  <span class="dim">只读：这里不能操作实验，也不会让任务往前走</span>
+</header>
+
+<h2>告警</h2><div id="alerts"></div>
+<h2>机器</h2><div class="grid" id="machines"></div>
+<h2>在跑和排队的</h2><div class="grid" id="running"></div>
+<h2>刚结束的</h2><div class="card scroll" id="recent"></div>
+<h2>最近的问题</h2><div class="card scroll" id="problems"></div>
+<h2>还没启动的</h2><div class="card scroll" id="waiting"></div>
+
+<script>
+"use strict";
+const TASK = {queued: "排队", running: "运行", done: "完成", failed: "失败", stopped: "停止"};
+const TASK_STYLE = {queued: "", running: "run", done: "ok", failed: "bad", stopped: "warn"};
+const RESULT_STYLE = {done: "ok", failed: "bad", stopped: "warn", start_failed: "bad"};
+
+function el(tag, text, cls) {
+  const node = document.createElement(tag);
+  if (text !== undefined && text !== null) node.textContent = String(text);
+  if (cls) node.className = cls;
+  return node;
+}
+function fill(id, children) {
+  const box = document.getElementById(id);
+  box.replaceChildren(...children);
+}
+function ago(seconds) {
+  if (seconds === null || seconds === undefined || isNaN(seconds)) return "";
+  if (seconds < 90) return Math.max(0, Math.round(seconds)) + " 秒前";
+  if (seconds < 5400) return Math.round(seconds / 60) + " 分钟前";
+  if (seconds < 172800) return Math.round(seconds / 3600) + " 小时前";
+  return Math.round(seconds / 86400) + " 天前";
+}
+function since(stamp, now) {
+  return stamp ? ago(now - Date.parse(stamp) / 1000) : "";
+}
+function meter(label, percent, text) {
+  const row = el("div", null, "meter");
+  row.append(el("span", label, "dim"));
+  const bar = el("div", null, "bar"), inner = el("i", null, percent > 90 ? "high" : "");
+  inner.style.width = Math.max(0, Math.min(100, percent || 0)) + "%";
+  bar.append(inner);
+  row.append(bar, el("span", text));
+  return row;
+}
+function table(heads, rows) {
+  if (!rows.length) return el("div", "没有", "empty");
+  const made = el("table"), head = el("tr");
+  heads.forEach(text => head.append(el("th", text)));
+  made.append(head);
+  rows.forEach(cells => {
+    const line = el("tr");
+    cells.forEach(cell => line.append(cell instanceof Node ? cell : el("td", cell, "wide")));
+    made.append(line);
+  });
+  return made;
+}
+function cell(node) { const td = el("td"); td.append(node); return td; }
+
+function machineCard(row) {
+  const card = el("div", null, "card"), title = el("h3");
+  title.append(el("span", row.name), el("span", row.host, "dim"),
+               el("span", row.role === "desk" ? "操作台" : "worker", "tag"));
+  card.append(title);
+  const slots = row.slots ? "在跑的任务 " + row.running_tasks + "，求解槽 " + row.slots : "在跑的任务 " + row.running_tasks;
+  card.append(el("div", slots));
+  if (!row.watched) {
+    card.append(el("div", "没有开远端读数。同意了送到远端的那几条读的命令之后，把 board.json 的 remote 写成 true", "dim"));
+    return card;
+  }
+  if (row.cpu !== null && row.cpu !== undefined) card.append(meter("CPU", row.cpu, row.cpu + "%" + (row.cores ? " · " + row.cores + " 线程" : "")));
+  if (row.memory) card.append(meter("内存", row.memory.percent, row.memory.used_gb + " / " + row.memory.total_gb + " GB"));
+  (row.gpus || []).forEach(gpu => {
+    card.append(meter("GPU", gpu.percent, gpu.percent + "% · " + gpu.name));
+    card.append(meter("显存", 100 * gpu.memory_used_mb / gpu.memory_total_mb,
+                      Math.round(gpu.memory_used_mb) + " / " + Math.round(gpu.memory_total_mb) + " MB"));
+  });
+  if (row.gpu_processes) card.append(el("div", "GPU 上的进程：" + row.gpu_processes, "dim"));
+  (row.disks || []).forEach(disk => card.append(meter(disk.path, disk.percent, "剩 " + disk.free_gb + " GB")));
+  if (row.error) card.append(el("div", row.error, "dim"));
+  else if (!row.here && row.age !== null) card.append(el("div", "读数：" + ago(row.age), "dim"));
+  return card;
+}
+
+function experimentCard(one, now) {
+  const card = el("div", null, "card"), title = el("h3");
+  title.append(el("span", one.id), el("span", one.type, "dim"), el("span", one.label, "tag run"),
+               el("span", "第 " + one.round + " 轮", "tag"));
+  one.bones.forEach(bone => title.append(el("span", bone, "tag")));
+  card.append(title);
+  if (one.note) card.append(el("div", one.note, "dim"));
+  const counts = el("div");
+  Object.keys(TASK).forEach(state => {
+    if (one.counts[state]) counts.append(el("span", TASK[state] + " " + one.counts[state], "tag " + TASK_STYLE[state]), " ");
+  });
+  counts.append(el("span", "开始于 " + since(one.opened, now), "dim"));
+  card.append(counts);
+  const rows = one.tasks.filter(task => task.round === one.round || task.state === "queued" || task.state === "running")
+    .map(task => [task.name, cell(el("span", TASK[task.state] || task.state, "tag " + (TASK_STYLE[task.state] || ""))),
+                  task.stage || "", task.machine || "", task.outcome_label || "", since(task.time, now)]);
+  const box = el("div", null, "scroll");
+  box.append(table(["任务", "状态", "阶段", "机器", "结局", "更新"], rows));
+  card.append(box);
+  return card;
+}
+
+function render(state) {
+  const now = state.time;
+  fill("alerts", state.alerts.length ? state.alerts.map(a => el("div", a.text, "alert " + a.level)) : [el("div", "没有告警", "empty")]);
+  fill("machines", state.machines.length ? state.machines.map(machineCard) : [el("div", "机器清单是空的", "empty")]);
+  fill("running", state.running.length ? state.running.map(one => experimentCard(one, now)) : [el("div", "现在没有在跑的实验", "empty")]);
+  fill("recent", [table(["实验", "类型", "骨", "轮", "结局", "任务", "原因", "结束"], state.recent.map(one => [
+    one.id, one.type, one.bones.join("、"), one.round,
+    cell(el("span", one.result_label || "", "tag " + (RESULT_STYLE[one.result] || ""))),
+    Object.keys(TASK).filter(s => one.counts[s]).map(s => TASK[s] + " " + one.counts[s]).join("，"),
+    one.reason || "", since(one.closed, now)]))]);
+  fill("problems", [table(["时间", "实验", "轮", "任务", "报错", "次数"], state.problems.map(p => [
+    since(p.time, now), p.experiment, p.round, p.task || "", p.error || "", p.count || 1]))]);
+  fill("waiting", [table(["实验", "类型", "骨", "说明", "新建"], state.waiting.map(one => [
+    one.id, one.type, one.bones.join("、"), one.note || "", since(one.created, now)]))]);
+}
+
+let interval = 5;
+async function refresh() {
+  const dot = document.getElementById("dot"), when = document.getElementById("when");
+  try {
+    const answer = await fetch("/api/state", {cache: "no-store"});
+    if (!answer.ok) throw new Error("HTTP " + answer.status);
+    const state = await answer.json();
+    interval = Number(state.interval) > 0 ? Number(state.interval) : 5;
+    render(state);
+    dot.className = "dot";
+    when.textContent = "更新于 " + new Date(state.time * 1000).toLocaleTimeString();
+  } catch (error) {
+    dot.className = "dot off";
+    when.textContent = "读不到仪表盘的数：" + error.message;
+  }
+  setTimeout(refresh, interval * 1000);
+}
+refresh();
+</script>
+</body>
+</html>
