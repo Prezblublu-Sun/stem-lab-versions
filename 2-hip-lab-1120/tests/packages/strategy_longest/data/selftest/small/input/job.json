@@ -1,0 +1,6 @@
+{"objective": {"version": "v1", "objectives": [{"column": "rotation", "goal": "min"}], "constraints": []},
+ "candidates": [
+  {"name": "c0001", "bone_id": "femur042", "design": {"length": 30.0}, "feasible": true, "info": {}},
+  {"name": "c0002", "bone_id": "femur042", "design": {"length": 50.0}, "feasible": true, "info": {}},
+  {"name": "c0003", "bone_id": "femur042", "design": {"length": 70.0}, "feasible": false, "info": {}}],
+ "conditions": {"load": 2000.0}, "count": 1, "seed": 1, "data": [], "predictions": null}

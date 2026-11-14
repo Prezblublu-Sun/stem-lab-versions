@@ -1,0 +1,172 @@
+"""一批点和候选池。两种都是一个文件夹：清单加一个 points.jsonl，一行一个点。
+
+一批点（points）的一行：
+    {"name": "p001", "bone_id": "femur042", "design": {...}, "conditions": {...}, "reason": ..., "hash": "..."}
+候选池（pool）的一行：
+    {"name": "c0001", "bone_id": "femur042", "design": {...}, "feasible": true, "info": {...}}
+
+清单另带：count 有几行；design_keys 设计有哪几项；一批点还带 condition_keys 条件有哪几项。
+一批点的条件必须写全：每个点都带齐 condition_keys 里的每一项，不能是 null。
+每个点的哈希由骨标识、设计、写全的条件算出；预测和 FEA 的结果按它对齐，所以一批里同一个点只能出现一次。
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from stemlab.contract.formats.manifest import make_manifest, write_manifest
+from stemlab.contract.hashing import canonical, hash_json
+from stemlab.contract.layout import is_column, is_label, same_but_case
+
+POINTS_FILE = "points.jsonl"
+POINT_KEYS = ("name", "bone_id", "design", "conditions", "reason", "hash")
+POOL_KEYS = ("name", "bone_id", "design", "feasible", "info")
+_MAX_PROBLEMS = 20
+
+
+def point_hash(point: dict) -> str:
+    """一个点的哈希：骨标识、设计、写全的条件，三样合起来算。名字和理由不算在内。"""
+    return hash_json({"bone_id": point["bone_id"], "design": point["design"], "conditions": point["conditions"]})
+
+
+def fill_defaults(points, defaults: dict) -> list[dict]:
+    """用一份条件默认把每个点的条件补全。已经写了的不改；补两次和补一次结果相同。"""
+    filled = []
+    for point in points:
+        row = dict(point, conditions={**defaults, **point.get("conditions", {})})
+        row["hash"] = point_hash(row)
+        filled.append(row)
+    return filled
+
+
+def read_points(path) -> list[dict]:
+    """读出各行。path 可以是带 points.jsonl 的文件夹，也可以是一个手写的 .jsonl 文件。"""
+    path = Path(path)
+    source = path / POINTS_FILE if path.is_dir() else path
+    rows = []
+    # 只按 LF 切行：JSON 的字符串里可以有别的“换行”字符，不能被当成行尾
+    for number, line in enumerate(source.read_bytes().decode("utf-8-sig").split("\n"), start=1):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as error:
+            raise ValueError(f"{source.name} 第 {number} 行不是合法的 JSON：{error}") from None
+        if not isinstance(row, dict):
+            raise ValueError(f"{source.name} 第 {number} 行必须是一个 JSON 对象")
+        rows.append(row)
+    return rows
+
+
+def write_points(folder, points, kind: str = "points") -> dict:
+    """把各行写成一个符合格式的文件夹：points.jsonl 和清单。返回清单。
+
+    一批点的哈希在这里算好写进去。写之前先核一遍，不符就报 ValueError，什么都不写。
+    """
+    rows = [dict(point) if isinstance(point, dict) else point for point in points]
+    if not rows:
+        raise ValueError("一批点不能是空的")
+
+    def keys(name: str) -> list:
+        group = rows[0].get(name) if isinstance(rows[0], dict) else None
+        return sorted(map(str, group)) if isinstance(group, dict) else []
+
+    extra = {"count": len(rows), "design_keys": keys("design")}
+    if kind == "points":
+        extra["condition_keys"] = keys("conditions")
+        for row in rows:
+            if (isinstance(row, dict) and isinstance(row.get("design"), dict)
+                    and isinstance(row.get("conditions"), dict) and "bone_id" in row):
+                row["hash"] = _hash_or_none(row)
+    manifest = make_manifest(kind, [POINTS_FILE], **extra)
+    problems = check_points(kind, manifest, rows)
+    if problems:
+        raise ValueError("这批点不符合格式：" + "；".join(problems))
+    try:
+        lines = b"".join(canonical(row) + b"\n" for row in rows)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"这批点里有写不进 JSON 的东西：{error}") from None
+    folder = Path(folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    with open(folder / POINTS_FILE, "wb") as stream:
+        stream.write(lines)
+    write_manifest(folder, manifest)
+    return manifest
+
+
+def check_points(kind: str, manifest: dict, rows) -> list[str]:
+    """核对一批点或一个候选池。返回哪里不符，点名是哪个点；空列表就是对的。"""
+    wanted = POINT_KEYS if kind == "points" else POOL_KEYS
+    key_lists = ("design_keys", "condition_keys") if kind == "points" else ("design_keys",)
+    problems = []
+    for key in key_lists:
+        value = manifest.get(key)
+        if not isinstance(value, list) or not all(map(is_column, value)) or value != sorted(set(value)):
+            problems.append(f"清单的 {key} 必须是排好序、不重复的名字列表（字母开头，字母、数字、下划线）")
+        elif same_but_case(value):
+            problems.append(f"清单的 {key} 里有只差大小写的名字：{same_but_case(value)}")
+    if manifest.get("count") != len(rows):
+        problems.append(f"清单写的是 {manifest.get('count')!r} 行，实际是 {len(rows)} 行")
+    if problems:
+        return problems
+
+    seen: dict[str, int] = {}
+    hashes: dict[str, int] = {}
+    for number, row in enumerate(rows, start=1):
+        if len(problems) >= _MAX_PROBLEMS:
+            problems.append("……还有更多，先改上面这些")
+            break
+        name = row.get("name") if isinstance(row, dict) else None
+        title = f"第 {number} 个点（{name!r}）"
+        if not isinstance(row, dict) or set(row) != set(wanted):
+            problems.append(f"{title} 要带且只带这几项：{list(wanted)}")
+            continue
+        if not is_label(name):
+            problems.append(f"{title} 的名字要用 ASCII 的字母、数字和 . _ -")
+        elif seen.setdefault(name.lower(), number) != number:
+            problems.append(f"{title} 的名字和第 {seen[name.lower()]} 个点重复了")
+        if not is_label(row["bone_id"]):
+            problems.append(f"{title} 的骨标识不对：{row['bone_id']!r}")
+        problems += _check_group(title, "设计", row["design"], manifest["design_keys"])
+        if kind == "points":
+            problems += _check_group(title, "条件", row["conditions"], manifest["condition_keys"])
+            if row["reason"] in (None, "", {}, []):
+                problems.append(f"{title} 没有写理由")
+            if row["hash"] != _hash_or_none(row):
+                problems.append(f"{title} 的哈希和它的骨标识、设计、条件对不上")
+            elif hashes.setdefault(row["hash"], number) != number:      # 结果按点的哈希对齐，所以一批里一个点只能有一次
+                problems.append(f"{title} 和第 {hashes[row['hash']]} 个点是同一个点（骨标识、设计、条件都一样）")
+        elif not isinstance(row["feasible"], bool) or not isinstance(row["info"], dict):
+            problems.append(f"{title} 的 feasible 必须是 true 或 false，info 必须是一个 JSON 对象")
+    return problems
+
+
+def _hash_or_none(row: dict) -> str | None:
+    try:
+        return point_hash(row)
+    except (TypeError, ValueError):     # 里面有写不进 JSON 的东西，比如 NaN
+        return None
+
+
+def _check_group(title: str, what: str, group, keys: list) -> list[str]:
+    if not isinstance(group, dict):
+        return [f"{title} 的{what}必须是一个 JSON 对象"]
+    missing = [key for key in keys if group.get(key) is None]
+    extra = [key for key in group if key not in keys]
+    problems = []
+    if missing:
+        problems.append(f"{title} 的{what}没写全，缺 {missing}")
+    if extra:
+        problems.append(f"{title} 的{what}多了 {extra}")
+    return problems
+
+
+def check(kind: str, manifest: dict, folder) -> list[str]:
+    """check_format 叫的入口：清单里的文件对，再读出各行来核。"""
+    if manifest["files"] != [POINTS_FILE]:
+        return [f"一批点的文件夹里只该有 {POINTS_FILE}"]
+    try:
+        rows = read_points(folder)
+    except ValueError as error:
+        return [str(error)]
+    return check_points(kind, manifest, rows)

@@ -1,0 +1,89 @@
+[importlinter]
+root_packages =
+    stemlab
+    plugins
+
+[importlinter:contract:1]
+name = 1 上层用下层，同层互不相用
+type = layers
+layers =
+    stemlab.desk | stemlab.board
+    stemlab.hooks
+    stemlab.registry | stemlab.experiments
+    stemlab.contract
+
+[importlinter:contract:2]
+name = 2 插件只经挂点
+type = forbidden
+source_modules =
+    plugins
+forbidden_modules =
+    stemlab.contract
+    stemlab.registry
+    stemlab.experiments
+    stemlab.desk
+    stemlab.board
+allow_indirect_imports = True
+
+[importlinter:contract:3]
+name = 3 插件只用挂点的门面
+type = forbidden
+source_modules =
+    plugins
+forbidden_modules =
+    stemlab.hooks.handle
+    stemlab.hooks.call
+    stemlab.hooks.publish
+    stemlab.hooks.load
+    stemlab.hooks.entry
+    stemlab.hooks.local
+    stemlab.hooks.remote
+allow_indirect_imports = True
+
+[importlinter:contract:4]
+name = 4 插件互不相用
+type = independence
+modules =
+    plugins.recon
+    plugins.fea
+    plugins.surrogate
+    plugins.opt
+
+[importlinter:contract:5]
+name = 5 核心不认识插件
+type = forbidden
+source_modules =
+    stemlab
+forbidden_modules =
+    plugins
+
+[importlinter:contract:6]
+name = 6 仪表盘碰不到任何写的模块
+type = forbidden
+source_modules =
+    stemlab.board
+forbidden_modules =
+    stemlab.hooks
+    stemlab.registry.register
+    stemlab.registry.links
+    stemlab.experiments.log
+
+[importlinter:contract:7]
+name = 7 界面的写只经操作台核心
+type = forbidden
+source_modules =
+    stemlab.desk.ui
+forbidden_modules =
+    stemlab.hooks
+    stemlab.registry.register
+    stemlab.registry.links
+    stemlab.experiments.log
+allow_indirect_imports = True
+
+[importlinter:contract:8]
+name = 8 操作台核心不用界面
+type = forbidden
+source_modules =
+    stemlab.desk.core
+forbidden_modules =
+    stemlab.desk.ui

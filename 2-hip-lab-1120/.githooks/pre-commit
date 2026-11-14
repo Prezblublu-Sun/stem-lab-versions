@@ -1,0 +1,11 @@
+#!/bin/sh
+# 提交之前自动跑一次全部检查。不过就不让提交。
+# 启用（每个克隆做一次）：git config core.hooksPath .githooks
+if [ -x .venv/Scripts/python.exe ]; then
+    PY=.venv/Scripts/python.exe
+elif [ -x .venv/bin/python ]; then
+    PY=.venv/bin/python
+else
+    PY=python
+fi
+PYTHONUTF8=1 exec "$PY" -m stemlab.desk.core.check
