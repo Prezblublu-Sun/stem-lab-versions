@@ -37,7 +37,8 @@ def main(argv=None) -> int:
             hooks.remote.report(base, stage[0], libs)
 
     report("reading")
-    threading.Thread(target=beat, daemon=True).start()
+    beating = threading.Thread(target=beat, daemon=True)
+    beating.start()
     try:
         said = train.run(base / "inputs" / "job", out, report)
     except models.Diverged as error:
@@ -47,6 +48,7 @@ def main(argv=None) -> int:
     except Exception as error:  # noqa: BLE001  训练出什么错都说出来
         said = {"status": "error", "reason": f"{type(error).__name__}: {error}", "trace": traceback.format_exc()[-1500:]}
     over.set()
+    beating.join(timeout=3 * BEAT)      # 等心跳停下再写终态：它最后那一下要是落在“做完”之后，会把结局盖成没有
     spare = out / "result.json.new"
     spare.write_bytes(json.dumps(said, ensure_ascii=False, default=float).encode("utf-8"))
     os.replace(spare, out / "result.json")

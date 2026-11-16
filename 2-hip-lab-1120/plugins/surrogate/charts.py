@@ -44,11 +44,14 @@ def chart(handle, name: str):
         return {"columns": ["线", "看什么", "量到的", "线在哪", "过没过"],
                 "rows": [[row["id"], row["what"], _round(row["value"]), f"{row['metric']} {row['op']} {row['limit']}",
                           {True: "过", False: "没过", None: "不可判"}[row["passed"]]] for row in body.get("verdicts") or []]}
-    if name == "predictions":
+    if name == "predictions":                           # 场不放进表里：只说这个点有没有给出这个场
         body = _shown(handle, "prediction") or {"columns": [], "rows": []}
-        names = [column["name"] for column in body["columns"]]
-        return {"columns": ["点", *(f"{column} [{group}]" for column in names for group in ("下界", "预测", "上界"))],
-                "rows": [[row["point"][:12], *(_round(row[group][column]) for column in names for group in ("lower", "values", "upper"))]
+        names = [column["name"] for column in body["columns"] if column.get("role") != "field"]
+        fields = [column["name"] for column in body["columns"] if column.get("role") == "field"]
+        return {"columns": ["点", *(f"{column} [{group}]" for column in names for group in ("下界", "预测", "上界")),
+                            *(f"场 {field}" for field in fields)],
+                "rows": [[row["point"][:12], *(_round(row[group][column]) for column in names for group in ("lower", "values", "upper")),
+                          *("有" if field in (row.get("fields") or {}) else "没有" for field in fields)]
                          for row in body["rows"]]}
     body = _shown(handle, "check") or {"columns": [], "matched": []}
     if name == "check":
@@ -56,7 +59,10 @@ def chart(handle, name: str):
                             "y": [row["predicted"][column] for row in body["matched"] if row["diff"][column] is not None]}
                            for column in body["columns"]], "x_label": "FEA", "y_label": "预测"}
     if name == "diffs":
-        return {"columns": ["点", "FEA 的结局", *(f"{column} 预测减 FEA" for column in body["columns"])],
-                "rows": [[row["point"][:12], row["outcome"], *(_round(row["diff"][column]) for column in body["columns"])]
+        fields = body.get("fields") or []
+        return {"columns": ["点", "FEA 的结局", *(f"{column} 预测减 FEA" for column in body["columns"]),
+                            *(f"场 {field} 的均方根差" for field in fields)],
+                "rows": [[row["point"][:12], row["outcome"], *(_round(row["diff"][column]) for column in body["columns"]),
+                          *(_round(((row.get("fields") or {}).get(field) or {}).get("rmse")) for field in fields)]
                          for row in body["matched"]]}
     raise ValueError(f"没有叫 {name} 的图")

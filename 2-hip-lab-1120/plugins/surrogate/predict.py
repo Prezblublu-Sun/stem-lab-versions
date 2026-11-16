@@ -35,7 +35,8 @@ def advance(handle) -> dict:
         return {"stage": "predicting", "result": None}
     try:
         said = json.loads((home / "out" / "result.json").read_bytes())
-        return {"stage": "done", "result": {"status": "ok", "reason": "", "rows": said["rows"], "skipped": said.get("skipped", [])}}
+        return {"stage": "done", "result": {"status": "ok", "reason": "", "rows": said["rows"], "skipped": said.get("skipped", []),
+                                            "folder": str(home / "out")}}     # 预测了场的，场的文件在这个文件夹下面
     except (OSError, ValueError, KeyError):
         log = home / "out" / "log.txt"
         said = log.read_bytes()[-600:].decode("utf-8", "replace") if log.exists() else ""

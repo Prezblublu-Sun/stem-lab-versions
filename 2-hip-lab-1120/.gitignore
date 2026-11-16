@@ -8,3 +8,8 @@ __pycache__/
 *.pyc
 /.pytest_cache/
 /.import_linter_cache/
+/.ruff_cache/
+# 属性测试和变异测试平时不往盘上写；要它们存例子、出网页报告的时候才有这几个
+/.hypothesis/
+/.gremlins_cache/
+/coverage/

@@ -32,7 +32,10 @@ def state(monitor) -> dict:
         listed = experiments.cards()
     except (OSError, ValueError, LookupError) as error:
         listed, notes = [], notes + [f"发号的那条链读不出来：{error}"]
-    rows = monitor.read()
+    try:
+        rows = monitor.read()
+    except Exception as error:  # noqa: BLE001  读机器的数出了岔子：页面上别的照样出，说出原因
+        rows, notes = [], notes + [f"读机器的数出错了：{type(error).__name__}: {error}"]
     busy = Counter((task["machine"], task["state"]) for one in listed if one.get("live") for task in one["tasks"])
     for row in rows:
         row["running_tasks"] = busy[(row["name"], states.T_RUNNING)]
@@ -101,8 +104,9 @@ def main(argv=None) -> int:
         if args.open:
             webbrowser.open(url)
         return 0
+    server = ThreadingHTTPServer((args.host, args.port), BaseHTTPRequestHandler)   # 先占端口：占不到就不起读数的进程和连接
     monitor = machines.Monitor()
-    server = ThreadingHTTPServer((args.host, args.port), handler(monitor))
+    server.RequestHandlerClass = handler(monitor)                                 # 还没开始应答，换上真的
     url = f"http://{args.host}:{server.server_address[1]}/"
     print(f"仪表盘开在 {url} ，按 Ctrl+C 关掉", flush=True)
     if args.open:

@@ -1,9 +1,12 @@
 """【自由】认出是 CT 还是 CAD，读进来。
 
-1.0 只重建 CAD 骨源：一个文件夹里两个 STEP 实体，皮质和松质各一个，哪个文件是哪个由重建设定说。
-CT 骨源认得出来，但不重建（头颈部内壁的自动重建 1.0 不做），检查时就说明白。
+CAD 骨源：一个文件夹里两个 STEP 实体，皮质和松质各一个，哪个文件是哪个由重建设定说。
+CT 骨源：里面有 CT 的体数据（nrrd、nii、mha）；怎么读、怎么重建在 ct.py 里。一组 dcm 认得出是 CT，
+但 ct.py 不直接读它：要先转成一个 nrrd。
+文件夹里有 STEP 就算 CAD，否则有 CT 的文件就算 CT。
 
-读进来的是实体的表面三角网：顶点、三角形（绕向朝实体外面）、实体的体积。
+读进来的实体是它的表面三角网：顶点、三角形（绕向朝实体外面）、实体的体积。STEP 由 gmsh 读；
+CT 重建出来的实体是 STL（见 solids.py），直接读。
 """
 from __future__ import annotations
 
@@ -13,15 +16,15 @@ from pathlib import Path
 import numpy as np
 
 CAD = (".step", ".stp")
-CT = (".dcm", ".nii", ".nrrd", ".mha")
+CT = (".dcm", ".nii", ".nii.gz", ".nrrd", ".mha", ".mhd")
 
 
 def kind_of(folder) -> str:
     """这份骨源是什么：cad、ct，或者认不出来的 unknown。"""
-    suffixes = {path.suffix.lower() for path in Path(folder).rglob("*") if path.is_file()}
-    if suffixes & set(CAD):
+    names = [path.name.lower() for path in Path(folder).rglob("*") if path.is_file()]
+    if any(name.endswith(CAD) for name in names):
         return "cad"
-    if suffixes & set(CT) or any(path.name.upper() == "DICOMDIR" for path in Path(folder).rglob("*")):
+    if any(name.endswith(CT) or name == "dicomdir" for name in names):
         return "ct"
     return "unknown"
 
@@ -58,6 +61,21 @@ def read_step(path, size: float = 4.0) -> dict:
     finally:
         gmsh.finalize()
         os.environ["PATH"] = kept           # gmsh 初始化时会把这个进程的 PATH 截短；用完原样放回去，不然之后起不了别的程序
+
+
+def read_stl(path) -> dict:
+    """一个 STL 实体的表面三角网。体积是表面围出来的（带腔的实体，腔的那一块法向朝里，体积自然减掉）；
+    solids 是法向朝外的块数，也就是实体的个数。"""
+    from plugins.recon import solids
+
+    vertices, triangles = solids.read_stl(path)
+    outward = sum(1 for part in solids.split(vertices, triangles) if solids.signed_volume(*part) > 0)
+    return {"vertices": vertices, "triangles": triangles, "volume": abs(solids.signed_volume(vertices, triangles)), "solids": outward}
+
+
+def read_solid(path, size: float = 4.0) -> dict:
+    """照文件的种类读一个实体：STL 直接读，别的当 STEP 读。"""
+    return read_stl(path) if Path(path).suffix.lower() == ".stl" else read_step(path, size)
 
 
 def watertight(mesh: dict) -> bool:

@@ -79,6 +79,9 @@ def test_what_the_page_writes_goes_to_the_core(lab, data):
     status, said = web.do({"op": "fill", "experiment": made, "input": "setting", "items": []})
     assert status == 200 and said["ok"] is False and "fill" in said["refused"], "核心拒了的，原因照实交回去"
     assert web.do({"op": "start", "experiment": "E9999"})[1]["ok"] is False
+    status, said = web.do({"op": "poll", "experiment": helpers.experiment()})
+    assert status == 200 and said["ok"] and said["result"]["ran"] is None and "没有叫插件" in said["result"]["said"], \
+        "对没在跑的实验点“看一遍”：照实说这一遍没叫插件，不出错"
     assert web.do({"op": "format_the_disk"})[0] == 400 and web.do(None)[0] == 400 and web.do({"op": "note"})[0] == 400
     status, said = web.do({"op": "new", "type": "demo.echo", "note": "made through the page"})
     assert status == 200 and said["ok"] and web.read(f"/api/experiment/{said['result']}", {})["note"] == "made through the page"

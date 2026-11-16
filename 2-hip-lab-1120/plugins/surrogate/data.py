@@ -3,8 +3,9 @@
 一个实验可以填好几份数据。合成一张表时：
     设计和条件的列（名字、单位）每份都要一样，要预测的量每份都要有、单位相同；别的列可以各有各的
     （旧库转来的数据和新算的数据，建模时的量、标签不全一样，但只要这几样对得上就能放在一起训练）
-    同一个点（哈希相同）出现几次：结果相同的只留一行；结果不同的留最先见到的那一行，并记一条，由插件报成问题
-场不读：代理只预测标量。
+    同一个点（哈希相同）出现几次：结果相同的只留一行；结果不同的留最先见到的那一行，并记一条，由插件报成问题。
+    “最先”是填输入的顺序：第 1 份数据里的先于第 2 份。这条规则叫 first，load 返回它，记进误差报告
+场不在这里读。要预测的场由冻结代码核对、把训练那一部分的抄进作业文件夹（见 plugin.py），训练代码从那里读。
 """
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ from stemlab import hooks
 
 ROWS = "rows.jsonl"
 SCALAR = ("design", "condition", "pre", "label", "derived")
+RULE = "first"          # 同一个点结果不同时，留填在最前面那份数据里的那一行
 
 
 def columns_of(folder) -> list[dict]:
@@ -48,7 +50,7 @@ def problems(folders, targets) -> list[str]:
 
 
 def load(folders) -> dict:
-    """把几份数据合成一张表。返回 columns（不含场）、rows、conflicts（同一个点结果不同的，各说一句）。"""
+    """把几份数据合成一张表。返回 columns（不含场）、rows、conflicts（同一个点结果不同的，各说一句）、rule（留哪一行的规则）。"""
     columns, rows, seen, conflicts = columns_of(folders[0]), [], {}, []
     names = [column["name"] for column in columns if column["role"] in ("label", "derived")]      # 结果同不同，看 FE 算出来的那几列
     for number, folder in enumerate(folders, start=1):
@@ -59,4 +61,4 @@ def load(folders) -> dict:
                 rows.append(row)
             elif any(first[1]["values"].get(name) != row["values"].get(name) for name in names):
                 conflicts.append(f"点 {row['point'][:12]} 在第 {first[0]} 份和第 {number} 份数据里结果不同，用了第 {first[0]} 份的")
-    return {"columns": columns, "rows": rows, "conflicts": conflicts}
+    return {"columns": columns, "rows": rows, "conflicts": conflicts, "rule": RULE}

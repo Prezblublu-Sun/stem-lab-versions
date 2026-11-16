@@ -7,6 +7,11 @@
      "solids": {"cancellous": {"file": "cancellous_fixed.step", "why": "填了导针孔"}}}
 
 两项都可以不写。改了哪个标志点、从哪挪到哪，换了哪个实体、为什么，都记进骨模型的重建记录。
+
+CT 重建出来的两个实体是成对的（皮质 = 外表面加内壁，松质 = 内壁，见 solids.py）。只换其中一个、而且交的是 STL 时，
+另一个在定稿时照它重写（solids.reconcile），所以改内壁只用交一个内壁的 STL，写成换 cancellous。
+交的不是 STL（比如上面的 .step）或者块数不对，就不重写：重建记录里写明，壁厚、界面间隙、四面体这几项量不了，
+检查门里拿它们比的线不过（不拿候选的数充数）。
 """
 from __future__ import annotations
 
@@ -66,9 +71,29 @@ def apply(listed: dict, draft: Path, edits: Path | None) -> tuple:
     return files, marks, history
 
 
-def todo(found: dict, measures: dict) -> list[dict]:
-    """待检查清单：请人看的各项，自动找得不踏实的排在前面并写明为什么。"""
-    doubts = []
+def ct_doubts(measures: dict, notes) -> list[tuple]:
+    """CT 重建出来的骨，请人看的地方。两端的内壁每一根都要看：它是规则补出来的，不是量出来的。"""
+    doubts = [("source", note) for note in notes]
+    if measures.get("surface_on_bone_share", 1.0) < 0.4:
+        doubts.append(("source", f"外形两侧各一个体素的那一层里，只有 {measures['surface_on_bone_share']:.0%} 的体素够得上骨的 CT 值："
+                                 "外形可能没有压在骨面上，请核对外形和 CT 是不是对齐的"))
+    if measures.get("hu_inside_p95", 0.0) > 2500:
+        doubts.append(("source", f"骨内 CT 值的 95% 分位是 {measures['hu_inside_p95']:.0f}，多半有金属：有金属的 CT 分不准皮质"))
+    if measures.get("outer_vs_reference_p95_mm", 0.0) > 0.5:
+        doubts.append(("solids", f"重建的外表面和参考外形的距离，95% 分位是 {measures['outer_vs_reference_p95_mm']:.2f} mm，比平常的 0.1 到 0.2 mm 大"))
+    if measures.get("tet_check_problem"):
+        doubts.append(("solids", f"照这两个表面试划四面体没有划成：{measures['tet_check_problem']}。多半是内壁和外表面相交，或者表面自己相交"))
+    if measures.get("interface_gap_max_mm", 0.0) > 0.01:
+        doubts.append(("solids", f"皮质实体带的内壁和松质实体的表面最远差 {measures['interface_gap_max_mm']:.2f} mm：两个实体在界面上对不上"))
+    if "cortex_added_by_rules_share" in measures:
+        doubts.append(("solids", f"股骨头、颈和髁部的内壁不是量出来的：那里的皮质太薄，CT 上够不到阈值，是照“两端限深”和“最小壁厚”补的"
+                                 f"（这根骨最终的皮质里有 {measures['cortex_added_by_rules_share']:.0%} 是这样来的）。做近端的分析之前请看截面，该改的用人工修改换掉"))
+    return doubts
+
+
+def todo(found: dict, measures: dict, notes=()) -> list[dict]:
+    """待检查清单：请人看的各项，自动找得不踏实的排在前面并写明为什么。notes 是重建那一步自己想说的话。"""
+    doubts = ct_doubts(measures, notes)
     if not found["neck_converged"]:
         doubts.append(("neck_center", "颈轴的迭代没有收敛，颈最细的截面可能找偏了"))
     if measures["head_fit_rms_mm"] > 1.0:

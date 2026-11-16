@@ -7,10 +7,14 @@
 
 插件交过来的作业文件夹（job）里：
     job.json      seed、targets（要预测的量）、level、scale、setting（训练设定原样）、columns（数据说明，不含场）、
-                  target_columns（要预测的各列的说明）、scope（适用范围，冻结代码照训练那一部分定好的）
-    train.jsonl   训练的各行
+                  target_columns（要预测的各列的说明）、scope（适用范围，冻结代码照训练那一部分定好的）、
+                  made_by（训练数据是哪个内核算的，原样交给打包，写进预测器的清单；不知道就是 null）；
+                  要预测场的另有 fields（场的名字）、field_columns（它们的说明）、field_shapes（各自的形状）
+    train.jsonl   训练的各行。要预测场的，行里的 fields 写着这一行的场在 job 里的哪个文件（.npy）
+    fields/       训练各行的场。留出的点的场不在这里
     ask.jsonl     留出和往外推的点：只有哈希、骨标识、设计和条件
-交回去的（outputs/）：package/（预测器的包）、asked.jsonl（对 ask 里各点的预测）、result.json
+交回去的（outputs/）：package/（预测器的包）、asked.jsonl（对 ask 里各点的预测）、result.json；
+    预测了场的，每个点的场写在 asked_fields/<点的哈希>/<场的名字>.npy（值、下界、上界摞在一起），asked.jsonl 的行里写着位置
 """
 from __future__ import annotations
 
@@ -19,6 +23,8 @@ import os
 import shutil
 import sys
 from pathlib import Path
+
+import numpy as np
 
 from plugins.surrogate import features, models, predictor
 from stemlab import hooks
@@ -43,9 +49,15 @@ def _here(handle) -> str:
 
 
 def check(handle) -> str | None:
-    options = handle.input("setting").get("model", {})
+    setting = handle.input("setting")
+    options = setting.get("model", {})
     name = options.get("name", models.DEFAULT) if isinstance(options, dict) else None
-    return None if name in models.names() else f"训练设定的 model.name 只有 {models.names()}：{name!r}"
+    if name not in models.names():
+        return f"训练设定的 model.name 只有 {models.names()}：{name!r}"
+    if setting.get("fields") and not getattr(models.get(name)[0], "FIELDS", False):
+        able = [one for one in models.names() if getattr(models.get(one)[0], "FIELDS", False)]
+        return f"训练设定要预测场，可是模型 {name} 只会预测标量。会预测场的模型：{able}"
+    return None
 
 
 def begin(handle, job: Path) -> None:
@@ -130,24 +142,33 @@ def run(job: Path, out: Path, report) -> dict:
     targets, scales, level, seed = asked["targets"], asked["scale"], asked["level"], asked["seed"]
     options = dict(asked["setting"].get("model") or {})
     name = options.pop("name", models.DEFAULT)
+    wanted, shapes = asked.get("fields") or [], asked.get("field_shapes") or {}
     rows = _lines(job / "train.jsonl")
-    kept = features.usable(rows, targets, scales)
+    kept = features.usable(rows, targets, scales, wanted)
     if len(kept) < 3:
         raise ValueError(f"训练那一部分里，要预测的量都有数的行只有 {len(kept)} 行，不够训练")
     points = [predictor.as_point(row, asked["columns"]) for row in kept]
     described = features.spec(points)
     model, infer, infer_file = models.get(name)
     report("training")
-    weights, meta, history = model.fit(points, features.targets(kept, targets, scales), described, options, seed, level)
+    extra = {"fields": {field: np.stack([np.load(job / row["fields"][field], allow_pickle=False) for row in kept])
+                        for field in wanted}} if wanted else {}
+    weights, meta, history = model.fit(points, features.targets(kept, targets, scales), described, options, seed, level, **extra)
     meta = dict(meta, model=name, features=described, scale={target: scales.get(target, "linear") for target in targets}, seed=seed)
     report("packing")
     predictor.pack(out / "package", infer=infer_file, weights=weights, meta=meta, columns=asked["target_columns"], level=level,
-                   scope=asked["scope"], samples=points[:5])
+                   scope=asked["scope"], samples=points[:5], fields=asked.get("field_columns") or (), shapes=shapes or None,
+                   made_by=asked.get("made_by"))
     report("predicting")                                # 留出和往外推的点。往外推的本来就在适用范围外面，所以不经包的入口，直接叫推理代码
     unknown = [predictor.as_point(row, asked["columns"]) for row in _lines(job / "ask.jsonl")]
-    guesses = infer.predict(weights, dict(meta, targets=targets), unknown) if unknown else []
+    told = dict(meta, targets=targets, **({"fields": wanted, "field_shapes": shapes} if wanted else {}))
+    guesses = infer.predict(weights, told, unknown) if unknown else []
     with open(out / "asked.jsonl", "w", encoding="utf-8", newline="\n") as stream:
         for point, guess in zip(unknown, guesses, strict=True):
-            stream.write(json.dumps(dict(guess, point=point["hash"], bone_id=point["bone_id"])) + "\n")
+            placed = {}
+            for field, stacked in (guess.pop("fields", None) or {}).items():       # 预测的场写成文件，行里只记位置
+                placed[field] = f"asked_fields/{point['hash']}/{field}.npy"
+                predictor.write_field(out / placed[field], stacked)
+            stream.write(json.dumps(dict(guess, point=point["hash"], bone_id=point["bone_id"], **({"fields": placed} if wanted else {}))) + "\n")
     return {"status": "ok", "reason": "", "history": history, "rows_used": len(kept), "rows_without_numbers": len(rows) - len(kept),
             "model": dict({key: value for key, value in meta.items() if key not in ("features",)}, options=options)}

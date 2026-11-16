@@ -5,6 +5,7 @@
 #   <root>/lock/    pyproject.toml and uv.lock as sent from the desk, and these two scripts
 #   <root>/tools/   a tiny environment that holds only uv, the same version as on the desk
 #   <root>/venv/    the environment itself; machines.json points this worker's "python" at venv/bin/python
+# Only the project's own dependencies are installed: no dev tools and none of the desk-only groups (CT reconstruction).
 # Packages come from PyPI. uv keeps its download cache where it always does (~/.cache/uv).
 # One thing the lock cannot bring: gmsh loads the system library libGLU.so.1. On Ubuntu it is in the package
 # libglu1-mesa (sudo apt install libglu1-mesa). Without it gmsh installs but cannot be imported, and the report says so.
@@ -27,8 +28,8 @@ if [ ! -x "$ROOT/tools/bin/uv" ] || [ "$("$ROOT/tools/bin/uv" --version | awk '{
 fi
 echo "== $("$ROOT/tools/bin/uv" --version), system python $("$SYSTEM_PYTHON" --version 2>&1 | awk '{print $2}')"
 
-echo "== installing from the lock (frozen: the lock is not re-resolved; no dev tools)"
-UV_PROJECT_ENVIRONMENT="$ROOT/venv" "$ROOT/tools/bin/uv" sync --frozen --no-dev --python "$SYSTEM_PYTHON"
+echo "== installing from the lock (frozen: the lock is not re-resolved; dependencies only, no groups)"
+UV_PROJECT_ENVIRONMENT="$ROOT/venv" "$ROOT/tools/bin/uv" sync --frozen --no-default-groups --python "$SYSTEM_PYTHON"
 sha256sum uv.lock | awk '{print $1}' > "$ROOT/lock/installed-from.sha256"
 
 "$ROOT/venv/bin/python" "$ROOT/lock/report_env.py" "$ROOT/lock"

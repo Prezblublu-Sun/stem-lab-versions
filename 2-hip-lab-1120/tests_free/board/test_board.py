@@ -174,6 +174,60 @@ def test_config_is_merged_over_the_defaults_and_a_bad_file_is_said_out_loud(own_
     config, problem = machines.read_config()
     assert config == machines.DEFAULTS and "读不出来" in problem
 
+    odd = {"alerts": {"disk_free_gb": "20", "memory_percent": 90, "backup_days": True, "nothing": 1}}
+    (own_lab / machines.CONFIG).write_bytes(json.dumps(odd).encode())
+    config, problem = machines.read_config()
+    assert config["alerts"] == dict(machines.DEFAULTS["alerts"], memory_percent=90), "不是数的线用默认的，写对了的照用"
+    assert all(name in problem for name in ("alerts.disk_free_gb", "alerts.backup_days", "alerts.nothing"))
+    alerts.alerts(config, [{"name": "here", "here": True, "disks": [{"path": "/", "free_gb": 1.0}]}], [])  # 线都是数：比得了
+    (own_lab / machines.CONFIG).write_bytes(json.dumps({"alerts": [20]}).encode())
+    config, problem = machines.read_config()
+    assert config["alerts"] == machines.DEFAULTS["alerts"] and "alerts" in problem
+
+
+def test_a_reading_that_cannot_be_understood_does_not_stop_the_feed():
+    """读数的线程碰到一组没想到的数：记下原因，接着读，不就此停下。"""
+    def parse(block, before):
+        if block == ["odd"]:
+            raise TypeError("一组怪数")
+        return {"line": block[0]}
+
+    feed = machines.Feed([sys.executable, "-c", "import time; print('good', flush=True); time.sleep(0.5); "
+                          "print('odd', flush=True); time.sleep(0.5); print('later', flush=True); time.sleep(30)"], parse)
+    try:
+        helpers.wait_for(lambda: feed.error and "TypeError" in feed.error, seconds=30)
+        helpers.wait_for(lambda: feed.latest == {"line": "later"}, seconds=30)
+        assert feed.error is None and feed._thread.is_alive(), "怪数之后的那一组照样读进来"
+    finally:
+        feed.close()
+
+
+def test_the_page_still_comes_when_the_machine_numbers_fail(lab, data):
+    """读机器的数出了岔子：页面照样出，告警里说出原因。"""
+    class Broken:
+        config, config_problem, machines_problem = json.loads(json.dumps(machines.DEFAULTS)), None, None
+
+        def read(self):
+            raise TypeError("读数坏了")
+
+    state = web.state(Broken())
+    assert state["machines"] == [] and any("读数坏了" in one["text"] for one in state["alerts"])
+
+
+def test_the_board_takes_the_port_before_it_starts_reading(monkeypatch):
+    """端口占不到就不起读数的进程和远端的连接：先占端口，再起 Monitor。"""
+    made = []
+    monkeypatch.setattr(web, "listening", lambda host, port: False)
+    monkeypatch.setattr(machines, "Monitor", lambda: made.append("monitor"))
+
+    def taken(address, handler):
+        raise OSError("端口被占了")
+
+    monkeypatch.setattr(web, "ThreadingHTTPServer", taken)
+    with pytest.raises(OSError):
+        web.main(["--port", "8791"])
+    assert made == []
+
 
 def test_alert_lines(lab, data):
     config = json.loads(json.dumps(machines.DEFAULTS))

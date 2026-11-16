@@ -73,7 +73,9 @@ async function act(body) {
     headers: { "Content-Type": "application/json", "X-Stemlab-Write": "1" } });
   const said = await answer.json();
   if (!said.ok) { say("被拒：" + said.refused, "bad"); return null; }
-  if (said.result && said.result.ran === false) say("插件出错：" + said.result.error, "bad"); else say("做了：" + body.op, "good");
+  if (said.result && said.result.ran === false) say("插件出错：" + said.result.error, "bad");
+  else if (said.result && said.result.said) say(said.result.said, "good");
+  else say("做了：" + body.op, "good");
   return said;
 }
 function card(title) { const box = el("div", null, "card"); if (title) box.append(el("h2", title)); return box; }

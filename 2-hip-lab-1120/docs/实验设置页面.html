@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>stem-lab 实验设置页面（设计稿）</title>
+<style>
+:root { color-scheme: light dark; --bg:#f6f5f1; --card:#fff; --line:#d9d6cc; --text:#1f1e1b; --soft:#6b6960; --accent:#1f5fa8; --tint:#eaf1fa; --warn:#8a5a00; --warnbg:#fbf1dc; --bad:#a32d2d; }
+@media (prefers-color-scheme: dark) { :root { --bg:#1b1b19; --card:#252522; --line:#3d3c38; --text:#ecebe6; --soft:#a3a096; --accent:#8bb8ee; --tint:#22303f; --warn:#f0c26a; --warnbg:#3a2f17; --bad:#f09595; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.55 system-ui, "Microsoft YaHei", sans-serif; }
+header { padding: 14px 20px 10px; border-bottom: 1px solid var(--line); }
+header h1 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+.soft, .hint { color: var(--soft); }
+.hint { font-size: 12px; display: block; }
+.flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; font-size: 12px; }
+.flow button { border-radius: 999px; padding: 2px 10px; font-size: 12px; }
+.wrap { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 18px; padding: 16px 20px 60px; max-width: 1280px; }
+@media (max-width: 760px) { .wrap { grid-template-columns: minmax(0, 1fr); } }
+nav h3 { margin: 12px 0 4px; font-size: 12px; font-weight: 600; color: var(--soft); }
+nav button { display: block; width: 100%; text-align: left; margin: 2px 0; border: 1px solid transparent; background: none; }
+nav button.on { background: var(--tint); border-color: var(--line); color: var(--accent); }
+button { font: inherit; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.x { padding: 2px 8px; color: var(--soft); }
+h2 { margin: 0 0 2px; font-size: 18px; font-weight: 600; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin: 12px 0; }
+.card > h3 { margin: 0 0 2px; font-size: 15px; font-weight: 600; }
+.card h4 { margin: 14px 0 6px; font-size: 13px; font-weight: 600; }
+.tag { display: inline-block; font-size: 11px; padding: 0 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--soft); margin-left: 6px; vertical-align: 1px; }
+.note { background: var(--warnbg); color: var(--warn); border-radius: 8px; padding: 8px 12px; margin: 10px 0; font-size: 13px; }
+.note ul { margin: 0; padding-left: 18px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px 14px; }
+.grid.wide { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+label.f { display: block; }
+label.f .l { display: block; font-size: 12px; color: var(--soft); margin-bottom: 2px; }
+label.f .l i { font-style: normal; opacity: .8; }
+input[type=text], select { width: 100%; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; }
+input.bad { border-color: var(--bad); }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th { font-size: 12px; font-weight: 500; color: var(--soft); text-align: left; padding: 2px 4px; white-space: nowrap; vertical-align: bottom; }
+th small { display: block; font-weight: 400; opacity: .8; }
+td { padding: 2px 3px; }
+td input[type=text] { min-width: 74px; }
+.checks { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.checks label { font-size: 13px; }
+details { margin-top: 10px; }
+summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+pre { margin: 6px 0 0; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; font: 12px/1.45 ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-all; max-height: 320px; overflow: auto; }
+.bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+@media (prefers-color-scheme: dark) { .primary { color: #10202f; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>stem-lab 实验设置页面 <span class="tag">设计稿，不写账本</span></h1>
+  <div class="soft">八种实验各一页。每一项的名字、单位、默认值和范围都取自内核包的清单和各插件的检查代码；每张表下面能看到“保存时登记的内容”。账上现在登记的东西是 0，所以下拉里的名字都是示例。</div>
+  <div class="flow" id="flow"></div>
+</header>
+<div class="wrap"><nav id="nav"></nav><main id="main"></main></div>
+<script>
+"use strict";
+// ---------------------------------------------------------------- 取自内核包 M1-3406-v1 的清单、推导量定义 bed_f、旧系统 v1 盒子
+const DESIGN = [
+  ["L", "柄长", "mm", 20, 45, 43.0612, "肩部到尖端"],
+  ["alpha", "柄轴角 α", "°", 15, 45, 44.3537, "颈平面内柄轴和干轴的夹角"],
+  ["h_cut", "截骨高度", "mm", 16, 32, 16, "截骨面到头心的距离，沿颈轴"],
+  ["m", "皮质余量 m", "mm", 0.5, 2.0, 0.5, "柄面到内膜面至少留这么多"],
+  ["rho_tip", "尖端面积比", "", 0.10, 0.50, 0.2117, "尖端和肩部的截面积之比"],
+  ["q", "面积递减指数", "", 0.5, 3.0, 2.9987, "面积沿柄递减的指数"],
+  ["lam", "宽厚比", "", 1.0, 2.2, 1.1186, "截面内外宽和前后厚之比"],
+  ["g_ml", "内侧占宽比", "", 0.35, 0.65, 0.5421, "内侧占宽度的比例"],
+  ["g_ap", "前方占厚比", "", 0.35, 0.65, 0.4620, "前方占厚度的比例"],
+  ["n_a", "前半超椭圆指数", "", 2, 6, 4.5577, "前半截面的超椭圆指数"],
+  ["n_p", "后半超椭圆指数", "", 2, 6, 2.8643, "后半截面的超椭圆指数"],
+  ["tau_a", "前半楔形斜度", "", -0.30, 0.30, -0.3, "前半的楔形斜度"],
+  ["tau_p", "后半楔形斜度", "", -0.30, 0.30, -0.2483, "后半的楔形斜度"],
+].map(([name, label, unit, min, max, a, help]) => ({ name, label, unit, min, max, a, help }));
+const CONDITIONS = [
+  ["load_N", "头上的合力", "N", 2391, "上楼梯 2391 N，约 3 倍体重"],
+  ["load_front_deg", "冠状面倾角", "°", 20, "合力在冠状面里的倾角"],
+  ["load_sagit_deg", "矢状面倾角", "°", 18, "合力在矢状面里的倾角"],
+  ["delta_mm", "松质过盈 δ", "mm", 0.10, "松质界面的径向过盈"],
+  ["mu", "摩擦系数 μ", "", 0.3, ""],
+  ["E_canc_MPa", "松质（泡沫）模量", "MPa", 155, ""],
+  ["cycles", "加载循环数", "", 2, "基线 2，旧系统的变体用过 4 和 10"],
+  ["h_int_mm", "界面网格尺寸", "mm", 2.0, ""],
+].map(([name, label, unit, def, help]) => ({ name, label, unit, def, help }));
+const LOADS = { stairs: ["上楼梯：2391 N，20°，18°", 2391, 20, 18], sit: ["坐起：1714 N，24°，8°", 1714, 24, 8], own: ["自己填", null, null, null] };
+const LABELS = [["rot_first_deg", "首次加载柄相对骨的转动 (°)"], ["rot_rev_deg", "第二循环可恢复的转动 (°)"], ["rot_perm_deg", "卸载后残留的转动 (°)"],
+  ["subsid_first_um", "首次加载沿柄轴的下沉 (μm)"], ["f1_p95_um", "第二循环可恢复切向微动 95 分位 (μm)"], ["f1_first_p95_um", "首次加载切向相对位移 95 分位 (μm)"],
+  ["contact_area_load2_mm2", "第二次加载时闭合的界面面积 (mm²)"], ["open_frac_load2", "第二次加载时张开的界面面积比例"], ["area_frac_gt150", "微动超过 150 μm 的界面面积比例"]];
+const PRE = [["bone_total_mm3", "去骨量：截掉的加锉掉的 (mm³)"], ["bone_resected_mm3", "截掉的骨 (mm³)"], ["bone_reamed_mm3", "锉掉的骨 (mm³)"],
+  ["A0_mm2", "模板化选出的肩部面积 (mm²)"], ["e_mm", "实际用的入口偏移 (mm)"], ["alpha_placed_deg", "放置后的柄轴角 (°)"], ["contact_templated", "模板化时的贴合比例"]];
+const DERIVED = [["F_mm", "床支撑 F (mm)"], ["F_area_mm2", "支撑区内的界面面积 (mm²)"], ["F_t_min_mm", "支撑区内最薄的泡沫厚度 (mm)"], ["F_frac_floor", "支撑区内厚度小于下限的面积占比"]];
+const SCALARS = [...LABELS, ...PRE, ...DERIVED];
+const MEASURED = ["cortical_watertight", "cancellous_watertight", "head_fit_rms_mm", "neck_wall_min_mm", "neck_shaft_angle_deg", "cortical_volume_change",
+  "landmark_shift_max_mm", "kernel_smoke", "head_radius_mm", "neck_isthmus_area_mm2", "neck_isthmus_from_head_mm", "lesser_trochanter_below_head_mm",
+  "lesser_trochanter_prominence_mm", "cortical_mesh_quality_min", "cancellous_mesh_quality_min",
+  // 下面这些只有 CT 重建出来的骨才量
+  "surfaces_open_edges", "remesh_deviation_p95_mm", "wall_min_mm", "tet_gamma_min", "tet_inverted", "outer_vs_reference_p95_mm",
+  "cortical_mesh_volume_error", "cancellous_mesh_volume_error", "surface_on_bone_share", "cortex_added_by_rules_share", "interface_gap_max_mm"];
+const GATE = [
+  { name: "cortical_closed", value: "cortical_watertight", equals: "true", what: "皮质实体的表面封闭" },
+  { name: "cancellous_closed", value: "cancellous_watertight", equals: "true", what: "松质实体的表面封闭" },
+  { name: "head_fit", value: "head_fit_rms_mm", max: "1.0", what: "股骨头球拟合的残差不超过 1 mm" },
+  { name: "neck_wall", value: "neck_wall_min_mm", min: "0.3", what: "股骨颈处皮质最薄不小于 0.3 mm" },
+  { name: "neck_shaft_angle", value: "neck_shaft_angle_deg", min: "110", max: "145", what: "颈干角在成人的范围里" },
+];
+const FINAL_GATE = [
+  { name: "volume_kept", value: "cortical_volume_change", max: "0.005", what: "皮质实体的体积和候选时相差不超过 0.5%" },
+  { name: "landmarks_near", value: "landmark_shift_max_mm", max: "5.0", what: "定稿的标志点离自动找的不超过 5 mm" },
+  { name: "kernel_fits", value: "kernel_smoke", equals: "true", what: "内核在这根骨上模板化得了基线设计" },
+];
+// CT 重建出来的骨另加的四条线：2026-11 第二版 CT 流程的合格标准
+const CT_GATE = [
+  { name: "closed", value: "surfaces_open_edges", max: "0", what: "外表面和内壁都封闭" },
+  { name: "remesh_close", value: "remesh_deviation_p95_mm", max: "0.3", what: "重划之后离原来的表面不超过 0.3 mm（95% 分位）" },
+  { name: "tets_fit", value: "tet_gamma_min", min: "0.1", what: "试划成四面体后，最差的单元质量 gamma 不低于 0.1" },
+  { name: "tets_upright", value: "tet_inverted", max: "0", what: "没有翻转的四面体" },
+];
+const CT_CAP = [[0, 3], [0.1, 3], [0.22, 60], [0.72, 60], [0.85, 5], [1, 5]];      // 两端限深：[沿骨长的位置（0 远端，1 近端）, 上限毫米]
+const FRAMES = {
+  cad: { origin: "the origin of the CAD files", x: "medial", y: "posterior", z: "proximal" },
+  ct: { origin: "the origin of the CT scan (scanner coordinates, LPS)", x: "patient left", y: "patient posterior", z: "patient superior" },
+};
+const BONE = "sawbone3406";
+
+// ---------------------------------------------------------------- 小工具
+const h = (tag, attrs = {}, ...kids) => {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(attrs)) {
+    if (key === "class") node.className = value;
+    else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
+    else if (value === true) node.setAttribute(key, "");
+    else if (value !== false && value !== null && value !== undefined) node.setAttribute(key, value);
+  }
+  kids.flat(3).forEach((kid) => { if (kid !== null && kid !== undefined && kid !== "") node.append(kid instanceof Node ? kid : document.createTextNode(String(kid))); });
+  return node;
+};
+const copy = (value) => JSON.parse(JSON.stringify(value));
+const num = (value) => { const text = String(value ?? "").trim(); if (text === "") return undefined; const n = Number(text); return Number.isFinite(n) ? n : null; };
+const put = (out, key, value) => { if (value !== undefined) out[key] = value; return out; };
+let changed = () => {};
+
+function text(model, key, label, opts = {}) {
+  const input = h("input", { type: "text", value: model[key] ?? "", placeholder: opts.ph || "" });
+  const bad = () => input.classList.toggle("bad", !opts.optional && !input.value.trim() || Boolean(opts.pattern && input.value && !opts.pattern.test(input.value)));
+  input.addEventListener("input", () => { model[key] = input.value; bad(); changed(); });
+  bad();
+  return h("label", { class: "f" }, h("span", { class: "l" }, label, opts.optional ? "（可不填）" : ""), input, opts.help ? h("span", { class: "hint" }, opts.help) : "");
+}
+function number(model, key, label, opts = {}) {
+  const input = h("input", { type: "text", inputmode: "decimal", value: model[key] ?? "" });
+  const bad = () => {
+    const n = num(input.value);
+    input.classList.toggle("bad", n === undefined ? !opts.optional : n === null || (opts.min !== undefined && n < opts.min) || (opts.max !== undefined && n > opts.max) || Boolean(opts.int && !Number.isInteger(n)));
+  };
+  input.addEventListener("input", () => { model[key] = input.value; bad(); changed(); });
+  bad();
+  const range = opts.min !== undefined || opts.max !== undefined ? `范围 ${opts.min ?? "…"} 到 ${opts.max ?? "…"}` : "";
+  const help = [opts.help, range, opts.def !== undefined ? `默认 ${opts.def}` : ""].filter(Boolean).join("；");
+  return h("label", { class: "f" }, h("span", { class: "l" }, label, opts.unit ? h("i", {}, `（${opts.unit}）`) : "", opts.optional ? "（可不填）" : ""), input, help ? h("span", { class: "hint" }, help) : "");
+}
+function choice(model, key, label, options, opts = {}) {
+  const select = h("select", {}, options.map(([value, shown]) => h("option", { value, selected: String(model[key]) === String(value) }, shown ?? value)));
+  select.addEventListener("change", () => { model[key] = select.value; if (opts.redraw) opts.redraw(); changed(); });
+  return h("label", { class: "f" }, h("span", { class: "l" }, label), select, opts.help ? h("span", { class: "hint" }, opts.help) : "");
+}
+function rows(list, cols, make, more = "＋ 加一行") {
+  const box = h("div");
+  const draw = () => {
+    const table = h("table", {}, h("tr", {}, cols.map((col) => h("th", { style: col.w ? `min-width:${col.w}px` : null }, col.label, col.sub ? h("small", {}, col.sub) : "")), h("th")));
+    list.forEach((row, index) => {
+      const line = h("tr");
+      cols.forEach((col) => {
+        const cell = col.options
+          ? h("select", {}, col.options.map(([value, shown]) => h("option", { value, selected: String(row[col.k] ?? "") === String(value) }, shown ?? value)))
+          : h("input", { type: "text", value: row[col.k] ?? "", placeholder: col.ph || "" });
+        if (col.pattern) cell.classList.toggle("bad", !col.pattern.test(cell.value));
+        cell.addEventListener(col.options ? "change" : "input", () => { row[col.k] = cell.value; if (col.pattern) cell.classList.toggle("bad", !col.pattern.test(cell.value)); changed(); });
+        line.append(h("td", {}, cell));
+      });
+      line.append(h("td", {}, h("button", { class: "x", title: "删掉这一行", onclick: () => { list.splice(index, 1); draw(); changed(); } }, "×")));
+      table.append(line);
+    });
+    box.replaceChildren(h("div", { class: "scroll" }, table), h("div", { class: "bar" }, h("button", { onclick: () => { list.push(make()); draw(); changed(); } }, more)));
+  };
+  draw();
+  return box;
+}
+function pick(label, kind, from, examples, optional = false) {
+  return h("label", { class: "f" }, h("span", { class: "l" }, label, h("i", {}, `　种类：${kind}`), optional ? "（可不填）" : ""),
+    h("select", {}, optional ? h("option", {}, "不填") : "", examples.map((name) => h("option", {}, name + "（示例）"))),
+    h("span", { class: "hint" }, "从哪来：" + from));
+}
+
+// ---------------------------------------------------------------- 各张表：init 给默认值，draw 画出来，build 给出保存时登记的内容
+const A_DESIGN = Object.fromEntries([...DESIGN.map((item) => [item.name, item.a]), ["e", "rule"]]);
+const COND_DEFAULT = Object.fromEntries(CONDITIONS.map((item) => [item.name, item.def]));
+const condModel = () => ({ preset: "stairs", ...Object.fromEntries(CONDITIONS.map((item) => [item.name, String(item.def)])) });
+function condFields(model, redraw) {
+  const preset = choice(model, "preset", "载荷取哪一种", Object.entries(LOADS).map(([key, value]) => [key, value[0]]), { redraw: () => {
+    const [, force, front, sagit] = LOADS[model.preset];
+    if (force !== null) { model.load_N = String(force); model.load_front_deg = String(front); model.load_sagit_deg = String(sagit); }
+    redraw();
+  } });
+  return h("div", { class: "grid" }, preset, CONDITIONS.map((item) => number(model, item.name, item.label, { unit: item.unit, help: item.help, def: item.def, int: item.name === "cycles" })));
+}
+const condBuild = (model) => Object.fromEntries(CONDITIONS.map((item) => [item.name, num(model[item.name]) ?? null]));
+
+const gateCols = [
+  { k: "name", label: "检查叫什么", sub: "小写字母、数字、下划线", w: 130, pattern: /^[a-z][a-z0-9_]{0,39}$/ },
+  { k: "value", label: "拿哪个量来比", w: 190, options: MEASURED.map((name) => [name, name]) },
+  { k: "min", label: "不小于", w: 70 }, { k: "max", label: "不大于", w: 70 },
+  { k: "equals", label: "正好是", w: 70, options: [["", "—"], ["true", "是"], ["false", "否"]] },
+  { k: "what", label: "这条线是什么意思", w: 260 },
+];
+const gateBuild = (line) => {
+  const out = { name: line.name, value: line.value };
+  put(out, "min", num(line.min)); put(out, "max", num(line.max));
+  if (line.equals === "true" || line.equals === "false") out.equals = line.equals === "true";
+  out.what = line.what || "";
+  return out;
+};
+// 骨源是 CT 时多出来的几项。定稿那一页只留和“定稿时怎么量”有关的两项
+function ctFields(m, final) {
+  const mesh = [
+    number(m, "edge", "外表面重划的目标边长", { unit: "mm", min: 0.5, max: 10, def: 2.5, help: final ? "定稿时照这个边长试划四面体" : "越小，表面的三角形越多" }),
+    final ? "" : number(m, "inner", "内壁的边长是外表面的几倍", { min: 0.3, max: 1.5, def: 0.8, help: "内壁更不规则，所以划得更密" }),
+    choice(m, "tet", "试划一次四面体，量单元质量", [["yes", "做（约一分钟）"], ["no", "不做"]],
+      { help: "划出来的网格不留，只留量出来的数。检查门里拿 tet_gamma_min、tet_inverted 来比的线要它" }),
+  ];
+  if (final) return [h("h4", {}, "CT 重建出来的两个实体：定稿时怎么量"), h("div", { class: "grid" }, mesh)];
+  return [
+    h("h4", {}, "怎么从 CT 里分出皮质"),
+    h("div", { class: "grid" },
+      number(m, "hu", "皮质的 CT 值下限", { unit: "HU", def: 500, help: "外形以内、CT 值不低于它的体素算皮质" }),
+      number(m, "voxel", "重采样的体素边长", { unit: "mm", min: 0.2, max: 2, def: 0.7 }),
+      number(m, "wallvox", "最小壁厚", { unit: "个体素", min: 1, max: 10, int: true, def: 2, help: "皮质处处至少这么厚。2 个 0.7 mm 的体素就是 1.4 mm" }),
+      choice(m, "cap", "两端限深", [["standard", "髁部 3 mm、头颈部 5 mm，骨干不限"], ["none", "不限深"]],
+        { help: "离外表面比这更深的不算皮质。两端的松质里有够得上阈值的骨小梁，不限深会被当成皮质" }),
+      choice(m, "proximal", "近端（股骨头）在哪一头", [["auto", "照外形自动判断"], ["high_z", "z 大的一头"], ["low_z", "z 小的一头"]])),
+    h("h4", {}, "两个表面怎么变成划得了网格的实体"), h("div", { class: "grid" }, mesh),
+    h("details", {}, h("summary", {}, "少动的几项"), h("div", { class: "grid", style: "margin-top:8px" },
+      number(m, "margin", "截取 CT 时每边外扩", { unit: "mm", min: 2, max: 50, def: 6 }),
+      number(m, "osig", "外表面的高斯平滑", { unit: "mm", min: 0.1, max: 5, def: 0.7 }),
+      number(m, "isig", "内壁的高斯平滑", { unit: "mm", min: 0.1, max: 5, def: 1.2 }),
+      number(m, "relax", "网格平滑的次数", { min: 0, max: 200, int: true, def: 20 }),
+      number(m, "tris", "细表面减到多少个三角形", { min: 1000, max: 5000000, int: true, def: 120000 }),
+      number(m, "iters", "重划迭代几次", { min: 1, max: 50, int: true, def: 8 }))),
+  ];
+}
+const gateFor = (kind, final) => copy(kind === "ct"
+  ? [...GATE, ...CT_GATE, ...(final ? FINAL_GATE.filter((line) => line.value !== "kernel_smoke") : [])]
+  : [...GATE, ...(final ? FINAL_GATE : [])]);
+function reconSetting(final) {
+  return {
+    input: "setting", label: "重建设定", kind: "设定",
+    init: (kind = "cad") => ({ kind, side: "right", cortical: "3406R_cortical.STEP", cancellous: "3406R_cancellous_v2.STEP", outer: "Femur_R.ply", ctfile: "", ...FRAMES[kind],
+      Ec: "16700", nuc: "0.3", Es: "155", nus: "0.3", tess: "4", hu: "500", voxel: "0.7", wallvox: "2", cap: "standard", proximal: "auto", edge: "2.5", inner: "0.8", tet: "yes",
+      margin: "6", osig: "0.7", isig: "1.2", relax: "20", tris: "120000", iters: "8", gate: gateFor(kind, final), smoke: final && kind === "cad" ? "template" : "none" }),
+    draw: (m, redraw) => [
+      h("div", { class: "grid" },
+        choice(m, "kind", final ? "这根骨是从哪种骨源重建的" : "骨源是哪一种", [["cad", "CAD：皮质、松质两个 STEP 实体"], ["ct", "CT：一份 CT 加一份股骨外形"]],
+          { redraw: () => { Object.assign(m, FRAMES[m.kind], { gate: gateFor(m.kind, final), smoke: final && m.kind === "cad" ? "template" : "none" }); redraw(); },
+            help: "换一种，下面的坐标系和检查门会换成那一种常用的写法" }),
+        choice(m, "side", "哪一侧", [["right", "右"], ["left", "左"]]),
+        m.kind === "cad" ? number(m, "tess", "表面三角网的最大边长", { unit: "mm", min: 0.5, max: 20, def: 4 }) : ""),
+      final ? "" : m.kind === "cad"
+        ? [h("h4", {}, "骨源里哪个文件是哪个实体"), h("div", { class: "grid wide" }, text(m, "cortical", "皮质实体的文件名"), text(m, "cancellous", "松质实体的文件名"))]
+        : [h("h4", {}, "骨源里的文件"), h("div", { class: "grid wide" },
+            text(m, "outer", "股骨外形的文件名", { help: "STL 或 PLY：人工描的，或别的软件分割出来的股骨表面。要和 CT 是同一次扫描" }),
+            text(m, "ctfile", "CT 的文件名", { optional: true, help: "nrrd、nii 或 mha。不填：骨源里的体数据文件都算候选，用装得下这根股骨的最小的那份" }))],
+      m.kind === "ct" ? ctFields(m, final) : "",
+      h("h4", {}, "骨源的坐标系"), h("span", { class: "hint" }, m.kind === "ct" ? "四句话说清楚。CT 重建出来的实体和标志点都在 CT 自己的坐标系里。" : "四句话说清楚。实体不换坐标系，标志点也在这个系里。"),
+      h("div", { class: "grid" }, text(m, "origin", "原点在哪"), text(m, "x", "x 指向"), text(m, "y", "y 指向"), text(m, "z", "z 指向")),
+      h("h4", {}, "材料（线弹性）"),
+      h("div", { class: "grid" }, number(m, "Ec", "皮质弹性模量", { unit: "MPa", min: 1 }), number(m, "nuc", "皮质泊松比", { min: 0, max: 0.5 }),
+        number(m, "Es", "松质弹性模量", { unit: "MPa", min: 1 }), number(m, "nus", "松质泊松比", { min: 0, max: 0.5 })),
+      h("h4", {}, final ? "检查门：过了才定稿" : "检查门：候选阶段先看的几条线"),
+      h("span", { class: "hint" }, "量出来的数里没有这一项，这一条就算没过。"),
+      rows(m.gate, gateCols, () => ({ name: "", value: MEASURED[0], what: "" }), "＋ 加一条线"),
+      !final ? "" : m.kind === "ct"
+        ? [h("h4", {}, "内核冒烟"), h("span", { class: "hint" }, "现在做不了：登记得了的内核（M1-3406-v1）只认 sawbone3406 这一根 CAD 骨。CT 重建出来的骨要进 FEA，得先有认它的内核包。")]
+        : [h("h4", {}, "内核冒烟"), h("div", { class: "grid wide" }, choice(m, "smoke", "把定稿的骨模型交给内核试一次", [["none", "不做"], ["template", "只模板化基线设计（几秒到几十秒）"], ["build", "真的建一次模（约半分钟）"]],
+          { help: "要填了下面的“内核”，并且检查门里有一条拿 kernel_smoke 来比的线，才会做。基线设计用的是候选 A。" }))],
+    ],
+    build: (m) => {
+      const out = { side: m.side, frame: { origin: m.origin, x: m.x, y: m.y, z: m.z },
+        materials: { cortical: { model: "linear_elastic", E_MPa: num(m.Ec) ?? null, nu: num(m.nuc) ?? null }, cancellous: { model: "linear_elastic", E_MPa: num(m.Es) ?? null, nu: num(m.nus) ?? null } } };
+      if (m.kind === "ct") {
+        if (!final) out.source = put({ outer: m.outer }, "ct", m.ctfile.trim() || undefined);
+        out.ct = final ? { edge_mm: num(m.edge) ?? null, tet_check: m.tet === "yes" } : {
+          cortical_hu: num(m.hu) ?? null, voxel_mm: num(m.voxel) ?? null, min_wall_voxels: num(m.wallvox) ?? null, depth_cap: m.cap === "none" ? null : CT_CAP, proximal: m.proximal,
+          edge_mm: num(m.edge) ?? null, inner_factor: num(m.inner) ?? null, tet_check: m.tet === "yes",
+          margin_mm: num(m.margin) ?? null, outer_sigma_mm: num(m.osig) ?? null, inner_sigma_mm: num(m.isig) ?? null, relax: num(m.relax) ?? null,
+          triangles: num(m.tris) ?? null, remesh_iterations: num(m.iters) ?? null };
+      } else {
+        if (!final) out.source = { cortical: m.cortical, cancellous: m.cancellous };
+        out.tessellation_mm = num(m.tess) ?? null;
+      }
+      out.gate = m.gate.map(gateBuild);
+      if (final && m.smoke !== "none") out.smoke = m.smoke === "build" ? { mode: "build", design: A_DESIGN, conditions: COND_DEFAULT } : { mode: "template", design: A_DESIGN };
+      return out;
+    },
+  };
+}
+const editsForm = {
+  input: "edits", label: "人工修改", kind: "人工修改", optional: true, file: "edits.json",
+  init: () => ({ by: "", marks: [], solids: [] }),
+  draw: (m) => [
+    h("span", { class: "hint" }, "看过待检查清单之后，要挪标志点、要换实体才填。改了哪里、为什么，都记进骨模型的重建记录。"),
+    h("span", { class: "hint" }, "CT 重建出来的骨要改内壁：只换松质实体就行，文件是一个封闭的内壁表面（STL）；皮质实体会照新的内壁重写，外表面不变。"),
+    h("div", { class: "grid" }, text(m, "by", "谁改的", { optional: true })),
+    h("h4", {}, "挪标志点"),
+    rows(m.marks, [{ k: "name", label: "哪个标志点", w: 170, options: ["head_center", "neck_center", "shaft_proximal", "shaft_distal", "lesser_trochanter"].map((name) => [name, name]) },
+      { k: "x", label: "x (mm)", w: 70 }, { k: "y", label: "y (mm)", w: 70 }, { k: "z", label: "z (mm)", w: 70 }, { k: "why", label: "为什么改", w: 260 }], () => ({ name: "head_center", x: "", y: "", z: "", why: "" }), "＋ 挪一个标志点"),
+    h("h4", {}, "换实体"),
+    rows(m.solids, [{ k: "name", label: "哪个实体", w: 120, options: [["cortical", "皮质"], ["cancellous", "松质"]] }, { k: "file", label: "换成哪个文件", w: 220 }, { k: "why", label: "为什么换", w: 260 }],
+      () => ({ name: "cancellous", file: "", why: "" }), "＋ 换一个实体"),
+  ],
+  build: (m) => {
+    if (!m.by.trim() && !m.marks.length && !m.solids.length) return null;
+    const out = { by: m.by };
+    if (m.marks.length) out.landmarks = Object.fromEntries(m.marks.map((row) => [row.name, { xyz: [num(row.x) ?? null, num(row.y) ?? null, num(row.z) ?? null], why: row.why }]));
+    if (m.solids.length) out.solids = Object.fromEntries(m.solids.map((row) => [row.name, { file: row.file, why: row.why }]));
+    return out;
+  },
+};
+const pointRow = (name, design, reason) => ({ name, reason, ...Object.fromEntries(Object.entries(design).map(([key, value]) => [key, String(value)])) });
+const pointsForm = {
+  input: "points", label: "要算的柄（一批点）", kind: "一批点", file: "points.jsonl，一行一个点",
+  init: () => ({ source: "manual", rows: [pointRow("A", A_DESIGN, "和旧数据库 v0.14 同一个设计")], cond: condModel() }),
+  draw: (m, redraw) => [
+    h("div", { class: "grid wide" }, choice(m, "source", "这批点从哪来", [["manual", "在这里手填"], ["select", "用优化选出来的（一次选点实验的产物）"], ["item", "已经登记的一批点"]], { redraw })),
+    m.source === "select" ? h("div", {}, pick("哪一次选点", "一批点", "“优化：一次选点”的产物。先出候选池，再选点；设计和条件都由那边定，这里不用再填。", ["E0007 选出的 8 个点"])) : "",
+    m.source === "item" ? h("div", {}, pick("哪一批点", "一批点", "以前登记过的一批点", ["baseline-A v1"])) : "",
+    m.source === "manual" ? [
+      h("h4", {}, "设计：每个点一行，14 项都要填"),
+      rows(m.rows, [{ k: "name", label: "名字", sub: "字母数字 . _ -", w: 80, pattern: /^[A-Za-z0-9._-]+$/ },
+        ...DESIGN.map((item) => ({ k: item.name, label: `${item.label}${item.unit ? " " + item.unit : ""}`, sub: `${item.name}　${item.min}–${item.max}`, w: 84 })),
+        { k: "e", label: "入口偏移 e mm", sub: "写 rule 按规则选，或 −8 到 8", w: 110 }, { k: "reason", label: "为什么算这个点", w: 220 }],
+        () => pointRow("p" + (m.rows.length + 1), A_DESIGN, ""), "＋ 加一个点"),
+      h("span", { class: "hint" }, "范围是旧系统 v1 盒子的范围，超出不会被拒，只是提醒。盒子里随机取的设计大约 13% 放得进这根骨。"),
+      h("h4", {}, "条件：这批点共用一套"),
+      condFields(m.cond, redraw),
+      h("span", { class: "hint" }, "要同一个设计算几种工况，就把这个设计加成几个点，或者分成几个实验。"),
+    ] : "",
+  ],
+  build: (m) => m.source !== "manual" ? null : m.rows.map((row) => ({ name: row.name, bone_id: BONE,
+    design: Object.fromEntries([...DESIGN.map((item) => [item.name, num(row[item.name]) ?? null]), ["e", String(row.e).trim() === "rule" ? "rule" : num(row.e) ?? null]]),
+    conditions: condBuild(m.cond), reason: row.reason })),
+  lines: true,
+};
+const exportForm = {
+  input: "export", label: "求解和导出设定", kind: "设定",
+  init: () => ({ cpus: "5", solve_h: "6", build_slots: "2", build_min: "60", derive_min: "10", launcher: "", archive_root: "" }),
+  draw: (m) => [
+    h("div", { class: "grid" },
+      number(m, "cpus", "一个求解作业用几个核", { min: 1, max: 16, int: true, def: 5, help: "旧系统是 3 个作业并行、每个 5 核" }),
+      number(m, "solve_h", "一次求解最长", { unit: "小时", min: 0.1, max: 48, def: 6, help: "超过就停掉，记成环境问题" }),
+      number(m, "build_slots", "同时建模、后处理几个", { min: 1, max: 8, int: true, def: 2 }),
+      number(m, "build_min", "一次建模或后处理最长", { unit: "分钟", min: 1, max: 600, def: 60 }),
+      number(m, "derive_min", "算一次推导量最长", { unit: "分钟", min: 1, max: 120, def: 10 })),
+    h("div", { class: "grid wide", style: "margin-top:10px" },
+      text(m, "launcher", "Abaqus 的启动器", { optional: true, ph: "D:/SIMULIA/Commands/abq2025.bat", help: "留空就用内核自己的设置" }),
+      text(m, "archive_root", "结果归档到哪", { optional: true, ph: "比如 H:/stemlab-archive", help: "留空就放在这个实验自己的文件夹里。一个作业留下网格、每一步的场、求解日志、求解输入。" })),
+    h("span", { class: "hint", style: "margin-top:8px" }, "同时求解几个作业不在这里：它是机器清单里这台电脑的求解槽数（现在是 3），所有实验共用。"),
+  ],
+  build: (m) => {
+    const hours = num(m.solve_h), build = num(m.build_min), derive = num(m.derive_min);
+    const out = { build_slots: num(m.build_slots) ?? null, build_timeout_s: build == null ? null : Math.round(build * 60), derive_timeout_s: derive == null ? null : Math.round(derive * 60),
+      abaqus: { cpus: num(m.cpus) ?? null, timeout_s: hours == null ? null : Math.round(hours * 3600) } };
+    if (m.launcher.trim()) out.abaqus.launcher = m.launcher.trim();
+    if (m.archive_root.trim()) out.archive_root = m.archive_root.trim();
+    return out;
+  },
+};
+const criteriaForm = {
+  input: "criteria", label: "判据", kind: "设定", optional: true,
+  init: () => ({ on: "no", rows: [{ id: "g1", what: "第二循环微动 95 分位的最大值不超过 150 μm（示例，不是已定的判据）", column: "f1_p95_um", stat: "max", op: "<=", limit: "150", missing: "na" }] }),
+  draw: (m, redraw) => [
+    h("div", { class: "grid wide" }, choice(m, "on", "这次要不要判据", [["no", "不要"], ["yes", "要：现在写定，算完由系统照着判"]], { redraw,
+      help: "判据必须在启动之前登记。启动之后才登记的，系统不认。" })),
+    m.on === "yes" ? rows(m.rows, [{ k: "id", label: "编号", w: 60 }, { k: "what", label: "这一条是什么意思", w: 260 },
+      { k: "column", label: "看哪个量", w: 230, options: SCALARS.map(([name, shown]) => [name, `${shown}　${name}`]) },
+      { k: "stat", label: "各点上取", w: 90, options: [["max", "最大值"], ["min", "最小值"], ["mean", "平均"], ["median", "中位数"], ["count", "有数的点数"]] },
+      { k: "op", label: "比法", w: 60, options: [["<=", "≤"], ["<", "<"], [">=", "≥"], [">", ">"]] }, { k: "limit", label: "线", w: 70 },
+      { k: "missing", label: "有的点没算出来时", w: 150, options: [["na", "这一条不可判"], ["skip", "只看有数的点"]] }],
+      () => ({ id: "g" + (m.rows.length + 1), what: "", column: "f1_p95_um", stat: "max", op: "<=", limit: "", missing: "na" }), "＋ 加一条判据") : "",
+  ],
+  build: (m) => m.on !== "yes" ? null : { criteria: m.rows.map((row) => ({ id: row.id, what: row.what, column: row.column, stat: row.stat, op: row.op, limit: num(row.limit) ?? null, missing: row.missing })) },
+};
+const TARGETS = [...LABELS, ...DERIVED];
+const trainForm = {
+  input: "setting", label: "训练设定", kind: "设定",
+  init: () => ({ targets: { rot_first_deg: true, f1_p95_um: true }, scale: { rot_first_deg: "log10", f1_p95_um: "log10" }, seed: "11", level: "0.95", degree: "2", members: "20",
+    lines: [
+      { id: "a1", what: "转动的留出误差不超过 0.10 dex：能用", target: "rot_first_deg", on: "holdout", metric: "rmse", op: "<=", limit: "0.10" },
+      { id: "a2", what: "微动的留出误差不超过 0.10 dex：能用", target: "f1_p95_um", on: "holdout", metric: "rmse", op: "<=", limit: "0.10" },
+      { id: "a3", what: "转动的区间实际覆盖率不低于 0.90", target: "rot_first_deg", on: "holdout", metric: "coverage", op: ">=", limit: "0.90" },
+      { id: "a4", what: "微动的区间实际覆盖率不低于 0.90", target: "f1_p95_um", on: "holdout", metric: "coverage", op: ">=", limit: "0.90" },
+    ] }),
+  draw: (m, redraw) => {
+    const chosen = TARGETS.filter(([name]) => m.targets[name]);
+    return [
+      h("h4", {}, "要预测哪几个量"),
+      h("div", { class: "checks" }, TARGETS.map(([name, shown]) => {
+        const box = h("input", { type: "checkbox", checked: Boolean(m.targets[name]) });
+        box.addEventListener("change", () => { m.targets[name] = box.checked; redraw(); changed(); });
+        return h("label", {}, box, " ", shown, h("span", { class: "soft" }, "　" + name));
+      })),
+      h("h4", {}, "误差在哪个刻度上算"),
+      h("div", { class: "grid" }, chosen.map(([name, shown]) => { m.scale[name] ??= "linear"; return choice(m.scale, name, shown, [["log10", "对数（差多少倍，dex）"], ["linear", "原值"]]); })),
+      h("h4", {}, "模型"),
+      h("div", { class: "grid" }, choice(m, "degree", "二次岭回归集成：到几次项", [["2", "二次（含交叉项）"], ["1", "一次"]], { help: "预测标量现在只有这一种模型" }),
+        number(m, "members", "集成的成员数", { min: 2, max: 200, int: true, def: 20 }), number(m, "level", "预测区间的名义覆盖率", { min: 0.5, max: 0.999, def: 0.95 }),
+        number(m, "seed", "种子", { int: true, help: "同一个种子训练出同一个预测器" })),
+      h("h4", {}, "合格线：训练之前写定"),
+      h("span", { class: "hint" }, "现在定的线：留出误差不超过 0.05 dex 算好，不超过 0.10 算能用，超过 0.15 不能用；名义 95% 的区间实际覆盖率该在 0.90 到 0.99。"),
+      rows(m.lines, [{ k: "id", label: "编号", w: 56 }, { k: "what", label: "这一条是什么意思", w: 260 },
+        { k: "target", label: "哪个量", w: 150, options: chosen.map(([name]) => [name, name]) },
+        { k: "on", label: "在哪一部分上", w: 110, options: [["holdout", "留出"], ["outside", "往外推"]] },
+        { k: "metric", label: "指标", w: 130, options: [["rmse", "均方根差"], ["mae", "平均绝对差"], ["bias", "偏差"], ["r2", "R²"], ["max_abs", "最大绝对差"], ["coverage", "区间覆盖率"], ["n", "点数"]] },
+        { k: "op", label: "比法", w: 60, options: [["<=", "≤"], ["<", "<"], [">=", "≥"], [">", ">"]] }, { k: "limit", label: "线", w: 70 }],
+        () => ({ id: "a" + (m.lines.length + 1), what: "", target: chosen[0] ? chosen[0][0] : "", on: "holdout", metric: "rmse", op: "<=", limit: "" }), "＋ 加一条线"),
+    ];
+  },
+  build: (m) => {
+    const targets = TARGETS.map(([name]) => name).filter((name) => m.targets[name]);
+    const scale = Object.fromEntries(targets.filter((name) => m.scale[name] === "log10").map((name) => [name, "log10"]));
+    return { targets, seed: num(m.seed) ?? null, level: num(m.level) ?? null, scale, model: { name: "ridge", degree: Number(m.degree), members: num(m.members) ?? null },
+      acceptance: m.lines.map((row) => ({ id: row.id, what: row.what, target: row.target, on: row.on, metric: row.metric, op: row.op, limit: num(row.limit) ?? null })) };
+  },
+};
+const GIVEN = [...DESIGN.map((item) => [item.name, `${item.label}　${item.name}`]), ...CONDITIONS.map((item) => [item.name, `${item.label}　${item.name}`])];
+const splitForm = {
+  input: "split", label: "划分：哪些行留出来不进训练", kind: "设定",
+  init: () => ({ by: "row", fraction: "0.2", seed: "7", bones: "", outside: [] }),
+  draw: (m, redraw) => [
+    h("div", { class: "grid wide" }, choice(m, "by", "怎么分", [["row", "按行：每一行随机归一边"], ["bone", "按骨：指定的骨整根留出"]], { redraw })),
+    m.by === "row" ? h("div", { class: "grid", style: "margin-top:10px" }, number(m, "fraction", "留出的比例", { min: 0.01, max: 0.99, def: 0.2 }),
+      number(m, "seed", "种子", { int: true, help: "以后数据多了，老的行归哪边不变" }))
+      : h("div", { class: "grid wide", style: "margin-top:10px" }, text(m, "bones", "留出哪几根骨", { ph: "骨标识，空格隔开", help: "这些骨的行一行都不进训练" })),
+    h("h4", {}, "往外推的那一组（可不填）"),
+    h("span", { class: "hint" }, "这些范围之外的行既不进训练也不算留出，误差单独报。只能用设计和条件来划。"),
+    rows(m.outside, [{ k: "column", label: "哪一项", w: 220, options: GIVEN }, { k: "min", label: "范围下限", w: 90 }, { k: "max", label: "范围上限", w: 90 }],
+      () => ({ column: "L", min: "", max: "" }), "＋ 加一个范围"),
+  ],
+  build: (m) => {
+    const out = m.by === "row" ? { by: "row", fraction: num(m.fraction) ?? null, seed: num(m.seed) ?? null } : { by: "bone", bones: m.bones.split(/\s+/).filter(Boolean) };
+    if (m.outside.length) out.outside = m.outside.map((row) => put(put({ column: row.column }, "min", num(row.min)), "max", num(row.max)));
+    return out;
+  },
+};
+const rangeForm = {
+  input: "range", label: "设计范围：在哪个盒子里取设计", kind: "设定",
+  init: () => ({ items: Object.fromEntries(DESIGN.map((item) => [item.name, { mode: "range", min: String(item.min), max: String(item.max), values: "" }])), e: { mode: "values", min: "-8", max: "8", values: "rule" }, count: "200", seed: "1",
+    method: "lhs", spread: "0.1", centers: [pointRow("A", A_DESIGN, "")] }),
+  draw: (m, redraw) => {
+    const how = [
+      h("div", { class: "grid wide" }, choice(m, "method", "怎么取", [["lhs", "拉丁超立方：每一项上都铺得匀（默认）"], ["sobol", "Sobol 序列：整个范围里铺得匀"], ["random", "每一项各自随机取"],
+        ["around", "围着给的几个设计取：已经有好设计、想在附近细找"]], { redraw })),
+      m.method === "around" ? [h("h4", {}, "围着哪几个设计取"),
+        rows(m.centers, [...DESIGN.map((item) => ({ k: item.name, label: `${item.label}${item.unit ? " " + item.unit : ""}`, sub: item.name, w: 84 })), { k: "e", label: "入口偏移 e", sub: "rule 或 mm", w: 100 }],
+          () => pointRow("", A_DESIGN, ""), "＋ 加一个中心"),
+        h("div", { class: "grid", style: "margin-top:10px" }, number(m, "spread", "取多宽", { min: 0.001, max: 1, def: 0.1, help: "每一项在“中心 ± 这个比例 × 这一项的范围宽度”里取；中心自己也进候选池" }))] : "",
+    ];
+    const line = (name, label, sub, state) => h("tr", {},
+      h("td", {}, label, h("span", { class: "soft" }, "　" + name), sub ? h("span", { class: "hint" }, sub) : ""),
+      h("td", {}, (() => { const select = h("select", {}, [["range", "一个范围"], ["values", "只取这几个值"]].map(([value, shown]) => h("option", { value, selected: state.mode === value }, shown)));
+        select.addEventListener("change", () => { state.mode = select.value; redraw(); changed(); }); return select; })()),
+      state.mode === "range"
+        ? [h("td", {}, number(state, "min", "")), h("td", {}, number(state, "max", ""))]
+        : h("td", { colspan: "2" }, text(state, "values", "", { ph: "空格隔开" })));
+    return [
+      how, h("h4", {}, "各项的范围"),
+      h("div", { class: "scroll" }, h("table", {}, h("tr", {}, h("th", {}, "设计项"), h("th", { style: "min-width:120px" }, "范围怎么写"), h("th", { style: "min-width:90px" }, "最小"), h("th", { style: "min-width:90px" }, "最大")),
+        DESIGN.map((item) => line(item.name, `${item.label}${item.unit ? "（" + item.unit + "）" : ""}`, item.help, m.items[item.name])),
+        line("e", "入口偏移 e（mm）", "写 rule 就由生产规则在九档里选", m.e))),
+      h("div", { class: "grid", style: "margin-top:10px" }, number(m, "count", "取多少个设计", { min: 1, max: 100000, int: true, help: "每个都交给内核模板化，看放不放得进这根骨" }),
+        number(m, "seed", "种子", { int: true, help: "同一份范围加同一个种子，取出来的是同一批设计" })),
+      h("span", { class: "hint", style: "margin-top:8px" }, "默认是旧系统的 v1 盒子。v1 盒子里大约 13% 的设计可行，所以 200 个候选大约剩 26 个。"),
+    ];
+  },
+  build: (m) => {
+    const one = (state) => state.mode === "range" ? [num(state.min) ?? null, num(state.max) ?? null] : { values: state.values.split(/\s+/).filter(Boolean).map((part) => num(part) ?? part) };
+    const out = { design: Object.fromEntries([...DESIGN.map((item) => [item.name, one(m.items[item.name])]), ["e", one(m.e)]]), count: num(m.count) ?? null, seed: num(m.seed) ?? null, method: m.method };
+    if (m.method === "around") {
+      out.centers = m.centers.map((row) => Object.fromEntries([...DESIGN.map((item) => [item.name, num(row[item.name]) ?? null]), ["e", String(row.e).trim() === "rule" ? "rule" : num(row.e) ?? null]]));
+      out.spread = num(m.spread) ?? null;
+    }
+    return out;
+  },
+};
+const objectiveForm = {
+  input: "objective", label: "目标和约束", kind: "目标和约束",
+  init: () => ({ version: "v1", goals: [{ column: "f1_p95_um", goal: "min", weight: "1" }, { column: "bone_total_mm3", goal: "min", weight: "1" }],
+    limits: [{ id: "c1", what: "皮质余量不小于 1.0 mm（手术上可行的口径）", on: "design", column: "m", op: ">=", limit: "1.0" }] }),
+  draw: (m) => [
+    h("div", { class: "grid" }, text(m, "version", "这是哪一版目标", { help: "数据和预测器要和它是同一版才能一起用" })),
+    h("h4", {}, "目标"), h("span", { class: "hint" }, "下面两条是示例，不是已定的目标。"),
+    rows(m.goals, [{ k: "column", label: "哪个量", w: 300, options: SCALARS.map(([name, shown]) => [name, `${shown}　${name}`]) }, { k: "goal", label: "往哪边", w: 100, options: [["min", "越小越好"], ["max", "越大越好"]] }, { k: "weight", label: "权重", w: 70 }],
+      () => ({ column: "rot_first_deg", goal: "min", weight: "1" }), "＋ 加一个目标"),
+    h("h4", {}, "不做 FE 就判得了的约束"), h("span", { class: "hint" }, "不满足的点不会出现在选出的一批点里，和用哪份策略无关。要做了 FE 才知道的（比如微动）不写在这里。"),
+    rows(m.limits, [{ k: "id", label: "编号", w: 56 }, { k: "what", label: "这一条是什么意思", w: 260 }, { k: "on", label: "拿什么比", w: 150, options: [["design", "设计里的一项"], ["info", "模板化给的一项"]] },
+      { k: "column", label: "哪一项", w: 150, ph: "比如 m、L、bone_total_mm3" }, { k: "op", label: "比法", w: 60, options: [["<=", "≤"], ["<", "<"], [">=", "≥"], [">", ">"], ["==", "="], ["!=", "≠"]] }, { k: "limit", label: "线", w: 70 }],
+      () => ({ id: "c" + (m.limits.length + 1), what: "", on: "design", column: "", op: "<=", limit: "" }), "＋ 加一条约束"),
+  ],
+  build: (m) => ({ version: m.version, objectives: m.goals.map((row) => ({ column: row.column, goal: row.goal, weight: num(row.weight) ?? 1 })),
+    constraints: m.limits.map((row) => ({ id: row.id, what: row.what, on: row.on, column: row.column, op: row.op, limit: num(row.limit) ?? row.limit })) }),
+};
+const defaultsForm = {
+  input: "defaults", label: "选点设定", kind: "设定",
+  init: () => ({ count: "8", seed: "7", cond: condModel() }),
+  draw: (m, redraw) => [
+    h("div", { class: "grid" }, number(m, "count", "这一次选几个点", { min: 1, max: 10000, int: true }), number(m, "seed", "种子", { int: true, help: "同样的输入加同一个种子，可以重放出同一批点" })),
+    h("h4", {}, "条件：选出的每个点都带这一套"), condFields(m.cond, redraw),
+  ],
+  build: (m) => ({ conditions: condBuild(m.cond), count: num(m.count) ?? null, seed: num(m.seed) ?? null }),
+};
+
+// ---------------------------------------------------------------- 八页
+const PAGES = [
+  { module: "重建", type: "recon.draft", title: "从骨源出候选骨模型", where: "这台电脑",
+    gives: "候选骨模型、待检查清单", ends: "重建完；重建出错（待查）；环境问题（可重试）",
+    facts: ["骨源有两种。CAD：一个文件夹里皮质、松质两个 STEP 实体，原样用，读 STEP、划表面三角网要几十秒。",
+      "CT：一个文件夹里一份 CT（nrrd、nii 或 mha）加一份这根股骨的外形（STL 或 PLY）。照 CT 值在外形以内分出皮质和内部，出两个封闭的实体（STL），一根大约一到两分钟。做法是 2026-11 的第二版 CT 流程，说明在 docs/CT重建.md。",
+      "CT 骨源必须带外形：只有 CT 时，自动把股骨和骨盆、胫骨分开靠不住（实测 12 例都没分对），所以不做。一组 DICOM 不直接读，要先转成 nrrd。",
+      "CT 重建出来的骨，股骨头、颈和髁部的内壁是照规则补的，不是量出来的。待检查清单里每一根都会标出来，请在系统外（比如 3D Slicer）对着 CT 看截面。"],
+    parts: [{ pick: ["骨源", "骨源", "登记一个文件夹。CAD：皮质和松质两个 STEP；CT：一份 CT 加一份股骨外形", ["sawbone3406-cad", "vsd-z061-R-ct"]] }, reconSetting(false)] },
+  { module: "重建", type: "recon.finalize", title: "候选骨模型过检查门，定稿成骨模型", where: "这台电脑",
+    gives: "骨模型、检查结果", ends: "过了检查门；没过检查门（算结论）；重建出错（待查）；环境问题（可重试）",
+    facts: ["定稿的骨模型是 FEA 和优化的输入。", "导针孔、盲窝、开放的皮质壳这类问题，标志点核对发现不了，要到内核建模时才暴露，所以有内核冒烟这一条。",
+      "CT 重建出来的骨：定稿时照设定再试划一次四面体，量出单元质量；候选阶段量过的 CT 那几项原样带进骨模型。现在的内核只认 sawbone3406，这样的骨还进不了 FEA。"],
+    parts: [{ pick: ["候选骨模型", "候选骨模型", "“从骨源出候选骨模型”的产物", ["sawbone3406 候选 v1"]] }, reconSetting(true), editsForm,
+      { pick: ["内核（做建模冒烟）", "内核", "登记的内核包", ["kernel-m1-3406（M1-3406-v1）"], true] }] },
+  { module: "FEA", type: "fea.run", title: "一批点，每个点一个作业", where: "这台电脑（Abaqus 2025）",
+    gives: "数据、归档清单、判定结果", ends: "每个点各有结局：算完；放不进去、接触不稳等（算结论）；不收敛、网格失败（待查）；许可证、超时（可重试）",
+    facts: ["点的设计必须正好是内核要的 14 项，条件必须正好是 8 项，多一项少一项都启动不了。", "一次求解大约十几分钟到半小时（基线设计实测 1007 秒）。",
+      "内核里写死、页面上调不了的：远场网格 6 mm、弹性滑移容差、选号规则、无领、平端 1.5 mm。"],
+    parts: [{ pick: ["骨模型", "骨模型", "重建定稿的产物", ["sawbone3406 骨模型 v1"]] }, pointsForm,
+      { pick: ["内核", "内核", "登记的内核包（external/kernel_m1_3406 打出来的）", ["kernel-m1-3406（M1-3406-v1）"]] },
+      { pick: ["推导量定义", "推导量定义", "登记的包（external/derive_bed_f 打出来的）。它从界面场算出床支撑 F 等几个量", ["derive-bed-f（骨床支撑量）"]] },
+      exportForm, criteriaForm] },
+  { module: "代理", type: "surrogate.train", title: "训练一个预测器", where: "Linux 那台；连不上就在这台电脑上训",
+    gives: "预测器、误差报告", ends: "训练完；训练发散（待查）；出错（待查）；环境问题（可重试）",
+    facts: ["留出的行一行都不进训练，训练代码拿不到它们的 FE 结果；误差由操作台这边拿真值来算。",
+      "现在的模型（二次岭回归集成）在旧数据库的 1144 行上实测：转动 0.166 dex、微动 0.228 dex，按现在定的线是“不能用”。页面能填、能训，但要换更好的模型才用得上。",
+      "场：系统现在收得了场的预测（训练设定里写 fields），带着一个最简单的场模型 pod（POD 加岭回归），误差和合格线照样由固定的代码算。但现在内核给的界面场是各个设计节点数不同的点云，这种场学不了：要先把它换成每个设计形状都一样的写法（比如柄自己的坐标网格）。这一步怎么做还没有定，所以这一页还没有“预测哪个场”的选项。"],
+    parts: [{ pick: ["数据（可以选多份）", "数据", "FEA 实验的产物，或登记的旧数据库（v0.14 转换，1144 行）", ["legacy-db-v014（1144 行）", "E0003 的数据"]] }, trainForm, splitForm] },
+  { module: "代理", type: "surrogate.predict", title: "对一批点出预测", where: "这台电脑",
+    gives: "一份预测", ends: "出完；出错（待查）；环境问题（可重试）",
+    facts: ["这一类实验没有设定可调，只选两样输入。", "预测器第一次在这台电脑上用，系统先拿它自带的自检样本核一遍，过了才出数。", "不在预测器适用范围里的点不出预测。"],
+    parts: [{ pick: ["预测器", "预测器", "“训练一个预测器”的产物", ["E0005 训练的预测器"]] }, { pick: ["一批点", "一批点", "手填登记的，或一次选点的产物", ["E0007 选出的 8 个点"]] }] },
+  { module: "代理", type: "surrogate.check", title: "复核：预测对 FEA", where: "这台电脑",
+    gives: "复核报告", ends: "复核完；一个点都对不上（算结论）",
+    facts: ["这一类实验没有设定可调。", "预测和 FEA 的结果按点的哈希对齐：同一根骨、同样的设计、同样的条件才算同一个点。"],
+    parts: [{ pick: ["一份预测", "一份预测", "“对一批点出预测”的产物", ["E0008 的预测"]] }, { pick: ["数据", "数据", "同一批点做完 FEA 的产物", ["E0009 的数据"]] }] },
+  { module: "优化", type: "opt.pool", title: "出候选池（批量模板化，不做 FE）", where: "这台电脑",
+    gives: "候选池", ends: "生成完；出错（待查）；环境问题（可重试）",
+    facts: ["候选池里每个设计可不可行，是内核模板化自己说的，插件不改。", "范围里的项必须正好是内核要的 14 个设计项。",
+      "取设计有四种取法：拉丁超立方、Sobol 序列、随机、围着给的几个设计取。同一份范围加同一个种子，取出来的是同一批。"],
+    parts: [{ pick: ["骨模型", "骨模型", "重建定稿的产物", ["sawbone3406 骨模型 v1"]] }, { pick: ["内核", "内核", "登记的内核包", ["kernel-m1-3406（M1-3406-v1）"]] }, rangeForm] },
+  { module: "优化", type: "opt.select", title: "一次选点", where: "这台电脑",
+    gives: "一批点（可以直接填进 FEA 实验）", ends: "选完；没有可行的点（算结论）；策略出错（待查）；环境问题（可重试）",
+    facts: ["选点的算法是登记进来的策略包，现在有四种，做法在 external/strategies/，说明在 docs/优化算法.md。它们还没有登记进账本，登记之后这里才选得到。",
+      "均匀铺点：不用模型，在能选的候选里挑彼此离得最远的。第一批点用；数据可填可不填，填了会避开已经算过的设计。",
+      "贝叶斯优化：要填数据。拿同一根骨、条件相同、目标都有数的行在策略内部拟合高斯过程；这样的行不够时不选，并说差多少。",
+      "照预测值选、照预测区间有利的一端选：要填预测器。几个目标时先取预测的帕累托前沿。",
+      "不管哪种策略，选出来的点都先过系统的可行性检查：不在池里的、不可行的、违反约束的都拦下。每个点的理由里写着哪份策略、种子、哪版目标、用的哪个模型；选完可以重放。"],
+    parts: [objectiveForm, { pick: ["策略（选点的算法）", "策略", "登记的策略包", ["均匀铺点", "贝叶斯优化", "照预测值选", "照预测区间有利的一端选"]] },
+      { pick: ["候选池", "候选池", "“出候选池”的产物", ["E0006 的候选池（200 个，可行 26 个）"]] }, defaultsForm,
+      { pick: ["数据（可以选多份）", "数据", "策略要用已有结果时才填", ["legacy-db-v014（1144 行）"], true] }, { pick: ["预测器", "预测器", "策略要用预测时才填", ["E0005 训练的预测器"], true] }] },
+];
+
+// ---------------------------------------------------------------- 画
+const models = new Map();
+const modelOf = (page, form) => { const key = page.type + "/" + form.input; if (!models.has(key)) models.set(key, form.init()); return models.get(key); };
+const shown = (form, built) => built === null ? "（这一项不填）" : form.lines ? built.map((row) => JSON.stringify(row)).join("\n") : JSON.stringify(built, null, 1);
+let current = PAGES[2];
+function show(page) {
+  current = page;
+  document.querySelectorAll("nav button").forEach((button) => button.classList.toggle("on", button.dataset.type === page.type));
+  const previews = [];
+  const body = [h("h2", {}, `${page.module}：${page.title}`), h("div", { class: "soft" }, `${page.type}　在哪跑：${page.where}　产出：${page.gives}`),
+    h("div", { class: "soft" }, `结局：${page.ends}`), h("div", { class: "note" }, h("ul", {}, page.facts.map((fact) => h("li", {}, fact))))];
+  const picks = page.parts.filter((part) => part.pick);
+  if (picks.length) body.push(h("div", { class: "card" }, h("h3", {}, "从登记的东西里选"), h("div", { class: "grid wide", style: "margin-top:8px" }, picks.map((part) => pick(...part.pick)))));
+  page.parts.filter((part) => !part.pick).forEach((form) => {
+    const model = modelOf(page, form), holder = h("div"), out = h("pre");
+    const draw = () => holder.replaceChildren(...[form.draw(model, () => { draw(); changed(); })].flat(3).filter((kid) => kid !== ""));
+    draw();
+    previews.push(() => { out.textContent = shown(form, form.build(model)); });
+    body.push(h("div", { class: "card" }, h("h3", {}, form.label, h("span", { class: "tag" }, form.kind), form.optional ? h("span", { class: "tag" }, "可不填") : ""), holder,
+      h("details", {}, h("summary", {}, `保存时登记的内容${form.file ? "（" + form.file + "）" : ""}`), out)));
+  });
+  body.push(h("div", { class: "bar" }, h("button", { class: "primary" }, "保存并填入"), h("button", {}, "启动"), h("span", { class: "hint" }, "每次保存登记成新的一版，旧的不动。设计稿里这两个按钮不做事。")));
+  changed = () => previews.forEach((update) => update());
+  document.getElementById("main").replaceChildren(...body);
+  changed();
+}
+const nav = document.getElementById("nav");
+[...new Set(PAGES.map((page) => page.module))].forEach((module) => {
+  nav.append(h("h3", {}, module));
+  PAGES.filter((page) => page.module === module).forEach((page) => nav.append(h("button", { "data-type": page.type, onclick: () => show(page) }, page.title)));
+});
+const order = ["recon.draft", "recon.finalize", "opt.pool", "opt.select", "fea.run", "surrogate.train", "surrogate.predict", "surrogate.check"];
+const flow = document.getElementById("flow");
+flow.append(h("span", { class: "soft" }, "一条完整的路："));
+order.forEach((type, index) => { const page = PAGES.find((one) => one.type === type);
+  flow.append(h("button", { onclick: () => show(page) }, page.title.split("（")[0].split("，")[0]), index < order.length - 1 ? h("span", { class: "soft" }, "→") : ""); });
+// 给核对用：每一页每张表照默认值保存时会登记成什么
+window.stemlabDefaults = () => Object.fromEntries(PAGES.map((page) => [page.type, Object.fromEntries(page.parts.filter((part) => !part.pick).map((form) => [form.input, form.build(form.init())]))]));
+// 骨源选成 CT 时，重建两页的设定照默认值保存会登记成什么
+window.stemlabCt = () => ({ draft: reconSetting(false).build(reconSetting(false).init("ct")), final: reconSetting(true).build(reconSetting(true).init("ct")) });
+show(current);
+</script>
+</body>
+</html>

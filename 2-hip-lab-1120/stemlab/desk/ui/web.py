@@ -97,6 +97,9 @@ def read(path: str, asked: dict):
 
 
 def _called(result) -> dict:
+    """叫插件的结果。轮询时核心没有叫插件（不在运行中，或者只补了收尾）给的是 None：照实说这一遍没叫。"""
+    if result is None:
+        return {"ran": None, "error": None, "said": "这一遍没有叫插件：它不在运行中，要补的收尾已经补上了"}
     return {"ran": result.ok, "error": result.error}
 
 

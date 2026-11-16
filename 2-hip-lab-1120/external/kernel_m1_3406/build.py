@@ -7,7 +7,7 @@
 取出来先算 code_hash，对不上 6d7af243d0 就不打包。别的运行时文件从工作树按字节复制。
 打好的包里没有两个 STEP 文件：它们属于骨模型，求解时由 stem-lab 把骨模型的位置交给内核。
 
-打好之后登记：python -m stemlab.desk register kernel m1-3406 --source <包的文件夹> --note "..."
+打好之后登记：python -m stemlab.desk register kernel m1-3406 --path <包的文件夹> --note "..."
 """
 from __future__ import annotations
 

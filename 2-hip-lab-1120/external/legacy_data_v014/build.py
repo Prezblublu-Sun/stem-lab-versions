@@ -10,6 +10,10 @@
 同一个点（骨、设计、条件都相同）在旧库里出现几次的，只留第一行（旧库的重复计算是为了量噪声）。
 每行的输入指纹用旧作业的编号和代码哈希算；轮号都记 1。场不转。
 
+清单里记着这份数据是哪个内核算的（made_by）：就是内核包清单里的 model（M1-3406-v1，代码哈希 6d7af243d0），
+和以后 fea.run 用这个内核包算出来的数据记的一样，所以两份可以放在一起用。旧库里代码哈希不是它的行不收
+（2026-11-15 核过：v0.14 里收下的 1157 行都是 6d7af243d0）。推导量不转，所以 derive 是 null。
+
 转出来的文件夹过了格式核对才算成。要用它，再由你登记：种类 data，骨标识 sawbone3406。
 """
 from __future__ import annotations
@@ -46,10 +50,15 @@ def convert(table: Path, package: Path, out: Path) -> dict:
     columns = [dict(column, role=role) for group, role in groups for column in listed[group]]
     with open(table, newline="", encoding="utf-8") as stream:
         legacy = list(csv.DictReader(stream))
-    rows, seen, counts = [], set(), {"旧库的行": len(legacy), "没算完或没有摩擦结果": 0, "特殊工况": 0, "重复的点": 0}
+    model = listed["model"]
+    rows, seen = [], set()
+    counts = {"旧库的行": len(legacy), "没算完或没有摩擦结果": 0, "特殊工况": 0, "重复的点": 0, "别的代码版本算的": 0}
     for old in legacy:
         if old["status"] != "DONE" or old["kind"] == "intact" or number(old["rot_first_deg"]) is None:
             counts["没算完或没有摩擦结果"] += 1
+            continue
+        if old["code_hash"] != model["code_hash"]:
+            counts["别的代码版本算的"] += 1
             continue
         if old["torsion"] or old["pose"] or old["femur_id"] != BONE:
             counts["特殊工况"] += 1
@@ -72,7 +81,8 @@ def convert(table: Path, package: Path, out: Path) -> dict:
                      "fingerprint": hash_json({"legacy_job": old["job_id"], "code_hash": old["code_hash"]})})
     out.mkdir(parents=True, exist_ok=True)
     (out / "rows.jsonl").write_bytes(b"".join(canonical(row) + b"\n" for row in rows))
-    write_manifest(out, make_manifest("data", ["rows.jsonl"], count=len(rows), columns=columns, bone_id=BONE))
+    write_manifest(out, make_manifest("data", ["rows.jsonl"], count=len(rows), columns=columns, bone_id=BONE,
+                                      made_by={"kernel": dict(model), "derive": None}))
     wrong = check_format("data", out)
     if wrong:
         raise SystemExit("转出来的数据不符合格式：" + "；".join(wrong[:5]))

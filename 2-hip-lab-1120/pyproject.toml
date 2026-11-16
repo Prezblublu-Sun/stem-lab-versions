@@ -19,10 +19,22 @@ dependencies = [
 dev = [
     "pytest>=9",
     "import-linter>=2.16",  # 块之间谁能用谁，八条规则
+    "hypothesis>=6.100",    # 属性测试：写“永远成立的话”，由它生成成千上万种输入去试，见 tests/properties.py
+    "ruff>=0.11",           # 快检查：拼错的名字、没用的 import 之类，几秒钟
+    "pytest-gremlins>=1.14",  # 变异测试：把规则逐条改坏，看测试拦不拦得住。不改盘上的文件；mutmut 在 Windows 上要 WSL，所以不用它
+]
+# CT 重建（plugins/recon 里 CT 那一半）要的。只在操作台那台装，worker 不装。
+# 和 2026-11 做第二版 CT 重建流程时用的是同一套库、同样的版本（3D Slicer 5.10 自带的 SimpleITK 和 VTK，加 MeshLab）
+recon = [
+    "simpleitk==2.5.2",          # 读 CT、重采样、掩膜的形态学运算
+    "vtk==9.5.2",                # 外形变掩膜、取等值面、网格平滑和减面
+    "pymeshlab==2025.7.post1",   # MeshLab：修复表面、等边长重划
+    "msvc-runtime==14.51.36231 ; sys_platform == 'win32'",  # pymeshlab 在 Windows 上要它；它的 Windows 包里写了，别的平台的包里没写，锁认不出来，所以明写在这里
 ]
 
 [tool.uv]
 package = false             # stemlab 和 plugins 从仓库根目录直接跑，不装成包
+default-groups = ["dev", "recon"]   # 操作台上 uv sync 默认装这两组；worker 只装上面的 dependencies（见 worker_env/install_env.sh）
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "tests_free", "plugins"]  # 固定的验收在 tests/；自由代码的测试在 tests_free/ 和各插件自己的 tests/
@@ -33,3 +45,12 @@ markers = [
     "science: 物理上对不对，算例和容差由人定，不交给 AI",
     "swap: 把界面和仪表盘整个换一份写法，再把固定的测试跑一遍；要几分钟",
 ]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 160
+
+[tool.ruff.lint]
+# 只开最基本的几类：语法错误、未定义的名字、没用的 import 和变量、写错了的比较（pyflakes，加 pycodestyle 的 E4、E7、E9）。
+# ruff 新版本默认开的规则多得多，多是写法上的建议，不在这里开
+select = ["E4", "E7", "E9", "F"]

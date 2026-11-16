@@ -3,7 +3,7 @@
     python external/derive_bed_f/build.py <包放到哪个文件夹>
 
 自检样本是这里现造的一小片界面点云：九个节点，哪几个落在支撑区里、F 该是多少，手算得出来（见 sample()）。
-打好之后登记：python -m stemlab.desk register derive_def bed-f-3406 --source <包的文件夹> --note "..."
+打好之后登记：python -m stemlab.desk register derive_def bed-f-3406 --path <包的文件夹> --note "..."
 """
 from __future__ import annotations
 

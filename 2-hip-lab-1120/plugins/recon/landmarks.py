@@ -119,11 +119,38 @@ def vertex_areas(vertices, triangles) -> np.ndarray:
     return summed
 
 
-def lengthwise(vertices) -> np.ndarray:
-    """骨的长方向，指向近端（有股骨头的那一头：那一头的点离长轴更远）。"""
+def end_roundness(vertices, triangles, axis, inside: float = 6.0) -> tuple:
+    """两头各向里 inside 毫米的截面上，最大的那一圈有多圆（4π × 面积 ÷ 周长²，圆是 1）。返回（axis 指的那一头，另一头）。
+
+    股骨头的顶是一个球冠，截出来是一个圆；髁那一头截出来是两块，哪一块都不圆。截不到东西的记 0。
+    """
+    along = vertices @ axis
+    found = []
+    for level in (along.max() - inside, along.min() + inside):
+        section = outer_section(vertices, triangles, axis * level, axis)
+        if section is None:
+            found.append(0.0)
+            continue
+        loop = section[2]
+        around = float(np.linalg.norm(np.roll(loop, -1, axis=0) - loop, axis=1).sum())
+        found.append(4.0 * math.pi * section[0] / max(around * around, 1e-12))
+    return found[0], found[1]
+
+
+def lengthwise(vertices, triangles=None) -> np.ndarray:
+    """骨的长方向，指向近端（有股骨头的那一头）。
+
+    给了三角形，先看两头的截面哪个更圆：股骨头的顶截出来是一个圆，髁截出来不是。
+    2026-11 那一批 162 根真实股骨上，这样判出来的和当时记下的近端全部一致。
+    两头差不多圆（比如远端是平切的一段骨干），或者没给三角形，就看哪一头的点离长轴更远。
+    """
     centred = vertices - vertices.mean(0)
     _, _, vt = np.linalg.svd(centred[:: max(1, len(centred) // 20000)], full_matrices=False)
     axis = vt[0]
+    if triangles is not None:
+        top, bottom = end_roundness(vertices, triangles, axis)
+        if abs(top - bottom) > 0.03:
+            return axis if top > bottom else -axis
     along = centred @ axis
     spread = np.linalg.norm(centred - np.outer(along, axis), axis=1)
     top, bottom = spread[along > np.percentile(along, 85)].max(), spread[along < np.percentile(along, 15)].max()
@@ -256,7 +283,7 @@ def lesser_trochanter(vertices, triangles, head: dict, shaft: dict, neck: dict, 
 def find(mesh: dict, side: str) -> dict:
     """在皮质实体的表面上找齐五个标志点。返回标志点（骨模型格式里的写法）、量出来的几个数、和每一步的细节。"""
     vertices, triangles = mesh["vertices"], mesh["triangles"]
-    shaft = shaft_axis(vertices, triangles, lengthwise(vertices))
+    shaft = shaft_axis(vertices, triangles, lengthwise(vertices, triangles))
     head = head_sphere(vertices, triangles, shaft)
     neck = neck_isthmus(vertices, triangles, head, shaft)
     trochanter = lesser_trochanter(vertices, triangles, head, shaft, neck, side)

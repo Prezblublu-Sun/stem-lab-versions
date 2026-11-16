@@ -36,9 +36,10 @@ def targets(rows, names, scales: dict) -> list[list[float]]:
             for row in rows]
 
 
-def usable(rows, names, scales: dict) -> list[dict]:
-    """能拿来训练的行：要预测的量都有数，取对数的还得是正数。"""
+def usable(rows, names, scales: dict, fields=()) -> list[dict]:
+    """能拿来训练的行：要预测的量都有数，取对数的还得是正数；要预测的场这一行都交过来了。"""
     def fine(row) -> bool:
-        return all(_number(row["values"].get(name)) and (scales.get(name) != "log10" or row["values"][name] > 0) for name in names)
+        return (all(_number(row["values"].get(name)) and (scales.get(name) != "log10" or row["values"][name] > 0) for name in names)
+                and all(name in (row.get("fields") or {}) for name in fields))
 
     return [row for row in rows if fine(row)]

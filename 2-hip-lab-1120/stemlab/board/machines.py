@@ -53,8 +53,13 @@ _QUIET = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else 
 _GB = 1024 ** 3
 
 
+def _line(value) -> bool:
+    """告警线得是一个不小于零的数。"""
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0
+
+
 def read_config() -> tuple[dict, str | None]:
-    """读 board.json。没有就用默认的；读不出来也用默认的，并说出原因。"""
+    """读 board.json。没有就用默认的；读不出来也用默认的，并说出原因。告警线不认得或者不是数的，那一条用默认的，也说出来。"""
     config = json.loads(json.dumps(DEFAULTS))
     path = layout.repo_root() / CONFIG
     try:
@@ -65,11 +70,18 @@ def read_config() -> tuple[dict, str | None]:
         return config, None
     except (OSError, ValueError) as error:
         return config, f"{CONFIG} 读不出来，现在用的是默认设置：{error}"
+    wrong = []
     for key, value in given.items():
-        if key == "alerts" and isinstance(value, dict):
-            config["alerts"].update(value)
+        if key == "alerts":
+            for name, line in (value.items() if isinstance(value, dict) else [("", value)]):
+                if name in config["alerts"] and _line(line):
+                    config["alerts"][name] = line
+                else:
+                    wrong.append(f"alerts.{name}" if name else "alerts")
         elif key in config:
             config[key] = value
+    if wrong:
+        return config, f"{CONFIG} 里这几项不认得、或者不是不小于零的数，用的是默认的线：{'、'.join(wrong)}"
     return config, None
 
 
@@ -268,6 +280,8 @@ class Feed:
             self.latest, self.at, self.error = self.parse(block, self.latest), time.time(), None
         except (ValueError, IndexError, KeyError, ZeroDivisionError):
             pass                                                # 这一组读不懂就等下一组
+        except Exception as error:  # noqa: BLE001  读数的线程不能因为一组没想到的数就停下，停了就再也没有数
+            self.error = f"有一组数读不懂：{type(error).__name__}: {error}"
 
     def age(self) -> float | None:
         return None if self.at is None else time.time() - self.at
