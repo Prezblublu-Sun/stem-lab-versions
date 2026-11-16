@@ -4,7 +4,7 @@
 只用标准库，不 import 别的块。
 
     layout.py       data/ 的布局和编号的写法
-    kinds.py        十六种种类；登记的一条记录长什么样
+    kinds.py        种类（蓝图的十六种，加四种包）；登记的一条记录长什么样
     origin.py       来路的两种形状
     hashing.py      哈希：字节、文件、JSON 值、文件夹、输入指纹
     chain.py        只追加的哈希链，两条链共用
@@ -13,12 +13,13 @@
     plugin_api.py   插件接口：类型、四个动作、handle
     versions.py     每种格式现在的版本；旧版本怎么转成现在的形状
     machines.py     机器清单的格式
-    formats/        文件夹形态的东西：共用的清单，和各自的格式
+    formats/        文件夹形态的东西：共用的清单，和各自的格式；设定的声明，材料的写法，柄的模型
 
 碰盘的只有这几处，别的都是纯函数：
     hashing.hash_file、hashing.list_tree、hashing.hash_tree          读
     formats.manifest.read_manifest、formats.manifest.check_format   读
     formats.points.read_points                                      读
+    formats.stem_model.read、formats.stem_model.check              读
     formats.manifest.write_manifest、formats.points.write_points    写调用方给的文件夹
 """
 

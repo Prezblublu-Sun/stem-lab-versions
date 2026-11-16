@@ -1,4 +1,7 @@
-"""种类。登记的东西一共十六种，按形态分四组；这里也定了登记的一条记录长什么样。
+"""种类。登记的东西有哪几种，按形态分四组（见 _ROWS）；这里也定了登记的一条记录长什么样。
+
+蓝图定的是十六种。2026-11-16 照《核心、插件和包》第二节，带代码的包加了四种：柄空间、有限元、重建方法、代理模型。
+原来的内核（kernel）留着，作参照包。
 
 注意两个容易混的词：种类（kind）说的是登记的东西，类型（type）说的是实验。
 """
@@ -39,10 +42,14 @@ _ROWS = (
     ("pool",        "候选池",       TABLE,    False,  "points"),
     ("data",        "数据",         TABLE,    False,  "data"),
     ("prediction",  "一份预测",     TABLE,    False,  "data"),
-    ("kernel",      "内核",         PACKAGE,  False,  "package"),
+    ("kernel",      "内核",         PACKAGE,  False,  "package"),      # 原来的内核，留作参照包
     ("strategy",    "策略",         PACKAGE,  False,  "package"),
     ("derive_def",  "推导量定义",   PACKAGE,  False,  "package"),
     ("predictor",   "预测器",       PACKAGE,  False,  "package"),
+    ("stem_space",  "柄空间",       PACKAGE,  False,  "package"),      # 柄的形状和放置：设计项、模板化、交出柄的模型
+    ("fem",         "有限元",       PACKAGE,  False,  "package"),      # 照 Abaqus 的设定建模、求解、后处理
+    ("recon_method", "重建方法",    PACKAGE,  False,  "package"),      # CT 流程、CAD 导入、STL 导入
+    ("surrogate_model", "代理模型", PACKAGE,  False,  "package"),      # 一种模型族怎么训练
     ("objective",   "目标和约束",   VALUE,    False,  "value"),
     ("setting",     "设定",         VALUE,    False,  "value"),
 )
@@ -70,7 +77,7 @@ def check_item(record) -> list[str]:
 
     kind = ITEM_KINDS.get(record["kind"]) if isinstance(record["kind"], str) else None
     if kind is None:
-        return [f"十六种种类里没有 {record['kind']!r}"]
+        return [f"登记的种类里没有 {record['kind']!r}"]
     if not is_time(record["time"]):
         problems.append(f"time 不是规定的写法：{record['time']!r}")
     if not is_item_id(record["id"]) or record["id"].startswith("C") != kind.case:

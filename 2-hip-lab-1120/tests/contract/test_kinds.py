@@ -1,4 +1,4 @@
-"""十六种种类，和登记的一条记录长什么样。"""
+"""种类（蓝图的十六种，加 2026-11-16 照《核心、插件和包》第二节加的四种包），和登记的一条记录长什么样。"""
 from __future__ import annotations
 
 import pytest
@@ -6,12 +6,14 @@ import pytest
 from stemlab.contract.kinds import (FOLDER, ITEM_FIELDS, ITEM_KINDS, PACKAGE, TABLE, VALUE, check_item, storages)
 from tests.contract import samples as s
 
-# 蓝图里的表，写死在这里
+# 蓝图里的表，加上《核心、插件和包》第二节的四种包，写死在这里
 EXPECTED = {
     "bone_source": (FOLDER, True), "bone_model": (FOLDER, True), "bone_draft": (FOLDER, False),
     "edits": (FOLDER, False), "archive": (FOLDER, False), "report": (FOLDER, False),
     "points": (TABLE, False), "pool": (TABLE, False), "data": (TABLE, False), "prediction": (TABLE, False),
     "kernel": (PACKAGE, False), "strategy": (PACKAGE, False), "derive_def": (PACKAGE, False), "predictor": (PACKAGE, False),
+    "stem_space": (PACKAGE, False), "fem": (PACKAGE, False), "recon_method": (PACKAGE, False),
+    "surrogate_model": (PACKAGE, False),
     "objective": (VALUE, False), "setting": (VALUE, False),
 }
 
@@ -25,8 +27,8 @@ PRODUCT_ITEM = {"format": 1, "time": s.T0, "id": "R0003", "kind": "report", "nam
                 "origin": {"from": "product", "experiment": "E0001", "round": 2, "output": "report"}, "bone_id": None}
 
 
-def test_there_are_sixteen_kinds_in_four_forms():
-    assert len(ITEM_KINDS) == 16
+def test_there_are_twenty_kinds_in_four_forms():
+    assert len(ITEM_KINDS) == 20
     assert {name: (kind.form, kind.case) for name, kind in ITEM_KINDS.items()} == EXPECTED
     assert all(kind.name == name and kind.label for name, kind in ITEM_KINDS.items())
     assert [name for name, kind in ITEM_KINDS.items() if kind.case] == ["bone_source", "bone_model"]
@@ -54,7 +56,7 @@ def test_missing_field_is_rejected(key):
 
 
 BAD = [
-    ("清单外的种类", dict(VALUE_ITEM, kind="notes"), "十六种"),
+    ("清单外的种类", dict(VALUE_ITEM, kind="notes"), "登记的种类里没有"),
     ("多了一项", dict(VALUE_ITEM, surprise=1), "多了"),
     ("case 没给骨标识", dict(CASE_ITEM, bone_id=None), "骨标识"),
     ("case 的编号不以 C 开头", dict(CASE_ITEM, id="R0002"), "编号"),

@@ -1,4 +1,4 @@
-"""带代码的包：内核、策略、推导量定义、预测器。四种是同一种格式。
+"""带代码的包：内核、策略、推导量定义、预测器，和 2026-11-16 加的柄空间、有限元、重建方法、代理模型。都是同一种格式。
 
 包是一个文件夹：清单、code/（代码）、data/（权重、表、自检样本）。清单另带：
 
@@ -7,7 +7,16 @@
     selftest   一组自检样本，每个是 {"name", "input", "expected"}：
                input 是包里的一个文件夹，expected 是包里的一个 JSON 文件
     tolerance  自检时数值允许差多少：{"rel": 相对, "abs": 绝对}
-    range      预测器另加：适用范围。别的三种不带
+    range      预测器另加：适用范围。别的不带
+
+第 2 版另加六段（《设定的声明和包的清单》第六节）。新的四种（NEW_KINDS）必写；原来的四种可以写，也可以不写：
+    programs      用到的外部程序和确切的版本：[{"name", "version"}]，比如 {"name": "abaqus", "version": "2025"}
+    declarations  声明的设定：[声明, …]，写法和规矩见 declaration.py，一个包里不重名。各种包至少要有的几份见 DECLARED
+    modes         能做的事：MODES 里这一种包的那几样，不重复
+    inputs        对输入的要求：{输入名: {…}}。里面具体写什么，由用它的冻结代码核
+    outputs       产出的列：[{"name", "unit", "meaning", "role"}]，和数据的列一样写；交出的不是列（比如预测器）就写 []
+    test_round    测试轮用的参照输入：{"inputs": {输入名: {"folder": 包里的文件夹} 或 {"item": 登记的编号}}}
+第 1 版的清单读成第 2 版时只改版本号：新的几段原来都没有。
 
 怎么跑由核心定（hooks/entry.py）：命令后面跟上输入文件夹和输出文件夹两个参数；
 包读输入文件夹，把结果写进输出文件夹，其中必须有一个 result.json；退出码是 0 才算成。
@@ -49,7 +58,20 @@ from __future__ import annotations
 
 import math
 
+from stemlab.contract.formats import declaration
+from stemlab.contract.formats.data import check_columns
+from stemlab.contract.layout import is_item_id, is_label
+
 RESULT = "result.json"
+
+NEW_KINDS = ("stem_space", "fem", "recon_method", "surrogate_model")
+SECTIONS = ("programs", "declarations", "modes", "inputs", "outputs", "test_round")
+# 每种包能做的事
+MODES = {"kernel": ("template", "build", "post"), "strategy": ("select",), "derive_def": ("derive",),
+         "predictor": ("predict",), "stem_space": ("template", "model"), "fem": ("build", "post"),
+         "recon_method": ("draft", "finalize"), "surrogate_model": ("train",)}
+# 每种包至少要声明的几份设定。名字不用插件的名字（核心不认得哪个插件），所以重建方法的叫 rebuild
+DECLARED = {"stem_space": ("design", "placement"), "fem": ("fem",), "recon_method": ("rebuild",), "surrogate_model": ("hyper",)}
 
 
 def check(kind: str, manifest: dict, folder) -> list[str]:
@@ -94,6 +116,61 @@ def check(kind: str, manifest: dict, folder) -> list[str]:
         problems.append("预测器的清单要带 range（适用范围）")
     if kind != "predictor" and "range" in manifest:
         problems.append("只有预测器带 range")
+    return problems + _sections(kind, manifest, files)
+
+
+def _sections(kind: str, manifest: dict, files: set) -> list[str]:
+    """第 2 版加的六段。新的四种必写，原来的四种写了就核。"""
+    problems = [f"{kind} 的清单缺 {key}" for key in SECTIONS if kind in NEW_KINDS and key not in manifest]
+    if problems:
+        return problems
+    if "programs" in manifest:
+        programs = manifest["programs"]
+        if not isinstance(programs, list) or not all(
+                isinstance(p, dict) and set(p) == {"name", "version"} and all(isinstance(v, str) and v.strip() for v in p.values())
+                for p in programs):
+            problems.append('programs 要写成 [{"name": 程序, "version": 确切的版本}]')
+        elif len({p["name"] for p in programs}) != len(programs):
+            problems.append("programs 里有重名的程序")
+    if "declarations" in manifest:
+        problems += _declarations(kind, manifest["declarations"])
+    if "modes" in manifest:
+        modes, allowed = manifest["modes"], MODES[kind]
+        if not isinstance(modes, list) or not modes or any(mode not in allowed for mode in modes) or len(set(modes)) != len(modes):
+            problems.append(f"modes 要从 {list(allowed)} 里选，不重复，至少一样：{modes!r}")
+    if "inputs" in manifest:
+        inputs = manifest["inputs"]
+        if not isinstance(inputs, dict) or not all(is_label(name) and isinstance(want, dict) for name, want in inputs.items()):
+            problems.append("inputs 要写成 {输入名: {对它的要求}}")
+    if "outputs" in manifest and manifest["outputs"] != []:        # 交出的不是列（比如代理模型交出预测器）就写空列表
+        problems += [f"outputs：{text}" for text in check_columns("data", {"columns": manifest["outputs"]})]
+    if "test_round" in manifest:
+        problems += _test_round(manifest["test_round"], files)
+    return problems
+
+
+def _declarations(kind: str, declarations) -> list[str]:
+    if not isinstance(declarations, list) or not all(isinstance(one, dict) for one in declarations):
+        return ["declarations 要是声明的列表"]
+    problems = [text for one in declarations for text in declaration.check_declaration(one)]
+    names = [one.get("name") for one in declarations]
+    if len(set(map(str, names))) != len(names):
+        problems.append(f"declarations 里有重名的声明：{names}")
+    problems += [f"{kind} 要声明 {name}" for name in DECLARED.get(kind, ()) if name not in names]
+    return problems
+
+
+def _test_round(test_round, files: set) -> list[str]:
+    inputs = test_round.get("inputs") if isinstance(test_round, dict) and set(test_round) == {"inputs"} else None
+    if not isinstance(inputs, dict) or not all(is_label(name) for name in inputs):
+        return ['test_round 要写成 {"inputs": {输入名: 参照输入}}']
+    problems = []
+    for name, source in inputs.items():
+        if isinstance(source, dict) and set(source) == {"folder"} and isinstance(source["folder"], str):
+            if not any(rel.startswith(source["folder"].rstrip("/") + "/") for rel in files):
+                problems.append(f"测试轮的输入 {name!r}：{source['folder']!r} 不是包里的一个文件夹")
+        elif not (isinstance(source, dict) and set(source) == {"item"} and is_item_id(source["item"])):
+            problems.append(f'测试轮的输入 {name!r} 要写成 {{"folder": 包里的文件夹}} 或 {{"item": 登记的编号}}')
     return problems
 
 

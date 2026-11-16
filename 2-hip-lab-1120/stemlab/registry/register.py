@@ -57,7 +57,7 @@ def register_external(kind: str, name: str, *, note: str, by: str, value=None, s
     登记一个没见过的骨标识要明说是新骨（new_bone），防打错字。
     """
     if kind not in kinds.ITEM_KINDS:
-        raise Refused(f"十六种种类里没有 {kind!r}")
+        raise Refused(f"登记的种类里没有 {kind!r}")
     storage = storage or kinds.storages(kind)[0]
     if storage not in kinds.storages(kind):
         raise Refused(f"{kind} 不能存成 {storage!r}，只能是 {kinds.storages(kind)}")

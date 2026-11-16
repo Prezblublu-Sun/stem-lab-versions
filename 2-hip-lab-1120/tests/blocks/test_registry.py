@@ -164,7 +164,7 @@ def incomplete_points(tmp_path) -> Path:
 
 
 REFUSALS = [
-    ("清单外的种类", lambda tmp: dict(kind="notes", name="x", value={}), "十六种"),
+    ("清单外的种类", lambda tmp: dict(kind="notes", name="x", value={}), "登记的种类里没有"),
     ("来路的形状不对：没写是什么", lambda tmp: dict(kind="setting", name="x", value={}, note=""), "note"),
     ("来路的形状不对：没写是谁", lambda tmp: dict(kind="setting", name="x", value={}, by=" "), "by"),
     ("没给骨标识的 case", lambda tmp: dict(kind="bone_source", name="x", source=helpers.write_files(tmp / "s", CT)), "骨标识"),
@@ -252,7 +252,7 @@ def test_an_entry_that_was_rehashed_by_hand_still_has_to_be_a_valid_item(data):
     forged = chain.link({k: v for k, v in entry.items() if k not in chain.RESERVED} | {"kind": "notes"}, chain.GENESIS)
     layout.register_file().write_bytes(chain.dumps(forged))
     problems = verify.verify_register()
-    assert problems and "第 1 条" in problems[0] and "十六种" in problems[0]
+    assert problems and "第 1 条" in problems[0] and "登记的种类里没有" in problems[0]
 
 
 # ---- 6 四个进程同时登记 ----

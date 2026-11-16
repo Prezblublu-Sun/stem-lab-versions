@@ -20,14 +20,17 @@ FORMATS = {
     "points": 1,        # 一批点、候选池
     "bone_model": 1,    # 骨模型、候选骨模型
     "data": 1,          # 数据、一份预测
-    "package": 1,       # 带代码的包
+    "package": 2,       # 带代码的包。第 2 版加了 programs、declarations、modes、inputs、outputs、test_round
     "stem_model": 1,    # 柄的模型：柄空间包交给有限元包、推导量定义包的，不进账（formats/stem_model.py）
     "machines": 1,      # 机器清单
     "backup": 1,        # 备份时记下的链头
 }
 
-# (格式, 旧版本) -> 把这个版本转成下一个版本的函数。现在所有格式都是第 1 版，所以是空的
-UPCASTS: dict[tuple[str, int], Callable[[dict], dict]] = {}
+# (格式, 旧版本) -> 把这个版本转成下一个版本的函数
+UPCASTS: dict[tuple[str, int], Callable[[dict], dict]] = {
+    # 包的第 2 版只多了几段（原来的几种包可以不写）：第 1 版的清单只改版本号
+    ("package", 1): lambda old: {**old, "format": 2},
+}
 
 
 class NewerFormat(ValueError):

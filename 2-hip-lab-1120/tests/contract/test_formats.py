@@ -7,6 +7,7 @@ import pytest
 
 from stemlab.contract.formats.manifest import (MANIFEST, MAX_PATH, check_format, check_manifest, check_name,
                                                check_names, make_manifest, read_manifest, write_manifest)
+from stemlab.contract.formats.package import DECLARED, MODES, NEW_KINDS
 from stemlab.contract.kinds import ITEM_KINDS
 from stemlab.contract.versions import NewerFormat
 
@@ -132,16 +133,73 @@ PACKAGE = {"entry": ["{python}", "code/main.py"], "requires": ["numpy>=2"], "tol
 PACKAGE_KINDS = [name for name, kind in ITEM_KINDS.items() if kind.format == "package"]
 
 
+def declared(name: str) -> dict:
+    """一份最小的、合规矩的声明。"""
+    return {"name": name, "groups": ["一"], "items": [{"name": "x", "label": "叫法", "meaning": "含义", "group": "一", "type": "bool",
+                                                     "per_point": False, "required": True, "test": True, "test_source": "文献"}]}
+
+
+# 第 2 版新的四种包必写的六段
+SECOND = {kind: {"programs": [{"name": "abaqus", "version": "2025"}], "declarations": [declared(name) for name in DECLARED[kind]],
+                 "modes": list(MODES[kind]), "inputs": {"bone": {"landmarks": ["head_center"]}},
+                 "outputs": [{"name": "rotation", "unit": "deg", "meaning": "柄的转角", "role": "label"}],
+                 "test_round": {"inputs": {"bone": {"folder": "data/selftest/small/input"}, "points": {"item": "R0012"}}}}
+          for kind in NEW_KINDS}
+
+
 def make_package(root, kind, files=None, **change):
-    listed = {**PACKAGE, **({"range": {"bones": ["femur042"]}} if kind == "predictor" else {}), **change}
+    listed = {**PACKAGE, **({"range": {"bones": ["femur042"]}} if kind == "predictor" else {}), **SECOND.get(kind, {}), **change}
     return make_folder(root, kind=kind, files=PACKAGE_FILES if files is None else files,
                        **{key: value for key, value in listed.items() if value is not None})
 
 
 @pytest.mark.parametrize("kind", PACKAGE_KINDS)
 def test_good_packages_pass(tmp_path, kind):
-    assert sorted(PACKAGE_KINDS) == ["derive_def", "kernel", "predictor", "strategy"]
+    assert sorted(PACKAGE_KINDS) == ["derive_def", "fem", "kernel", "predictor", "recon_method", "stem_space", "strategy",
+                                     "surrogate_model"]
     assert check_format(kind, make_package(tmp_path / "p", kind)) == []
+
+
+BAD_SECOND = [
+    ("新的一种缺一段", "fem", dict(test_round=None), "缺 test_round"),
+    ("外部程序没写版本", "fem", dict(programs=[{"name": "abaqus"}]), "programs 要写成"),
+    ("外部程序重名", "fem", dict(programs=[{"name": "abaqus", "version": "2025"}] * 2), "重名的程序"),
+    ("外部程序写成一串字", "fem", dict(programs=["abaqus 2025"]), "programs 要写成"),
+    ("对输入的要求是一串字", "fem", dict(inputs={"bone": "landmarks"}), "inputs 要写成"),
+    ("声明的列表里是字", "fem", dict(declarations=["fem"]), "declarations 要是"),
+    ("声明不合规矩", "fem", dict(declarations=[dict(declared("fem"), groups=[])]), "groups"),
+    ("声明重名", "fem", dict(declarations=[declared("fem"), declared("fem")]), "重名的声明"),
+    ("少了要有的声明", "stem_space", dict(declarations=[declared("design")]), "要声明 placement"),
+    ("声明不是列表", "fem", dict(declarations={"fem": declared("fem")}), "declarations 要是"),
+    ("能做的事不认得", "fem", dict(modes=["build", "mesh"]), "modes 要从"),
+    ("能做的事是空的", "fem", dict(modes=[]), "modes 要从"),
+    ("能做的事重复", "fem", dict(modes=["build", "build"]), "modes 要从"),
+    ("对输入的要求不是对象", "fem", dict(inputs=["bone"]), "inputs 要写成"),
+    ("产出的列缺单位", "fem", dict(outputs=[{"name": "rot", "meaning": "转角", "role": "label"}]), "outputs："),
+    ("测试轮的文件夹不在包里", "fem", dict(test_round={"inputs": {"bone": {"folder": "data/nowhere"}}}), "不是包里的一个文件夹"),
+    ("测试轮的编号不对", "fem", dict(test_round={"inputs": {"bone": {"item": "femur042"}}}), "要写成"),
+    ("测试轮多了一段", "fem", dict(test_round={"inputs": {}, "note": "x"}), "test_round 要写成"),
+    ("原来的一种写了它不会的事", "kernel", dict(modes=["train"]), "modes 要从"),
+]
+
+
+@pytest.mark.parametrize("why,kind,change,word", BAD_SECOND, ids=[row[0] for row in BAD_SECOND])
+def test_bad_second_version_sections_are_named(tmp_path, why, kind, change, word):
+    problems = check_format(kind, make_package(tmp_path / "p", kind, **change))
+    assert problems and any(word in text for text in problems), f"{why}：{problems}"
+
+
+def test_old_kinds_may_leave_the_new_sections_out_and_new_kinds_may_hand_over_no_columns(tmp_path):
+    assert check_format("strategy", make_package(tmp_path / "a", "strategy")) == []
+    assert check_format("surrogate_model", make_package(tmp_path / "b", "surrogate_model", outputs=[])) == [], "代理模型交出的是预测器"
+
+
+def test_a_first_version_package_manifest_is_read_as_the_second(tmp_path):
+    folder = make_package(tmp_path / "p", "kernel")
+    manifest = read_manifest(folder)
+    assert manifest["format"] == 2
+    (folder / MANIFEST).write_bytes(json.dumps(dict(manifest, format=1)).encode("utf-8"))
+    assert check_format("kernel", folder) == [], "第 1 版只差版本号"
 
 
 BAD_PACKAGES = [

@@ -190,7 +190,7 @@ def check_format(kind: str, folder) -> list[str]:
 
     item_kind = ITEM_KINDS.get(kind)
     if item_kind is None:
-        return [f"十六种种类里没有 {kind!r}"]
+        return [f"登记的种类里没有 {kind!r}"]
     if item_kind.form == VALUE:
         return [f"{kind} 是一个值，不是文件夹"]
     if not Path(folder).is_dir():
