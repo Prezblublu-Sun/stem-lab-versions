@@ -5,10 +5,10 @@ import copy
 
 import pytest
 
-from stemlab.contract.formats.manifest import check_format, read_manifest
+from stemlab.contract.formats.manifest import check_format, read_manifest, write_manifest
 from stemlab.contract.formats.points import (POINTS_FILE, check_points, fill_defaults, point_hash, read_points,
-                                             write_points)
-from stemlab.contract.hashing import hash_tree
+                                             with_groups, write_points)
+from stemlab.contract.hashing import canonical, hash_tree
 
 POINT = {"name": "p1", "bone_id": "femur042", "design": {"length": 120, "offset": 37.5},
          "conditions": {"load": "walk", "bw": 700.0}, "reason": "手写"}
@@ -45,13 +45,57 @@ def test_changing_any_part_changes_the_hash(change):
     assert point_hash(changed) != GOLDEN
 
 
+def test_placement_and_derive_values_given_per_point_are_written_in_full_and_hashed(tmp_path):
+    """第 2 版：放置、推导量两组也能每个点给，和条件一样写全；有值才算进哈希，没值的点哈希和第 1 版一样。"""
+    plain = batch(1)[0]
+    cut = dict(plain, placement={"cut_drop_mm": 1.0}, derive={"threshold_um": 150})
+    manifest = write_points(tmp_path / "pts", [cut, dict(cut, name="p2", placement={"cut_drop_mm": 0.0})])
+    assert (manifest["placement_keys"], manifest["derive_keys"]) == (["cut_drop_mm"], ["threshold_um"])
+    assert check_format("points", tmp_path / "pts") == []
+    assert point_hash(with_groups(plain)) == point_hash(plain), "两组空着，哈希和第 1 版一样"
+    assert point_hash(cut) != point_hash(plain) != point_hash(dict(cut, derive={})), "有值就算进哈希"
+    assert point_hash(dict(cut, placement={"cut_drop_mm": 1.0})) == point_hash(cut)
+
+
+@pytest.mark.parametrize("change,said", [
+    (lambda rows: rows[1].update(placement={}), "放置没写全"),
+    (lambda rows: rows[1].update(placement={"cut_drop_mm": None}), "放置没写全"),
+    (lambda rows: rows[1].update(placement={"cut_drop_mm": 1.0, "tilt_deg": 2.0}), "放置多了"),
+    (lambda rows: rows[0].update(derive=[150]), "推导量必须是一个 JSON 对象"),
+])
+def test_placement_and_derive_groups_written_wrong_are_named(change, said):
+    rows = [dict(row, placement={"cut_drop_mm": 1.0}, derive={"threshold_um": 150}) for row in batch(2)]
+    manifest = {"count": 2, "design_keys": ["length", "offset"], "condition_keys": ["bw", "load"],
+                "placement_keys": ["cut_drop_mm"], "derive_keys": ["threshold_um"]}
+    for row in rows:
+        row["hash"] = point_hash(row)
+    change(rows)
+    problems = check_points("points", manifest, rows)
+    assert problems and any(said in text for text in problems), problems
+
+
+def test_a_first_version_batch_of_points_is_still_read(tmp_path):
+    """第 1 版的一批点：清单没有两组的单子，行里没有两组。读成第 2 版，两组当成空的，哈希不变。"""
+    write_points(tmp_path / "pts", batch())
+    folder = tmp_path / "pts"
+    manifest = read_manifest(folder)
+    old = {k: v for k, v in manifest.items() if k not in ("placement_keys", "derive_keys")}
+    write_manifest(folder, dict(old, format=1))
+    rows = read_points(folder)
+    (folder / POINTS_FILE).write_bytes(b"".join(canonical({k: v for k, v in row.items() if k not in ("placement", "derive")}) + b"\n"
+                                                for row in rows))
+    assert check_format("points", folder) == []
+
+
 def test_write_then_read_is_unchanged(tmp_path):
+    """写进去的行读出来不变；第 2 版写的时候给没写的放置、推导量两组补上空的。"""
     manifest = write_points(tmp_path / "pts", batch())
     rows = read_points(tmp_path / "pts")
-    assert [{k: v for k, v in row.items() if k != "hash"} for row in rows] == batch()
+    assert [{k: v for k, v in row.items() if k != "hash"} for row in rows] == [with_groups(row) for row in batch()]
     assert [row["hash"] for row in rows] == [point_hash(row) for row in batch()]
     assert manifest == read_manifest(tmp_path / "pts")
     assert (manifest["count"], manifest["design_keys"], manifest["condition_keys"]) == (3, ["length", "offset"], ["bw", "load"])
+    assert (manifest["placement_keys"], manifest["derive_keys"]) == ([], [])
     assert check_format("points", tmp_path / "pts") == []
 
     write_points(tmp_path / "again", rows)

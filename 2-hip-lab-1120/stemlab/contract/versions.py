@@ -17,7 +17,7 @@ FORMATS = {
     "issued": 1,        # 发号链的一条
     "record": 1,        # 实验记录的一条
     "manifest": 1,      # 文件夹形态的东西共用的清单
-    "points": 1,        # 一批点、候选池
+    "points": 2,        # 一批点、候选池。第 2 版一批点多了放置、推导量两组
     "bone_model": 1,    # 骨模型、候选骨模型
     "data": 1,          # 数据、一份预测
     "package": 2,       # 带代码的包。第 2 版加了 programs、declarations、modes、inputs、outputs、test_round
@@ -30,6 +30,9 @@ FORMATS = {
 UPCASTS: dict[tuple[str, int], Callable[[dict], dict]] = {
     # 包的第 2 版只多了几段（原来的几种包可以不写）：第 1 版的清单只改版本号
     ("package", 1): lambda old: {**old, "format": 2},
+    # 一批点的第 2 版多了放置、推导量两组：第 1 版的清单这两组的单子是空的（行里没写的，核对时当成空的）
+    ("points", 1): lambda old: {**old, "format": 2,
+                                **({"placement_keys": [], "derive_keys": []} if old.get("kind") == "points" else {})},
 }
 
 
