@@ -13,7 +13,8 @@
                   "settings": {"placement", "fem", "derive"}, "bones": {骨标识: {"id", "hash"}}, "predictions": [编号, …]}
              kernel：内核的清单里写了 model（带 name），记的就是 model 原样，比如 {"name": "M1-3406-v1", "code_hash": …}；
                  没写就记 {"package": 内核包的哈希}。拆内核以后的写法里是 null，由 stem、fem 记柄空间包和有限元包
-                 （stem 写 "none" 是无植入物）。推导量定义记 {"package": 它的包的哈希}，没有推导量是 null。
+                 （{"package": 包的哈希}；stem 写 "none" 是无植入物），见 made_by_split()。
+                 推导量定义记 {"package": 它的包的哈希}，没有推导量是 null。
              settings：几份设定里所有点都一样的那部分的哈希，只管怎么跑的项不算；每个点给的在点的哈希里。不知道是 null。
              bones：每根骨用的是哪一版骨模型（登记的编号和哈希），按骨标识记：同一根骨的版本一致才放在一起，
                  不同的骨互不冲突。不知道是 null。
@@ -142,7 +143,20 @@ def made_by(kernel: dict, kernel_hash: str, derive: dict | None = None, derive_h
     model = kernel.get("model") if isinstance(kernel, dict) else None
     named = isinstance(model, dict) and isinstance(model.get("name"), str) and model["name"].strip()
     return {"kernel": dict(model) if named else {"package": kernel_hash}, "stem": None, "fem": None,
-            "derive": {"package": derive_hash} if derive_hash else None,
+            **_rest(derive_hash, bones, settings, predictions)}
+
+
+def made_by_split(stem_hash: str | None, fem_hash: str, derive_hash: str | None = None, *,
+                  bones: dict | None = None, settings: dict | None = None, predictions=()) -> dict:
+    """拆内核以后的写法（第 2 版）：柄空间包、有限元包各记它们登记时的哈希，kernel 是 null。
+    stem_hash 是 None 就是无植入物，stem 记 "none"。别的几样和 made_by 一样。"""
+    return {"kernel": None, "stem": "none" if stem_hash is None else {"package": stem_hash}, "fem": {"package": fem_hash},
+            **_rest(derive_hash, bones, settings, predictions)}
+
+
+def _rest(derive_hash, bones, settings, predictions) -> dict:
+    """made_by 里两种写法共用的那几样：推导量定义、设定的哈希、骨模型的版本、用到的预测。"""
+    return {"derive": {"package": derive_hash} if derive_hash else None,
             "settings": None if settings is None else {
                 part: None if settings.get(part) is None else hash_json(settings[part]) for part in SETTING_PARTS},
             "bones": None if bones is None else {bone: dict(which) for bone, which in bones.items()},

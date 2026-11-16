@@ -8,7 +8,7 @@ import pytest
 
 from stemlab.contract.entries import check_tables
 from stemlab.contract.plugin_api import (ACTIONS, Chart, Handle, Input, InputInfo, Kind, Outcome, Output, RoundInfo,
-                                         actions, check_kind, tables)
+                                         actions, check_kind, declared, tables)
 
 
 def nothing(handle):
@@ -45,6 +45,19 @@ def test_a_good_kind_passes():
     assert check_kind(with_chart) == []
 
 
+# 一个类型自己声明的设定：运行设定，只管怎么跑
+RUN = {"name": "run", "groups": ["排队"], "items": [
+    {"name": "slots", "label": "槽数", "meaning": "同时跑几个", "group": "排队", "type": "integer", "range": {"min": 1, "max": 8},
+     "per_point": False, "required": True, "test": 2, "test_source": "示范"}]}
+
+
+def test_a_kind_may_declare_its_own_settings():
+    kind = replace(KIND, settings=(RUN,))
+    assert check_kind(kind) == []
+    assert declared(kind, "run") == RUN and declared(kind, "other") is None and declared(KIND, "run") is None
+    assert "settings" not in tables(kind), "声明不抄进 created：启动时照这一份代码里的声明核"
+
+
 BAD = [
     ("不是 Kind", {"name": "demo.echo"}),
     ("类型名", replace(KIND, name="echo")),
@@ -63,6 +76,10 @@ BAD = [
     ("图的种类", replace(KIND, charts=(Chart("p", "pie"),), chart=nothing)),
     ("图表重名", replace(KIND, charts=(Chart("p", "line"), Chart("p", "bar")), chart=nothing)),
     ("报了图表没写 chart", replace(KIND, charts=(Chart("p", "line"),))),
+    ("声明的设定不合规矩", replace(KIND, settings=(dict(RUN, groups=[]),))),
+    ("声明的设定重名", replace(KIND, settings=(RUN, RUN))),
+    ("运行设定里有每个点给的项", replace(KIND, settings=(dict(RUN, items=[dict(RUN["items"][0], per_point=True)]),))),
+    ("声明的设定不是元组", replace(KIND, settings=[RUN])),
 ]
 
 

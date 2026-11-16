@@ -10,6 +10,10 @@ OUTCOMES = (
     Outcome("env", "retryable", "环境问题"),
     Outcome("diverged", "unclear", "不收敛"),
 )
+# demo.pack 自己声明的运行设定：照它写的设定，declaration 的 of 写 "demo.pack"
+RUN = {"name": "run", "groups": ["排队"], "items": [
+    {"name": "slots", "label": "槽数", "meaning": "同时跑几个", "group": "排队", "type": "integer", "range": {"min": 1, "max": 8},
+     "per_point": False, "required": True, "test": 2, "test_source": "示范"}]}
 
 KINDS = [
     Kind(
@@ -36,6 +40,7 @@ KINDS = [
         outputs=(Output("report", "report", "报告"),),
         outcomes=OUTCOMES,
         check=free.sleep_check, start=free.pack_start, poll=free.pack_poll,
+        settings=(RUN,),
     ),
     Kind(
         name="demo.remote",

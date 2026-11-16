@@ -12,7 +12,7 @@ from tests.guard import scan
 REPO = layout.repo_root()
 STEMLAB = REPO / "stemlab"
 PLUGINS = REPO / "plugins"
-TYPE_NAMES = ("recon.draft", "recon.finalize", "opt.pool", "opt.select", "fea.run",
+TYPE_NAMES = ("recon.draft", "recon.finalize", "opt.pool", "opt.select", "fea.run", "fea.reference",
               "surrogate.train", "surrogate.predict", "surrogate.check")
 
 

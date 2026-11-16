@@ -203,6 +203,25 @@ def test_rule_6_relations_are_checked_on_each_point_when_one_side_is_per_point()
     assert rules_in(d.check_point({"refine_mm": 3.0}, setting, declaration)) == {5}
 
 
+def test_rule_6_a_design_is_given_point_by_point_item_by_item():
+    """柄空间包的设计项没有设定：每一项都由一批点逐个给（check_design）。"""
+    choices = [{"value": v, "label": v} for v in ("collared", "collarless")]
+    declaration = {"name": "design", "groups": ["形状"], "items": [
+        item("length", "number", group="形状", unit="mm", range={"min": 80, "max": 200}, per_point=True, test=140.0),
+        item("collar", "choice", group="形状", choices=choices, per_point=True, test="collared"),
+        item("tip", "number", group="形状", unit="mm", range={"min": 0, "max": 20}, per_point=True, test=6.0),
+        item("shoulder", "number", group="形状", unit="mm", range={"min": 0, "max": 40}, per_point=True, test=18.0)],
+        "relations": [{"less": "tip", "than": "shoulder"}]}
+    assert d.check_declaration(declaration) == []
+    assert d.check_design({"length": 140.0, "collar": "collarless", "tip": 6.0, "shoulder": 18.0}, declaration) == []
+    assert rules_in(d.check_design({"length": 140.0, "collar": "collared", "tip": 6.0}, declaration)) == {6}, "没写全"
+    assert rules_in(d.check_design({"length": 140.0, "collar": "collared", "tip": 6.0, "shoulder": 18.0, "neck": 3.0},
+                                   declaration)) == {6}, "多了声明外的项"
+    assert rules_in(d.check_design({"length": 300.0, "collar": "collared", "tip": 6.0, "shoulder": 18.0}, declaration)) == {4}
+    assert rules_in(d.check_design({"length": 140.0, "collar": "collared", "tip": 20.0, "shoulder": 18.0}, declaration)) == {5}, \
+        "合起来大小关系也要成立"
+
+
 def test_rule_7_test_settings_and_formal_rounds_do_not_mix():
     declaration = sample()
     assert rules_in(d.check_setting(d.test_setting(declaration, OF), declaration, use="formal")) == {7}

@@ -50,7 +50,7 @@ def start(experiment: str, named=()) -> call.Result:
             raise Refused(f"还缺这几样必须的输入：{missing}")
 
         frozen = _verify_inputs(status)                                                    # 3 每样输入种类对、内容没变
-        _check_settings(frozen)                                                            # 3 之后：设定照它的声明核
+        _check_settings(frozen, status.type, kind)                                         # 3 之后：设定照它的声明核
         provenance, diff = _code_state(status, plugin)                                     # 4 代码的状态
 
         number = len(status.rounds) + 1
@@ -110,10 +110,12 @@ def _verify_inputs(status: states.Status) -> dict:
     return frozen
 
 
-def _check_settings(frozen: dict) -> None:
-    """第 3 步之后：照声明写的设定（新写法），照它照的那个包里的那份声明核。核的规矩只在契约里（formats/declaration.py）。
+def _check_settings(frozen: dict, type_name: str, kind: plugin_api.Kind) -> None:
+    """第 3 步之后：照声明写的设定（新写法），照它照的那份声明核。核的规矩只在契约里（formats/declaration.py）。
 
-    核第 1 到第 5、第 7、第 9 条：照的包这个实验填了、包里有这份声明、哈希对；值都对；现在的轮都是正式的；来路都写了。
+    照的声明有两种来处：这个实验填的一个包（of 是包的编号），或者这种实验自己（of 是类型名，比如运行设定）。
+    核第 1 到第 5、第 7、第 9 条：照的包这个实验填了（或者就是这种实验）、里面有这份声明、哈希对；值都对；
+    现在的轮都是正式的；来路都写了。
     第 6 条（每个点给的项）要对着一批点、第 8 条（名字引用）要对着骨模型和柄的模型，由这种实验的骨架核。
     老写法的设定（随意的 JSON）不核。不合就被拒，说出是哪一样输入、哪一项、哪一条；什么都没写下。
     """
@@ -128,13 +130,18 @@ def _check_settings(frozen: dict) -> None:
             said = value["declaration"] if isinstance(value["declaration"], dict) else {}
             of, wanted = said.get("of"), said.get("name")
             title = f"输入 {name}（{info['id']}）"
-            if of not in filled:
+            if of == type_name:
+                found = plugin_api.declared(kind, wanted)
+                if found is None:
+                    raise Refused(f"{title}照的是 {of} 这种实验里叫 {wanted!r} 的声明，它没有声明这一份（规则 1：{declaration.RULES[1]}）")
+            elif of not in filled:
                 raise Refused(f"{title}是照 {of!r} 的声明写的，这个实验没有填它（规则 1：{declaration.RULES[1]}）")
-            item = lookup.get(of)
-            listed = read_manifest(lookup.content(of)) if kinds.ITEM_KINDS[item["kind"]].form == kinds.PACKAGE else {}
-            found = declaration.find(listed.get("declarations"), wanted)
-            if found is None:
-                raise Refused(f"{title}照的是 {of} 里叫 {wanted!r} 的声明，{of} 里没有它（规则 1：{declaration.RULES[1]}）")
+            else:
+                item = lookup.get(of)
+                listed = read_manifest(lookup.content(of)) if kinds.ITEM_KINDS[item["kind"]].form == kinds.PACKAGE else {}
+                found = declaration.find(listed.get("declarations"), wanted)
+                if found is None:
+                    raise Refused(f"{title}照的是 {of} 里叫 {wanted!r} 的声明，{of} 里没有它（规则 1：{declaration.RULES[1]}）")
             problems = declaration.check_setting(value, found, of=of, use="formal")
             if problems:
                 raise Refused(f"{title}不合它的声明：" + "；".join(problems))

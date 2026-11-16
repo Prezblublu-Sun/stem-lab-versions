@@ -77,8 +77,8 @@ def setting(value: dict) -> dict:
 
 def fea(tmp: Path, rows, export: dict | None = None, criteria: dict | None = None, kernel: dict | None = None,
         derive: dict | None = None, bone: dict | None = None) -> str:
-    """登记一个 FEA 实验要的全部输入，新建并填好。返回实验的编号。"""
-    made = actions.new("fea.run", note="测试用的 FEA 实验")
+    """登记一个参照包那条 FEA 实验（fea.reference，原来的内核整个算）要的全部输入，新建并填好。返回实验的编号。"""
+    made = actions.new("fea.reference", note="测试用的 FEA 实验（参照包）")
     filled = {
         "bone": (bone or bone_model(tmp))["id"],
         "points": points(tmp, rows)["id"],
@@ -90,6 +90,61 @@ def fea(tmp: Path, rows, export: dict | None = None, criteria: dict | None = Non
         filled["criteria"] = setting(criteria)["id"]
     for name, item in filled.items():
         actions.fill(made, name, [item])
+    return made
+
+
+def point_run(name: str, length: float = 30.0, behave: str = "ok", load: float = 2000.0, bone_id: str = BONE, *,
+              implant: bool = True, placement: dict | None = None, derive: dict | None = None) -> dict:
+    """fea.run 的一个点：设计项照假柄空间的声明（无植入物是空的），条件给 load（假有限元的设定里它是每个点给的）。"""
+    return {"name": name, "bone_id": bone_id, "design": {"length": length, "behave": behave} if implant else {},
+            "conditions": {"load": load}, "placement": placement or {}, "derive": derive or {}, "reason": "测试"}
+
+
+def declared(declaration: dict, of: str, **values) -> dict:
+    """照一份声明写的正式设定：从测试轮的取值抄起，values 盖掉同名的（写 None 就是不写这一项）。每项都写了来路。"""
+    from stemlab.contract.formats import declaration as d
+
+    setting = d.test_setting(declaration, of)
+    given = {name: value for name, value in {**setting["values"], **values}.items() if value is not None}
+    return {**setting, "use": "formal", "values": given, "sources": {name: "测试" for name in given}}
+
+
+PER_POINT = {"per_point": True}
+
+
+def fea_run(tmp: Path, rows, *, implant: bool = True, placement: dict | None = None, fem: dict | None = None,
+            run: dict | None = None, derive_setting: dict | None = None, criteria: dict | None = None,
+            packages_: dict | None = None, settings: dict | None = None, bone: dict | None = None, skip=()) -> str:
+    """登记一个 fea.run 实验（柄空间包加有限元包）要的全部输入，新建并填好。返回实验的编号。
+
+    implant=False 是无植入物：不填柄空间包和放置设定。placement、fem、run、derive_setting 是几份设定盖掉的取值；
+    packages_ 盖掉登记的包（{"stem": 登记的那一条, …}）；settings 直接给几份设定的值（{"fem_setting": 一份设定, …}）；
+    skip 里的输入不填。
+    """
+    from plugins.fea import running
+
+    made = actions.new("fea.run", note="测试用的 FEA 实验（柄空间包加有限元包）")
+    given = dict(packages_ or {})
+    if implant:
+        given.setdefault("stem", package("stem_fake", tmp))
+    given.setdefault("fem", package("fem_fake", tmp))
+    given.setdefault("derive", package("derive_fake", tmp))
+    load_point = {"ref": "stem.feature.taper_center" if implant else "bone.landmark.head_center"}
+    values = {"fem_setting": declared(packages.FEM, given["fem"]["id"], **{"load": PER_POINT, "load_point": load_point, **(fem or {})}),
+              "run": declared(running.DECLARATION, "fea.run", **(run or {}))}
+    if implant:
+        values["placement"] = declared(packages.STEM_PLACEMENT, given["stem"]["id"], **(placement or {}))
+    if derive_setting is not None:
+        values["derive_setting"] = declared(packages.DERIVE, given["derive"]["id"], **derive_setting)
+    values.update(settings or {})
+    filled = {"bone": (bone or bone_model(tmp))["id"], "points": points(tmp, rows)["id"],
+              **{name: item["id"] for name, item in given.items()},
+              **{name: setting(value)["id"] for name, value in values.items() if value is not None}}
+    if criteria is not None:
+        filled["criteria"] = setting(criteria)["id"]
+    for name, item in filled.items():
+        if name not in skip:
+            actions.fill(made, name, [item])
     return made
 
 

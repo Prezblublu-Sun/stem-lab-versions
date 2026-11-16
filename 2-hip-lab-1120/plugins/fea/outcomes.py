@@ -5,9 +5,12 @@
     misfit          conclusion  放不进去：建模之前的模板化就判定这个设计在这根骨上放不下
     unstable        conclusion  不收敛，而且求解停下之前柄已经明显松动（内核给得出证据）
     not_converged   unclear     不收敛，没有松动的证据
-    mesh_failed     unclear     网格失败：内核把它自己的几档备选设置都试过了
+    mesh_failed     unclear     网格失败：内核（或有限元包）把它自己的几档备选设置都试过了
     env             retryable   环境问题：许可、机器重启这类和点无关的偶发问题
-    error           unclear     内核自己出错、超时、结果读不出来
+    error           unclear     包自己出错、超时、结果读不出来；柄空间包交出的柄的模型不对
+
+fea.run 有植入物的作业先看柄空间包出柄的模型那一步（result 里的 stem）：它说放不进去就是 misfit；
+它说出好了，交出的柄的模型却不合格式、少了清单里说的名字（冻结的 given.checked 核出来的 stem_wrong），归 error。
 
 “不收敛”和“网格失败”为什么归待查（2026-11-13 定，依据见 docs/四样的决定.md）：
     这两样都能原样复现，但它们是“这个点 × 这一份数值设置”的性质，不是设计在力学上不可行的证据。
@@ -28,18 +31,19 @@ OUTCOMES = (
     Outcome("not_converged", "unclear", "不收敛"),
     Outcome("mesh_failed", "unclear", "网格失败"),
     Outcome("env", "retryable", "环境问题"),
-    Outcome("error", "unclear", "内核出错"),
+    Outcome("error", "unclear", "出错"),
 )
 CATEGORY = {row.name: row.category for row in OUTCOMES}
 LABEL = {row.name: row.label for row in OUTCOMES}
 TASK_STATE = {"ok": "done", "conclusion": "done", "retryable": "failed", "unclear": "failed"}     # 类别 -> 任务的状态
 IN_DATA = ("ok", "conclusion")                                                                    # 进数据的类别
 
-# 内核报的 status -> 结局名。表里没有的 status 一律是 error
+# 包报的 status -> 结局名。表里没有的 status 一律是 error
+FROM_STEM = {"misfit": "misfit", "env": "env"}
 FROM_BUILD = {"misfit": "misfit", "mesh_failed": "mesh_failed", "env": "env"}
 FROM_POST = {"ok": "finished", "unstable": "unstable", "not_converged": "not_converged", "env": "env"}
 LOST = {"restart": ("env", "机器重启过，这个作业的进程没了"),
-        "timeout": ("error", "超过了内核给的时限，已经把它结束了"),
+        "timeout": ("error", "超过了时限，已经把它结束了"),
         "crashed": ("error", "进程结束了，却没有留下结果")}
 
 NUMERICAL = ("not_converged", "mesh_failed")    # 数值上没算出来的两种。占比高了要先查模型，不是绕着走
@@ -50,19 +54,28 @@ RATE_COUNT = 2                                  # 而且至少有几个
 def classify(result: dict) -> tuple[str, str]:
     """一个结束了的作业归到哪个结局名。返回（结局名，原因）。
 
-    result 是自由代码交上来的：build、post 是内核两次的 result（没走到就是 None），
+    result 是自由代码交上来的：build、post 是内核（或有限元包）两次的 result（没走到就是 None），
     derived 是推导量（没算出来就是 None），lost 说这个作业的进程是怎么没的（没有这回事就是 None）。
+    fea.run 有植入物的另带 stem（柄空间包出柄的模型的 result）和 stem_wrong，都由冻结的 given.checked 理过。
     """
     if result.get("lost"):
         return LOST.get(result["lost"], ("error", f"作业没了：{result['lost']}"))
+    if "stem" in result:
+        stem = result["stem"]
+        if not isinstance(stem, dict):
+            return "error", "柄空间包没有留下出柄的模型的结果"
+        if stem.get("status") != "ok":
+            return FROM_STEM.get(stem.get("status"), "error"), _reason(stem, "柄空间包出柄的模型")
+        if result.get("stem_wrong"):
+            return "error", "柄空间包交出的柄的模型不对：" + "；".join(map(str, result["stem_wrong"]))
     build = result.get("build")
     if not isinstance(build, dict):
-        return "error", "内核建模没有留下结果"
+        return "error", "建模没有留下结果"
     if build.get("status") != "built":
         return FROM_BUILD.get(build.get("status"), "error"), _reason(build, "建模")
     post = result.get("post")
     if not isinstance(post, dict):
-        return "error", "内核后处理没有留下结果"
+        return "error", "后处理没有留下结果"
     name = FROM_POST.get(post.get("status"), "error")
     if name == "finished" and not isinstance(result.get("derived"), dict):
         return "error", "FE 算完了，但推导量没有算出来"
@@ -71,7 +84,7 @@ def classify(result: dict) -> tuple[str, str]:
 
 def _reason(said: dict, stage: str) -> str:
     text = said.get("reason")
-    return text if isinstance(text, str) and text.strip() else f"内核{stage}报的是 {said.get('status')!r}，没有说原因"
+    return text if isinstance(text, str) and text.strip() else f"{stage}报的是 {said.get('status')!r}，没有说原因"
 
 
 def task_state(name: str) -> str:

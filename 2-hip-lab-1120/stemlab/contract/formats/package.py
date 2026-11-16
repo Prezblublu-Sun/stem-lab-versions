@@ -24,7 +24,7 @@
 
 包不 import plugins，所以插件重写之后旧的包照样能跑。
 
-四种包各自和叫它的那一方的约定。契约不核这些：清单里另加的项、输入输出里的内容，由用它的冻结文件核，
+各种包和叫它的那一方的约定。契约不核这些：清单里另加的项、输入输出里的内容，由用它的冻结文件核，
 不符就在启动的检查里说出原因。写在这里，是为了包和叫它的一方只有这一处可对。
 输入文件夹里都有一个 job.json，说这一次要它做什么；列的说明都写成 {"name", "unit", "meaning"}。
 
@@ -53,6 +53,27 @@
                          job：points [{hash, bone_id, design, conditions}]
                          result：rows [{point, values, lower, upper}]。预测场的，每行另带 fields {场的名字: 输出文件夹里的文件}，
                          文件里是值、下界、上界摞在一起的数组
+
+拆内核以后的两种（2026-11-16，第 4 步）。设定都照包自己的声明写；job 里的 settings 是这个点的取值：
+设定里写的，加上这个点给的（declaration.merged）。名字引用原样交过去，由包自己去骨模型、柄的模型里找。
+
+    柄空间（stem_space）  设计项（design 声明）每一项都由一批点逐个给：per_point、required 都是 true。
+                         清单另加 names：它交出的柄的模型里一定有的名字，{"region", "faces", "feature", "axis"} 各一个名字列表。
+                         启动前，设定里的名字引用照它核；跑的时候再核交出的柄的模型里真的有。
+                         outputs 是模板化算出的量（role 都是 pre）
+        template         job：bone_model、bone_id、designs [{name, design}]、settings（放置设定的取值）
+                         result：designs [{name, feasible, info}]。只模板化，不出柄的模型。优化取候选时用
+        model            job：bone_model、bone_id、point {name, hash, design}、settings（这个点的放置设定）
+                         result：status（ok、misfit、env、error）、reason、pre {模板化算出的量}。
+                         status 是 ok 的，柄的模型（stem_model.py 的格式）写在输出文件夹的 model/ 里，design 原样抄这个点的
+    有限元（fem）         outputs 是它给出的量：role 是 pre（建模时就有的）、label（标量）、field（场）
+        build            job：bone_model、bone_id、stem_model（柄的模型的文件夹，无植入物是 null）、point {name, hash}、
+                         settings（这个点的有限元设定）、job（求解用的文件夹）
+                         result：status（built、mesh_failed、env、error）、reason、pre {…}、
+                         solve {"command": 求解命令的各个参数，在 job 文件夹里跑，跑完才返回; 可另带 "timeout_s"}
+        post             job：同 build。求解已经结束，结果在 job 文件夹里。result 同内核的 post
+    推导量定义在拆内核以后的那条路上，job 另带 bone_model、stem_model（无植入物是 null）、
+    settings（这个点的推导量设定，没有推导量设定是 null），pre 是柄空间包和有限元包两次给的合起来
 """
 from __future__ import annotations
 
@@ -157,6 +178,12 @@ def _declarations(kind: str, declarations) -> list[str]:
     if len(set(map(str, names))) != len(names):
         problems.append(f"declarations 里有重名的声明：{names}")
     problems += [f"{kind} 要声明 {name}" for name in DECLARED.get(kind, ()) if name not in names]
+    design = declaration.find(declarations, "design") if kind == "stem_space" else None
+    if isinstance(design, dict) and isinstance(design.get("items"), list):
+        loose = [item.get("name") for item in design["items"]
+                 if isinstance(item, dict) and not (item.get("per_point") is True and item.get("required") is True)]
+        if loose:
+            problems.append(f"柄空间的设计项每一项都由一批点逐个给，per_point、required 都要是 true：{loose}")
     return problems
 
 

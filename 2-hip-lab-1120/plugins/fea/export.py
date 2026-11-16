@@ -1,8 +1,9 @@
 """【冻结】从作业的结果导出数据：标签、界面场、整体场，推导量经 derive 算。写数据说明：每列的名字、单位、含义。
 每行带点的哈希、骨标识、轮号、输入指纹、结局。清单里另记是哪个内核、哪份推导量定义算的（made_by）。
 
-数据说明从两个包的清单里来：设计、条件、建模时就有的量、FE 算出的标量、场，由内核的清单说；
+数据说明从包的清单里来。参照包那条（fea.reference）：设计、条件、建模时就有的量、FE 算出的标量、场，由内核的清单说；
 推导量由推导量定义的清单说。包没说清楚的，启动的检查里就不过。
+柄空间加有限元那条（fea.run）的数据说明、made_by 和一行里写在点里的量从哪来，见 given.py；行的写法、交数据都在这里，两条共用。
 
 一个作业一结束，它那一行就记进 work/ledger/rows/ 里；一轮收尾时把该进数据的各行合成一份数据。
 以前的轮算出来、这一轮没有重排的行原样带进来，行上的轮号还是算它的那一轮。
@@ -75,11 +76,16 @@ def columns(kernel: dict, derive: dict) -> list[dict]:
                      for column in derive[DERIVED[0]]]
 
 
-def row(job: dict, bone_id: str, number: int, outcome: str, result: dict, listed: list[dict]) -> dict:
-    """一个作业的那一行。场的位置先记成盘上的文件，合成数据时才复制过去。"""
+def row(job: dict, bone_id: str, number: int, outcome: str, result: dict, listed: list[dict], given: dict | None = None) -> dict:
+    """一个作业的那一行。场的位置先记成盘上的文件，合成数据时才复制过去。
+
+    given 是写在点里的、建模之前就知道的量各从哪来：{"design", "condition", "pre"}。不给就是参照包那条的：
+    点的设计、点的条件、内核建模给的 pre。
+    """
     point = job["point"]
-    sources = {"design": point["design"], "condition": point["conditions"],
-               "pre": (result.get("build") or {}).get("pre") or {},
+    given = given or {"design": point["design"], "condition": point["conditions"],
+                      "pre": (result.get("build") or {}).get("pre") or {}}
+    sources = {**given,
                "label": (result.get("post") or {}).get("labels") or {} if outcome == "finished" else {},
                "derived": (result.get("derived") or {}) if outcome == "finished" else {}}
     values = {column["name"]: _plain(sources[column["role"]].get(column["name"])) for column in listed if column["role"] != "field"}
@@ -170,22 +176,25 @@ def _derive_home(handle, job: dict) -> Path:
     return handle.work_dir / "derive" / job["task"] / f"r{handle.round.number}"
 
 
-def derive(handle, job: dict, result: dict, setting: dict) -> dict:
-    """算这个作业的推导量：把内核后处理给的场、标签和建模时的量交给登记的推导量定义，等它算完。
+def derive(handle, job: dict, result: dict, setting: dict, more: dict | None = None) -> dict:
+    """算这个作业的推导量：把后处理给的场、标签和建模时的量交给登记的推导量定义，等它算完。
 
     返回补上了 derived 的结果。只有后处理成了的作业才算；没算出来 derived 是 None，这个作业归成出错，
     原因留在推导量定义的输出文件夹的 log.txt 里（那个文件夹记进 dirs["derive"]，归档时留下）。
     自由代码交上来的结果里即使带着 derived，也不作数。
+    setting 里的 derive_timeout_s 是最多等多久；more 是另交给推导量定义的（fea.run 的骨模型、柄的模型、推导量设定，见 given.py）。
+    柄空间包交出的柄的模型不对的作业（stem_wrong）不算推导量：它一定归成出错。
     """
     result = dict(result, derived=None)
     post, dirs = result.get("post") or {}, dict(result.get("dirs") or {})
-    if result.get("lost") or post.get("status") != "ok" or not dirs.get("post"):
+    if result.get("lost") or result.get("stem_wrong") or post.get("status") != "ok" or not dirs.get("post"):
         return result
     home = _derive_home(handle, job)
     shutil.rmtree(home, ignore_errors=True)
     (home / "ask").mkdir(parents=True)
     asked = {"fields": {name: str(Path(dirs["post"]) / rel) for name, rel in (post.get("fields") or {}).items()},
-             "labels": post.get("labels") or {}, "pre": (result.get("build") or {}).get("pre") or {}, "point": job["point"]}
+             "labels": post.get("labels") or {}, "pre": (result.get("build") or {}).get("pre") or {}, "point": job["point"],
+             **(more or {})}
     try:
         (home / "ask" / "job.json").write_bytes(json.dumps(asked, ensure_ascii=False).encode("utf-8"))
         answer = hooks.derive(handle.input_info("derive").id, home / "ask", home / "out", wait=True,

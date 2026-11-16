@@ -62,6 +62,14 @@ def test_good_bone_models_pass(tmp_path, kind):
     assert check_format(kind, make(tmp_path / "b", kind=kind)) == []
 
 
+def test_names_a_setting_may_refer_to():
+    """名字引用（设定的声明，第 8 条）能指向骨模型里的哪些名字。第 1 版：区域就是两个实体，加上标志点。"""
+    names = bone_model.names(EXTRA)
+    assert names == {"bone.block": set(), "bone.joint": set(), "bone.surface": set(),
+                     "bone.region": {"cortical", "cancellous"}, "bone.landmark": set(EXTRA["landmarks"])}
+    assert bone_model.names({})["bone.region"] == set(), "清单不全也不报错：名字少了，引用它的设定会被拒"
+
+
 def test_which_landmarks_every_bone_model_has():
     assert bone_model.LANDMARKS == ("head_center", "neck_center", "shaft_proximal", "shaft_distal", "lesser_trochanter")
     assert bone_model.SOLIDS == ("cortical", "cancellous")

@@ -49,6 +49,7 @@
     8 名字引用的名字，在实际的输入里有
     9 正式的设定，每个写了的项都写了来路
 第 1、7、8 条要知道这个实验填了什么、输入里有什么，由调用的一方给（of、use、names）；不给就不核那一条。
+柄空间包的设计项没有设定，每一项都由一批点逐个给：一个点的设计项用 check_design 核。
 """
 from __future__ import annotations
 
@@ -502,6 +503,12 @@ def check_point(point_values, setting: dict, declaration: dict, names: dict | No
                 bad.add(name)
     given = {k: v for k, v in merged(setting, point_values).items() if k not in bad}
     return problems + _relations_broken(declaration, given)
+
+
+def check_design(design, declaration: dict, names: dict | None = None) -> list[str]:
+    """核一个点的设计项（第 6 条）。柄空间包的设计项没有设定，每一项都由一批点逐个给：
+    照声明写全，每个取值合规矩，合起来大小关系成立。返回哪里不符；空列表就是对的。"""
+    return check_point(design, {"values": {item["name"]: dict(PER_POINT) for item in declaration["items"]}}, declaration, names)
 
 
 def merged(setting: dict, point_values: dict) -> dict:

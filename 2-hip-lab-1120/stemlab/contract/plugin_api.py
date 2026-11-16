@@ -9,6 +9,10 @@
     poll(handle)    值守每看一遍叫一次。报任务、交产物、报问题；都完了就说做完或做不下去。可以重复叫
     stop(handle)    你点停止。把在跑的停掉，已经算好的可以照常交。可以重复叫。可以不写
 另有不算动作的 chart(handle, 图表名)：给界面一张图的数据，只读，出错只显示在页面上。
+
+一个类型可以声明自己的设定（settings）：现在就是运行设定，只管怎么跑（求解槽、超时、归档放在哪），不影响算出来的数。
+写法和包里的声明一样（formats/declaration.py）；照它写的设定，declaration 里的 of 写类型名，核心启动时照它核。
+运行设定每个点都一样：声明里的项都不能是每个点给的。
 """
 from __future__ import annotations
 
@@ -17,6 +21,7 @@ from pathlib import Path
 from typing import Any, Callable, Protocol
 
 from stemlab.contract.entries import check_tables
+from stemlab.contract.formats.declaration import check_declaration
 from stemlab.contract.layout import is_key, is_type_name
 
 ACTIONS = ("check", "start", "poll", "stop")
@@ -74,6 +79,13 @@ class Kind:
     chart: Callable[["Handle", str], Any] | None = None
     where: str = "desk"
     label: str = ""
+    settings: tuple[dict, ...] = ()                 # 这种实验自己声明的设定（运行设定），写法见 formats/declaration.py
+
+
+def declared(kind: Kind, name: str) -> dict | None:
+    """这个类型声明的、叫这个名字的那份设定的声明。没有就是 None。"""
+    found = [one for one in kind.settings if isinstance(one, dict) and one.get("name") == name]
+    return found[0] if len(found) == 1 else None
 
 
 def tables(kind: Kind) -> dict:
@@ -114,6 +126,21 @@ def check_kind(kind) -> list[str]:
         problems.append(f"{title}：图的种类只有 {list(CHART_FORMS)}")
     if kind.charts and not callable(kind.chart):
         problems.append(f"{title}：报了图表就要写 chart")
+    return problems + _settings_problems(kind, title)
+
+
+def _settings_problems(kind: Kind, title: str) -> list[str]:
+    """这个类型声明的设定：每份合声明的规矩，不重名，项都不是每个点给的。"""
+    if not isinstance(kind.settings, tuple) or not all(isinstance(one, dict) for one in kind.settings):
+        return [f"{title}：settings 要是声明的元组，每份一个 JSON 对象"]
+    problems = [f"{title}：{text}" for one in kind.settings for text in check_declaration(one)]
+    names = [one.get("name") for one in kind.settings]
+    if len(set(map(str, names))) != len(names):
+        problems.append(f"{title}：声明的设定有重名的：{names}")
+    for one in kind.settings:
+        loose = [item.get("name") for item in one.get("items") or [] if isinstance(item, dict) and item.get("per_point") is not False]
+        if loose:
+            problems.append(f"{title}：声明的设定 {one.get('name')!r} 只管怎么跑，每个点都一样，这几项不能是每个点给的：{loose}")
     return problems
 
 

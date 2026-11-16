@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from stemlab.contract.formats.manifest import as_v2, check_format, common_maker, made_by, maker_clash, mixed_makers
+from stemlab.contract.formats.manifest import (as_v2, check_format, common_maker, made_by, made_by_split, maker_clash,
+                                               mixed_makers)
 from stemlab.contract.formats.points import write_points
 from stemlab.contract.hashing import hash_json
 from tests.contract.test_data import make
@@ -29,6 +30,24 @@ def test_which_kernel_is_written_down():
     assert made_by({"model": MODEL}, K, settings={})["settings"] == {"placement": None, "fem": None, "derive": None}, \
         "给 {} 是知道：没用到设定"
     assert made_by({"model": MODEL}, K, predictions=["R0009", "R0003"])["predictions"] == ["R0003", "R0009"]
+
+
+def test_after_the_kernel_is_split_the_two_packages_are_written_down(tmp_path):
+    """拆内核以后（fea.run）：kernel 是 null，stem、fem 记柄空间包、有限元包的哈希；无植入物 stem 写 "none"。"""
+    S, F = "c" * 64, "d" * 64
+    split = made_by_split(S, F, D, bones=BONE, settings={"placement": {"entry": "rule"}, "fem": FEM})
+    assert split == {"kernel": None, "stem": {"package": S}, "fem": {"package": F}, "derive": {"package": D},
+                     "settings": {"placement": hash_json({"entry": "rule"}), "fem": hash_json(FEM), "derive": None},
+                     "bones": BONE, "predictions": []}
+    bare = made_by_split(None, F)
+    assert (bare["stem"], bare["derive"], bare["settings"], bare["bones"]) == ("none", None, None, None), "无植入物写明“无”"
+    for number, value in enumerate((split, bare)):
+        assert check_format("data", make(tmp_path / f"d{number}", made_by=value)) == []
+    assert any("不同内核" in text for text in mixed_makers([("参照包算的", NEW), ("拆开的两包算的", split)])), \
+        "参照包和拆开的两个包算的数不放在一起"
+    assert any("不同内核" in text for text in mixed_makers([("有植入物", split), ("无植入物", dict(split, stem="none"))]))
+    assert any("placement设定不一样" in text for text in mixed_makers([("甲", split), ("乙", made_by_split(
+        S, F, D, bones=BONE, settings={"placement": {"entry": "fixed"}, "fem": FEM}))])), "放置设定换了，不放在一起"
 
 
 def test_the_first_version_is_read_as_the_second_with_what_it_lacks_unknown():

@@ -1,0 +1,1 @@
+{"status": "ok", "reason": "", "labels": {"rotation": 0.06666666666666667, "contact": 0.5}, "fields": {"interface_slip": "interface_slip.json"}, "steps": {"done": 2, "total": 2}, "keep": {"mesh": ["mesh.json"], "settings": ["deck.json"], "process": ["solver.log"], "fields": ["step1.json", "step2.json"]}, "solver": {"name": "fake-solver", "version": "1.0"}}

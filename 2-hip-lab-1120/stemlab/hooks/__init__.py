@@ -15,19 +15,35 @@
     entry.py    在子进程里跑一个带代码的包
     local.py    起、查、杀本机的脱离进程
     remote.py   远程执行的四个动作
+
+另转出契约里几样核对的函数，给插件的骨架核每个点给的项、名字引用和柄的模型用（规矩还是只在契约里）：
+    check_setting、check_point、check_design、merged、is_declared、find_declaration、per_point_items   设定的声明
+    check_stem_model、read_stem_model、stem_names                                                      柄的模型
+    bone_names                                                                                          骨模型里能被名字引用的
 """
-from stemlab.contract.formats.manifest import check_format, common_maker, made_by, maker_clash, mixed_makers
+from stemlab.contract.formats.bone_model import names as bone_names
+from stemlab.contract.formats.declaration import (check_design, check_point, check_setting, is_declared, merged,
+                                                  per_point_items)
+from stemlab.contract.formats.declaration import find as find_declaration
+from stemlab.contract.formats.manifest import (check_format, common_maker, made_by, made_by_split, maker_clash,
+                                               mixed_makers)
 from stemlab.contract.formats.points import read_points, write_points
+from stemlab.contract.formats.stem_model import check as check_stem_model
+from stemlab.contract.formats.stem_model import names as stem_names
+from stemlab.contract.formats.stem_model import read as read_stem_model
 from stemlab.contract.hashing import fingerprint
 from stemlab.contract.plugin_api import Chart, Input, Kind, Outcome, Output
 from stemlab.contract.states import TASK_STATES
 from stemlab.hooks import remote
-from stemlab.hooks.entry import derive, look, predict, rerun, run_kernel, run_strategy
+from stemlab.hooks.entry import derive, look, predict, rerun, run_fem, run_kernel, run_stem, run_strategy
 from stemlab.hooks.local import alive, kill, spawn
 
 __all__ = [
     "Kind", "Input", "Output", "Outcome", "Chart", "TASK_STATES",
-    "read_points", "write_points", "check_format", "fingerprint", "made_by", "mixed_makers", "maker_clash", "common_maker",
-    "predict", "derive", "run_strategy", "run_kernel", "look", "rerun",
+    "read_points", "write_points", "check_format", "fingerprint", "made_by", "made_by_split", "mixed_makers", "maker_clash",
+    "common_maker",
+    "predict", "derive", "run_strategy", "run_kernel", "run_stem", "run_fem", "look", "rerun",
     "spawn", "alive", "kill", "remote",
+    "check_setting", "check_point", "check_design", "merged", "is_declared", "find_declaration", "per_point_items",
+    "check_stem_model", "read_stem_model", "stem_names", "bone_names",
 ]

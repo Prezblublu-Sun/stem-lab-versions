@@ -91,6 +91,22 @@ def test_a_setting_of_another_format_version_is_refused(lab, data, tmp_path):
     assert "第 2 版" in refused(experiment(formal(tool, format=2), tool), data)
 
 
+def test_a_setting_may_follow_what_the_experiment_type_itself_declares(lab, data, tmp_path):
+    """运行设定这类，照的是这种实验自己声明的（Kind.settings）：of 写类型名。照它核，规矩一样。"""
+    from tests.plugins.demo.plugin import RUN
+
+    tool = declared_package(tmp_path)
+    own = {**d.test_setting(RUN, "demo.pack"), "use": "formal", "sources": {"slots": "示范"}}
+    assert start.start(experiment(own, tool)).ok
+    assert "规则 4：" in refused(experiment(dict(own, values={"slots": 0}), tool), data)
+    renamed = dict(own, declaration=dict(own["declaration"], name="other"))
+    assert "没有声明这一份" in refused(experiment(renamed, tool), data)
+    stale = dict(own, declaration=dict(own["declaration"], hash="0" * 64))
+    assert "规则 1：" in refused(experiment(stale, tool), data), "类型的声明改过了，照旧声明写的设定对不上"
+    assert "这个实验没有填它" in refused(experiment(dict(own, declaration=dict(own["declaration"], of="demo.echo")), tool), data), \
+        "照别的类型的声明写的，不收"
+
+
 def test_settings_written_the_old_way_are_left_alone(lab, data, tmp_path):
     """老写法的设定是随意的 JSON：核心不核它，照旧启动。"""
     tool = declared_package(tmp_path)

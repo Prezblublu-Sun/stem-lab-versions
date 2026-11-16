@@ -10,7 +10,7 @@ from stemlab.hooks import load
 PLUGIN_FROZEN = [
     "plugins/recon/plugin.py", "plugins/recon/gate.py", "plugins/recon/model.py",
     "plugins/fea/plugin.py", "plugins/fea/outcomes.py", "plugins/fea/export.py", "plugins/fea/archive.py",
-    "plugins/fea/judge.py",
+    "plugins/fea/judge.py", "plugins/fea/given.py",
     "plugins/surrogate/plugin.py", "plugins/surrogate/split.py", "plugins/surrogate/report.py",
     "plugins/surrogate/predictor.py",
     "plugins/opt/plugin.py", "plugins/opt/feasible.py", "plugins/opt/replay.py",
@@ -31,7 +31,7 @@ def test_the_manifest_covers_what_the_blueprint_says():
     for rel in (".importlinter", ".gitattributes", ".githooks/pre-commit", "stemlab/__init__.py",
                 "stemlab/desk/__init__.py", "stemlab/desk/__main__.py", "plugins/__init__.py", *PLUGIN_FROZEN):
         assert rel in frozen.files, f"清单里该有 {rel}"
-    assert len(PLUGIN_FROZEN) == 15, "冻结文件一共 15 个：重建 3、FEA 5、代理 4、优化 3"
+    assert len(PLUGIN_FROZEN) == 16, "冻结文件一共 16 个：重建 3、FEA 6（拆内核 4a 加了 given.py）、代理 4、优化 3"
     # plugins/__init__.py 每次装插件都会跑到，所以也锁着；除它之外，插件里自由的文件不进清单
     free = [rel for rel in frozen.files if rel.startswith("plugins/") and rel not in [*PLUGIN_FROZEN, "plugins/__init__.py"]]
     assert free == [], "插件里自由的文件不进清单"

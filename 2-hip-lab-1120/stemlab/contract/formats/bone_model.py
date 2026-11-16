@@ -66,6 +66,17 @@ def neck_shaft_angle(landmarks: dict) -> float:
     return 180.0 - math.degrees(math.acos(cosine))
 
 
+def names(manifest: dict) -> dict:
+    """骨模型里能被名字引用的东西（设定的声明，第 8 条）：{"bone.region": {…}, "bone.landmark": {…}, …}。
+
+    第 1 版只有两个实体和标志点：区域就是这两个实体（cortical、cancellous），没有块、关节和单独给的表面。
+    """
+    solids, landmarks = manifest.get("solids"), manifest.get("landmarks")
+    return {"bone.block": set(), "bone.joint": set(), "bone.surface": set(),
+            "bone.region": set(solids) if isinstance(solids, dict) else set(),
+            "bone.landmark": set(landmarks) if isinstance(landmarks, dict) else set()}
+
+
 def check(kind: str, manifest: dict, folder) -> list[str]:
     """check_format 叫的入口。清单共用的那几项、清单列的文件在不在，已经核过了。"""
     problems = [f"骨模型的清单缺 {key}" for key in REQUIRED if key not in manifest]

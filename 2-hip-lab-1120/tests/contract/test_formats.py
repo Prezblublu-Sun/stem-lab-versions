@@ -133,10 +133,11 @@ PACKAGE = {"entry": ["{python}", "code/main.py"], "requires": ["numpy>=2"], "tol
 PACKAGE_KINDS = [name for name, kind in ITEM_KINDS.items() if kind.format == "package"]
 
 
-def declared(name: str) -> dict:
-    """一份最小的、合规矩的声明。"""
+def declared(name: str, per_point: bool | None = None, required: bool = True) -> dict:
+    """一份最小的、合规矩的声明。柄空间的设计项（design）每一项都由一批点逐个给，所以 design 默认是每个点给的。"""
+    per_point = name == "design" if per_point is None else per_point
     return {"name": name, "groups": ["一"], "items": [{"name": "x", "label": "叫法", "meaning": "含义", "group": "一", "type": "bool",
-                                                     "per_point": False, "required": True, "test": True, "test_source": "文献"}]}
+                                                     "per_point": per_point, "required": required, "test": True, "test_source": "文献"}]}
 
 
 # 第 2 版新的四种包必写的六段
@@ -170,6 +171,10 @@ BAD_SECOND = [
     ("声明不合规矩", "fem", dict(declarations=[dict(declared("fem"), groups=[])]), "groups"),
     ("声明重名", "fem", dict(declarations=[declared("fem"), declared("fem")]), "重名的声明"),
     ("少了要有的声明", "stem_space", dict(declarations=[declared("design")]), "要声明 placement"),
+    ("柄空间的设计项不是每个点给的", "stem_space", dict(declarations=[declared("design", per_point=False), declared("placement")]),
+     "每一项都由一批点逐个给"),
+    ("柄空间的设计项可以不填", "stem_space", dict(declarations=[declared("design", required=False), declared("placement")]),
+     "每一项都由一批点逐个给"),
     ("声明不是列表", "fem", dict(declarations={"fem": declared("fem")}), "declarations 要是"),
     ("能做的事不认得", "fem", dict(modes=["build", "mesh"]), "modes 要从"),
     ("能做的事是空的", "fem", dict(modes=[]), "modes 要从"),

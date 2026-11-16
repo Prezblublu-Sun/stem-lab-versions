@@ -1,7 +1,7 @@
 """在子进程里跑一个带代码的包。包的格式见 contract/formats/package.py。
 
     run(包的编号, 输入文件夹, 输出文件夹)
-    predict、derive、run_strategy、run_kernel    四个薄封装，各认一种包
+    predict、derive、run_strategy、run_kernel、run_stem、run_fem    六个薄封装，各认一种包
     look(实验, 轮)、rerun(...)                    重放用的两个只读的口子：不在一次调用里，也不往记录里写
 
 只能在插件的启动、轮询、停止里用，而且包必须是这个实验存定的一样输入：
@@ -76,6 +76,16 @@ def run_strategy(package_id: str, input_folder, output_folder, **how):
 def run_kernel(package_id: str, input_folder, output_folder, **how):
     """跑内核。"""
     return run(package_id, input_folder, output_folder, kind="kernel", **how)
+
+
+def run_stem(package_id: str, input_folder, output_folder, **how):
+    """跑柄空间包：模板化，或者出柄的模型。"""
+    return run(package_id, input_folder, output_folder, kind="stem_space", **how)
+
+
+def run_fem(package_id: str, input_folder, output_folder, **how):
+    """跑有限元包：建模，或者后处理。"""
+    return run(package_id, input_folder, output_folder, kind="fem", **how)
 
 
 def look(experiment: str, number: int | None = None):

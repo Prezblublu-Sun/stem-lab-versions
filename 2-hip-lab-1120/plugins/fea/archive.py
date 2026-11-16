@@ -3,12 +3,12 @@
 留下的文件分四类（what）：
     mesh       网格
     fields     每一步的场
-    process    求解过程：求解器的日志，内核两次调用的日志和它说的话
-    settings   求解设置：交给求解器的输入
-哪些文件属于哪一类由内核的后处理说（result 里的 keep）。内核两次调用自己的日志和 result 一律留。
+    process    求解过程：求解器的日志，包每次调用的日志和它说的话
+    settings   求解设置：交给求解器的输入；fea.run 里柄空间包交出的柄的模型也算这一类（stem-model/ 下）
+哪些文件属于哪一类由后处理说（result 里的 keep）。包每次调用自己的日志和 result 一律留。
 求解过了、后处理却没说该留什么（比如它自己崩了）的作业，求解文件夹里的东西全留：宁可多留，不丢失败前算出来的步。
 
-留下的文件复制到归档的地方：默认在这个实验的 work/archive/ 下；导出设定里写了 archive_root 就放到那里。
+留下的文件复制到归档的地方：默认在这个实验的 work/archive/ 下；导出设定（fea.run 是运行设定）里写了 archive_root 就放到那里。
 归档清单（index.jsonl）一行一个文件：哪个任务、哪一轮、哪个点、输入指纹、哪一类、相对归档根目录的位置、大小、SHA-256。
 """
 from __future__ import annotations
@@ -18,11 +18,12 @@ import json
 import shutil
 from pathlib import Path
 
-from plugins.fea import export
+from plugins.fea import export, given
 
 INDEX, MANIFEST = "index.jsonl", "manifest.json"
 WHAT = ("mesh", "fields", "process", "settings")
-OWN = ("result.json", "log.txt")        # 内核每次调用自己留下的两样
+OWN = ("result.json", "log.txt")        # 包每次调用自己留下的两样
+STAGES = ("stem", "build", "post", "derive")
 
 
 def root(handle, setting: dict) -> Path:
@@ -47,9 +48,12 @@ def wanted(result: dict) -> list[tuple[str, Path, str]]:
     """这个作业该留哪些文件：（哪一类，盘上的文件，留下时叫什么）。"""
     dirs = result.get("dirs") or {}
     found = []
-    for stage in ("build", "post", "derive"):
+    for stage in STAGES:
         if dirs.get(stage):
             found += [("process", Path(dirs[stage]) / name, f"{stage}-{name}") for name in OWN]
+    model = Path(dirs["stem"]) / given.MODEL if dirs.get("stem") else None      # 柄空间包交出的柄的模型
+    if model is not None and model.is_dir():
+        found += [("settings", path, f"stem-model/{path.relative_to(model).as_posix()}") for path in sorted(model.rglob("*")) if path.is_file()]
     solve = Path(dirs["solve"]) if dirs.get("solve") else None
     said = (result.get("post") or {}).get("keep")
     if solve is not None and isinstance(said, dict):
