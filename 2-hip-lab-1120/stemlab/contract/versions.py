@@ -21,6 +21,7 @@ FORMATS = {
     "bone_model": 1,    # 骨模型、候选骨模型
     "data": 1,          # 数据、一份预测
     "package": 1,       # 带代码的包
+    "stem_model": 1,    # 柄的模型：柄空间包交给有限元包、推导量定义包的，不进账（formats/stem_model.py）
     "machines": 1,      # 机器清单
     "backup": 1,        # 备份时记下的链头
 }
