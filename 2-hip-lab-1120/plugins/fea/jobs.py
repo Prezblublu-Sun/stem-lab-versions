@@ -1,6 +1,7 @@
 """【自由】一个点一个作业；算输入指纹；核对点里的骨标识和骨模型一致、点的各项和内核要的一致。
 
-接口见 plugin.py 开头：check(handle) 和 plan(handle)。
+接口见 plugin.py 开头：参照包那条（fea.reference）是 check(handle) 和 plan(handle)，
+fea.run 是 check_run(handle) 和 plan_run(handle)。fea.run 的作业带着 "split": True，run.py 照它走柄空间加有限元那条。
 """
 from __future__ import annotations
 
@@ -63,4 +64,30 @@ def plan(handle) -> list[dict]:
     return [{"task": point["name"], "point": point,
              "fingerprint": hooks.fingerprint(point=point["hash"], bone=hashes["bone"], kernel=hashes["kernel"],
                                               export=hashes["export"], plugin=frozen)}
+            for point in hooks.read_points(handle.input("points"))]
+
+
+# ---------------------------------------------------------------- fea.run
+
+RUN_INPUTS = ("bone", "stem", "placement", "fem", "fem_setting", "derive", "derive_setting")    # 进输入指纹的：运行设定不进
+
+
+def check_run(handle) -> str | None:
+    """fea.run 启动前自由的那部分检查。包、设定、每个点给的项、名字引用，冻结的 given.problems 都核过了；
+    这里只看这台机器排得开：机器清单里要有操作台那一台。"""
+    if not any(machine.role == "desk" for machine in handle.machines):
+        return "机器清单里没有操作台（role 是 desk）的那一台：求解槽按它排"
+    return None
+
+
+def plan_run(handle) -> list[dict]:
+    """一个点一个作业。任务名就是点的名字。
+
+    输入指纹：点、骨模型、柄空间包（无植入物就不写这一项）、放置设定、有限元包和设定、推导量定义和设定、插件冻结文件。
+    运行设定只管怎么跑，不进来。
+    """
+    hashes = {name: info.hash for name in RUN_INPUTS if (info := handle.input_info(name)) is not None}
+    frozen = handle.round.provenance["plugin_frozen"]
+    return [{"task": point["name"], "point": point, "split": True,
+             "fingerprint": hooks.fingerprint(point=point["hash"], plugin=frozen, **hashes)}
             for point in hooks.read_points(handle.input("points"))]

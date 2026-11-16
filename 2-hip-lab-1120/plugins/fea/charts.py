@@ -13,7 +13,8 @@ from pathlib import Path
 from plugins.fea import archive, outcomes, run
 
 STATES = {"queued": "排队", "running": "运行", "done": "完成", "failed": "失败", "stopped": "停止"}
-STAGES = {"queued": "排队", "build": "建模", "ready": "等求解槽", "solve": "求解", "post": "后处理"}
+STAGES = {"queued": "排队", "stem": "出柄的模型", "modeled": "等建模", "build": "建模", "ready": "等求解槽", "solve": "求解",
+          "post": "后处理"}
 PROGRESS = ("*.sta", "solver-output.txt", "*.log")      # 求解器边算边写的文件：Abaqus 的 .sta、求解命令自己的输出、日志
 TAIL = 8                                                 # 每个文件看最后几行
 
@@ -37,7 +38,7 @@ def _solving(handle, tasks) -> list:
             rows += [[task.name, STAGES.get(task.stage, task.stage or ""), newest.name, line] for line in _tail(newest)]
     live = {row[0] for row in rows}
     try:
-        base = archive.root(handle, handle.input("export"))
+        base = archive.root(handle, _how(handle))
     except (TypeError, KeyError, ValueError, OSError):
         return rows
     for kept in _ledger(handle, "kept"):                # 算完了的。归档清单里记着每个作业留下了哪些文件
@@ -46,6 +47,17 @@ def _solving(handle, tasks) -> list:
             if row["what"] == "process" and row["task"] not in live and any(fnmatch.fnmatch(name, pattern) for pattern in PROGRESS):
                 rows += [[row["task"], f"第 {row['round']} 轮，已结束", name, line] for line in _tail(Path(base) / row["file"])]
     return rows
+
+
+def _how(handle) -> dict:
+    """归档放在哪写在哪一份设定里：fea.run 是运行设定的取值，参照包那条是导出设定。这种实验没有那一样输入，handle 会拒。"""
+    for name in ("run", "export"):
+        try:
+            setting = handle.input(name)
+        except Exception:  # noqa: BLE001  这种实验没有叫这个名字的输入
+            continue
+        return (setting or {}).get("values") or {} if name == "run" else setting
+    return {}
 
 
 def _ledger(handle, what: str) -> list:

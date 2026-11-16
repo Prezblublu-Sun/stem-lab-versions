@@ -1,18 +1,22 @@
-"""【自由】经 run_kernel 建模，经 spawn 起求解进程，按求解槽数排队；看每个作业走到哪：排队、建模、求解、后处理。
+"""【自由】建模、后处理经包的入口跑，求解经 spawn 起进程，按求解槽数排队；看每个作业走到哪：排队、出柄的模型、建模、求解、后处理。
 
 接口见 plugin.py 开头：begin、advance、halt、release。接口不变，这个文件可以整个重写。
+两种作业走同一套：参照包那条（fea.reference）建模、后处理都交给内核（run_kernel）；
+fea.run 的作业（jobs.py 在作业里写了 "split": True）先叫柄空间包出柄的模型（run_stem，无植入物跳过这一步），
+建模、后处理交给有限元包（run_fem），交给它们的 job.json 照冻结的 given.ask 拼。
 
 一个作业在 work/jobs/<任务>/r<轮>/ 下有自己的文件夹：
     state.json            它走到哪了。只有这个文件读写它
-    ask-build/、build/    交给内核建模的 job.json，和内核建模的输出
-    solve/                求解用的文件夹：内核把求解器的输入写在这里，求解器在这里跑
+    ask-stem/、stem/      fea.run 有植入物的：交给柄空间包的 job.json，和它的输出（柄的模型在 stem/model/）
+    ask-build/、build/    交给内核（或有限元包）建模的 job.json，和建模的输出
+    solve/                求解用的文件夹：建模把求解器的输入写在这里，求解器在这里跑
     ask-post/、post/      后处理
 推导量不在这里算：作业结束后由冻结的 export.py 去叫推导量定义。
 
 建模、求解、后处理都是脱离出去的进程，动作里不等它们：这一遍看它们还在不在，不在了就读结果、起下一步。
 
 槽是整台机器共用的：槽文件夹里一个文件一个槽，两种槽：
-    build-<n>.json   建模和后处理共用，数目是 build_slots
+    build-<n>.json   出柄的模型、建模和后处理共用，数目是 build_slots
     solve-<n>.json   求解，数目是机器清单里这台的 slots
 所以两个实验同时跑，合起来也不会超过槽数。看槽、占槽、交接、放槽都在槽文件夹的一把锁里做。
 槽文件里写着占它的进程，和“谁占的”：实验、任务、作业文件夹（带着轮号，认得出是哪一次执行）、占它做哪一步。
@@ -30,10 +34,10 @@
 收进程（超时、停止、断在半路）都要确认真的不在了才放槽。收不掉的不放槽：那个进程还占着它，
 等它自己结束，槽就空出来。收不掉要说出来：记成这个实验的一条问题。
 
-导出设定里和这里有关的项（都可以不写）：
-    build_slots        同时建模、后处理的作业最多几个，默认 2
-    build_timeout_s    一次建模或后处理最多跑多久，默认 3600
-    solve_timeout_s    一次求解最多跑多久，默认 21600；内核在 solve 里给了 timeout_s 的以内核的为准
+和这里有关的设定项。fea.run 照运行设定（声明在 running.py，都写全）；参照包那条照导出设定，都可以不写：
+    build_slots        同时出柄的模型、建模、后处理的作业最多几个，默认 2
+    build_timeout_s    一次出柄的模型、建模或后处理最多跑多久，默认 3600
+    solve_timeout_s    一次求解最多跑多久，默认 21600；建模在 solve 里给了 timeout_s 的以它给的为准
 """
 from __future__ import annotations
 
@@ -47,6 +51,7 @@ from pathlib import Path
 
 import psutil
 
+from plugins.fea import given
 from stemlab import hooks
 
 if os.name == "nt":
@@ -55,7 +60,7 @@ else:
     import fcntl
 
 STATE, JOB, RESULT = "state.json", "job.json", "result.json"
-DIRS = ("build", "solve", "post")
+DIRS = ("stem", "build", "solve", "post")
 MARK = "STEMLAB_JOB"            # 求解进程带着的环境变量：它是哪个作业的
 LOCK = "slots.lck"              # 不叫 .lock：那是账本的几把锁的名字，插件不碰
 _FAR = 1 << 30                  # 锁的是锁文件里很靠后的一个字节
@@ -93,6 +98,36 @@ def _common(handle, job: dict, folder: Path, setting: dict) -> dict:
     return {"bone_model": str(handle.input("bone")), "bone_id": point["bone_id"], "settings": setting,
             "point": {"name": point["name"], "design": point["design"], "conditions": point["conditions"]},
             "job": str(folder / "solve")}
+
+
+def _implant(handle, job: dict) -> bool:
+    """fea.run 的作业有没有植入物：填了柄空间包就有。"""
+    return bool(job.get("split")) and handle.input_info("stem") is not None
+
+
+def _job_for(handle, job: dict, folder: Path, step: str, setting: dict) -> dict:
+    """交给包的 job.json。fea.run 的照冻结的 given.ask 拼；参照包那条照原来的写法。"""
+    if not job.get("split"):
+        return {"mode": step, **_common(handle, job, folder, setting)}
+    if step == "stem":
+        return given.ask(handle, job, "model")
+    return given.ask(handle, job, step, stem=folder / "stem" if _implant(handle, job) else None, solve=folder / "solve")
+
+
+def _launch(handle, job: dict, step: str, ask: Path, out: Path):
+    """起这一步的包，不等它跑完。"""
+    if not job.get("split"):
+        return hooks.run_kernel(handle.input_info("kernel").id, ask, out, wait=False)
+    if step == "stem":
+        return hooks.run_stem(handle.input_info("stem").id, ask, out, wait=False)
+    return hooks.run_fem(handle.input_info("fem").id, ask, out, wait=False)
+
+
+def _setting(handle, jobs: list[dict]) -> dict:
+    """排队、超时、归档用的那几项：fea.run 是运行设定的取值，参照包那条是导出设定。"""
+    if any(job.get("split") for job in jobs):
+        return handle.input("run")["values"]
+    return handle.input("export")
 
 
 def _desk(handle):
@@ -353,14 +388,37 @@ def _launched(folder: Path, state: dict, stage: str, slot, launch, note: dict) -
     return state
 
 
-def _queued(handle, job, folder, state, setting) -> dict:
-    note = _note(handle, job, folder, "build")
+def _in_build_slot(handle, job, folder, state, setting, step: str) -> dict:
+    """占一个建模槽，起这一步（stem、build 或 post）的包。没有空槽就还是原样，下一遍再来。"""
+    note = _note(handle, job, folder, step)
     slot = _claim("build", setting.get("build_slots", 2), note)
     if slot is None:
         return state
-    ask = _ask(folder, "build", {"mode": "build", **_common(handle, job, folder, setting)})
-    return _launched(folder, state, "build", slot,
-                     lambda: hooks.run_kernel(handle.input_info("kernel").id, ask, folder / "build", wait=False), note)
+    ask = _ask(folder, step, _job_for(handle, job, folder, step, setting))
+    return _launched(folder, state, step, slot, lambda: _launch(handle, job, step, ask, folder / step), note)
+
+
+def _queued(handle, job, folder, state, setting) -> dict:
+    return _in_build_slot(handle, job, folder, state, setting, "stem" if _implant(handle, job) else "build")
+
+
+def _stem(handle, job, folder, state, setting) -> dict:
+    """柄空间包在出柄的模型。出好了、看着对，就等一个建模槽去建模；放不进去、出错、交出的不对，这个作业就结束了。"""
+    if not _quiet(folder, "stem", state["process"]):
+        if _overdue(state, setting.get("build_timeout_s", 3600)):
+            return _timed_out(handle, job, folder, state, "stem")
+        return state
+    _free(state["slot"], _note(handle, job, folder))
+    result = _read(folder / "stem" / RESULT)
+    if result is None:
+        return _end(state, lost=_gone(state["process"]))
+    if result.get("status") != "ok" or given.stem_wrong(handle, job, folder / "stem"):
+        return _end(state)              # 归哪个结局、为什么，由冻结的代码去看
+    return dict(state, stage="modeled", process=None, slot=None, since=time.time())
+
+
+def _modeled(handle, job, folder, state, setting) -> dict:
+    return _in_build_slot(handle, job, folder, state, setting, "build")
 
 
 def _build(handle, job, folder, state, setting) -> dict:
@@ -407,13 +465,7 @@ def _solve(handle, job, folder, state, setting) -> dict:
 def _post(handle, job, folder, state, setting) -> dict:
     """后处理和建模共用建模槽。还没起进程的，先占一个建模槽再起。"""
     if state.get("process") is None:
-        note = _note(handle, job, folder, "post")
-        slot = _claim("build", setting.get("build_slots", 2), note)
-        if slot is None:
-            return state
-        ask = _ask(folder, "post", {"mode": "post", **_common(handle, job, folder, setting)})
-        return _launched(folder, state, "post", slot,
-                         lambda: hooks.run_kernel(handle.input_info("kernel").id, ask, folder / "post", wait=False), note)
+        return _in_build_slot(handle, job, folder, state, setting, "post")
     if not _quiet(folder, "post", state["process"]):
         if _overdue(state, setting.get("build_timeout_s", 3600)):
             return _timed_out(handle, job, folder, state, "post")
@@ -424,7 +476,7 @@ def _post(handle, job, folder, state, setting) -> dict:
     return _end(state)                  # 后处理说了什么、推导量是多少，由冻结的代码去看、去算
 
 
-_STEPS = {"queued": _queued, "build": _build, "ready": _ready, "solve": _solve, "post": _post}
+_STEPS = {"queued": _queued, "stem": _stem, "modeled": _modeled, "build": _build, "ready": _ready, "solve": _solve, "post": _post}
 
 
 def _step(handle, job, folder: Path, state: dict, setting: dict) -> dict:
@@ -448,9 +500,10 @@ def _step(handle, job, folder: Path, state: dict, setting: dict) -> dict:
     return state
 
 
-def _result(folder: Path, state: dict) -> dict:
-    return {"build": _read(folder / "build" / RESULT), "post": _read(folder / "post" / RESULT), "lost": state.get("lost"),
+def _result(folder: Path, state: dict, job: dict) -> dict:
+    made = {"build": _read(folder / "build" / RESULT), "post": _read(folder / "post" / RESULT), "lost": state.get("lost"),
             "dirs": {name: str(folder / name) for name in DIRS if (folder / name).is_dir()}}
+    return dict(made, stem=_read(folder / "stem" / RESULT)) if job.get("split") else made
 
 
 def _running_step(state: dict) -> str | None:
@@ -475,7 +528,9 @@ def begin(handle, jobs: list[dict]) -> None:
 
 def advance(handle, jobs: list[dict]) -> dict:
     """把还没结束的作业各往前推，返回每个作业现在的样子。"""
-    setting = handle.input("export")
+    if not jobs:
+        return {}
+    setting = _setting(handle, jobs)
     machine = _desk(handle).name
     views = {}
     for job in jobs:
@@ -483,7 +538,7 @@ def advance(handle, jobs: list[dict]) -> dict:
         state = _read(folder / STATE) or {"stage": "queued", "since": time.time()}
         state = _step(handle, job, folder, state, setting)
         ended = state["stage"] == "end"
-        views[job["task"]] = {"stage": state["stage"], "machine": machine, "result": _result(folder, state) if ended else None}
+        views[job["task"]] = {"stage": state["stage"], "machine": machine, "result": _result(folder, state, job) if ended else None}
     return views
 
 
