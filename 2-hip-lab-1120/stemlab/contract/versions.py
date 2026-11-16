@@ -22,6 +22,7 @@ FORMATS = {
     "data": 1,          # 数据、一份预测
     "package": 2,       # 带代码的包。第 2 版加了 programs、declarations、modes、inputs、outputs、test_round
     "stem_model": 1,    # 柄的模型：柄空间包交给有限元包、推导量定义包的，不进账（formats/stem_model.py）
+    "setting": 1,       # 照声明写的设定（formats/declaration.py）。老写法的设定是随意的 JSON，没有版本
     "machines": 1,      # 机器清单
     "backup": 1,        # 备份时记下的链头
 }

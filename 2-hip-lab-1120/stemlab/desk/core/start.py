@@ -6,7 +6,9 @@
 """
 from __future__ import annotations
 
-from stemlab.contract import Refused, layout, plugin_api, states
+from stemlab.contract import Refused, kinds, layout, plugin_api, states
+from stemlab.contract.formats import declaration
+from stemlab.contract.formats.manifest import read_manifest
 from stemlab.desk.core import code_state, locks
 from stemlab.experiments import log, view
 from stemlab.hooks import call, load, publish
@@ -26,7 +28,7 @@ def _status(experiment: str) -> states.Status:
 def start(experiment: str, named=()) -> call.Result:
     """启动：开新的一轮。named 是你点名要重排的待查任务。
 
-    前五步只检查，什么都不写；任何一步不过就被拒，记录里不多一条。
+    前五步只检查，什么都不写；任何一步不过就被拒，记录里不多一条。第 3 步之后另核照声明写的设定（_check_settings）。
     过了第 5 步就一定留下记录：成了是运行中，出错是启动失败，返回里带着报错。
     """
     named = tuple(named)
@@ -48,6 +50,7 @@ def start(experiment: str, named=()) -> call.Result:
             raise Refused(f"还缺这几样必须的输入：{missing}")
 
         frozen = _verify_inputs(status)                                                    # 3 每样输入种类对、内容没变
+        _check_settings(frozen)                                                            # 3 之后：设定照它的声明核
         provenance, diff = _code_state(status, plugin)                                     # 4 代码的状态
 
         number = len(status.rounds) + 1
@@ -105,6 +108,36 @@ def _verify_inputs(status: states.Status) -> dict:
                                  "version": item["version"], "hash": computed, "origin": item["origin"],
                                  "bone_id": item["bone_id"]})
     return frozen
+
+
+def _check_settings(frozen: dict) -> None:
+    """第 3 步之后：照声明写的设定（新写法），照它照的那个包里的那份声明核。核的规矩只在契约里（formats/declaration.py）。
+
+    核第 1 到第 5、第 7、第 9 条：照的包这个实验填了、包里有这份声明、哈希对；值都对；现在的轮都是正式的；来路都写了。
+    第 6 条（每个点给的项）要对着一批点、第 8 条（名字引用）要对着骨模型和柄的模型，由这种实验的骨架核。
+    老写法的设定（随意的 JSON）不核。不合就被拒，说出是哪一样输入、哪一项、哪一条；什么都没写下。
+    """
+    filled = {info["id"] for infos in frozen.values() for info in infos}
+    for name, infos in frozen.items():
+        for info in infos:
+            if info["kind"] != "setting":
+                continue
+            value = lookup.get(info["id"])["content"]
+            if not declaration.is_declared(value):
+                continue
+            said = value["declaration"] if isinstance(value["declaration"], dict) else {}
+            of, wanted = said.get("of"), said.get("name")
+            title = f"输入 {name}（{info['id']}）"
+            if of not in filled:
+                raise Refused(f"{title}是照 {of!r} 的声明写的，这个实验没有填它（规则 1：{declaration.RULES[1]}）")
+            item = lookup.get(of)
+            listed = read_manifest(lookup.content(of)) if kinds.ITEM_KINDS[item["kind"]].form == kinds.PACKAGE else {}
+            found = declaration.find(listed.get("declarations"), wanted)
+            if found is None:
+                raise Refused(f"{title}照的是 {of} 里叫 {wanted!r} 的声明，{of} 里没有它（规则 1：{declaration.RULES[1]}）")
+            problems = declaration.check_setting(value, found, of=of, use="formal")
+            if problems:
+                raise Refused(f"{title}不合它的声明：" + "；".join(problems))
 
 
 def _code_state(status: states.Status, plugin: str) -> tuple[dict, bytes | None]:

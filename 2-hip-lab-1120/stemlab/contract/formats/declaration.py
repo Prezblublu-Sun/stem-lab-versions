@@ -28,6 +28,8 @@
     refers       ref 必有：能指向哪几类有名字的东西，[“bone.region”, …]，从 REFERABLE 里选
 
 一份设定（登记的值）：
+    format       这种写法的版本，见 versions.FORMATS["setting"]。带 format 和 declaration 的就是照声明写的设定（is_declared）；
+                 老写法的设定是随意的 JSON，核心不核它
     declaration  照哪份声明：{"of": 包的编号或实验类型, "name": 声明名, "hash": 声明的哈希}
     use          formal（正式）或 test（测试）
     values       每一项的取值。每个点能变的项可以写 {"per_point": true}：由一批点逐个给
@@ -56,6 +58,7 @@ import re
 from stemlab.contract.hashing import hash_json
 from stemlab.contract.kinds import ITEM_KINDS
 from stemlab.contract.layout import is_column, is_item_id, is_key, is_label, same_but_case
+from stemlab.contract.versions import FORMATS
 
 TYPES = ("number", "integer", "bool", "choice", "choices", "text", "vector3", "table", "item", "ref")
 NUMERIC = ("number", "integer")
@@ -114,6 +117,18 @@ def _broke(item: dict, what: str, rule: int) -> str:
 def is_per_point(value) -> bool:
     """这个取值是不是“每个点给”。"""
     return isinstance(value, dict) and value == PER_POINT
+
+
+def is_declared(value) -> bool:
+    """这份设定是不是照声明写的（新写法）：带 format 和 declaration。老写法的设定是随意的 JSON。"""
+    return isinstance(value, dict) and "format" in value and "declaration" in value
+
+
+def find(declarations, name):
+    """一个包的清单里叫这个名字的那份声明，没有就是 None。"""
+    found = [one for one in declarations if isinstance(one, dict) and one.get("name") == name] \
+        if isinstance(declarations, list) else []
+    return found[0] if len(found) == 1 else None
 
 
 def declaration_hash(declaration: dict) -> str:
@@ -398,10 +413,12 @@ def check_setting(setting, declaration: dict, *, of=None, use: str | None = None
     """
     if not isinstance(setting, dict):
         return ["设定必须是一个 JSON 对象"]
-    problems = [f"设定缺 {key}" for key in ("declaration", "use", "values", "sources") if key not in setting]
-    problems += [f"设定多了 {key}" for key in setting if key not in ("declaration", "use", "values", "sources", "note")]
+    problems = [f"设定缺 {key}" for key in ("format", "declaration", "use", "values", "sources") if key not in setting]
+    problems += [f"设定多了 {key}" for key in setting if key not in ("format", "declaration", "use", "values", "sources", "note")]
     if problems:
         return problems
+    if setting["format"] != FORMATS["setting"]:
+        return [f"设定的写法是第 {setting['format']!r} 版，现在是第 {FORMATS['setting']} 版"]
     wanted = {"name": declaration["name"], "hash": declaration_hash(declaration)}
     said = setting["declaration"]
     if not isinstance(said, dict) or set(said) != {"of", "name", "hash"} or any(said.get(k) != v for k, v in wanted.items()):
@@ -501,6 +518,7 @@ def test_setting(declaration: dict, of) -> dict:
         if kept == values:
             break
         values = kept
-    return {"declaration": {"of": of, "name": declaration["name"], "hash": declaration_hash(declaration)},
+    return {"format": FORMATS["setting"],
+            "declaration": {"of": of, "name": declaration["name"], "hash": declaration_hash(declaration)},
             "use": "test", "values": values,
             "sources": {name: by_name[name]["test_source"] for name in values}}

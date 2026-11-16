@@ -14,7 +14,7 @@ from stemlab.contract.versions import CannotUpcast, NewerFormat, upcast
 def test_every_format_has_a_version():
     assert versions.CONTRACT == 1
     assert set(versions.FORMATS) == {"register", "links", "issued", "record", "manifest", "points", "bone_model",
-                                     "data", "package", "stem_model", "machines", "backup"}
+                                     "data", "package", "stem_model", "setting", "machines", "backup"}
     assert all(isinstance(v, int) and v >= 1 for v in versions.FORMATS.values())
 
 

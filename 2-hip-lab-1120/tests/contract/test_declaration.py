@@ -241,6 +241,10 @@ def test_a_setting_that_is_not_shaped_right_is_refused_before_anything_else():
     assert "设定缺 use" in d.check_setting({"declaration": {}, "values": {}, "sources": {}}, sample())
     assert "设定多了 extra" in d.check_setting(dict(formal(), extra=1), sample())
     assert d.check_setting(dict(formal(), values=[]), sample())[-1] == "values 和 sources 都要是 JSON 对象"
+    assert "设定缺 format" in d.check_setting({k: v for k, v in formal().items() if k != "format"}, sample())
+    assert "第 2 版" in d.check_setting(dict(formal(), format=2), sample())[0], "设定的写法有版本，旧的、新的都说出来"
+    assert d.is_declared(formal()) and not d.is_declared({"x": 1}) and not d.is_declared({"declaration": {}})
+    assert d.find([sample()], "fea") == sample() and d.find([sample(), sample()], "fea") is None and d.find("x", "fea") is None
     assert "用途要是" in d.check_setting(dict(formal(), use="draft"), sample())[0]
     assert d.check_declaration([]) == ["声明必须是一个 JSON 对象"]
     assert d.check_declaration(dict(sample(), extra=1)) == ["声明多了 extra"]
