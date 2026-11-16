@@ -56,6 +56,18 @@ def test_freeing_does_not_take_a_slot_away_from_whoever_took_it_over(tmp_path, m
     assert run._claim("solve", 1, {"experiment": "E0003", "task": "c"}) == slot
 
 
+def test_an_earlier_run_of_the_same_task_cannot_free_this_runs_slot(tmp_path, monkeypatch):
+    """放槽认的是这一次执行（作业文件夹带着轮号），不只是实验和任务：上一轮那一次放不掉这一轮的槽。"""
+    monkeypatch.setenv("STEMLAB_SLOTS", str(tmp_path / "slots"))
+    earlier = dict(A, folder=str(tmp_path / "jobs" / "a" / "r1"))
+    this = dict(A, folder=str(tmp_path / "jobs" / "a" / "r2"))
+    slot = run._claim("solve", 1, dict(this, stage="solve"))
+    run._free(slot, earlier)
+    assert run._claim("solve", 1, B) is None, "槽还是这一轮这一次执行的"
+    run._free(slot, this)
+    assert run._claim("solve", 1, B) == slot
+
+
 RACE = """
 import json, sys, time
 from pathlib import Path

@@ -7,10 +7,12 @@ run.py 怎么占槽、起进程、交接、放槽，放在一个替身的世界�
 某个进程算完了（偶尔是自己崩了）、某一步的进程一齐算完、时间过去几个小时、某个进程杀不掉。
 每一件事之后都看：同时在跑的建模不超过建模槽，求解不超过求解槽。
 
-已经知道的三处漏洞，随机的那几台各自碰得到一处（会断的、杀不掉的、后处理算槽的），另外每处都写了固定的情形（不靠随机碰）。
-都标成 xfail(strict=True, raises=AssertionError)，原因里写着是哪一处：改好之后它们会过，到时把标记去掉。
-raises 是为了让别的错（替身搭错了、情形本身没搭起来）照样报出来，不混进预料之中的那一处。
-最后一条拿真的进程把交接以前断掉那一处再演一遍。
+《修改目标》02 查出过三处漏洞，2026-11-16 改好了。随机的那几台各自专碰一处（会断的、杀不掉的、后处理算槽的），
+另外每处都写了固定的情形（不靠随机碰），守着它们不再回来：
+    交接以前断开     起来以后、交接以前操作台断掉，槽看起来是空的，别的作业能占走它
+    收进程不确认     超时、停止时收进程没确认真的收掉了，进程还在，槽已经放掉了
+    后处理不占槽     build_slots 管同时建模、后处理的作业最多几个，后处理起进程时却不占槽
+还有一条“求解器自己结束了、它起的子进程还在算”（注释审查 中 4）。最后一条拿真的进程把交接以前断掉那一处再演一遍。
 """
 from __future__ import annotations
 
@@ -25,7 +27,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from hypothesis import Phase, settings
+from hypothesis import settings
 from hypothesis import strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, initialize, invariant, precondition, rule, run_state_machine_as_test
 
@@ -36,17 +38,8 @@ from tests import properties  # noqa: F401  载入 Hypothesis 的设置
 REPO = Path(__file__).resolve().parents[3]
 EXPLORE = os.environ.get("STEMLAB_HYPOTHESIS") == "explore"
 STATEFUL = settings(max_examples=600 if EXPLORE else 60, stateful_step_count=40 if EXPLORE else 30, deadline=None)
-# 已经知道会不过的那几台只报一处（xfail 才认得准是 AssertionError）。平时的检查只要知道它还不过：碰到第一个反例就停，
-# 不再缩短（缩短一次要一两分钟）。要看缩短了的反例，设 STEMLAB_HYPOTHESIS=explore，加 --runxfail 跑
-KNOWN = settings(STATEFUL, report_multiple_bugs=False)
-if not EXPLORE:
-    KNOWN = settings(KNOWN, phases=(Phase.explicit, Phase.reuse, Phase.generate))
 EXPERIMENTS = ("E0001", "E0002")
 TASKS = ("a", "b")
-HANDOVER = "修改目标 02：起来以后、交接以前操作台断掉，到下一遍之前这个槽看起来是空的，别的作业能占走它，同时在跑的就多了一个"
-UNCONFIRMED = "修改目标 02：收进程没有确认真的收掉了（超时、停止都是这样）：进程还在，槽已经放掉了"
-POST = ("run.py 开头写着 build_slots 管同时建模、后处理的作业最多几个，可后处理起进程时不占槽："
-        "几个作业同时进了后处理，就不受这个数管（修改目标 02 的“建模、求解、后处理各不超过它的槽数”）")
 
 
 class DeskCrash(BaseException):
@@ -66,6 +59,7 @@ class World:
         self.desk = self.start("desk", None)
         self.setting = {"build_slots": build_slots, "build_timeout_s": 3600, "solve_timeout_s": 21600}
         self.saved: dict = {}
+        self.said: list[tuple] = []                 # run.py 经 handle.problem 说出来的：（任务，说了什么）
 
     # ---- 进程表
     def start(self, stage: str, folder) -> dict:
@@ -132,7 +126,8 @@ class World:
         inputs = {"export": self.setting, "bone": str(self.root / "bone")}
         return SimpleNamespace(experiment=experiment, work_dir=self.root / "work" / experiment, round=SimpleNamespace(number=1),
                                input=inputs.__getitem__, input_info=lambda name: SimpleNamespace(id="R0001"),
-                               machines=(SimpleNamespace(name="desk", role="desk", slots=self.solve_slots),))
+                               machines=(SimpleNamespace(name="desk", role="desk", slots=self.solve_slots),),
+                               problem=lambda error, task=None, raw=None: self.said.append((task, error)))
 
     @staticmethod
     def jobs(*tasks) -> list[dict]:
@@ -156,7 +151,7 @@ class World:
         run.psutil = SimpleNamespace(wait_procs=lambda found, timeout=None: ([], []), boot_time=lambda: 0.0, Error=Exception)
         run._save = lambda folder, state: (save(folder, state), self.tick())[0]
         run._write = lambda path, body: (write(path, body), self.tick())[0]
-        run._strays = lambda folder, stage: [SimpleNamespace(pid=pid, kill=lambda pid=pid: self.kill(
+        run._strays = lambda folder, stage, root=None: [SimpleNamespace(pid=pid, kill=lambda pid=pid: self.kill(
             {"pid": pid, "created": self.table[pid]["created"]})) for pid in self.running(stage) if self.table[pid]["folder"] == folder]
         run._hold = held
 
@@ -279,19 +274,16 @@ def test_without_trouble_running_processes_never_outnumber_the_slots():
     run_state_machine_as_test(WithoutTrouble, settings=STATEFUL)
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=POST)
 def test_post_processing_counts_against_the_build_slots():
-    run_state_machine_as_test(PostCounted, settings=KNOWN)
+    run_state_machine_as_test(PostCounted, settings=STATEFUL)
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=HANDOVER)
 def test_a_desk_dying_anywhere_never_lets_more_processes_run_than_slots():
-    run_state_machine_as_test(CrashingDesk, settings=KNOWN)
+    run_state_machine_as_test(CrashingDesk, settings=STATEFUL)
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=UNCONFIRMED)
 def test_processes_that_cannot_be_killed_never_lose_their_slot():
-    run_state_machine_as_test(StubbornProcesses, settings=KNOWN)
+    run_state_machine_as_test(StubbornProcesses, settings=STATEFUL)
 
 
 # ---------------------------------------------------------------- 已经知道的几处，写死的情形
@@ -320,8 +312,8 @@ def arranged(condition: bool, what: str) -> None:
         pytest.fail(f"情形没搭起来：{what}")
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=HANDOVER)
-def test_a_desk_dying_between_launch_and_handover_lets_a_second_solve_in(world):
+def test_a_desk_dying_between_launch_and_handover_lets_no_second_solve_in(world):
+    """槽文件里记的还是断掉的操作台，a 的求解却在跑：认得出是 a 起的，槽照占着算。"""
     built(world, ("E0001", "a"), ("E0002", "b"))
     world.desk_run(lambda: run.advance(world.handle("E0001"), World.jobs("a")), "handover")     # a 的求解起来了，交接以前操作台断了
     arranged(len(world.running("solve")) == 1, "a 的求解起来了")
@@ -329,9 +321,9 @@ def test_a_desk_dying_between_launch_and_handover_lets_a_second_solve_in(world):
     assert len(world.running("solve")) <= 1, "一个求解槽，两个求解进程同时在跑"
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=UNCONFIRMED)
 @pytest.mark.parametrize("how", ["timeout", "stop"])
 def test_a_solve_that_cannot_be_ended_keeps_its_slot(world, how):
+    """超时、停止都要确认收掉了才放槽。收不掉的槽不放，并且说出来。"""
     built(world, ("E0001", "a"), ("E0002", "b"))
     world.desk_run(lambda: run.advance(world.handle("E0001"), World.jobs("a")))
     (pid,) = world.running("solve")
@@ -343,10 +335,27 @@ def test_a_solve_that_cannot_be_ended_keeps_its_slot(world, how):
         world.desk_run(lambda: run.halt(world.handle("E0001"), World.jobs("a")))
     world.desk_run(lambda: run.advance(world.handle("E0002"), World.jobs("b")))
     assert len(world.running("solve")) <= 1, "杀不掉的那个还在跑，它的槽已经给了别人"
+    assert [task for task, _ in world.said] == ["a"], f"收不掉要说出来，只说一次：{world.said}"
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=POST)
+def test_a_solve_whose_own_process_ended_while_its_child_still_runs_keeps_its_slot(world):
+    """求解器自己结束了，它起的子进程（比如 Abaqus）还在算，带着作业的标记：槽不放，也不进后处理。"""
+    built(world, ("E0001", "a"), ("E0002", "b"))
+    world.desk_run(lambda: run.advance(world.handle("E0001"), World.jobs("a")))
+    (root,) = world.running("solve")
+    child = world.start("solve", world.table[root]["folder"])["pid"]       # 求解器起的子进程
+    world.end(root)
+    world.desk_run(lambda: run.advance(world.handle("E0001"), World.jobs("a")))
+    world.desk_run(lambda: run.advance(world.handle("E0002"), World.jobs("b")))
+    assert world.running("solve") == [child], "a 的子进程还在算，b 的求解不能起"
+    assert not world.running("post"), "a 的求解还没算完，不进后处理"
+    world.end(child)
+    world.desk_run(lambda: run.advance(world.handle("E0001"), World.jobs("a")))
+    assert len(world.running("post")) == 1, "子进程也算完了，a 进后处理"
+
+
 def test_two_post_processings_do_not_run_on_one_build_slot(tmp_path, monkeypatch):
+    """后处理和建模共用建模槽：一个建模槽，两个作业一起求解完，后处理也只能一个一个来。"""
     monkeypatch.setenv("STEMLAB_SLOTS", str(tmp_path / "slots"))
     world = World(tmp_path, solve_slots=2, build_slots=1)
     world.patch()
@@ -374,15 +383,14 @@ import os, sys
 from plugins.fea import run
 from stemlab import hooks
 folder, sleeper = sys.argv[1], sys.argv[2]
-slot = run._claim("solve", 1, {"experiment": "E0001", "task": "a"})
+slot = run._claim("solve", 1, {"experiment": "E0001", "task": "a", "folder": folder, "stage": "solve"})    # 照 run.py 占槽
 process = hooks.spawn([sys.executable, "-c", sleeper], env=dict(os.environ, **{run.MARK: folder}))
 print(f"{process['pid']} {process['created']!r}", flush=True)
 os._exit(9)                                     # 起来以后、交接以前断掉
 """
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=HANDOVER)
-def test_with_real_processes_a_desk_dying_before_handover_lets_a_second_solve_in(tmp_path, monkeypatch):
+def test_with_real_processes_a_desk_dying_before_handover_lets_no_second_solve_in(tmp_path, monkeypatch):
     slots = tmp_path / "slots"
     monkeypatch.setenv("STEMLAB_SLOTS", str(slots))
     sleeper = "import time; time.sleep(120)"
