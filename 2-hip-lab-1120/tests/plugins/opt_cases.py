@@ -238,9 +238,13 @@ def stopping_a_pool(tmp: Path) -> None:
     start.start(made)
     real.run(made, seconds=SECONDS)
     assert real.tasks(made) == {"pool": ("done", "generated")} and len(read_points(real.output(made, "pool"))) == 12
-    kernel = view.view(made).frozen["kernel"][0]["hash"]
-    assert read_manifest(real.output(made, "pool"))["made_by"] == {"kernel": {"package": kernel}, "derive": None}, \
-        "候选池记着是哪个内核模板化的"
+    frozen = view.view(made).frozen
+    kernel, bone = frozen["kernel"][0]["hash"], frozen["bone"][0]
+    assert read_manifest(real.output(made, "pool"))["made_by"] == {
+        "kernel": {"package": kernel}, "stem": None, "fem": None, "derive": None,
+        "settings": {"placement": None, "fem": None, "derive": None},
+        "bones": {real.BONE: {"id": bone["id"], "hash": bone["hash"]}}, "predictions": []}, \
+        "候选池记着是哪个内核、在哪一版骨模型上模板化的；模板化不用设定"
 
 
 OTHERS = [a_strategy_that_crashes, a_strategy_that_ignores_the_seed_cannot_be_replayed, things_refused_before_the_start, stopping_a_pool]

@@ -8,12 +8,20 @@
     kind     种类
     files    文件夹里除清单之外的全部文件：相对路径、正斜杠
     bone_id  骨标识。骨模型和候选骨模型必带，别的可以不带
-    made_by  里面的数是哪个内核（和哪份推导量定义）算的。数据、一份预测、候选池、预测器带它，别的不用：
-                 {"kernel": 内核是哪一个, "derive": 推导量定义是哪一个，没有推导量就是 null}
-             内核的清单里写了 model（带 name），记的就是 model 原样，比如 {"name": "M1-3406-v1", "code_hash": …}；
-             没写就记 {"package": 内核包的哈希}。推导量定义记 {"package": 它的包的哈希}。见 made_by()
-             不同内核算出来的数不放在一起用：几样合起来用（几份数据一起训练、一起选点）的，见 mixed_makers()；
-             两样一起用、但不合并的（预测器和候选池、一份预测和拿来复核的数据），见 maker_clash()
+    made_by  里面的数是怎么算出来的。数据、一份预测、候选池、预测器带它，别的不用。第 2 版（2026-11-16）：
+                 {"kernel": 原来的内核包, "stem": 柄空间包, "fem": 有限元包, "derive": 推导量定义,
+                  "settings": {"placement", "fem", "derive"}, "bones": {骨标识: {"id", "hash"}}, "predictions": [编号, …]}
+             kernel：内核的清单里写了 model（带 name），记的就是 model 原样，比如 {"name": "M1-3406-v1", "code_hash": …}；
+                 没写就记 {"package": 内核包的哈希}。拆内核以后的写法里是 null，由 stem、fem 记柄空间包和有限元包
+                 （stem 写 "none" 是无植入物）。推导量定义记 {"package": 它的包的哈希}，没有推导量是 null。
+             settings：几份设定里所有点都一样的那部分的哈希，只管怎么跑的项不算；每个点给的在点的哈希里。不知道是 null。
+             bones：每根骨用的是哪一版骨模型（登记的编号和哈希），按骨标识记：同一根骨的版本一致才放在一起，
+                 不同的骨互不冲突。不知道是 null。
+             predictions：用到的预测，比如预测的场当材料，排好序。
+             第 1 版只有 {"kernel", "derive"} 两样：照样认，缺的几样当成不知道（as_v2）。见 made_by()
+             不同的 made_by 算出来的数不放在一起用：几样合起来用（几份数据一起训练、一起选点）的，见 mixed_makers()，
+             合起来的那一份见 common_maker()；两样一起用、但不合并的（预测器和候选池、一份预测和拿来复核的数据），
+             见 maker_clash()
 
 契约只核清单，和清单列的文件是不是都在。内容和清单对不对得上，由写它的那个冻结文件负责。
 """
@@ -23,9 +31,9 @@ import json
 import re
 from pathlib import Path
 
-from stemlab.contract.hashing import canonical, list_tree
+from stemlab.contract.hashing import canonical, hash_json, is_hash, list_tree
 from stemlab.contract.kinds import ITEM_KINDS, VALUE
-from stemlab.contract.layout import is_key, is_label
+from stemlab.contract.layout import is_item_id, is_key, is_label
 from stemlab.contract.versions import FORMATS, CannotUpcast, upcast
 
 MANIFEST = "manifest.json"
@@ -116,42 +124,122 @@ def check_manifest(kind: str, manifest: dict) -> list[str]:
     return problems
 
 
-# ---------------------------------------------------------------- 是哪个内核算的
+# ---------------------------------------------------------------- 是怎么算出来的
 
-def made_by(kernel: dict, kernel_hash: str, derive: dict | None = None, derive_hash: str | None = None) -> dict:
-    """写进清单的 made_by。kernel、derive 是两个包的清单，kernel_hash、derive_hash 是它们登记时的哈希。"""
+MAKER_V1 = ("kernel", "derive")
+MAKER_KEYS = ("kernel", "stem", "fem", "derive", "settings", "bones", "predictions")
+SETTING_PARTS = ("placement", "fem", "derive")
+
+
+def made_by(kernel: dict, kernel_hash: str, derive: dict | None = None, derive_hash: str | None = None, *,
+            bones: dict | None = None, settings: dict | None = None, predictions=()) -> dict:
+    """写进清单的 made_by（第 2 版）。kernel、derive 是两个包的清单，kernel_hash、derive_hash 是它们登记时的哈希。
+
+    bones 是 {骨标识: {"id": 骨模型的编号, "hash": 它的哈希}}；settings 是 {"placement", "fem", "derive"} 各自的取值
+    （所有点都一样的那部分，只管怎么跑的项先去掉），这里算成哈希，没给的那几样是 null；predictions 是用到的预测的编号。
+    bones、settings 不给就是不知道；settings 给 {} 是知道：没用到设定（比如模板化）。
+    """
     model = kernel.get("model") if isinstance(kernel, dict) else None
     named = isinstance(model, dict) and isinstance(model.get("name"), str) and model["name"].strip()
-    return {"kernel": dict(model) if named else {"package": kernel_hash},
-            "derive": {"package": derive_hash} if derive_hash else None}
+    return {"kernel": dict(model) if named else {"package": kernel_hash}, "stem": None, "fem": None,
+            "derive": {"package": derive_hash} if derive_hash else None,
+            "settings": None if settings is None else {
+                part: None if settings.get(part) is None else hash_json(settings[part]) for part in SETTING_PARTS},
+            "bones": None if bones is None else {bone: dict(which) for bone, which in bones.items()},
+            "predictions": sorted(predictions)}
+
+
+def as_v2(made):
+    """第 1 版的 made_by（只有 kernel、derive）读成第 2 版：缺的几样当成不知道。别的原样返回。"""
+    if isinstance(made, dict) and set(made) == set(MAKER_V1):
+        return {"kernel": made["kernel"], "stem": None, "fem": None, "derive": made["derive"], "settings": None,
+                "bones": None, "predictions": []}
+    return made
+
+
+def _filled(value) -> bool:
+    return isinstance(value, dict) and bool(value)
 
 
 def _maker_problems(value) -> list[str]:
-    if not isinstance(value, dict) or set(value) != {"kernel", "derive"}:
-        return ['清单的 made_by 要写成 {"kernel": 内核是哪一个, "derive": 推导量定义是哪一个，没有就是 null}']
+    if isinstance(value, dict) and set(value) == set(MAKER_V1):
+        found = [] if _filled(value["kernel"]) else ["清单的 made_by 里 kernel 要写成一个不空的对象"]
+        if value["derive"] is not None and not _filled(value["derive"]):
+            found.append("清单的 made_by 里 derive 要写成一个不空的对象，没有推导量定义就写 null")
+        return found
+    if not isinstance(value, dict) or set(value) != set(MAKER_KEYS):
+        return [f"清单的 made_by 要写这几样：{list(MAKER_KEYS)}（第 1 版只有 {list(MAKER_V1)}）"]
     found = []
-    if not isinstance(value["kernel"], dict) or not value["kernel"]:
-        found.append("清单的 made_by 里 kernel 要写成一个不空的对象")
-    if value["derive"] is not None and (not isinstance(value["derive"], dict) or not value["derive"]):
-        found.append("清单的 made_by 里 derive 要写成一个不空的对象，没有推导量定义就写 null")
+    if not (_filled(value["kernel"]) or _filled(value["fem"])):
+        found.append("清单的 made_by 里 kernel 和 fem 至少有一个：是谁算的")
+    for key in ("kernel", "fem", "derive"):
+        if value[key] is not None and not _filled(value[key]):
+            found.append(f"清单的 made_by 里 {key} 要写成一个不空的对象，没有就写 null")
+    if value["stem"] not in (None, "none") and not _filled(value["stem"]):
+        found.append('清单的 made_by 里 stem 要写成一个不空的对象，无植入物写 "none"')
+    settings = value["settings"]
+    if settings is not None and not (isinstance(settings, dict) and set(settings) == set(SETTING_PARTS)
+                                     and all(part is None or is_hash(part) for part in settings.values())):
+        found.append(f"清单的 made_by 里 settings 要写成 {list(SETTING_PARTS)} 各自的哈希（没有是 null），不知道就写 null")
+    bones = value["bones"]
+    if bones is not None and not (isinstance(bones, dict) and all(
+            is_label(bone) and isinstance(which, dict) and set(which) == {"id", "hash"}
+            and is_item_id(which["id"]) and is_hash(which["hash"]) for bone, which in bones.items())):
+        found.append('清单的 made_by 里 bones 要写成 {骨标识: {"id": 骨模型的编号, "hash": 它的哈希}}，不知道就写 null')
+    predictions = value["predictions"]
+    if not (isinstance(predictions, list) and all(map(is_item_id, predictions)) and predictions == sorted(set(predictions))):
+        found.append("清单的 made_by 里 predictions 要是排好序、不重复的登记编号")
     return found
 
 
 def _said(made: dict) -> str:
-    """说给人听的：内核的名字，或者内核包哈希的前 12 位。"""
-    kernel = made["kernel"]
-    if isinstance(kernel.get("name"), str):
-        return kernel["name"]
-    if isinstance(kernel.get("package"), str):
-        return f"内核包 {kernel['package'][:12]}"
-    return json.dumps(kernel, ensure_ascii=False, sort_keys=True)
+    """说给人听的：内核（或有限元包）的名字，或者包哈希的前 12 位。"""
+    maker = made["kernel"] or made["fem"] or {}
+    if isinstance(maker.get("name"), str):
+        return maker["name"]
+    if isinstance(maker.get("package"), str):
+        return f"{'内核' if made['kernel'] else '有限元'}包 {maker['package'][:12]}"
+    return json.dumps(maker, ensure_ascii=False, sort_keys=True)
+
+
+def _differences(one, other, together: bool) -> list[str]:
+    """两份第 2 版的 made_by 差在哪。one、other 是 (怎么称呼它, made_by)。
+
+    together 是合在一起用（几份数据一起训练、一起选点）：设定、骨模型的版本、用到的预测都得一样，
+    知道的和不知道的也不放在一起。不合并、只是一起用的（预测器和候选池、数据和候选池）：只比两边都记了的那几样，
+    有一边没记就不比，因为候选池这类东西本来就不用有限元的设定。
+    两种都是：算的包得一样；推导量只在两边都记了的时候比；骨模型只比两边都用到的那几根骨。
+    """
+    (what, made), (other_what, theirs) = one, other
+    verb = "放在一起用" if together else "一起用"
+    if (made["kernel"], made["stem"], made["fem"]) != (theirs["kernel"], theirs["stem"], theirs["fem"]):
+        return [f"{what}是 {_said(made)} 算的，{other_what}是 {_said(theirs)} 算的：不同内核算出来的数不能{verb}"]
+    found = []
+    if made["derive"] is not None and theirs["derive"] is not None and made["derive"] != theirs["derive"]:
+        found.append(f"{what}和{other_what}的推导量不是同一份推导量定义算的，不能{verb}")
+    mine, yours = made["settings"], theirs["settings"]
+    if together and (mine is None) != (yours is None):
+        found.append(f"{what}和{other_what}一份记了设定、一份没记：不知道设定一不一样，不能{verb}")
+    elif mine is not None and yours is not None:
+        for part in SETTING_PARTS:
+            skip = (part == "derive" or not together) and (mine[part] is None or yours[part] is None)
+            if mine[part] != yours[part] and not skip:
+                found.append(f"{what}和{other_what}的{part}设定不一样，不能{verb}")
+    mine, yours = made["bones"], theirs["bones"]
+    if together and (mine is None) != (yours is None):
+        found.append(f"{what}和{other_what}一份记了骨模型的版本、一份没记：不知道是不是同一版，不能{verb}")
+    elif mine is not None and yours is not None:
+        for bone in sorted(set(mine) & set(yours)):
+            if mine[bone] != yours[bone]:
+                found.append(f"{what}和{other_what}用的 {bone} 不是同一版骨模型（{mine[bone]['id']} 和 {yours[bone]['id']}），不能{verb}")
+    if together and made["predictions"] != theirs["predictions"]:
+        found.append(f"{what}和{other_what}用到的预测不一样，不能{verb}")
+    return found
 
 
 def mixed_makers(items) -> list[str]:
-    """几样东西里的数要合在一起用（几份数据一起训练、一起选点）：得是同一个内核算的；推导量定义也得是同一份
-    （记了推导量定义的那几样之间比，没有推导量的不比）。只有一样就不用比。
-
-    items 是 [(怎么称呼它, 它清单里的 made_by，没记就是 None)]。返回为什么不行；空列表就是行。
+    """几样东西里的数要合在一起用（几份数据一起训练、一起选点）：每两样都比，差在哪见 _differences。
+    只有一样就不用比。items 是 [(怎么称呼它, 它清单里的 made_by，没记就是 None)]。返回为什么不行；空列表就是行。
     """
     items = list(items)
     if len(items) < 2:
@@ -159,26 +247,39 @@ def mixed_makers(items) -> list[str]:
     found = [f"{what}没有记是哪个内核算的，不能和别的放在一起用" for what, made in items if made is None]
     if found:
         return found
-    (first_what, first), derived = items[0], [(what, made["derive"]) for what, made in items if made["derive"] is not None]
-    found = [f"{what}是 {_said(made)} 算的，{first_what}是 {_said(first)} 算的：不同内核算出来的数不能放在一起用"
-             for what, made in items[1:] if made["kernel"] != first["kernel"]]
-    found += [f"{what}和{derived[0][0]}的推导量不是同一份推导量定义算的，不能放在一起用"
-              for what, derive in derived[1:] if derive != derived[0][1]]
+    normal = [(what, as_v2(made)) for what, made in items]
+    found = []
+    for position, later in enumerate(normal[1:], start=1):     # 每一样和它前面的逐个比，报它和第一个对不上的那一样
+        for earlier in normal[:position]:
+            differences = _differences(later, earlier, True)
+            if differences:
+                found += differences
+                break
     return found
 
 
 def maker_clash(one, other) -> str | None:
-    """两样东西一起用、但不合并（预测器和候选池、一份预测和拿来复核的数据）：两边都记了，又不是同一个内核，就不行；
-    两边都有推导量、又不是同一份推导量定义算的，也不行。有一边没记，就没法比，不拦。
-    one、other 是 (怎么称呼它, made_by 或 None)。行就返回 None，不行返回为什么。"""
+    """两样东西一起用、但不合并（预测器和候选池、一份预测和拿来复核的数据）：差在哪见 _differences。
+    有一边没记，就没法比，不拦。one、other 是 (怎么称呼它, made_by 或 None)。行就返回 None，不行返回为什么。"""
     (what, made), (other_what, theirs) = one, other
     if made is None or theirs is None:
         return None
-    if made["kernel"] != theirs["kernel"]:
-        return f"{what}是 {_said(made)} 算的，{other_what}是 {_said(theirs)} 算的：不是同一个内核，不能一起用"
-    if made["derive"] is not None and theirs["derive"] is not None and made["derive"] != theirs["derive"]:
-        return f"{what}和{other_what}的推导量不是同一份推导量定义算的，不能一起用"
-    return None
+    found = _differences((what, as_v2(made)), (other_what, as_v2(theirs)), False)
+    return found[0] if found else None
+
+
+def common_maker(makers) -> dict | None:
+    """几份数据合起来（比如一起训练出一个预测器）之后的那一份 made_by：都一样的照抄；推导量和它的设定取记了的那一份；
+    骨模型的版本合起来。有一份没记，就是不知道（None）。先用 mixed_makers 核过能放在一起，再叫它。"""
+    known = [as_v2(made) for made in makers]
+    if not known or any(made is None for made in known):
+        return None
+    first = known[0]
+    derive = next((made["derive"] for made in known if made["derive"] is not None), None)
+    settings = None if first["settings"] is None else dict(
+        first["settings"], derive=next((made["settings"]["derive"] for made in known if made["settings"]["derive"]), None))
+    bones = None if first["bones"] is None else {bone: which for made in known for bone, which in made["bones"].items()}
+    return dict(first, derive=derive, settings=settings, bones=bones)
 
 
 def check_format(kind: str, folder) -> list[str]:

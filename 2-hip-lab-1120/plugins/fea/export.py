@@ -52,10 +52,19 @@ def problems(kernel: dict, derive: dict) -> list[str]:
     return [f"列名重复了：{name}" for name in sorted({name for name in names if names.count(name) > 1})]
 
 
+# 导出设定里只管怎么跑的几项（run.py 用的求解槽、超时）：不影响算出来的数，不进 made_by。
+# run.py 以后多了别的只管怎么跑的项、这里没列上，它就照样算进 made_by：宁可不让混，也不放过。拆内核以后运行设定另成一份，就不用再挑
+RUN_KEYS = ("build_slots", "build_timeout_s", "solve_timeout_s")
+
+
 def maker(handle) -> dict:
-    """这份数据是哪个内核、哪份推导量定义算的：写进数据的清单（made_by）。用数据的地方靠它拦住不同内核的数混在一起。"""
+    """这份数据是怎么算出来的，写进数据的清单（made_by 第 2 版）：哪个内核、哪份推导量定义，这根骨用的是哪一版骨模型，
+    导出设定里交给内核的那部分。用数据的地方靠它拦住不同算法、不同设定、不同版本的骨算出来的数混在一起。"""
+    bone = handle.input_info("bone")
+    given = {key: value for key, value in handle.input("export").items() if key not in RUN_KEYS}
     return hooks.made_by(read_manifest(handle.input("kernel")), handle.input_info("kernel").hash,
-                         read_manifest(handle.input("derive")), handle.input_info("derive").hash)
+                         read_manifest(handle.input("derive")), handle.input_info("derive").hash,
+                         bones={bone.bone_id: {"id": bone.id, "hash": bone.hash}}, settings={"fem": given})
 
 
 def columns(kernel: dict, derive: dict) -> list[dict]:

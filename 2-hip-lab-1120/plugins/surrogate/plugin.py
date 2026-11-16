@@ -224,12 +224,9 @@ def _makers(folders) -> list:
 
 
 def _common(makers) -> dict | None:
-    """训练数据共同的 made_by，记进预测器：内核是同一个，推导量定义取记了的那一份。有一份没记，就是不知道（None）。"""
-    known = [made for _, made in makers]
-    if not known or any(made is None for made in known):
-        return None
-    derives = [made["derive"] for made in known if made["derive"] is not None]
-    return {"kernel": known[0]["kernel"], "derive": derives[0] if derives else None}
+    """训练数据合起来的 made_by，记进预测器。合法在契约里（common_maker）：都一样的照抄，推导量取记了的那一份，
+    骨模型的版本合起来。有一份没记，就是不知道（None）。"""
+    return hooks.common_maker([made for _, made in makers])
 
 
 def train_check(handle):

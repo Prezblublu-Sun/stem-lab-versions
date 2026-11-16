@@ -134,7 +134,9 @@ def pool_poll(handle):
             else:
                 rows.append({"name": one["name"], "bone_id": bone, "design": one["design"], "feasible": said["feasible"],
                              "info": said.get("info") if isinstance(said.get("info"), dict) else {}})
-        made_by = hooks.made_by(_listed(handle.input("kernel")), handle.input_info("kernel").hash)       # 是哪个内核模板化的
+        info = handle.input_info("bone")                # 是哪个内核、在哪一版骨模型上模板化的；模板化不用有限元的设定
+        made_by = hooks.made_by(_listed(handle.input("kernel")), handle.input_info("kernel").hash,
+                                bones={info.bone_id: {"id": info.id, "hash": info.hash}}, settings={})
         hooks.write_points(_out(handle, "pool"), rows, kind="pool", made_by=made_by)
     except (KeyError, TypeError, ValueError, OSError) as error:
         _failed(handle, POOL, "error", f"候选池写不出来：{type(error).__name__}: {error}")

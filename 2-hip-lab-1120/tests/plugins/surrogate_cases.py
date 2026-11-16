@@ -12,7 +12,7 @@ from pathlib import Path
 import psutil
 
 from stemlab.contract import Refused
-from stemlab.contract.formats.manifest import check_format, read_manifest
+from stemlab.contract.formats.manifest import as_v2, check_format, read_manifest
 from stemlab.contract.formats.points import read_points
 from stemlab.contract.layout import work_dir
 from stemlab.desk.core import query, start
@@ -355,10 +355,11 @@ def data_from_different_kernels_are_not_mixed(tmp: Path) -> None:
 
     older = dict(real.MADE_BY, derive=None)             # 同一个内核、没有推导量（比如旧库转来的）：可以放在一起
     made = trained([first, real.data(tmp, real.data_rows(real.spread(30, seed=35)), made_by=older)])
-    assert read_manifest(real.output(made, "predictor"))["made_by"] == real.MADE_BY, "预测器记着它的训练数据是哪个内核算的"
+    assert read_manifest(real.output(made, "predictor"))["made_by"] == as_v2(real.MADE_BY), \
+        "预测器记着它的训练数据是怎么算的（合起来的写成第 2 版）"
     asked = real.predict(item_of(made, "predictor"), real.points(tmp, [real.point("p", 40.0)]))
     finished(asked)
-    assert read_manifest(real.output(asked, "prediction"))["made_by"] == real.MADE_BY, "一份预测跟着预测器记"
+    assert read_manifest(real.output(asked, "prediction"))["made_by"] == as_v2(real.MADE_BY), "一份预测跟着预测器记"
     elsewhere = real.data(tmp, real.data_rows([(40.0, 2000.0)]), made_by=other)
     assert "another-kernel" in refused(real.check(item_of(asked, "prediction"), elsewhere)), "预测和 FEA 不是同一个内核算的：不比"
     unknown = real.data(tmp, real.data_rows([(40.0, 2000.0)]), made_by=None)

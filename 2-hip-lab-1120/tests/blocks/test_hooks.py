@@ -34,7 +34,7 @@ def test_the_facade_is_exactly_what_plugins_may_use():
     assert set(hooks.__all__) == {
         "Kind", "Input", "Output", "Outcome", "Chart", "TASK_STATES", "read_points", "write_points", "check_format",
         "fingerprint", "predict", "derive", "run_strategy", "run_kernel", "look", "rerun", "spawn", "alive", "kill", "remote",
-        "made_by", "mixed_makers", "maker_clash"}
+        "made_by", "mixed_makers", "maker_clash", "common_maker"}
     assert all(hasattr(hooks, name) for name in hooks.__all__)
     assert hooks.TASK_STATES == ("queued", "running", "done", "failed", "stopped")
     assert hooks.Kind is plugin_api.Kind and hooks.spawn is local.spawn and hooks.kill is local.kill

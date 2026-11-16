@@ -14,7 +14,7 @@ from stemlab.contract import Refused
 from stemlab.contract.formats import data as data_format
 from stemlab.contract.formats.manifest import check_format, read_manifest
 from stemlab.contract.formats.points import read_points
-from stemlab.contract.hashing import hash_file, is_hash
+from stemlab.contract.hashing import hash_file, hash_json, is_hash
 from stemlab.desk.core import query, start
 from stemlab.experiments import view
 from stemlab.registry import lookup
@@ -182,9 +182,13 @@ def every_row_has_its_five_keys(tmp: Path) -> None:
     item = lookup.get(status.rounds[-1].outputs["data"]["item"])
     assert (item["kind"], item["name"], item["version"], item["bone_id"]) == ("data", f"{made}.data", 1, real.BONE)
     assert item["origin"] == {"from": "product", "experiment": made, "round": 1, "output": "data"}
-    assert manifest["made_by"] == {"kernel": {"package": status.frozen["kernel"][0]["hash"]},
-                                   "derive": {"package": status.frozen["derive"][0]["hash"]}}, \
-        "数据记着是哪个内核、哪份推导量定义算的（假内核的清单里没写 model，记的是包的哈希）"
+    bone = status.frozen["bone"][0]
+    assert manifest["made_by"] == {
+        "kernel": {"package": status.frozen["kernel"][0]["hash"]}, "stem": None, "fem": None,
+        "derive": {"package": status.frozen["derive"][0]["hash"]},
+        "settings": {"placement": None, "fem": hash_json({"seconds": 0}), "derive": None},
+        "bones": {real.BONE: {"id": bone["id"], "hash": bone["hash"]}}, "predictions": []}, \
+        "数据记着是哪个内核、哪份推导量定义算的（假内核的清单里没写 model，记的是包的哈希），哪一版骨模型，导出设定的哈希"
 
     model = {"name": "fake-kernel-2", "code_hash": "9876543210"}
     named = real.fea(tmp, [real.point("p1", 30)], kernel=real.package("kernel_fake", tmp, model=model))
