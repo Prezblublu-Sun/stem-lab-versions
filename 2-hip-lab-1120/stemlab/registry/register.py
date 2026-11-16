@@ -2,6 +2,7 @@
 
 登记后不改不删。同名再登记，版本加一，编号是新的。
 复制进来的内容放在 data/registry/store/<编号>/，设成只读。
+内容先刷到盘上，再写链上那一行（durable）：断电时，链上不会留下一条指向半截内容的记录。
 """
 from __future__ import annotations
 
@@ -85,6 +86,8 @@ def register_external(kind: str, name: str, *, note: str, by: str, value=None, s
                 raise Refused(f"清单里的骨标识是 {listed!r}，登记时给的是 {bone_id!r}")
             bone_id = bone_id or listed
             digest = hashing.hash_tree(folder)
+            if staged:
+                durable(staged)                 # 复制进来的先刷到盘上，再上链
         except BaseException:
             _discard(staged)
             raise
@@ -101,6 +104,7 @@ def register_external(kind: str, name: str, *, note: str, by: str, value=None, s
         if staged:
             final = layout.store_dir(entry["id"])
             rename(staged, final)
+            _sync_dir(final.parent)             # 改名也落盘，再写链
             read_only(final)
 
     try:
@@ -198,6 +202,46 @@ def rename(source: Path, target: Path, tries: int = 8) -> None:
             if attempt == tries - 1:
                 raise
             time.sleep(0.05 * 2 ** attempt)
+
+
+def durable(folder: Path) -> None:
+    """把文件夹里的文件刷到盘上，连同文件夹自己和它在上一级里的那一项。上链之前做。
+
+    Windows 上的文件要用写的方式打开才刷得了，所以在设成只读之前做；已经是只读的，是上一次设只读之前刷过的。
+    Windows 上文件夹刷不了，靠 NTFS 自己的日志。刷不了（文件正被别处占着之类）就被拒，什么都不登记，下次再来。
+    """
+    try:
+        for path in sorted(folder.rglob("*")):
+            if path.is_file():
+                _flush(path)
+        for path in [folder.parent, folder, *sorted(p for p in folder.rglob("*") if p.is_dir())]:
+            _sync_dir(path)
+    except OSError as error:
+        raise Refused(f"内容刷不到盘上，先不登记：{error}") from None
+
+
+def _flush(path: Path) -> None:
+    if os.name == "nt":
+        if os.access(path, os.W_OK):
+            with open(path, "r+b") as stream:
+                os.fsync(stream.fileno())
+        return
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _sync_dir(path: Path) -> None:
+    """把文件夹里的那几项（新建、改名）刷到盘上。只在 Linux 这类系统上做得了。"""
+    if os.name == "nt":
+        return
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 def read_only(folder: Path) -> None:

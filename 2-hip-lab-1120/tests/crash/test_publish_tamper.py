@@ -9,8 +9,8 @@
     没收下的，有一条说到它的问题
     第二遍对账一个字节都不改
 
-断在“登记了”之后的三种现在不成：已经登记、还没记 output 的那一份，补记之前不再核内容的哈希，
-记下的是登记时的哈希，内容已经不是那样了。标成 xfail(strict=True, raises=AssertionError)，改好之后把标记去掉。
+断在“登记了”之后的三种，以前不成：已经登记、还没记 output 的那一份，补记之前不核内容的哈希，
+记下的是登记时的哈希，内容已经不是那样了。2026-11-16 改成补记之前先核，对不上就不记 output、记成问题。
 断在“记了 output”之后再动，是发布做完以后的事，对账不管：由核对内容（检查里的 contents）报出来。
 """
 from __future__ import annotations
@@ -28,10 +28,7 @@ from stemlab.registry import lookup
 from tests import helpers
 from tests.crash.test_crash import STEPS, cut_while_publishing
 
-GAP = pytest.mark.xfail(strict=True, raises=AssertionError,
-                        reason="修改目标 04：已经登记、还没记 output 的那一份，补记之前不再核内容的哈希")
-CASES = [pytest.param(where, how, marks=GAP if where == "registered" else (), id=f"{where}-{how}")
-         for where in STEPS for how in ("byte", "delete", "add")]
+CASES = [pytest.param(where, how, id=f"{where}-{how}") for where in STEPS for how in ("byte", "delete", "add")]
 
 
 def writable(folder: Path) -> None:

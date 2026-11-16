@@ -8,7 +8,8 @@
 叫插件代码的时候不拿链的锁：handle 的每次写都是拿了就放。
 
 真正跑的代码必须就是这一轮记下的那一份：冻结文件变了不跑；这个进程里装着的不是记下的那一份也不跑
-（报 load.Stale，由调用方重新起进程）。
+（报 load.Stale，由调用方重新起进程）。一轮里不换代码（2026-11-16 定的）：插件自由的代码在一轮中途变了，
+这一轮就不再往下跑，只能停掉；改回去就能接着跑，要用新代码就开新的一轮。见 _same_code。
 """
 from __future__ import annotations
 
@@ -53,8 +54,7 @@ def call(type_name: str, action: str, experiment: str) -> Result:
             raise Refused(f"类型 {type_name} 没有写 {action}")
         if load.frozen_hash(plugin) != current.provenance["plugin_frozen"]:
             raise Refused("插件的冻结文件和这一轮开始时不一样了，这一轮不能接着跑：把冻结文件改回去，或者另开一个实验")
-        if load.imported(plugin) != states.recorded_code(current):
-            raise load.Stale("这个进程里装着的插件代码，不是这一轮记下的那一份。重新起这个进程再来")
+        _same_code(plugin, current, action)
         info = plugin_api.RoundInfo(current.number, tuple(current.rerun), copy.deepcopy(current.provenance), current.opened)
         given = handle.Handle(experiment, info, status.inputs, status.frozen)
     except load.Stale:
@@ -69,6 +69,27 @@ def call(type_name: str, action: str, experiment: str) -> Result:
         given.close()
     _recovered(experiment, current.number)
     return Result(True, said=given.said, value=value)
+
+
+def _same_code(plugin: str, current: states.Round, action: str) -> None:
+    """跑的必须就是这一轮记下的那一份插件代码（《修改目标》01：一轮里不换代码）。
+
+    这个进程里装着的就是记下的那一份：照常叫，盘上后来变了也不碍事，值守会重启再来。
+    装着的不是，而盘上的就是记下的那一份（比如改过又改回去了），或者装着的连盘上的都不是：报 load.Stale，
+    由调用方重新起进程，什么都不记。
+    装着的就是盘上的，可都不是记下的那一份：代码在这一轮中途换了。被拒，记成这个实验的问题；
+    只有停止照样做，它不出结果。
+    """
+    recorded = states.recorded_code(current)
+    running = load.imported(plugin)
+    if running == recorded:
+        return
+    on_disk = load.plugin_hash(plugin)
+    if on_disk == recorded or running != on_disk:
+        raise load.Stale("这个进程里装着的插件代码，不是这一轮记下的那一份。重新起这个进程再来")
+    if action != "stop":
+        raise Refused(f"插件自由的代码在这一轮中途换了（开轮时是 {recorded[:12]}，现在是 {on_disk[:12]}）。"
+                      "一轮里不换代码，这一轮不能接着跑：把代码改回去就能接着跑；要用新代码，先停掉这一轮，再开新的一轮")
 
 
 def _failed(experiment: str, number: int, error: str, raw: str | None = None) -> Result:

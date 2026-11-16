@@ -36,6 +36,23 @@ def leftovers() -> list[str]:
 
 # ---- 1 登记一个外来的文件夹（复制） ----
 
+def test_copied_content_is_flushed_to_disk_before_its_line_goes_on_the_chain(data, tmp_path, monkeypatch):
+    """复制进来的每个文件先刷到盘上，再写链上那一行：断电时，链上不会留下一条指向半截内容的记录（注释审查 高 2）。"""
+    flushed = []
+    real = register._flush
+
+    def watching(path):
+        flushed.append((path.name, chain_bytes()))
+        real(path)
+
+    monkeypatch.setattr(register, "_flush", watching)
+    before = chain_bytes()
+    _, item = bone_source(tmp_path)
+    assert sorted(name for name, _ in flushed) == sorted([Path(rel).name for rel in CT] + ["manifest.json"]), "每个文件都刷过"
+    assert all(chain == before for _, chain in flushed), "刷盘的时候链上还没有这一条"
+    assert chain_bytes() != before and lookup.get(item["id"])["hash"] == item["hash"]
+
+
 def test_register_a_folder_by_copy_records_every_field(data, tmp_path):
     source, item = bone_source(tmp_path)
     stored = data / "registry" / "store" / "C0001"

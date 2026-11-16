@@ -141,7 +141,10 @@ class Status:
 
 
 def recorded_code(current: Round) -> str:
-    """这一轮的记录说现在该跑的是哪一份插件代码：开轮时记的那份，或者中途最后一次记下的变化。"""
+    """这一轮的记录说现在该跑的是哪一份插件代码：开轮时记的那份，或者中途最后一次记下的变化。
+
+    2026-11-16 起一轮里不换代码，新的轮不再记中途的变化；以前的轮里记过的，照样认。
+    """
     changes = [extra["info"]["plugin_hash"] for extra in current.extra if extra["source"] == "code"]
     return changes[-1] if changes else current.provenance["plugin_hash"]
 

@@ -75,7 +75,8 @@ PROVENANCE_SOURCES = {
     "remote": ("host", "python", "libs", "cuda", "driver", "gpu"),     # 在远端跑的轮，取回时由核心记
     "package": ("id", "hash"),                                          # 用到带代码的包时由核心记
     # 这一轮中途插件自由的代码变了，由核心记：新的文件夹哈希、当时的提交号、有没有没提交的改动。
-    # 有的话，差异存在这一轮的 plugin-<哈希的前 12 位>.diff
+    # 有的话，差异存在这一轮的 plugin-<哈希的前 12 位>.diff。2026-11-16 起一轮里不换代码，核心不再记这一种，
+    # 只为读得出以前的记录留着
     "code": ("plugin_hash", "commit", "plugin_dirty"),
     "plugin": (),                                                       # 插件自己补的，比如求解器版本
 }

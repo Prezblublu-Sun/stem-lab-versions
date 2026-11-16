@@ -207,7 +207,8 @@ def plugin_diff(experiment: str, number: int, changed_to: str | None = None) -> 
     """这一轮插件没提交的改动存在哪。
 
     开轮时的那一份叫 plugin.diff。这一轮中途插件的代码又变了，变成哈希是 changed_to 的那一份，
-    它的差异另存一个文件，名字里带哈希的前 12 位。
+    它的差异另存一个文件，名字里带哈希的前 12 位。2026-11-16 起一轮里不换代码，新的轮不再有这种文件，
+    以前的轮里留下的照样找得到。
     """
     name = "plugin.diff" if changed_to is None else f"plugin-{changed_to[:12]}.diff"
     return round_dir(experiment, number) / name

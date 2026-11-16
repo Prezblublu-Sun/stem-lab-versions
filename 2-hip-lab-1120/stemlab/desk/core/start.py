@@ -130,30 +130,6 @@ def _code_state(status: states.Status, plugin: str) -> tuple[dict, bytes | None]
     return provenance, diff
 
 
-def _note_code(experiment: str, status: states.Status, plugin: str) -> None:
-    """这一轮中途插件自由的代码变了：把新的哈希、提交号和差异记进这一轮的来历，再接着跑。
-
-    这个进程里装着的必须就是盘上现在的这一份；不是的话报 load.Stale，什么都不记，由调用方重新起进程。
-    """
-    current = status.rounds[-1]
-    running = load.imported(plugin)
-    if running == states.recorded_code(current):
-        return
-    try:
-        provenance, diff = code_state.snapshot(plugin)
-    except RuntimeError as error:
-        raise Refused(str(error)) from None
-    if provenance["plugin_hash"] != running:
-        raise load.Stale("这个进程里装着的插件代码，不是盘上现在的那一份。重新起这个进程再来")
-    if diff is not None:
-        path = layout.plugin_diff(experiment, current.number, changed_to=running)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(diff)
-    log.append(experiment, {"entry": "provenance", "round": current.number, "source": "code",
-                            "info": {"plugin_hash": running, "commit": provenance["commit"],
-                                     "plugin_dirty": provenance["plugin_dirty"]}})
-
-
 def _reconcile(experiment: str, number: int) -> None:
     """对一次账。对不上账不该拦着这一轮收尾：记成问题，接着往下走，检查会再报出来。"""
     try:
@@ -182,13 +158,12 @@ def stop(experiment: str) -> call.Result:
     """停止。插件停成了才记；没停成，实验还是运行中，多一条问题，可以再停一次。"""
     with locks.busy(experiment, "stop"):
         status = _status(experiment)
-        kind, plugin = call.find(status.type)
+        kind, _ = call.find(status.type)
         why = states.why_not("stop", status, plugin_api.actions(kind))
         if why:
             raise Refused(why)
         number = status.rounds[-1].number
-        _note_code(experiment, status, plugin)
-        result = call.call(status.type, "stop", experiment)
+        result = call.call(status.type, "stop", experiment)        # 代码在这一轮中途换了也照样停：见 call._same_code
         if result.ok:
             _reconcile(experiment, number)
             log.append(experiment, {"entry": "called", "round": number, "action": "stop", "ok": True, "error": None})
@@ -212,13 +187,7 @@ def poll(experiment: str, wait: bool = True) -> call.Result | None:
                 _reconcile(experiment, number)
                 log.append(experiment, closing)
                 return None
-            try:
-                _note_code(experiment, status, call.find(status.type)[1])
-            except load.Stale:
-                raise
-            except Refused:
-                pass                                    # 插件装不上之类：交给下面的 call 去记成问题
-            result = call.call(status.type, "poll", experiment)
+            result = call.call(status.type, "poll", experiment)       # 代码在这一轮中途换了，在这里被拒：见 call._same_code
             _reconcile(experiment, number)
             if result.ok:
                 _close_if_said(experiment, number, result)

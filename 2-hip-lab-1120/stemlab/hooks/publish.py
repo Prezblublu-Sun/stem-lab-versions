@@ -5,14 +5,19 @@
 
     1 产物名在这个类型的产物表里，种类相符       不过：拒绝，记成问题，文件留在原地      _in_table
     2 按契约核对清单                             不过：拒绝，记成问题，说出哪里不符      _fits_format
-    3 移进 rounds/轮号/outputs/产物名/，算每个文件的哈希                               _move、_hash
+    3 移进 rounds/轮号/outputs/产物名/，算每个文件的哈希，刷到盘上                     _move、_hash、register.durable
     4 设成只读                                                                         _read_only
     5 登记。来路是这个实验的这一轮                                                     _register
     6 记一条 output                                                                    _record
 
+先刷盘再登记：断电时，链上不会留下一条指向半截内容的记录。
+
 对账（reconcile）把断在第 3 步之后的接着做完；做两遍和做一遍结果相同。
 接着做的那一份还没登记的话，登记之前再按第 1、2 步核一遍：断开之后它还不是只读的，可能被动过，
 也可能根本不是这里移进去的。没过就挪去 work/rejected/，记成问题，不登记。
+已经登记、还没记 output 的那一份，补记之前核内容的哈希：只读挡得住程序，挡不住人。
+对不上就不记 output，记成问题；登记的那一条不改，内容也留在原处（登记指着它），检查里的“登记的内容都在”会报它。
+这一轮再交这样产物也不收。同一句问题一轮只记一次，所以对账做几遍都一样。
 """
 from __future__ import annotations
 
@@ -35,6 +40,9 @@ def publish(experiment: str, number: int, name: str, folder: Path) -> str | None
     if done is None and row is not None and layout.output_dir(experiment, number, name).exists():
         # 上次发布断在了第 3 步之后：文件已经移过来了，先把那一份接着做完。它没过再核，就当这次是头一回交
         item_id = _resume(experiment, number, row)
+        if item_id is None and layout.output_dir(experiment, number, name).exists():
+            # 登记了、内容却对不上：那一份挪不走（登记指着它），这样产物这一轮不再收
+            return _reject_once(experiment, number, name, "这一轮登记过它，内容却和登记时的哈希对不上，这次交的也不收")
         done = {"item": item_id, "hash": lookup.get(item_id)["hash"]} if item_id else None
     if done is not None:
         # 插件在两次调用之间不留状态，断过之后会把同一样产物再交一次：内容一样就当已经交过，不算问题
@@ -61,6 +69,15 @@ def _reject(experiment: str, number: int, name: str, why: str) -> None:
     log.append(experiment, {"entry": "problem", "round": number, "error": f"产物 {name} 没有发布：{why}",
                             "task": None, "raw": None})
     return None
+
+
+def _reject_once(experiment: str, number: int, name: str, why: str) -> None:
+    """同 _reject，只是同一句问题这一轮已经记过就不再记：对账、重交做几遍，记录都和做一遍一样。"""
+    error = f"产物 {name} 没有发布：{why}"
+    rounds = [one for one in view.view(experiment).rounds if one.number == number]
+    if rounds and any(problem.get("error") == error for problem in rounds[0].problems):
+        return None
+    return _reject(experiment, number, name, why)
 
 
 # ---------------------------------------------------------------- 六步，一步一个函数
@@ -153,6 +170,7 @@ def _resume(experiment: str, number: int, row: dict, checked: bool = False) -> s
 
     还没登记的，登记之前再按第 1、2 步核一遍；刚核过、刚移过来的（checked）不用。
     没过：挪去 work/rejected/，记成问题，返回 None。
+    登记了、还没记 output 的，补记之前核内容的哈希。对不上：不记 output，记成问题（一轮一次），返回 None。
     """
     name = row["name"]
     target = layout.output_dir(experiment, number, name)
@@ -164,8 +182,13 @@ def _resume(experiment: str, number: int, row: dict, checked: bool = False) -> s
             _move(target, moved)
             return _reject(experiment, number, name, f"接着做发布之前再核了一遍，没过：{why}。挪去了 {layout.inside(moved)}")
         tree = _hash(target)                            # 3
+        register.durable(target)                        # 3 的最后：刷到盘上，再登记
         _read_only(target)                              # 4
         item = _register(experiment, number, row, target, tree)                                # 5
+    elif not _same(target, item["hash"]):               # 断在了第 5、6 步之间，断开的时候内容被动过
+        return _reject_once(experiment, number, name,
+                            f"登记了（{item['id']}），内容却和登记时的哈希对不上了，没有记 output。"
+                            f"登记的那一条不改，内容留在 {layout.inside(target)}")
     return _record(experiment, number, name, item)                                             # 6
 
 

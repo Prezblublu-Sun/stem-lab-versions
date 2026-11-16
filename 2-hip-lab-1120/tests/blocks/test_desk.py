@@ -420,7 +420,8 @@ def test_the_watch_finishes_tasks_on_its_own_and_is_alone(lab, data):
 
 
 def test_the_watch_restarts_its_inner_layer_when_plugin_code_changes(own_lab, data):
-    """值守从不拿旧代码接着跑：插件的代码变了，里面那一层退出，外面用新的代码重新起一个。"""
+    """值守从不拿旧代码接着跑：插件的代码变了，里面那一层退出，外面用新的代码重新起一个。
+    一轮里不换代码：新起的那一层轮询这个实验，被拒，记成它的问题。"""
     import psutil
 
     made = helpers.experiment(value={"poll": "never"})
@@ -435,7 +436,7 @@ def test_the_watch_restarts_its_inner_layer_when_plugin_code_changes(own_lab, da
         free.write_bytes(free.read_bytes() + b"\n# changed while the watch was running\n")
         helpers.wait_for(lambda: not (first & helpers.family(watcher)) and helpers.family(watcher) - {watcher.pid, outer})
         assert watch.status()["pid"] == outer, "外面那一层没换，值守的锁一直拿着"
-        helpers.wait_for(lambda: [e for e in view.view(made).rounds[0].extra if e["source"] == "code"])
+        helpers.wait_for(lambda: [p for p in view.view(made).rounds[0].problems if "中途换了" in p["error"]])
 
         inner = helpers.family(watcher) - {watcher.pid, outer}
         assert inner, "里面那一层在跑"
@@ -444,7 +445,9 @@ def test_the_watch_restarts_its_inner_layer_when_plugin_code_changes(own_lab, da
     finally:
         helpers.kill_tree(watcher)
     load._AT_IMPORT.clear()                 # 这个测试进程自己装着的也是改之前的代码；装作重新起了一个
-    assert watch.once() == {made: "看过了"}, "外面那一层没了，里面那一层也自己退出了，锁放了"
+    seen = watch.once()
+    assert list(seen) == [made] and "中途换了" in seen[made], "外面那一层没了，里面那一层也自己退出了，锁放了"
+    assert code_changes(made) == [], "不再把中途的变化记进来历"
 
 
 def test_a_pass_skips_what_is_busy_and_survives_what_goes_wrong(lab, data):
@@ -663,37 +666,69 @@ def code_changes(made: str) -> list[dict]:
     return [extra["info"] for extra in view.view(made).rounds[-1].extra if extra["source"] == "code"]
 
 
-def test_free_plugin_code_changing_mid_round_is_recorded(own_lab, data):
+def test_free_plugin_code_changing_mid_round_stops_the_round_from_going_on(own_lab, data):
+    """一轮里不换代码（2026-11-16 定的，《修改目标》01）：插件自由的代码在一轮中途变了，这一轮就不再往下跑。
+    装着开轮那一份的进程照旧跑；换上新代码的被拒，问题只记一次，什么变化都不记。停止照样做，再开的新一轮用新代码。"""
     made = helpers.experiment(value={"polls": 4})
     start.start(made)
     assert start.poll(made).ok
+    opened = view.view(made).rounds[0].provenance["plugin_hash"]
     rewrite_free_code(own_lab)
 
-    # 这个进程里装着的还是旧代码，也就是这一轮记下的那一份：照旧跑，没有什么要记的
-    assert start.poll(made).ok and code_changes(made) == []
+    assert start.poll(made).ok, "这个进程里装着的还是开轮时那一份：照旧跑"
     assert load.stale() == ["demo"], "值守这时会重启里面那一层"
 
     new_process()
-    assert start.poll(made).ok and start.poll(made).ok
+    for _ in range(3):
+        result = start.poll(made)
+        assert not result.ok and "中途换了" in result.error and "停掉这一轮" in result.error
     status = view.view(made)
-    changes = code_changes(made)
-    assert len(changes) == 1, "变了一次就记一次，不是每次轮询都记"
-    assert changes[0]["plugin_hash"] == load.plugin_hash("demo") != status.rounds[0].provenance["plugin_hash"]
-    assert changes[0]["plugin_dirty"] is True and changes[0]["commit"] == status.rounds[0].provenance["commit"]
-    diff = layout.plugin_diff(made, 1, changed_to=changes[0]["plugin_hash"]).read_bytes()
-    assert b"+# rewritten while a round was running" in diff, "变成了什么样，差异存下了，找得回来"
-    assert status.state == "ended", "自由的代码变了，记进来历，接着跑"
+    assert status.state == "running" and len(status.rounds[0].problems) == 1, "被拒几次，问题只记一次"
+    assert code_changes(made) == [], "不再把中途的变化记进来历"
+    assert not layout.plugin_diff(made, 1, changed_to=load.plugin_hash("demo")).exists()
+
+    assert start.stop(made).ok, "停止不出结果，代码换了也照样停"
+    assert view.view(made).state == "ended"
+    assert start.start(made).ok
+    assert view.view(made).rounds[-1].provenance["plugin_hash"] == load.plugin_hash("demo") != opened, "新的一轮用新代码"
 
 
-def test_a_process_holding_old_plugin_code_is_turned_away_and_nothing_is_recorded(own_lab, data):
-    """记录说该跑的是新代码，这个进程里装着的却是旧的：不跑，什么都不记，由调用方重新起进程。"""
-    made = helpers.experiment(value={"poll": "never"})
+def test_changing_free_code_back_lets_the_round_go_on(own_lab, data):
+    """代码在一轮中途变了又改回去：这一轮照旧往下跑，记下的那一份就是跑的那一份。"""
+    made = helpers.experiment(value={"polls": 3})
     start.start(made)
-    old = load.imported("demo")
+    free = own_lab / "tests" / "plugins" / "demo" / "free.py"
+    original = free.read_bytes()
     rewrite_free_code(own_lab)
     new_process()
-    assert start.poll(made).ok and len(code_changes(made)) == 1     # 另一个新起的进程看到了新代码，记下了变化
-    load._AT_IMPORT["demo"] = old                                   # 而这个进程里装着的还是旧的
+    assert not start.poll(made).ok
+    free.write_bytes(original)
+    new_process()
+    assert start.poll(made).ok and start.poll(made).ok and start.poll(made).ok
+    assert view.view(made).state == "ended" and view.view(made).rounds[0].result == "done"
+
+
+def test_a_process_holding_neither_the_rounds_code_nor_the_disks_is_turned_away(own_lab, data):
+    """这一轮记的是一份，盘上是另一份，这个进程里装着的又是第三份：先重新起进程，看清盘上的再说。
+    轮询和停止都不跑，什么都不记。"""
+    made = helpers.experiment(value={"poll": "never"})
+    start.start(made)
+    rewrite_free_code(own_lab)
+    load._AT_IMPORT["demo"] = "f" * 64
+    before = helpers.snapshot(data)
+    with pytest.raises(load.Stale):
+        start.poll(made)
+    with pytest.raises(load.Stale):
+        start.stop(made)
+    assert helpers.snapshot(data) == before
+
+
+def test_a_process_holding_other_code_than_the_round_is_turned_away_and_nothing_is_recorded(own_lab, data):
+    """盘上的就是这一轮记下的那一份，这个进程里装着的却不是（比如代码改过又改回去了，它装的是改过的那一份）：
+    不跑，什么都不记，由调用方重新起进程。"""
+    made = helpers.experiment(value={"poll": "never"})
+    start.start(made)
+    load._AT_IMPORT["demo"] = "f" * 64                              # 这个进程里装着的是另一份
     before = helpers.snapshot(data)
     with pytest.raises(load.Stale):
         start.poll(made)

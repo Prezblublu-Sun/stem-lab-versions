@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import stat
 import subprocess
 import threading
 import time
@@ -321,6 +323,51 @@ def test_a_folder_found_in_outputs_is_checked_again_before_it_is_registered(lab,
     assert item is not None and lookup.by_origin(made, 1)[0]["id"] == item, "挪开没过的那一份，这次交的照常收"
     assert (layout.work_dir(made) / "rejected" / "report-r1-2").exists() and "种类不符" in problems(made)[-1]["error"]
     assert view.view(made).rounds[0].outputs["report"]["item"] == item
+
+
+def test_a_registered_output_changed_before_its_output_line_is_not_recorded_nor_taken_again(lab, data, monkeypatch):
+    """断在登记之后、记 output 之前，内容被人改了（只读挡不住人）：补记之前核哈希，对不上就不记 output，记成问题；
+    这一轮再交这样产物也不收。同一句问题只记一次，交几遍都一样（《修改目标》04）。"""
+    made = helpers.experiment(value={"poll": "never"})
+    start.start(made)
+
+    class Cut(BaseException):
+        pass
+
+    def cut(*args):
+        raise Cut
+
+    with monkeypatch.context() as patch, pytest.raises(Cut):        # 只在这一段里断，固件换的数据目录不动
+        patch.setattr(publish, "_record", cut)
+        publish.publish(made, 1, "report", helpers.make_folder(layout.work_dir(made) / "one", files={"a.txt": b"1"}))
+    assert len(lookup.by_origin(made, 1)) == 1 and view.view(made).rounds[0].outputs == {}, "登记了，还没记 output"
+
+    changed = layout.output_dir(made, 1, "report") / "a.txt"
+    os.chmod(changed, stat.S_IREAD | stat.S_IWRITE)                     # 设成只读的先放开：动它的是人
+    changed.write_bytes(b"changed")
+    again = helpers.make_folder(layout.work_dir(made) / "two", files={"a.txt": b"1"})
+    assert publish.publish(made, 1, "report", again) is None and again.exists(), "这次交的不收，文件留在原地"
+    assert publish.publish(made, 1, "report", again) is None
+    texts = [problem["error"] for problem in problems(made)]
+    assert len(texts) == 2 and "对不上" in texts[0] and "这次交的也不收" in texts[1], texts
+    assert view.view(made).rounds[0].outputs == {} and len(lookup.by_origin(made, 1)) == 1
+
+
+def test_a_product_is_flushed_to_disk_before_it_is_registered(lab, data, monkeypatch):
+    """产物先刷到盘上，再登记：断电时，链上不会留下一条指向半截内容的记录（注释审查 高 2）。"""
+    made = helpers.experiment(value={"second": True})
+    seen = []
+    real = register.durable
+
+    def watching(folder):
+        registered = {item["origin"]["output"] for item in lookup.by_origin(made, 1)}
+        seen.append((folder.name, folder.name in registered))
+        real(folder)
+
+    monkeypatch.setattr(register, "durable", watching)
+    start.start(made), start.poll(made)
+    assert sorted(view.view(made).rounds[0].outputs) == ["report", "second"]
+    assert sorted(seen) == [("report", False), ("second", False)], "两样产物都在登记之前刷过盘"
 
 
 def test_the_bone_id_of_an_output_must_come_from_the_inputs(lab, data, tmp_path):
