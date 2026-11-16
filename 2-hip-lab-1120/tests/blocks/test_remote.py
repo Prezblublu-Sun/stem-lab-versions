@@ -177,8 +177,18 @@ def test_push_start_status_pull_and_stop_send_the_right_scripts(lab, data, captu
 
     seen.clear()
     remote.stop(given, "linux")
-    assert seen[0][-1] == f'if {alive}; then kill -TERM -- "-$p" 2>/dev/null; fi; true', \
+    script = seen[0][-1]
+    assert script.startswith(f'if {alive}; then kill -TERM -- "-$p" 2>/dev/null;'), \
         "先认出 pid 文件里的进程确实是这个作业的 worker，再结束它那一组"
+    assert script.index("kill -TERM") < script.index(f"{alive} || exit 0") < script.index('kill -KILL -- "-$p"') \
+        < script.rindex(f"if {alive}; then echo") < script.rindex("exit 3"), "先让它自己收尾，等一阵还在才强杀，强杀之后再查一遍"
+    assert script.isascii(), "发到远端的脚本只用 ASCII"
+
+    seen.clear()
+    answers.append(Done(3, err=b"pid 4242 still running after TERM and KILL"))
+    with pytest.raises(Refused, match="没停住") as caught:
+        remote.stop(given, "linux")
+    assert "4242" in str(caught.value) and not isinstance(caught.value, remote.Unreachable), "停不住就报错，核心不记“停止”"
 
 
 def test_commands_that_must_not_run_twice_are_tried_only_once(lab, data, capture):
@@ -424,3 +434,38 @@ def test_backup_needs_a_machine_with_a_backup_root(own_lab, data, capture):
     with pytest.raises(Refused, match="没有写 backup_root"):
         backup.backup("linux")
     assert seen == [] and not layout.backup_file().exists(), "一条命令都没发出去，也没有记下备份"
+
+
+def test_every_backup_checks_on_the_other_side_the_contents_it_sent(lab, data, tmp_path):
+    """远端核对：这次传了内容的那几样，每次备份都核内容的哈希，不只看大小；别的内容带 contents 时才核。
+    这里照远端的做法在本机跑那段核对脚本：sent.json 放在它运行的地方，STEMLAB_DATA 指向这份账。"""
+    import os
+    import stat
+    import sys
+
+    from stemlab.registry import lookup
+
+    made = helpers.experiment()
+    start.start(made), start.poll(made)
+    item = lookup.by_origin(made, 1)[0]
+    product = f"experiments/{made}/rounds/1/outputs/report/summary.json"
+    assert backup.sent_items([product, "registry/register.jsonl"]) == [item["id"]]
+    assert backup.sent_items(["registry/register.jsonl", f"experiments/{made}/record.jsonl"]) == []
+
+    target = data / product
+    size = target.stat().st_size
+    os.chmod(target, stat.S_IWRITE)
+    target.write_bytes(b"x" * size)                     # 大小没变，内容变了：只看大小查不出
+    where = tmp_path / "remote"
+    where.mkdir()
+
+    def checked(sent, *more) -> list:
+        (where / backup.SENT).write_text(json.dumps(sent), encoding="utf-8")
+        done = subprocess.run([sys.executable, "-c", backup._VERIFY, json.dumps(backup.heads()), *more], cwd=where,
+                              env=dict(os.environ, PYTHONPATH=str(lab), PYTHONUTF8="1"), capture_output=True, timeout=120)
+        assert done.returncode == 0, done.stderr.decode("utf-8", "replace")[-2000:]
+        return json.loads(done.stdout.decode("utf-8").strip().splitlines()[-1])
+
+    assert checked([]) == [], "这次没传它的内容：链都接得上，它不核"
+    assert any(item["id"] in text for text in checked([item["id"]])), "这次传了它的内容：核哈希，查得出"
+    assert any(item["id"] in text for text in checked([], "contents")), "带 contents：全都核"

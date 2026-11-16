@@ -17,7 +17,7 @@ from tests import helpers
 from tests.plugins import surrogate_cases
 
 
-@pytest.mark.parametrize("case", surrogate_cases.BLUEPRINT + surrogate_cases.OTHERS, ids=lambda case: case.__name__)
+@pytest.mark.parametrize("case", surrogate_cases.BLUEPRINT + surrogate_cases.OTHERS + surrogate_cases.FIELDS, ids=lambda case: case.__name__)
 def test_surrogate(real_lab, data, tmp_path, case):
     case(tmp_path)
 
@@ -133,9 +133,58 @@ def test_how_errors_are_computed():
     for bad in ([dict(line, target="w")], [dict(line, on="train")], [dict(line, metric="p99")], [dict(line, op="=")],
                 [dict(line, limit="1")], [line, line], [{"id": "a1"}], {"lines": []}):
         assert report.line_problems(bad, ["y"]), bad
-    numbers = {"holdout": {"y": found}, "outside": {"y": report.errors([], [], "y")}}
+    complete = report.errors(truth[:4], guesses, "y")       # e 没有预测；不算它，这一部分就全了
+    assert (complete["n"], complete["unmatched"], complete["repeated"]) == (3, 0, 0) and complete["rmse"] == found["rmse"]
+    numbers = {"holdout": {"y": complete}, "outside": {"y": report.errors([], [], "y")}}
     verdicts = report.judge([line, dict(line, id="a2", limit=20.0), dict(line, id="a3", on="outside")], numbers)
     assert [(row["id"], row["passed"]) for row in verdicts] == [("a1", True), ("a2", False), ("a3", None)]
+
+    short = report.judge([line], {"holdout": {"y": found}, "outside": {}})[0]
+    assert (short["passed"], short["value"]) == (None, None) and "1 个点没有预测" in short["why"], "缺了预测不判，不当它过了"
+    again = report.errors(truth[:4], guesses + [dict(_row("a", y=1.0), lower={"y": 0.5}, upper={"y": 1.5})], "y")
+    assert (again["n"], again["repeated"], again["unmatched"]) == (2, 1, 0), "同一个点给了两次：不知道用哪一次，不比，也不悄悄用后一次"
+    assert "1 个点预测给了不止一次" in report.judge([line], {"holdout": {"y": again}, "outside": {}})[0]["why"]
+    assert report.pairs(truth[:4], guesses + [dict(_row("a", y=1.0), lower={"y": 0.5}, upper={"y": 1.5})], "y") == [
+        [10.0, 10.0, 9.0, 11.0], [100.0, 50.0, 40.0, 60.0]], "散点里也不画给了两次的点"
+    cut = report.judge([dict(line, metric="n", op=">=", limit=0)], {"holdout": {"y": negative}, "outside": {}})[0]
+    assert cut["passed"] is None and "1 个点算不了" in cut["why"], "取不了对数的点也是比不全"
+
+
+def test_a_training_that_leaves_out_or_repeats_points_is_not_judged(real_lab, data, tmp_path, monkeypatch):
+    """训练代码交回来的预测缺了一个留出的点、另一个点给了两次：误差报告照出，留出那一部分的合格线不可判，也记成问题。
+    不拿剩下的点悄悄判过，也不悄悄用后一次的预测。"""
+    from pathlib import Path
+
+    from plugins.surrogate import report, train
+    from stemlab.contract.formats.points import read_points
+    from stemlab.experiments import view
+    from tests import real
+
+    advance = train.advance
+
+    def tampered(handle):
+        found = advance(handle)
+        result = found.get("result")
+        if result is not None and result.get("status") == "ok":
+            kept = json.loads((handle.work_dir / "desk" / f"r{handle.round.number}" / "truth.json").read_bytes())
+            known = [row["point"] for row in kept["holdout"] if isinstance(row["values"].get("rotation"), float)]
+            asked = Path(str(result["asked"]))
+            rows = {row["point"]: row for row in read_points(asked)}
+            again = dict(rows[known[1]], values={name: value * 2 if isinstance(value, float) else value
+                                                 for name, value in rows[known[1]]["values"].items()})
+            asked.write_bytes(b"".join(report.dumps(row) for point, row in rows.items() if point != known[0]) + report.dumps(again))
+        return found
+
+    monkeypatch.setattr(train, "advance", tampered)
+    made = surrogate_cases.trained([real.data(tmp_path, real.data_rows(real.spread(60, seed=8)))])
+    body = surrogate_cases.body_of(made)
+    assert (body["holdout"]["rotation"]["unmatched"], body["holdout"]["rotation"]["repeated"]) == (1, 1)
+    verdicts = {row["id"]: row for row in body["verdicts"]}
+    for name in ("a1", "a2"):
+        assert verdicts[name]["passed"] is None, verdicts[name]
+        assert "1 个点没有预测" in verdicts[name]["why"] and "1 个点预测给了不止一次" in verdicts[name]["why"]
+    told = [problem["error"] for problem in view.view(made).rounds[-1].problems]
+    assert any("1 个点没有预测" in text and "1 个点给了不止一次预测" in text for text in told), told
 
 
 def test_what_is_in_range():
@@ -192,3 +241,104 @@ def test_packing_refuses_what_does_not_belong_in_a_package(tmp_path):
         predictor.pack(tmp_path / "bad4", **{**good, "infer": leaning})
     (folder / "code" / "main.py").write_text("print('something else')\n", encoding="utf-8")
     assert any("入口" in text for text in predictor.problems(folder, packed_here=True))
+
+
+def test_how_field_errors_are_computed():
+    import numpy as np
+
+    from plugins.surrogate import report
+
+    truth = np.array([1.0, 2.0, 3.0, 4.0])
+    exact = np.stack([truth, truth - 0.5, truth + 0.5])
+    off = np.stack([truth + np.array([1.0, 0.0, -1.0, 0.0]), truth - 0.5, truth + 0.5])
+    found = report.field_errors([(truth, exact), (truth, off), (None, exact), (truth, None), (truth, exact[:, :3]), (truth * np.nan, exact)])
+    assert (found["n"], found["cells"], found["unmatched"], found["skipped"], found["scale"]) == (2, 8, 1, 2, "linear"), \
+        "没有真值的点不算；没有预测的数进 unmatched；形状对不上、不是有限数的数进 skipped"
+    assert found["bias"] == 0.0 and found["mae"] == 2 / 8 and found["max_abs"] == 1.0 and abs(found["rmse"] - 0.5) < 1e-12
+    assert found["coverage"] == 1.0 and abs(found["r2"] - (1 - 2 / 10)) < 1e-12, "逐个格子比，所有点的格子合在一起算"
+    missed = np.stack([truth, truth + 0.1, truth + 0.2])
+    assert report.field_errors([(truth, missed)])["coverage"] == 0.0, "真值不在区间里的格子不算盖住"
+    assert report.field_errors([])["rmse"] is None and report.field_errors([(None, exact)])["n"] == 0
+    grid = np.arange(6.0).reshape(2, 3)
+    assert report.field_errors([(grid, np.stack([grid + 1, grid, grid + 2]))])["bias"] == 1.0, "几维的场都行"
+
+    complete = report.field_errors([(truth, exact), (truth, off), (None, exact)])
+    assert (complete["n"], complete["unmatched"], complete["skipped"]) == (2, 0, 0) and complete["rmse"] == found["rmse"]
+    numbers = {"holdout": {"slip": complete}, "outside": {"slip": report.field_errors([])}}
+    line = {"id": "f1", "what": "x", "target": "slip", "on": "holdout", "metric": "rmse", "op": "<=", "limit": 0.6}
+    assert report.line_problems([line], ["rotation", "slip"]) == []
+    assert [row["passed"] for row in report.judge([line, dict(line, id="f2", limit=0.4), dict(line, id="f3", on="outside")], numbers)] == [True, False, None]
+    short = report.judge([line], {"holdout": {"slip": found}, "outside": {}})[0]
+    assert short["passed"] is None and "1 个点没有预测" in short["why"] and "2 个点算不了" in short["why"], "场比不全也不判"
+
+    rows = [{"point": "a", "bone_id": "femur042", "round": 1, "outcome": "finished", "values": {"y": 1.0}},
+            {"point": "b", "bone_id": "femur042", "round": 1, "outcome": "finished", "values": {"y": 2.0}}]
+    guesses = [dict(_row(name, y=1.5), lower={"y": 0.0}, upper={"y": 3.0}) for name in ("a", "b", "c")]
+    columns = [{"name": "y", "role": "label"}, {"name": "slip", "role": "field"}]
+    body = report.check_report(guesses, rows, columns, {"slip": {"a": (truth, off), "b": (truth, None), "c": (None, exact)}})
+    assert body["columns"] == ["y"] and body["fields"] == ["slip"] and body["only_predicted"] == ["c"]
+    assert body["matched"][0]["fields"]["slip"] == {"rmse": 0.5 ** 0.5, "max_abs": 1.0, "inside": 1.0} and body["matched"][1]["fields"]["slip"] is None
+    assert (body["summary"]["slip"]["n"], body["summary"]["slip"]["unmatched"]) == (1, 1) and body["summary"]["y"]["n"] == 2
+    assert "fields" not in report.check_report(guesses, rows, columns[:1]), "没有场的预测，复核报告和原来一样"
+
+
+FIELD_INFER = """\
+import numpy as np
+
+
+def predict(weights, meta, points):
+    rows = []
+    for point in points:
+        value = weights["base"] * point["design"]["length"]
+        rows.append({"values": {}, "lower": {}, "upper": {}, "fields": {"slip": np.stack([value, value - 1.0, value + meta["above"]])}})
+    return rows
+"""
+
+
+def test_a_package_can_predict_a_field(tmp_path):
+    import numpy as np
+
+    from plugins.surrogate import predictor
+
+    field = {"name": "slip", "unit": "um", "meaning": "x", "role": "field"}
+    scope = {"bones": ["femur042"], "design": {"length": {"min": 20.0, "max": 40.0}}, "conditions": {}}
+    sample = {"hash": "a" * 64, "bone_id": "femur042", "design": {"length": 30.0}, "conditions": {}}
+    infer = tmp_path / "field_infer.py"
+    infer.write_text(FIELD_INFER, encoding="utf-8")
+    good = {"infer": infer, "weights": {"base": np.array([[1.0, 2.0], [3.0, 4.0]])}, "meta": {"above": 1.0}, "columns": [], "level": 0.9,
+            "scope": scope, "samples": [sample], "fields": [field], "shapes": {"slip": [2, 2]}}
+    folder = predictor.pack(tmp_path / "good", **good)
+    assert predictor.problems(folder, columns=[field], level=0.9, scope=scope, packed_here=True, shapes={"slip": [2, 2]}) == []
+    listed = json.loads((folder / "manifest.json").read_bytes())
+    assert listed["columns"] == [field] and listed["shapes"] == {"slip": [2, 2]}
+    expected = json.loads((folder / "data" / "selftest" / "sample" / "expected.json").read_bytes())
+    row = expected["rows"][0]
+    assert row["fields"] == {"slip": f"fields/{'a' * 64}/slip.npy"} and row["values"] == {}
+    assert row["field_summary"] == {"slip": {"mean": 75.0, "min": 30.0, "max": 120.0}}, "自检比的是场的这三个数：包里不留场的文件"
+    assert predictor.problems(folder, shapes={"slip": [4]}), "清单里的形状不是该有的那一份"
+
+    out = tmp_path / "out"
+    out.mkdir()
+    done = subprocess.run([sys.executable, "code/main.py", str(folder / "data" / "selftest" / "sample" / "input"), str(out)], cwd=folder,
+                          capture_output=True, env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONUTF8="1"))
+    assert done.returncode == 0, done.stderr.decode("utf-8", "replace")
+    stacked = predictor.read_predicted(out / row["fields"]["slip"], [2, 2])
+    assert stacked.shape == (3, 2, 2) and (stacked[0] == 30.0 * good["weights"]["base"]).all()
+    with pytest.raises(ValueError, match="摞在一起"):
+        predictor.read_predicted(out / row["fields"]["slip"], [4])
+    (tmp_path / "plain.json").write_text("[[1, 2], [3, 4]]", encoding="utf-8")
+    assert predictor.read_field(tmp_path / "plain.json").shape == (2, 2), "数据里的场可以是 .json，也可以是 .npy"
+    (tmp_path / "bad.json").write_text('["a"]', encoding="utf-8")
+    with pytest.raises(ValueError, match="数的数组"):
+        predictor.read_field(tmp_path / "bad.json")
+
+    with pytest.raises(ValueError, match="shapes"):
+        predictor.pack(tmp_path / "bad1", **{**good, "shapes": None})
+    with pytest.raises(ValueError, match="跑不起来"):
+        predictor.pack(tmp_path / "bad2", **{**good, "shapes": {"slip": [3]}})          # 模型给的形状和说好的不一样：入口不收
+    with pytest.raises(ValueError, match="跑不起来"):
+        predictor.pack(tmp_path / "bad3", **{**good, "meta": {"above": -5.0}})          # 上界比值小：入口不收
+    columns = [{"name": "length", "role": "design"}, {"name": "slip", "role": "field"}, {"name": "rotation", "role": "label"}]
+    assert predictor.fields_of(columns, ["slip"]) == [columns[1]]
+    with pytest.raises(ValueError, match="rotation"):
+        predictor.fields_of(columns, ["rotation"])

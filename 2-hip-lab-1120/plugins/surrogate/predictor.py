@@ -12,6 +12,13 @@
 
 入口只把点的骨标识、设计、条件交给推理代码，所以特征里不可能有 FE 算出来的量。
 
+场。能预测的场是每一行形状都一样的数组（比如重采样到同一张网格上的场）；各个设计网格不同的点云不是。
+    数据里的场      一个 .npy 或 .json 文件，里面是数的数组（read_field）
+    预测出来的场    一个 .npy 文件：把值、下界、上界三个同样形状的数组摞在一起，第一维是 3（read_predicted、write_field）
+    清单            columns 里多出 role 是 field 的列，另加 shapes：{场的名字: 形状}
+    入口            推理代码给的每个点多一项 "fields"：{场的名字: 摞好的数组}。入口核过形状、有限、下界 ≤ 值 ≤ 上界，
+                    写进输出文件夹的 fields/<点的哈希>/<场的名字>.npy，行里记下位置，另记值的均值、最小、最大（自检时比的是这三个数）
+
 适用范围（清单的 range），由训练那一部分数据定，不由训练代码说：
     {"bones": ["femur042"], "design": {"length": {"min": 20, "max": 60}, "behave": {"values": ["ok"]}},
      "conditions": {"load": {"min": 1500, "max": 2500}}}
@@ -30,9 +37,51 @@ from pathlib import Path
 MANIFEST = "manifest.json"
 TOLERANCE = {"rel": 1e-6, "abs": 1e-9}
 GROUPS = {"design": "design", "condition": "conditions"}        # 列的 role -> 点里的哪一组
-PREDICTABLE = ("label", "derived")
+PREDICTABLE = ("label", "derived")                              # 预测得了的标量列
+FIELD = "field"                                                 # 预测得了的另一种列：场
 STORE = "data"                                                  # 包里放权重、说明和自检样本的文件夹，名字是包的格式定的
 SAMPLE = "/".join((STORE, "selftest", "sample"))
+FIELDS = "fields"                                               # 场的文件放在哪个文件夹下，数据、预测、包的输出都一样
+
+
+def read_field(path):
+    """数据里的一个场：.npy 或 .json 里的一个数的数组。读不出、不是数、有不是有限的数，都报 ValueError。"""
+    import numpy as np
+
+    path = Path(path)
+    try:
+        if path.suffix.lower() == ".npy":
+            values = np.load(path, allow_pickle=False)
+        else:
+            values = np.asarray(json.loads(path.read_bytes()))
+        values = np.asarray(values, dtype=float)
+    except (OSError, ValueError, TypeError) as error:
+        raise ValueError(f"场的文件读不成一个数的数组：{path.name}（{type(error).__name__}）") from None
+    if values.size == 0 or not np.isfinite(values).all():
+        raise ValueError(f"场的文件是空的，或者里面有不是有限的数：{path.name}")
+    return values
+
+
+def read_predicted(path, shape=None):
+    """预测出来的一个场：值、下界、上界摞在一起（第一维是 3）。形状不对、不是有限的数、下界 ≤ 值 ≤ 上界不成立，都报 ValueError。"""
+    import numpy as np
+
+    stacked = read_field(path)
+    if stacked.ndim < 2 or stacked.shape[0] != 3 or (shape is not None and tuple(stacked.shape[1:]) != tuple(shape)):
+        raise ValueError(f"预测出来的场要是值、下界、上界摞在一起（3 × {list(shape) if shape is not None else '场的形状'}）：{list(stacked.shape)}")
+    if not ((stacked[1] <= stacked[0]) & (stacked[0] <= stacked[2])).all():
+        raise ValueError(f"预测出来的场有的格子不在它自己的区间里：{Path(path).name}")
+    return np.asarray(stacked)
+
+
+def write_field(path, values) -> Path:
+    """把一个场（或者摞好的值、下界、上界）写成 .npy。"""
+    import numpy as np
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.save(path, np.ascontiguousarray(np.asarray(values, dtype=float)), allow_pickle=False)
+    return path
 
 
 def in_range(scope: dict, point: dict):
@@ -59,6 +108,8 @@ MAIN = '''\
 usage:  python code/main.py <input folder> <output folder>
 input:  job.json     {"points": [{"hash", "bone_id", "design", "conditions"}]}
 output: result.json  {"rows": [{"point", "values", "lower", "upper"}], "skipped": [{"point", "why"}]}
+        A package that predicts fields also writes fields/<point hash>/<field>.npy (value, lower and upper stacked, first
+        axis 3); each row then carries "fields" {field: that file} and "field_summary" {field: mean, min, max of the value}.
 """
 import json
 import math
@@ -96,6 +147,20 @@ def main() -> None:
                 if not all(map(math.isfinite, (value, low, high))) or not low <= value <= high:
                     raise ValueError(f"{target}: the model gave {low} <= {value} <= {high} for point {point['hash'][:12]}")
                 row["values"][target], row["lower"][target], row["upper"][target] = value, low, high
+            if meta.get("fields"):
+                row["fields"], row["field_summary"] = {}, {}
+            for name in meta.get("fields") or []:
+                stacked = np.asarray(said["fields"][name], dtype=float)
+                fine = stacked.shape == (3, *meta["field_shapes"][name]) and bool(np.isfinite(stacked).all())
+                if not fine or not bool(((stacked[1] <= stacked[0]) & (stacked[0] <= stacked[2])).all()):
+                    raise ValueError(f"{name}: the model gave a field of shape {stacked.shape} that is not finite, "
+                                     f"or not inside its own interval, for point {point['hash'][:12]}")
+                where = out / "fields" / point["hash"]
+                where.mkdir(parents=True, exist_ok=True)
+                np.save(where / (name + ".npy"), np.ascontiguousarray(stacked), allow_pickle=False)
+                row["fields"][name] = "fields/" + point["hash"] + "/" + name + ".npy"
+                row["field_summary"][name] = {"mean": float(stacked[0].mean()), "min": float(stacked[0].min()),
+                                              "max": float(stacked[0].max())}
             rows.append(row)
     (out / "result.json").write_text(json.dumps({"rows": rows, "skipped": skipped}), encoding="utf-8")
 
@@ -148,12 +213,33 @@ def targets_of(columns, names) -> list[dict]:
     return [dict(listed[name]) for name in names]
 
 
+def fields_of(columns, names) -> list[dict]:
+    """要预测的各个场的说明。只有数据说明里 role 是 field 的列算。"""
+    listed = {column["name"]: column for column in columns}
+    wrong = [name for name in names if name not in listed or listed[name]["role"] != FIELD]
+    if wrong:
+        raise ValueError(f"这几个不是数据里的场，预测不了：{wrong}")
+    return [dict(listed[name]) for name in names]
+
+
+def shape_problems(fields, shapes) -> list[str]:
+    """各个场的形状写得对不对：每个场一个，都是正整数。"""
+    names = [column["name"] for column in fields]
+    if not isinstance(shapes, dict) or sorted(shapes) != sorted(names) or not all(
+            isinstance(shape, list) and shape and all(isinstance(size, int) and not isinstance(size, bool) and size > 0 for size in shape)
+            for shape in shapes.values()):
+        return [f"要预测场，就要写明每个场的形状（shapes）：{names}"]
+    return []
+
+
 def pack(folder, *, infer, weights: dict, meta: dict, columns: list, level: float, scope: dict, samples: list,
-         requires=()) -> Path:
+         requires=(), fields=(), shapes=None, made_by=None) -> Path:
     """把一个训练好的模型打成预测器的包。哪里不合规矩就报 ValueError，不出包。
 
     infer 是模型的推理代码文件；weights 是 名字 -> 数组；meta 是推理要用的别的东西（纯 JSON）；
-    columns 是预测的各列的说明；samples 是几个在适用范围里的点，拿来做自检样本。
+    columns 是预测的各个标量列的说明；samples 是几个在适用范围里的点，拿来做自检样本。
+    fields 是预测的各个场的说明，shapes 是它们的形状；不预测场就都不给。
+    made_by 是训练数据是哪个内核算的（冻结代码交给训练的那一份），原样写进清单；不知道就不给。
     """
     import numpy as np
 
@@ -169,7 +255,13 @@ def pack(folder, *, infer, weights: dict, meta: dict, columns: list, level: floa
             raise ValueError(f"权重 {name!r} 不是数的数组（{array.dtype}）：包里只放数，才和设备无关")
         arrays[name] = np.ascontiguousarray(array)
     np.savez(folder / STORE / "weights.npz", **arrays)
+    fields, shapes = [dict(column) for column in fields], dict(shapes or {})
+    wrong = shape_problems(fields, shapes) if fields or shapes else []
+    if wrong:
+        raise ValueError(wrong[0])
     body = dict(meta, targets=[column["name"] for column in columns], level=level, scope=scope)
+    if fields:
+        body.update(fields=[column["name"] for column in fields], field_shapes=shapes)
     try:
         (folder / STORE / "meta.json").write_bytes(dumps(body))
     except (TypeError, ValueError) as error:
@@ -206,15 +298,19 @@ def pack(folder, *, infer, weights: dict, meta: dict, columns: list, level: floa
     listed = {"format": 1, "kind": "predictor", "files": files, "entry": ["{python}", "code/main.py"],
               "requires": ["python>=3.12", "numpy>=2", *requires], "tolerance": TOLERANCE,
               "selftest": [{"name": "sample", "input": f"{SAMPLE}/input", "expected": f"{SAMPLE}/expected.json"}],
-              "range": scope, "columns": columns, "level": level}
+              "range": scope, "columns": [*columns, *fields], "level": level}
+    if fields:
+        listed["shapes"] = shapes
+    if made_by is not None:
+        listed["made_by"] = made_by
     (folder / MANIFEST).write_bytes(dumps(listed))
     return folder
 
 
-def problems(folder, *, columns=None, level=None, scope=None, packed_here: bool = False) -> list[str]:
+def problems(folder, *, columns=None, level=None, scope=None, packed_here: bool = False, shapes=None) -> list[str]:
     """一个预测器的包合不合规矩。空列表就是合。
 
-    给了 columns、level、scope，就连清单里写的是不是这几样一起核。packed_here 说这个包是这个插件刚打出来的：
+    给了 columns、level、scope、shapes，就连清单里写的是不是这几样一起核。packed_here 说这个包是这个插件刚打出来的：
     那就连入口是不是写死的那一份、权重是不是只有数一起核。外面训练好拿来登记的包不核这两样，它有它自己的入口。
     """
     import numpy as np
@@ -228,12 +324,16 @@ def problems(folder, *, columns=None, level=None, scope=None, packed_here: bool 
     listed = json.loads((folder / MANIFEST).read_bytes())
     described = listed.get("columns")
     if not isinstance(described, list) or not described or not all(
-            isinstance(column, dict) and column.get("role") in PREDICTABLE
+            isinstance(column, dict) and column.get("role") in (*PREDICTABLE, FIELD)
             and all(isinstance(column.get(key), str) and column[key].strip() for key in ("name", "unit", "meaning")) for column in described):
-        found.append("清单的 columns 要写它预测的各列：name、unit、meaning、role（label 或 derived）")
+        found.append("清单的 columns 要写它预测的各列：name、unit、meaning、role（label、derived 或 field）")
+    else:
+        given = [column for column in described if column["role"] == FIELD]
+        if given or "shapes" in listed:
+            found += shape_problems(given, listed.get("shapes"))
     if not _number(listed.get("level")) or not 0 < listed["level"] < 1:
         found.append("清单的 level 要写区间的名义覆盖率，在 0 和 1 之间")
-    for name, wanted in (("columns", columns), ("level", level), ("range", scope)):
+    for name, wanted in (("columns", columns), ("level", level), ("range", scope), ("shapes", shapes)):
         if wanted is not None and listed.get(name) != wanted:
             found.append(f"包的清单里写的 {name} 不是这次训练该有的那一份")
     if packed_here:

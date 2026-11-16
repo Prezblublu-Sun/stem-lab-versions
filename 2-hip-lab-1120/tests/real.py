@@ -247,9 +247,19 @@ DATA_COLUMNS = [
 ]
 
 
+FIELD_COLUMN = {"name": "interface_slip", "unit": "um", "meaning": "slip at each interface node", "role": "field"}
+# 现造的数据记着是哪个内核、哪份推导量定义算的（清单里的 made_by）。几份放在一起用的时候靠它拦住不同内核的数
+MADE_BY = {"kernel": {"name": "fake-kernel-1", "code_hash": "0123456789"}, "derive": {"package": "d" * 64}}
+
+
 def fe_truth(length: float, load: float) -> dict:
     """假内核对这个设计会算出的数。"""
     return {"rotation": load / (length * 1000.0), "contact": 0.5, "slip_p95": 0.95 * length / 2.0}
+
+
+def field_of(length: float) -> list[float]:
+    """假内核对这个设计给出的场：界面上五个节点的滑移。它的最大值乘 0.95 就是 slip_p95。"""
+    return [length / 10.0 * step for step in range(1, 6)]
 
 
 def spread(count: int, seed: int = 1, lengths=(25.0, 55.0), loads=(1500.0, 2500.0)) -> list[tuple]:
@@ -260,8 +270,9 @@ def spread(count: int, seed: int = 1, lengths=(25.0, 55.0), loads=(1500.0, 2500.
     return [(round(rng.uniform(*lengths), 3), round(rng.uniform(*loads), 1)) for _ in range(count)]
 
 
-def data_rows(designs, bone_id: str = BONE, number: int = 1, misfit=()) -> list[dict]:
-    """数据的各行。misfit 里的（长度，载荷）记成放不进去：这一行在，FE 的结果是空的。"""
+def data_rows(designs, bone_id: str = BONE, number: int = 1, misfit=(), fields: bool = False) -> list[dict]:
+    """数据的各行。misfit 里的（长度，载荷）记成放不进去：这一行在，FE 的结果是空的。
+    fields 给 True，算出来的各行另带一个场（interface_slip）：data() 登记时照 field_of 把它的文件写出来。"""
     from stemlab.contract.formats.points import point_hash
     from stemlab.contract.hashing import hash_json
 
@@ -270,21 +281,37 @@ def data_rows(designs, bone_id: str = BONE, number: int = 1, misfit=()) -> list[
         point = {"bone_id": bone_id, "design": {"length": length, "behave": "ok"}, "conditions": {"load": load}}
         known = (length, load) not in misfit
         numbers = fe_truth(length, load) if known else {"rotation": None, "contact": None, "slip_p95": None}
-        rows.append({"point": point_hash(point), "bone_id": bone_id, "round": number, "fingerprint": hash_json({"of": point}),
-                     "outcome": "finished" if known else "misfit", "fields": {},
+        made = point_hash(point)
+        rows.append({"point": made, "bone_id": bone_id, "round": number, "fingerprint": hash_json({"of": point}),
+                     "outcome": "finished" if known else "misfit",
+                     "fields": {FIELD_COLUMN["name"]: f"fields/{made[:16]}/interface_slip.json"} if fields and known else {},
                      "values": {"length": length, "behave": "ok", "load": load, "bone_removed": length * 100.0 if known else None, **numbers}})
     return rows
 
 
-def data(tmp: Path, rows, bone_id: str | None = BONE, columns=None) -> dict:
-    """登记一份数据。几根骨混在一起的，bone_id 给 None。columns 给了就用它当数据说明（默认是 DATA_COLUMNS）。"""
+def data(tmp: Path, rows, bone_id: str | None = BONE, columns=None, field=field_of, made_by=MADE_BY) -> dict:
+    """登记一份数据。几根骨混在一起的，bone_id 给 None。columns 给了就用它当数据说明（默认是 DATA_COLUMNS）。
+    行里带着场的，场的文件在这里写出来（内容是 field(这一行的长度)），数据说明里也加上场的那一列。
+    made_by 是清单里记的“哪个内核算的”，默认是 MADE_BY；给 None 就是没记。"""
+    import json
+
     from stemlab.contract.hashing import canonical
 
     folder = tmp / f"data-{next(_NAMES)}"
     folder.mkdir(parents=True)
     (folder / "rows.jsonl").write_bytes(b"".join(canonical(row) + b"\n" for row in rows))
     extra = {"bone_id": bone_id} if bone_id else {}
-    write_manifest(folder, make_manifest("data", ["rows.jsonl"], count=len(rows), columns=columns or DATA_COLUMNS, **extra))
+    files = ["rows.jsonl"]
+    for row in rows:
+        for rel in row["fields"].values():
+            (folder / rel).parent.mkdir(parents=True, exist_ok=True)
+            (folder / rel).write_bytes(json.dumps(field(row["values"]["length"])).encode("utf-8"))
+            files.append(rel)
+    if len(files) > 1 and columns is None:
+        columns = DATA_COLUMNS + [FIELD_COLUMN]
+    if made_by is not None:                 # 给 None：不知道是哪个内核算的
+        extra["made_by"] = made_by
+    write_manifest(folder, make_manifest("data", files, count=len(rows), columns=columns or DATA_COLUMNS, **extra))
     seen = bone_id is None or any(item["bone_id"] == bone_id for item in lookup.find())
     return register.register_external("data", f"data-{next(_NAMES)}", source=folder, note="测试用的数据", by="tester",
                                       bone_id=bone_id, new_bone=not seen)
@@ -342,7 +369,7 @@ for point in json.loads((source / "job.json").read_text())["points"]:
 """
 
 
-def outside_predictor(tmp: Path, lengths=(20.0, 60.0)) -> dict:
+def outside_predictor(tmp: Path, lengths=(20.0, 60.0), made_by=None) -> dict:
     """登记一个外面训练好的预测器：它有自己的入口，不是这个系统打的包。"""
     import json
 
@@ -359,7 +386,7 @@ def outside_predictor(tmp: Path, lengths=(20.0, 60.0)) -> dict:
     write_manifest(folder, make_manifest(
         "predictor", list(files), entry=["{python}", "code/main.py"], requires=["python>=3.12"], tolerance={"rel": 1e-9, "abs": 1e-12},
         selftest=[{"name": "one", "input": "data/selftest/one/input", "expected": "data/selftest/one/expected.json"}], range=scope,
-        level=0.9, columns=[column for column in DATA_COLUMNS if column["name"] == "rotation"]))
+        level=0.9, columns=[column for column in DATA_COLUMNS if column["name"] == "rotation"], **({"made_by": made_by} if made_by else {})))
     return register.register_external("predictor", f"outside-predictor-{next(_NAMES)}", source=folder, note="测试：外面训练的预测器", by="tester")
 
 
@@ -390,10 +417,10 @@ def pool_rows(lengths, bone_id: str = BONE) -> list[dict]:
     return rows
 
 
-def pool(tmp: Path, rows) -> dict:
-    """直接登记一个候选池（不经 opt.pool）。"""
+def pool(tmp: Path, rows, made_by=None) -> dict:
+    """直接登记一个候选池（不经 opt.pool）。made_by 给了就写进清单：这个池是哪个内核模板化的。"""
     folder = tmp / f"pool-{next(_NAMES)}"
-    write_points(folder, rows, kind="pool")
+    write_points(folder, rows, kind="pool", **({"made_by": made_by} if made_by else {}))
     return register.register_external("pool", f"pool-{next(_NAMES)}", source=folder, note="测试用的候选池", by="tester")
 
 

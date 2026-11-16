@@ -6,7 +6,8 @@
                    "stat": "max", "op": "<=", "limit": 1.0, "missing": "na"}, ...]}
 
     column    数据里的一列（标量，不是场）
-    stat      对这一列在各个点上取什么：min、max、mean、median、count（有数的点有几个）
+    stat      对这一列在各个点上取什么：min、max、mean、median、count（有数的点有几个）。
+              一个有数的点都没有时，不管取什么都不可判，count 也一样
     op、limit  和线怎么比：<=、<、>=、>
     missing   有的点没有这个数（放不进去、没算出来）时这一条怎么判：
               "na"   不可判（不写就是它）：没算出来的点不是设计的性质，不能悄悄当成没有这个点
@@ -74,7 +75,7 @@ def judge(value: dict, rows: dict, points: int) -> list[dict]:
                    "limit": row["limit"], "used": len(numbers), "missing": missing, "value": None, "passed": None}
         if missing and row.get("missing", "na") == "na":
             verdict["why"] = f"有 {missing} 个点没有这个数，这一条不可判"
-        elif not numbers and row["stat"] != "count":
+        elif not numbers:                               # 数点数的（count）也一样：不然“count ≤ 10”在一个数都没有时就判过了
             verdict["why"] = "没有一个点有这个数，这一条不可判"
         else:
             verdict["value"] = STATS[row["stat"]](numbers)

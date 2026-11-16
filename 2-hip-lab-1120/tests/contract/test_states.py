@@ -188,6 +188,47 @@ def test_task_outcome_must_be_declared_and_match_the_state():
     assert "任务状态应该是" in refuse(running, s.task(state="done", outcome="diverged"))
 
 
+def test_a_task_that_ended_in_this_round_does_not_go_back():
+    """同一轮里结束了的任务不能改回排队、运行，也不能换一个结局；照原样再报一次可以。没结束的照常能改。"""
+    for ended in (s.task(state="done", outcome="finished"), s.task(state="failed", outcome="env"), s.task(state="stopped")):
+        status = fold(s.HISTORIES["running"] + [ended])
+        assert refuse(status, ended) is None, "照原样再报一次可以"
+        for later in (s.task(state="running", stage="solving"), s.task(state="queued")):
+            assert "不退回" in refuse(status, later), f"{ended['state']} 之后又报 {later['state']}"
+    done = fold(s.HISTORIES["running"] + [s.task(state="done", outcome="finished")])
+    assert "不退回" in refuse(done, s.task(state="done", outcome="misfit"))
+    assert "不退回" in refuse(done, s.task(state="failed", outcome="env"))
+    assert refuse(done, s.task(name="p2", state="queued")) is None, "别的任务不受影响"
+    running = fold(s.HISTORIES["running"] + [s.task(state="running", stage="solving")])
+    assert refuse(running, s.task(state="queued")) is None
+    assert refuse(running, s.task(state="done", outcome="finished")) is None
+
+
+def test_a_task_that_ended_keeps_its_fingerprint_and_machine_and_may_only_change_its_stage():
+    """结束了的任务，输入指纹和机器也定了：照原样再报可以，换一个不行。阶段只给人看，还能变。"""
+    ended = dict(s.task(state="done", outcome="finished"), machine="win", fingerprint=s.H1)
+    status = fold(s.HISTORIES["running"] + [ended])
+    assert refuse(status, ended) is None, "照原样再报一次可以"
+    assert refuse(status, dict(ended, stage="post")) is None, "阶段只给人看，结束之后还能变"
+    for key, value in (("machine", "linux"), ("machine", None), ("fingerprint", s.H2), ("fingerprint", None)):
+        assert "不能再改" in refuse(status, dict(ended, **{key: value})), (key, value)
+    assert refuse(status, dict(ended, task="p2", machine="linux")) is None, "别的任务不受影响"
+
+
+def test_a_task_from_an_earlier_round_comes_back_only_through_the_rerun_list():
+    """上一轮报过的任务，这一轮要排进重排才能再报；没排的不能报，免得做完的被当成没做完、下次又重排。"""
+    history = s.HISTORIES["running"] + [
+        s.task(name="p1", state="failed", outcome="env"), s.task(name="p2", state="done", outcome="finished"),
+        s.round_closed(), s.round_opened(number=2, rerun=["p1"]), s.called(number=2),
+    ]
+    second = fold(history)
+    assert refuse(second, s.task(number=2, name="p1", state="queued")) is None
+    assert "没有排它重来" in refuse(second, s.task(number=2, name="p2", state="running"))
+    assert "没有排它重来" in refuse(second, s.task(number=2, name="p2", state="done", outcome="finished"))
+    assert refuse(second, s.task(number=2, name="p3", state="queued")) is None, "从没报过的新任务照常能报"
+    assert rerunnable(second, s.OUTCOMES) == ["p1"]
+
+
 def test_output_must_be_declared_and_only_once_per_round():
     running = status_of("running")
     assert "产物表里没有" in refuse(running, s.output(name="nothing"))
@@ -197,7 +238,8 @@ def test_output_must_be_declared_and_only_once_per_round():
 def test_restart_needs_something_to_do():
     done = status_of("ended_done")
     assert "已经做完" in refuse(done, s.round_opened(number=2))
-    assert refuse(done, s.round_opened(number=2, rerun=["p1"])) is None
+    assert "不重排" in refuse(done, s.round_opened(number=2, rerun=["p1"])), "p1 已经做完了：做完的不再做一遍"
+    assert refuse(status_of("ended_done_retry"), s.round_opened(number=2, rerun=["p1"])) is None, "p1 失败了、可以重试：能重排"
     assert refuse(status_of("ended_failed"), s.round_opened(number=2)) is None
     assert "还没存定" in refuse(status_of("new"), s.round_opened())
 

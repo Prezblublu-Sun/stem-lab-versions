@@ -306,15 +306,16 @@ def test_the_watch_prints_errors_the_console_encoding_cannot_hold(lab, data):
 
 def test_a_later_round_with_nothing_to_rerun_does_not_queue_finished_tasks_again(lab, data):
     """rerun 是空的不等于“这是第一轮”：上一轮做不下去了，但任务都有了结果，新的一轮不该把它们再派一遍。"""
-    made = helpers.experiment(value={"tasks": ["a", "b"], "polls": 1})
+    # b 失败了、结局属于待查：第二轮手动排它重来（做完的 a 不许重排）；第三轮没点名，它就不重排
+    made = helpers.experiment(value={"tasks": ["a", "b"], "polls": 1, "outcomes": {"b": ["diverged"]}})
     start.start(made), start.poll(made)
     assert view.view(made).rounds[0].result == "done"
     log.append(made, {"entry": "round_opened", "round": 2, "provenance": view.view(made).rounds[0].provenance,
-                      "rerun": ["a"]})
+                      "rerun": ["b"]})
     log.append(made, {"entry": "called", "round": 2, "action": "start", "ok": False, "error": "示范：这一轮没起来"})
     log.append(made, {"entry": "round_closed", "round": 2, "result": "start_failed", "reason": "示范：这一轮没起来"})
     assert start.start(made).ok
     third = view.view(made).rounds[2]
     assert third.rerun == [] and third.tasks == {}, "已经有结果的任务没有被再派一遍"
     assert reader.verify(made) == []
-    assert json.loads(json.dumps(view.summary(made)["tasks"])) == {"done": 2}
+    assert json.loads(json.dumps(view.summary(made)["tasks"])) == {"done": 1, "failed": 1}, "两个任务还是第一轮的结果"

@@ -65,7 +65,7 @@ TABLE = (
     Rule("round_closed:stopped",      "stop",         (RUNNING,),      "stop_called",  ENDED),
     Rule("round_closed:done",         "finish",       (RUNNING,),      "in_round",     ENDED),
     Rule("round_closed:failed",       "fail",         (RUNNING,),      "in_round",     ENDED),
-    Rule("task",                      "report",       _LIVE,           "task",         None),
+    Rule("task",                      "report",       _LIVE,           "task",         None),     # 结束了的不退回、不改，见 _task_ok
     Rule("output",                    "report",       _LIVE,           "output",       None),
     Rule("problem",                   "report",       _LIVE,           "in_round",     None),
     Rule("provenance",                "report",       _LIVE,           "in_round",     None),
@@ -341,6 +341,9 @@ def _open(status, entry):
         return "还没存定输入"
     if status.rounds and status.rounds[-1].result == DONE and not entry["rerun"]:
         return "上一轮已经做完，也没有可以重排的任务"
+    done = [name for name in entry["rerun"] if name in status.tasks and status.tasks[name].state == T_DONE]
+    if done:
+        return f"这几个任务已经做完，不重排：{done}。做完的不再做一遍；要重算，就新建一个实验（比如克隆这一个）"
     return None
 
 
@@ -369,10 +372,30 @@ def _stop_called(status, entry):
     return None if stopped else "插件停成了才能记停止"
 
 
+_ENDS = (T_DONE, T_FAILED, T_STOPPED)
+# 一个任务在一轮里结束之后，除了状态和结局，这几样也定了：同样的话再报一次可以，改不了。
+# 结束之后还能变的只有阶段（stage），它只给人看
+_SETTLED = (("fingerprint", "输入指纹"), ("machine", "机器"))
+
+
 def _task_ok(status, entry):
     why = _in_round(status, entry)
-    if why or entry["outcome"] is None:
+    if why:
         return why
+    current, name = status.rounds[-1], entry["task"]
+    mine, earlier = current.tasks.get(name), status.tasks.get(name)
+    if mine is None and earlier is not None and name not in current.rerun:
+        return f"任务 {name} 在第 {earlier.round} 轮报过，这一轮没有排它重来：要重来，启动时把它排进重排"
+    if mine is not None and mine.state in _ENDS:
+        if (entry["state"], entry["outcome"]) != (mine.state, mine.outcome):
+            return (f"任务 {name} 这一轮已经是“{mine.state}”（{mine.outcome or '没有结局'}），"
+                    f"不能再改成“{entry['state']}”：同一轮里结束了的任务不退回，要重来就走新的一轮")
+        changed = [label for key, label in _SETTLED if entry[key] != getattr(mine, key)]
+        if changed:
+            return (f"任务 {name} 这一轮已经是“{mine.state}”（{mine.outcome or '没有结局'}），它的{'、'.join(changed)}不能再改："
+                    f"同一轮里结束了的任务不退回、不改，要重来就走新的一轮")
+    if entry["outcome"] is None:
+        return None
     row = _row(status.outcomes, entry["outcome"])
     if row is None:
         return f"结局表里没有 {entry['outcome']}"

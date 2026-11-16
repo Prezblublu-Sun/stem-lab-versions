@@ -16,7 +16,7 @@
     local.py    起、查、杀本机的脱离进程
     remote.py   远程执行的四个动作
 """
-from stemlab.contract.formats.manifest import check_format
+from stemlab.contract.formats.manifest import check_format, made_by, maker_clash, mixed_makers
 from stemlab.contract.formats.points import read_points, write_points
 from stemlab.contract.hashing import fingerprint
 from stemlab.contract.plugin_api import Chart, Input, Kind, Outcome, Output
@@ -27,7 +27,7 @@ from stemlab.hooks.local import alive, kill, spawn
 
 __all__ = [
     "Kind", "Input", "Output", "Outcome", "Chart", "TASK_STATES",
-    "read_points", "write_points", "check_format", "fingerprint",
+    "read_points", "write_points", "check_format", "fingerprint", "made_by", "mixed_makers", "maker_clash",
     "predict", "derive", "run_strategy", "run_kernel", "look", "rerun",
     "spawn", "alive", "kill", "remote",
 ]

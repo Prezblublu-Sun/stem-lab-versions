@@ -6,7 +6,9 @@
      "fields": {"interface_slip": "fields/p001/interface_slip.npy"}}
 一份预测（prediction）的一行：
     {"point": "<点的哈希>", "bone_id": "femur042",
-     "values": {"rotation": 0.11}, "lower": {"rotation": 0.08}, "upper": {"rotation": 0.16}}
+     "values": {"rotation": 0.11}, "lower": {"rotation": 0.08}, "upper": {"rotation": 0.16},
+     "fields": {"interface_slip": "fields/p001/interface_slip.npy"}}
+fields 可以不写：只预测标量的预测没有它。预测出来的场，值和它的区间存在同一个文件里。
 
 清单另带：
     count     有几行
@@ -22,7 +24,7 @@ role 说这一列是什么：
     field       场。数不在行里：行的 fields 里写着它存在 fields/ 下的哪个文件
 
 values 带齐所有不是场的列。放不进去的点没有 FE 结果，那几列写 null，这一行照样在。
-一份预测只有 label 和 derived 两种列，名字和数据里的相同；不确定度写成每列的一个区间。
+一份预测只有 label、derived 和 field 三种列，名字和数据里的相同；标量的不确定度写成每列的一个区间。
 同一张表里一个点只有一行：预测和 FEA 的结果按点的哈希对齐。
 
 契约只核清单和各行的形状。场文件里是什么、数对不对，由写它的那个冻结文件负责。
@@ -41,11 +43,12 @@ FIELDS = "fields/"
 ROW_KEYS = ("point", "bone_id", "round", "fingerprint", "outcome")     # 数据的每一行必带的五样
 DATA_KEYS = ROW_KEYS + ("values", "fields")
 PREDICTION_KEYS = ("point", "bone_id", "values", "lower", "upper")
+PREDICTION_OPTIONAL = ("fields",)           # 一份预测的行可以另带的：预测出来的场各存在哪个文件
 COLUMN_KEYS = ("name", "unit", "meaning", "role")
 ROLES = ("design", "condition", "pre", "label", "derived", "field")
 GIVEN_ROLES = ("design", "condition")       # 写在点里的
 FE_ROLES = ("label", "derived", "field")    # 做了 FE 才有的。代理的特征里不能有这几种列
-PREDICTABLE = ("label", "derived")          # 一份预测里能有的列
+PREDICTABLE = ("label", "derived", "field")     # 一份预测里能有的列
 _MAX_PROBLEMS = 20
 
 
@@ -104,7 +107,8 @@ def check_rows(kind: str, manifest: dict, rows, files) -> list[str]:
         if len(problems) >= _MAX_PROBLEMS:
             return problems + ["……还有更多，先改上面这些"]
         title = f"第 {number} 行"
-        missing, extra = [key for key in wanted if key not in row], [key for key in row if key not in wanted]
+        missing = [key for key in wanted if key not in row]
+        extra = [key for key in row if key not in wanted and (kind == "data" or key not in PREDICTION_OPTIONAL)]
         if missing or extra:
             problems.append(f"{title} 要带且只带这几项：{list(wanted)}"
                             + (f"，缺 {missing}" if missing else "") + (f"，多了 {extra}" if extra else ""))
@@ -128,9 +132,10 @@ def check_rows(kind: str, manifest: dict, rows, files) -> list[str]:
             for group in ("values", "lower", "upper"):
                 problems += _check_group(title, group, row[group], scalars, ())
             problems += _check_intervals(title, row, scalars)
-    if kind == "data":
-        problems += [f"fields/ 下有哪一行都没指着的文件：{rel}"
-                     for rel in sorted(set(files) - used) if rel.startswith(FIELDS)][:_MAX_PROBLEMS]
+            if "fields" in row:
+                problems += _check_fields(title, row["fields"], fields, files, used)
+    problems += [f"fields/ 下有哪一行都没指着的文件：{rel}"
+                 for rel in sorted(set(files) - used) if rel.startswith(FIELDS)][:_MAX_PROBLEMS]
     return problems
 
 
@@ -198,8 +203,6 @@ def check(kind: str, manifest: dict, folder) -> list[str]:
     if ROWS_FILE not in files:
         return [f"文件夹里要有 {ROWS_FILE}"]
     others = [rel for rel in files if rel != ROWS_FILE]
-    if kind == "prediction" and others:
-        return [f"一份预测的文件夹里只该有 {ROWS_FILE}"]
     stray = [rel for rel in others if not rel.startswith(FIELDS)]
     if stray:
         return [f"除了 {ROWS_FILE}，别的文件都要放在 fields/ 下：{stray[:5]}"]

@@ -31,7 +31,8 @@ def problems(made: str) -> list[dict]:
 def test_the_facade_is_exactly_what_plugins_may_use():
     assert set(hooks.__all__) == {
         "Kind", "Input", "Output", "Outcome", "Chart", "TASK_STATES", "read_points", "write_points", "check_format",
-        "fingerprint", "predict", "derive", "run_strategy", "run_kernel", "look", "rerun", "spawn", "alive", "kill", "remote"}
+        "fingerprint", "predict", "derive", "run_strategy", "run_kernel", "look", "rerun", "spawn", "alive", "kill", "remote",
+        "made_by", "mixed_makers", "maker_clash"}
     assert all(hasattr(hooks, name) for name in hooks.__all__)
     assert hooks.TASK_STATES == ("queued", "running", "done", "failed", "stopped")
     assert hooks.Kind is plugin_api.Kind and hooks.spawn is local.spawn and hooks.kill is local.kill
@@ -300,6 +301,28 @@ def test_an_output_can_only_be_published_once_per_round_and_only_in_the_round(la
         publish.publish(again, 2, "second", twice)                          # 轮号不对
 
 
+def test_a_folder_found_in_outputs_is_checked_again_before_it_is_registered(lab, data):
+    """断在移过去之后、登记之前，接着做的时候再核一遍格式：那一份还不是只读的，可能被动过，也可能不是这里移进去的。
+    没过的不登记，挪去 work/rejected/，记成问题；插件再交一份合格的，照常收。"""
+    made = helpers.experiment(value={"poll": "never"})
+    start.start(made)
+    target = layout.output_dir(made, 1, "report")
+    helpers.make_folder(target, files={"a.txt": b"1"})
+    (target / "a.txt").unlink()                                            # 清单列了，文件不在了
+    assert publish.reconcile(made) == [], "没过再核的不算补做成了"
+    assert not target.exists() and (layout.work_dir(made) / "rejected" / "report-r1" / "manifest.json").exists()
+    assert lookup.by_origin(made) == [] and view.view(made).rounds[0].outputs == {}
+    told = problems(made)[-1]["error"]
+    assert "再核" in told and "a.txt" in told and "work/rejected/report-r1" in told
+
+    helpers.make_folder(target, kind="edits", files={"b.txt": b"2"})        # 种类也再核
+    good = helpers.make_folder(layout.work_dir(made) / "good", files={"c.txt": b"3"})
+    item = publish.publish(made, 1, "report", good)
+    assert item is not None and lookup.by_origin(made, 1)[0]["id"] == item, "挪开没过的那一份，这次交的照常收"
+    assert (layout.work_dir(made) / "rejected" / "report-r1-2").exists() and "种类不符" in problems(made)[-1]["error"]
+    assert view.view(made).rounds[0].outputs["report"]["item"] == item
+
+
 def test_the_bone_id_of_an_output_must_come_from_the_inputs(lab, data, tmp_path):
     source = helpers.write_files(tmp_path / "ct", {"scan.dcm": b"ct"})
     case = actions.register("bone_source", "femur042-ct", source=source, note="CT", bone_id="femur042", new_bone=True)
@@ -367,6 +390,13 @@ def test_spawn_alive_and_kill(tmp_path):
         local.kill(child)
     assert not local.alive(child)
     local.kill(child)                           # 已经不在了：可以重复叫
+
+
+def test_a_spawned_process_that_ends_is_reaped():
+    """起出去的进程结束了，这边有人替它收尾：不留成僵尸进程，等它的那个线程也跟着结束。"""
+    child = local.spawn([__import__("sys").executable, "-c", "pass"])
+    helpers.wait_for(lambda: not local.alive(child))
+    helpers.wait_for(lambda: not any(thread.name == f"reap-{child['pid']}" for thread in threading.enumerate()))
 
 
 def test_a_spawned_process_outlives_the_process_that_spawned_it():

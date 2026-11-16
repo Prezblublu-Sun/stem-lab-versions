@@ -4,7 +4,8 @@
 插件自己的 work/ 和系统自己的各把锁不备份。产物只读、链只追加，所以每次只用传新增的部分。
 
 它同时管两件事：
-    恢复。核对只能发现问题，恢复靠备份。备份推过去之后，在 Linux 上用同一套核对再核一遍。
+    恢复。核对只能发现问题，恢复靠备份。备份推过去之后，在 Linux 上用同一套核对再核一遍：
+          各条链都要接得上；这次传了内容的那几样，内容的哈希也要对得上（contents=True 时所有内容都核）。
     发现末尾被删。哈希链查得出中间被改，查不出最后几条被删；
     since_last 会核对本机的链是不是上次备份那一份的延长，检查的入口里也跑它。
 
@@ -23,21 +24,23 @@ import tarfile
 import tempfile
 from datetime import datetime, timezone
 
-from stemlab.contract import Refused, chain, hashing, layout, versions
+from stemlab.contract import Refused, chain, hashing, kinds, layout, versions
 from stemlab.experiments import reader as records
 from stemlab.hooks import load, remote
-from stemlab.registry import verify
+from stemlab.registry import lookup, verify
 
 CODE = "stemlab-verify"     # 远端 <backup_root> 下放核对用的代码的文件夹。数据在 <backup_root>/data
 
 # 在远端核对用的脚本。只用标准库，所以远端的系统 Python 就能跑。只记位置的东西在远端没有，不核。
-# 它的第一个参数是这次备份要记下的各条链的链头：远端的每条链都要到得了那里
+# 它的第一个参数是这次备份要记下的各条链的链头：远端的每条链都要到得了那里。
+# 和代码一起送过去的 sent.json 列着这次传了内容的登记项：它们的内容总要核哈希；带 contents 时全都核
 _VERIFY = """
-import json, sys
+import json, os, sys
 from stemlab.contract import chain, layout
 from stemlab.experiments import reader
 from stemlab.registry import lookup, verify
 heads = json.loads(sys.argv[1])
+sent = set(json.load(open("sent.json", encoding="utf-8"))) if os.path.exists("sent.json") else set()
 problems = verify.verify_register() + verify.verify_links() + reader.verify_issued()
 for experiment in reader.all_ids():
     problems += reader.verify(experiment)
@@ -47,15 +50,16 @@ wanted += [(name, layout.record_file(name), head) for name, head in heads["recor
 for title, path, head in wanted:
     if not chain.extends(reader.lines(path), chain.Head(head["seq"], head["this"])):
         problems.append(title + ": the copy on the backup machine does not reach entry %d recorded for this backup" % head["seq"])
-if not problems and "contents" in sys.argv:
+if not problems:
     for item in lookup.find():
-        if item["storage"] != "ref":
+        if item["storage"] != "ref" and ("contents" in sys.argv or item["id"] in sent):
             try:
                 verify.verify_item(item["id"])
             except Exception as error:
                 problems.append(str(error))
 print(json.dumps(problems))
 """
+SENT = "sent.json"          # 和核对用的代码放在一起，_VERIFY 里读的就是它
 
 
 def _experiments() -> list[str]:
@@ -128,8 +132,9 @@ def files() -> dict:
 def backup(machine_name: str, contents: bool = False) -> dict:
     """把 data/ 备份到机器清单里的这台机器上，返回这次做了什么。
 
-    只传远端没有的文件和变长了的链。传完在远端核对一遍（contents=True 时连内容的哈希也核），
-    都对了才把链头记进 backup.json。哪一步不过都是被拒，远端已有的备份不会被改坏。
+    只传远端没有的文件和变长了的链。传完在远端核对一遍：各条链，和这次传了内容的那几样的哈希
+    （contents=True 时所有内容的哈希都核）。都对了才把链头记进 backup.json。
+    哪一步不过都是被拒，远端已有的备份不会被改坏。
     """
     machine = remote.worker(machine_name)
     if not machine.backup_root:
@@ -157,7 +162,7 @@ def backup(machine_name: str, contents: bool = False) -> dict:
     todo = sorted(rel for rel, size in local.items() if there.get(rel) != size)
     if todo:
         _send(machine, f"tar -xf - -C {place}", layout.data_root(), {rel: local[rel] for rel in todo})
-    _send_code(machine, root)
+    _send_code(machine, root, sent_items(todo))
 
     script = (f"cd {shlex.quote(f'{root}/{CODE}')} && STEMLAB_DATA={place} python3 -c {shlex.quote(_VERIFY)} "
               + shlex.quote(json.dumps(at_start)) + (" contents" if contents else ""))
@@ -169,6 +174,17 @@ def backup(machine_name: str, contents: bool = False) -> dict:
             "machine": machine_name, "heads": at_start, "files": len(local), "sent": len(todo)}
     layout.backup_file().write_bytes(hashing.canonical(done) + b"\n")
     return done
+
+
+def sent_items(todo) -> list[str]:
+    """这次传了内容的登记项：复制进来的东西里，文件夹里有这次要传的文件的那几样。到了远端要核它们内容的哈希。"""
+    roots = {item["content"]: item["id"] for item in lookup.find() if item["storage"] == kinds.STORE_COPY}
+    found = set()
+    for rel in todo:
+        parts = rel.split("/")
+        found.update(roots[prefix] for prefix in ("/".join(parts[:depth]) for depth in range(1, len(parts) + 1))
+                     if prefix in roots)
+    return sorted(found)
 
 
 def _check_prefixes(machine, place: str, grown: list[str], there: dict) -> None:
@@ -184,10 +200,11 @@ def _check_prefixes(machine, place: str, grown: list[str], there: dict) -> None:
                 raise Refused(f"{rel} 在远端的那一份不是本机这一份的开头：备份之后链被换过。没有覆盖远端的，用备份恢复")
 
 
-def _send(machine, script: str, root, sizes: dict) -> None:
+def _send(machine, script: str, root, sizes: dict, extra: dict | None = None) -> None:
     """把 root 下的这些文件打成 tar，边打边经 ssh 送到远端解开。每个文件只送列出来的那么多字节。
 
     链只追加：列完之后又追加的条目这次不送，这样送过去的各个文件是同一个时刻的样子。
+    extra 是另外要放进去的几个小文件：相对位置 -> 内容的字节。
     """
     command = [remote._tool(machine, "ssh"), "-p", str(machine.port), *machine.options, machine.ssh, script]
     with tempfile.TemporaryFile() as complaints:        # 远端的报错写进文件，不占管道：管道满了两边会一起卡死
@@ -201,6 +218,10 @@ def _send(machine, script: str, root, sizes: dict) -> None:
                     info.size, info.mode = size, 0o644
                     with open(root / rel, "rb") as stream:
                         tar.addfile(info, io.BytesIO(stream.read(size)) if size < 1 << 24 else stream)
+                for rel, body in (extra or {}).items():
+                    info = tarfile.TarInfo(rel)
+                    info.size, info.mode = len(body), 0o644
+                    tar.addfile(info, io.BytesIO(body))
             receiver.stdin.close()
             code = receiver.wait(timeout=3600)
         except (OSError, subprocess.TimeoutExpired) as error:
@@ -215,9 +236,11 @@ def _send(machine, script: str, root, sizes: dict) -> None:
         raise Refused(f"{machine.name} 没有收下备份（退出码 {code}）：{said[-600:]}")
 
 
-def _send_code(machine, root: str) -> None:
-    """把 stemlab/ 现在的样子送到远端的 <backup_root>/stemlab-verify/，在远端核对用的就是它。"""
+def _send_code(machine, root: str, sent=()) -> None:
+    """把 stemlab/ 现在的样子送到远端的 <backup_root>/stemlab-verify/，在远端核对用的就是它。
+    sent 是这次传了内容的登记项，写成旁边的 sent.json，远端核对时核它们内容的哈希。"""
     repo = layout.repo_root() / "stemlab"
     sizes = {f"stemlab/{rel}": (repo / rel).stat().st_size for rel in hashing.list_tree(repo, ignore=load.IGNORE)}
     place = shlex.quote(f"{root}/{CODE}")
-    _send(machine, f"rm -rf {place} && mkdir -p {place} && tar -xf - -C {place}", layout.repo_root(), sizes)
+    _send(machine, f"rm -rf {place} && mkdir -p {place} && tar -xf - -C {place}", layout.repo_root(), sizes,
+          extra={SENT: json.dumps(sorted(sent)).encode("utf-8")})

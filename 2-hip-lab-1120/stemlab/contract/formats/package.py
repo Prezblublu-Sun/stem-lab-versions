@@ -39,9 +39,11 @@
                          data [数据的文件夹…]、predictions（预测器对各候选的预测 [{name, values, lower, upper}]，或 null）
                          result：chosen [{name, score, why}]、model（用的是哪个模型）
                          同样的 job 要选出同样的点：随机只许用 job 里的 seed
-    预测器（predictor）    清单另加 columns（它预测的各列的说明，另带 role）、level（区间的名义覆盖率）
+    预测器（predictor）    清单另加 columns（它预测的各列的说明，另带 role）、level（区间的名义覆盖率）；
+                         预测场的再加 shapes（各个场的形状）
                          job：points [{hash, bone_id, design, conditions}]
-                         result：rows [{point, values, lower, upper}]
+                         result：rows [{point, values, lower, upper}]。预测场的，每行另带 fields {场的名字: 输出文件夹里的文件}，
+                         文件里是值、下界、上界摞在一起的数组
 """
 from __future__ import annotations
 

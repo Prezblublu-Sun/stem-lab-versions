@@ -3,6 +3,8 @@
 误差怎么算只写在这里，不随模型变：
 
     n          对得上、算得了的点数
+    unmatched  有真值、没有预测的点数
+    repeated   有真值、预测给了不止一次的点数：不知道该用哪一次，这些点不比
     rmse       差的平方的均值再开方。差是预测减真值
     mae        差的绝对值的均值
     bias       差的均值
@@ -15,7 +17,16 @@
 
 合格线写在训练设定里，训练设定是存定的输入，所以一定登记在看到结果之前：
     {"acceptance": [{"id": "a1", "what": "…", "target": "rotation", "on": "holdout", "metric": "rmse", "op": "<=", "limit": 0.05}]}
-on 是 holdout（留出）或 outside（往外推）。这一部分一个点都没有，这条线就是不可判，不当它过了。
+on 是 holdout（留出）或 outside（往外推）。这一部分一个算得了的点都没有，这条线就是不可判，不当它过了；
+数点数的线（metric 是 n）也一样。
+判之前先核这一部分全不全：有真值的点，每一个都要有一份、只有一份算得了的预测。有点没有预测、给了不止一次、
+或者算不了（skipped），这条线也不可判：比不了的点可能正是难预测的点，去掉它们会把误差算小。
+
+场的误差用同样的几个名字（field_errors），逐个格子比，所有点的所有格子合在一起算：
+    n 是比得了的点数，cells 是这些点一共多少个格子；rmse、mae、bias、max_abs 是对格子说的；
+    r2 的离差是各格子的真值对它们总的均值；coverage 是真值落在区间里的格子的比例
+    预测的形状和真值对不上的点比不了，单独数出来（skipped）。场只在原来的刻度上比
+合格线的 target 可以是一个场的名字。
 """
 from __future__ import annotations
 
@@ -46,14 +57,27 @@ def _scaled(value, scale: str):
     return math.log10(value) if value > 0 else None
 
 
+def once(predicted) -> tuple[dict, set]:
+    """预测按点的哈希排好：（只给了一次的点 -> 那一行，给了不止一次的点）。给了不止一次的不知道该用哪一次，不拿来比。"""
+    guesses, twice = {}, set()
+    for row in predicted:
+        if row["point"] in guesses:
+            twice.add(row["point"])
+        guesses[row["point"]] = row
+    return {point: row for point, row in guesses.items() if point not in twice}, twice
+
+
 def errors(truth, predicted, target: str, scale: str = "linear") -> dict:
     """一个预测量的误差。truth 是数据的各行，predicted 是预测的各行；按点的哈希对齐。"""
-    guesses = {row["point"]: row for row in predicted}
-    diffs, actuals, inside, skipped, unmatched = [], [], 0, 0, 0
+    guesses, twice = once(predicted)
+    diffs, actuals, inside, skipped, unmatched, repeated = [], [], 0, 0, 0, 0
     for row in truth:
         actual = row["values"].get(target)
         if not _number(actual):
             continue                                    # 这个点没有这个量的真值（放不进去的点之类）：不在比的范围里
+        if row["point"] in twice:
+            repeated += 1
+            continue
         guess = guesses.get(row["point"])
         if guess is None or not _number(guess["values"].get(target)):
             unmatched += 1
@@ -65,7 +89,7 @@ def errors(truth, predicted, target: str, scale: str = "linear") -> dict:
         diffs.append(g - a)
         actuals.append(a)
         inside += guess["lower"][target] <= actual <= guess["upper"][target]
-    found = {"n": len(diffs), "scale": scale, "skipped": skipped, "unmatched": unmatched}
+    found = {"n": len(diffs), "scale": scale, "skipped": skipped, "unmatched": unmatched, "repeated": repeated}
     if not diffs:
         return dict(found, **{name: None for name in METRICS[1:]})
     n, mean = len(diffs), sum(actuals) / len(actuals)
@@ -73,6 +97,38 @@ def errors(truth, predicted, target: str, scale: str = "linear") -> dict:
     return dict(found, rmse=math.sqrt(squares / n), mae=sum(abs(d) for d in diffs) / n, bias=sum(diffs) / n,
                 r2=1.0 - squares / spread if n >= 2 and spread > 0 else None, max_abs=max(abs(d) for d in diffs),
                 coverage=inside / n)
+
+
+def field_errors(pairs) -> dict:
+    """一个场的误差。pairs 的每一项是一个点：（真值，预测）。真值是一个数组；预测是值、下界、上界摞在一起的数组（第一维是 3）。
+    哪一边没有就给 None：没有真值的点不在比的范围里，有真值没有预测的数进 unmatched。"""
+    import numpy as np
+
+    points = cells = skipped = unmatched = 0
+    squares = absolute = total = inside = worst = actual = actual_squares = 0.0
+    for truth, guess in pairs:
+        if truth is None:
+            continue
+        if guess is None:
+            unmatched += 1
+            continue
+        truth, guess = np.asarray(truth, dtype=float), np.asarray(guess, dtype=float)
+        if guess.shape != (3, *truth.shape) or not truth.size or not np.isfinite(truth).all() or not np.isfinite(guess).all():
+            skipped += 1
+            continue
+        diff = guess[0] - truth
+        points, cells = points + 1, cells + diff.size
+        squares, absolute, total = squares + float((diff ** 2).sum()), absolute + float(np.abs(diff).sum()), total + float(diff.sum())
+        worst = max(worst, float(np.abs(diff).max()))
+        inside += float(((guess[1] <= truth) & (truth <= guess[2])).sum())
+        actual, actual_squares = actual + float(truth.sum()), actual_squares + float((truth ** 2).sum())
+    found = {"n": points, "scale": "linear", "skipped": skipped, "unmatched": unmatched, "cells": cells}
+    if not cells:
+        return dict(found, **{name: None for name in METRICS[1:]})
+    spread = actual_squares - actual * actual / cells
+    return dict(found, rmse=math.sqrt(squares / cells), mae=absolute / cells, bias=total / cells,
+                r2=1.0 - squares / spread if cells >= 2 and spread > 1e-12 * max(1.0, actual_squares) else None,
+                max_abs=worst, coverage=inside / cells)
 
 
 def line_problems(lines, targets) -> list[str]:
@@ -97,12 +153,24 @@ def line_problems(lines, targets) -> list[str]:
     return found
 
 
+_GAPS = (("unmatched", "没有预测"), ("repeated", "预测给了不止一次"), ("skipped", "算不了（取不了对数、形状不对、不是有限的数）"))
+
+
+def gaps(found: dict) -> str:
+    """这一部分的这个量比不全的地方，一句话；全了是空的。"""
+    return "，".join(f"{found[key]} 个点{said}" for key, said in _GAPS if found.get(key))
+
+
 def judge(lines, numbers: dict) -> list[dict]:
-    """逐条判。numbers 是 {"holdout": {预测量: 误差}, "outside": {...}}。"""
+    """逐条判。numbers 是 {"holdout": {预测量: 误差}, "outside": {...}}。这一部分比不全的，不判。"""
     verdicts = []
     for line in lines or []:
-        value = numbers[line["on"]].get(line["target"], {}).get(line["metric"])
-        if value is None or (line["metric"] != "n" and not numbers[line["on"]][line["target"]]["n"]):
+        found = numbers[line["on"]].get(line["target"], {})
+        value, short = found.get(line["metric"]), gaps(found)
+        if short:
+            verdicts.append(dict(line, value=None, passed=None,
+                                 why=f"{line['on']} 这一部分有 {short}，不可判：比不了的点可能正是难预测的点，去掉它们会把误差算小"))
+        elif value is None or not found["n"]:           # 一个算得了的点都没有：数点数的线（n）也不判，不然“n ≤ 10”就判过了
             verdicts.append(dict(line, value=None, passed=None, why=f"{line['on']} 这一部分没有算得了的点，不可判"))
         else:
             verdicts.append(dict(line, value=value, passed=bool(OPS[line["op"]](value, line["limit"])), why=""))
@@ -110,8 +178,8 @@ def judge(lines, numbers: dict) -> list[dict]:
 
 
 def pairs(truth, predicted, target: str) -> list[list]:
-    """对得上的点：[真值, 预测, 下界, 上界]。给人看散点用，误差不从这里算。"""
-    guesses = {row["point"]: row for row in predicted}
+    """对得上的点：[真值, 预测, 下界, 上界]。给人看散点用，误差不从这里算。给了不止一次预测的点不画。"""
+    guesses = once(predicted)[0]
     found = []
     for row in truth:
         actual, guess = row["values"].get(target), guesses.get(row["point"])
@@ -120,18 +188,31 @@ def pairs(truth, predicted, target: str) -> list[list]:
     return found
 
 
-def error_report(*, targets, scales: dict, level: float, split: dict, truth: dict, predicted, lines, training: dict) -> dict:
-    """误差报告的内容。truth 是 {"holdout": 各行, "outside": 各行}；predicted 是训练代码对这些点出的预测。"""
+def error_report(*, targets, scales: dict, level: float, split: dict, truth: dict, predicted, lines, training: dict,
+                 fields: dict | None = None) -> dict:
+    """误差报告的内容。truth 是 {"holdout": 各行, "outside": 各行}；predicted 是训练代码对这些点出的预测。
+
+    fields 是要预测的各个场：{场的名字: {"holdout": 各点的（真值，预测）, "outside": 同样}}，见 field_errors。
+    场的误差和标量的排在一起，所以合格线可以拿场的名字当 target。
+    """
     numbers = {part: {target: errors(truth[part], predicted, target, scales.get(target, "linear")) for target in targets}
                for part in ON}
-    return {"what": "errors", "split": split, "level": level, "targets": list(targets), "holdout": numbers["holdout"],
+    for name, given in (fields or {}).items():
+        for part in ON:
+            numbers[part][name] = field_errors(given[part])
+    body = {"what": "errors", "split": split, "level": level, "targets": list(targets), "holdout": numbers["holdout"],
             "outside": numbers["outside"], "verdicts": judge(lines, numbers), "training": training,
             "pairs": {part: {target: pairs(truth[part], predicted, target) for target in targets} for part in ON}}
+    return dict(body, fields=list(fields)) if fields else body
 
 
-def check_report(predicted, data, columns) -> dict:
-    """复核报告的内容：预测和数据按点的哈希对齐。对得上的点逐个有差值；对不上的点两边各列出来。"""
-    names = [column["name"] for column in columns]
+def check_report(predicted, data, columns, fields: dict | None = None) -> dict:
+    """复核报告的内容：预测和数据按点的哈希对齐。对得上的点逐个有差值；对不上的点两边各列出来。
+
+    fields 是预测里的各个场：{场的名字: {点的哈希: （FEA 的场，预测的场）}}，哪一边没有就是 None。
+    对得上的点另记每个场在这个点上的均方根差、最大的差、真值落在区间里的格子的比例。
+    """
+    names = [column["name"] for column in columns if column.get("role") != "field"]
     rows = {row["point"]: row for row in data}
     matched, only_predicted = [], []
     for guess in predicted:
@@ -147,11 +228,19 @@ def check_report(predicted, data, columns) -> dict:
             both = _number(guessed) and _number(actual)
             one["diff"][name] = guessed - actual if both else None
             one["inside"][name] = bool(guess["lower"][name] <= actual <= guess["upper"][name]) if both else None
+        if fields:
+            one["fields"] = {}
+            for name, given in fields.items():
+                found = field_errors([given.get(guess["point"], (None, None))])
+                one["fields"][name] = {"rmse": found["rmse"], "max_abs": found["max_abs"], "inside": found["coverage"]} if found["n"] else None
         matched.append(one)
     seen = {guess["point"] for guess in predicted}
-    return {"what": "check", "columns": names, "matched": matched, "only_predicted": only_predicted,
-            "only_data": [row["point"] for row in data if row["point"] not in seen],
-            "summary": {name: errors(data, predicted, name) for name in names}}
+    summary = {name: errors(data, predicted, name) for name in names}
+    for name, given in (fields or {}).items():
+        summary[name] = field_errors([given.get(row["point"], (None, None)) for row in matched])
+    body = {"what": "check", "columns": names, "matched": matched, "only_predicted": only_predicted,
+            "only_data": [row["point"] for row in data if row["point"] not in seen], "summary": summary}
+    return dict(body, fields=list(fields)) if fields else body
 
 
 def write(folder: Path, what: str, body: dict, bone_id: str | None = None) -> Path:

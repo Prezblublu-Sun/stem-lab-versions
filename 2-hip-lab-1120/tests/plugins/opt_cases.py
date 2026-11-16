@@ -214,6 +214,15 @@ def things_refused_before_the_start(tmp: Path) -> None:
     slip = real.objective(objectives=[{"column": "slip_p95", "goal": "min"}])
     assert "预测不了" in refused(real.opt_select(tmp, candidates["id"], goal=slip, predictor=real.outside_predictor(tmp)))
 
+    # 不同内核算出来的数不放在一起：候选池、数据、预测器都记着是哪个内核算的，记了而对不上的被拒
+    theirs = dict(real.MADE_BY, kernel={"name": "another-kernel"}, derive=None)
+    their_pool = real.pool(tmp, real.pool_rows(LENGTHS), made_by=theirs)
+    assert "another-kernel" in refused(real.opt_select(tmp, their_pool["id"], datas=[degrees])), "候选池和数据不是同一个内核"
+    mixed = [degrees, real.data(tmp, real.data_rows([(33.0, 2000.0)]), made_by=dict(real.MADE_BY, kernel={"name": "another-kernel"}))]
+    assert "another-kernel" in refused(real.opt_select(tmp, candidates["id"], datas=mixed)), "两份数据不是同一个内核"
+    ours = real.outside_predictor(tmp, made_by=real.MADE_BY)
+    assert "another-kernel" in refused(real.opt_select(tmp, their_pool["id"], predictor=ours)), "预测器和候选池不是同一个内核"
+
     assert "count" in refused(real.opt_pool(tmp, {"design": real.SPACE["design"], "seed": 1}))
     assert "内核要" in refused(real.opt_pool(tmp, {"design": {"length": [20, 60]}, "count": 3, "seed": 1}))
     assert "length" in refused(real.opt_pool(tmp, {"design": {"length": [60, 20], "behave": {"values": ["ok"]}}, "count": 3, "seed": 1}))
@@ -229,6 +238,9 @@ def stopping_a_pool(tmp: Path) -> None:
     start.start(made)
     real.run(made, seconds=SECONDS)
     assert real.tasks(made) == {"pool": ("done", "generated")} and len(read_points(real.output(made, "pool"))) == 12
+    kernel = view.view(made).frozen["kernel"][0]["hash"]
+    assert read_manifest(real.output(made, "pool"))["made_by"] == {"kernel": {"package": kernel}, "derive": None}, \
+        "候选池记着是哪个内核模板化的"
 
 
 OTHERS = [a_strategy_that_crashes, a_strategy_that_ignores_the_seed_cannot_be_replayed, things_refused_before_the_start, stopping_a_pool]

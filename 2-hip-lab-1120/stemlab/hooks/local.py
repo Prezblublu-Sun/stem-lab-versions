@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import threading
 
 # 起一个要等它结果的子进程（git、ssh、带代码的包）时带上它：操作台没有控制台时，不在桌面上弹出窗口
 QUIET = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
@@ -54,7 +55,9 @@ def spawn(command, cwd=None, env=None, log=None) -> dict:
         if log:
             output.close()
     created = _psutil().Process(child.pid).create_time()
-    child.returncode = 0        # 不等它，也不要它退出时的告警：它是脱离出去的
+    # 不等它：它是脱离出去的。旁边一个不拦着退出的线程等它结束、替它收尾，
+    # 免得它在 Linux 上留成僵尸进程，也免得这边退出时报“子进程还在跑”
+    threading.Thread(target=child.wait, name=f"reap-{child.pid}", daemon=True).start()
     return {"pid": child.pid, "created": created}
 
 

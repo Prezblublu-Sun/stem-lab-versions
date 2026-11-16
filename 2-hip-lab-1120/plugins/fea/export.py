@@ -1,5 +1,5 @@
 """【冻结】从作业的结果导出数据：标签、界面场、整体场，推导量经 derive 算。写数据说明：每列的名字、单位、含义。
-每行带点的哈希、骨标识、轮号、输入指纹、结局。
+每行带点的哈希、骨标识、轮号、输入指纹、结局。清单里另记是哪个内核、哪份推导量定义算的（made_by）。
 
 数据说明从两个包的清单里来：设计、条件、建模时就有的量、FE 算出的标量、场，由内核的清单说；
 推导量由推导量定义的清单说。包没说清楚的，启动的检查里就不过。
@@ -50,6 +50,12 @@ def problems(kernel: dict, derive: dict) -> list[str]:
         return found
     names = [column["name"] for column in columns(kernel, derive)]
     return [f"列名重复了：{name}" for name in sorted({name for name in names if names.count(name) > 1})]
+
+
+def maker(handle) -> dict:
+    """这份数据是哪个内核、哪份推导量定义算的：写进数据的清单（made_by）。用数据的地方靠它拦住不同内核的数混在一起。"""
+    return hooks.made_by(read_manifest(handle.input("kernel")), handle.input_info("kernel").hash,
+                         read_manifest(handle.input("derive")), handle.input_info("derive").hash)
 
 
 def columns(kernel: dict, derive: dict) -> list[dict]:
@@ -121,8 +127,8 @@ def collect(handle) -> dict:
     return rows
 
 
-def write(folder: Path, rows: dict, listed: list[dict], bone_id: str) -> Path:
-    """把各行写成一份符合格式的数据：rows.jsonl、fields/ 下的场、清单。写完自己先核一遍。"""
+def write(folder: Path, rows: dict, listed: list[dict], bone_id: str, made_by: dict | None = None) -> Path:
+    """把各行写成一份符合格式的数据：rows.jsonl、fields/ 下的场、清单。写完自己先核一遍。made_by 见 maker。"""
     folder = Path(folder)
     if folder.exists():
         shutil.rmtree(folder)
@@ -140,6 +146,8 @@ def write(folder: Path, rows: dict, listed: list[dict], bone_id: str) -> Path:
     (folder / ROWS).write_bytes(b"".join(lines))
     manifest = {"format": 1, "kind": "data", "files": sorted(files, key=lambda rel: rel.encode("utf-8")),
                 "count": len(rows), "columns": listed, "bone_id": bone_id}
+    if made_by is not None:
+        manifest["made_by"] = made_by
     (folder / MANIFEST).write_bytes(dumps(manifest))
     wrong = hooks.check_format("data", folder)
     if wrong:

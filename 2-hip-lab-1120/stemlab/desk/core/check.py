@@ -1,6 +1,6 @@
 """检查的固定入口：python -m stemlab.desk.core.check
 
-    guard()           代码这一边：FROZEN 清单、八条依赖规则、全部测试
+    guard()           代码这一边：FROZEN 清单、八条依赖规则、平时的测试（跨机、科学验收、界面换写法三组另跑）
     verify_chains()   数据这一边：各条链有没有被改，每条长得对不对
     reconcile_all()   把发布到一半的产物接着做完
     verify_books()    两本账对不对得上，账上的内容还在不在、（要的话）变没变
@@ -42,6 +42,9 @@ def lint_imports(config: str = ".importlinter") -> tuple[bool, str]:
     return _run([sys.executable, "-c", _LINT, config])
 
 
+TESTS = "平时的测试（不含跨机、科学验收、界面换写法这三组，它们要单独跑）"
+
+
 def run_tests(selection=("-m", "not cross and not science and not swap")) -> tuple[bool, str]:
     """跑测试：tests/ 下固定的，加上自由代码的（tests_free/，和插件里各自的 tests/）。
 
@@ -56,7 +59,7 @@ def guard(tests: bool = True) -> list[tuple[str, bool, str]]:
     results = [("固定的文件和 FROZEN 清单对得上", not problems, "\n".join(problems))]
     results.append(("八条依赖规则", *lint_imports()))
     if tests:
-        results.append(("全部测试", *run_tests()))
+        results.append((TESTS, *run_tests()))
     return results
 
 

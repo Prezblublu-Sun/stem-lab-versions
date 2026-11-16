@@ -182,6 +182,15 @@ def every_row_has_its_five_keys(tmp: Path) -> None:
     item = lookup.get(status.rounds[-1].outputs["data"]["item"])
     assert (item["kind"], item["name"], item["version"], item["bone_id"]) == ("data", f"{made}.data", 1, real.BONE)
     assert item["origin"] == {"from": "product", "experiment": made, "round": 1, "output": "data"}
+    assert manifest["made_by"] == {"kernel": {"package": status.frozen["kernel"][0]["hash"]},
+                                   "derive": {"package": status.frozen["derive"][0]["hash"]}}, \
+        "数据记着是哪个内核、哪份推导量定义算的（假内核的清单里没写 model，记的是包的哈希）"
+
+    model = {"name": "fake-kernel-2", "code_hash": "9876543210"}
+    named = real.fea(tmp, [real.point("p1", 30)], kernel=real.package("kernel_fake", tmp, model=model))
+    start.start(named)
+    real.run(named)
+    assert read_manifest(real.output(named, "data"))["made_by"]["kernel"] == model, "内核的清单里写了 model，就记 model"
 
 
 # ---- 6 再启动：只重排该重排的；新一轮的数据里，每行写着是哪一轮算的 ----

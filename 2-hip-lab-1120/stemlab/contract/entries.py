@@ -99,8 +99,8 @@ def _shape(title: str, obj: dict, required: dict, optional: dict) -> list[str]:
 
 
 def is_tag(text) -> bool:
-    """标签：一到四十个字符，不带空白。可以用中文。"""
-    return isinstance(text, str) and 0 < len(text) <= 40 and not any(ch.isspace() for ch in text)
+    """标签：一到四十个字符，不带空白，也不带控制字符之类看不见的字符。可以用中文。"""
+    return isinstance(text, str) and 0 < len(text) <= 40 and all(ch.isprintable() and not ch.isspace() for ch in text)
 
 
 def check_entry(entry) -> list[str]:

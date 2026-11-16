@@ -24,7 +24,7 @@ def _inputs(handle) -> dict:
     """这一次调用里要反复用的几样：导出设定、数据说明、骨标识、这一轮的轮号。"""
     kernel, derive = export.read_manifest(handle.input("kernel")), export.read_manifest(handle.input("derive"))
     return {"setting": handle.input("export"), "columns": export.columns(kernel, derive),
-            "bone_id": handle.input_info("bone").bone_id, "number": handle.round.number}
+            "bone_id": handle.input_info("bone").bone_id, "number": handle.round.number, "made_by": export.maker(handle)}
 
 
 def _open(handle, planned: list[dict]) -> list[dict]:
@@ -102,7 +102,7 @@ def _publish(handle, planned: list[dict], given: dict) -> bool | None:
     if warning:
         handle.problem(warning)
     out = handle.work_dir / "out" / f"r{number}"
-    kept = handle.output("data", export.write(out / "data", rows, given["columns"], given["bone_id"])) if rows else None
+    kept = handle.output("data", export.write(out / "data", rows, given["columns"], given["bone_id"], given["made_by"])) if rows else None
     handle.output("archive", archive.write(out / "archive", handle, given["setting"], given["bone_id"]))
     criteria = handle.input("criteria")
     if criteria is not None and rows:

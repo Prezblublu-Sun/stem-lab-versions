@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from stemlab.contract.formats.manifest import make_manifest, write_manifest
+from stemlab.contract.formats.manifest import check_manifest, make_manifest, write_manifest
 from stemlab.contract.hashing import canonical, hash_json
 from stemlab.contract.layout import is_column, is_label, same_but_case
 
@@ -58,14 +58,18 @@ def read_points(path) -> list[dict]:
     return rows
 
 
-def write_points(folder, points, kind: str = "points") -> dict:
+def write_points(folder, points, kind: str = "points", **more) -> dict:
     """把各行写成一个符合格式的文件夹：points.jsonl 和清单。返回清单。
 
     一批点的哈希在这里算好写进去。写之前先核一遍，不符就报 ValueError，什么都不写。
+    more 是清单里另加的项，比如候选池的 made_by（是哪个内核模板化的）；这种格式自己的项不能用它盖掉。
     """
     rows = [dict(point) if isinstance(point, dict) else point for point in points]
     if not rows:
         raise ValueError("一批点不能是空的")
+    taken = sorted(set(more) & {"format", "kind", "files", "count", "design_keys", "condition_keys"})
+    if taken:
+        raise ValueError(f"这几项是格式自己的，不能另给：{taken}")
 
     def keys(name: str) -> list:
         group = rows[0].get(name) if isinstance(rows[0], dict) else None
@@ -78,8 +82,8 @@ def write_points(folder, points, kind: str = "points") -> dict:
             if (isinstance(row, dict) and isinstance(row.get("design"), dict)
                     and isinstance(row.get("conditions"), dict) and "bone_id" in row):
                 row["hash"] = _hash_or_none(row)
-    manifest = make_manifest(kind, [POINTS_FILE], **extra)
-    problems = check_points(kind, manifest, rows)
+    manifest = make_manifest(kind, [POINTS_FILE], **extra, **more)
+    problems = check_manifest(kind, manifest) or check_points(kind, manifest, rows)
     if problems:
         raise ValueError("这批点不符合格式：" + "；".join(problems))
     try:

@@ -174,9 +174,32 @@ BAD_PREDICTIONS = [
     ("values 少一列", dict(rows=values(0, "values", GUESSES, rotation=...)), "rotation"),
     ("lower 多一列", dict(rows=values(0, "lower", GUESSES, extra=1)), "extra"),
     ("同一个点两行", dict(rows=[GUESSES[0], dict(GUESSES[1], point=P1)]), "同一个点"),
-    ("带了场文件", dict(files={"fields/x.npy": b"x"}), "rows.jsonl"),
+    ("有没人指着的场文件", dict(files={"fields/x.npy": b"x"}), "fields/x.npy"),
+    ("fields 之外还有别的文件", dict(files={"notes.txt": b"x"}), "fields/"),
     ("点的哈希不对", dict(rows=changed(GUESSES, 0, point=None)), "点的哈希"),
 ]
+
+# 预测出来的场：列里多一个场，行里用 fields 说它存在哪个文件（值和区间都在那个文件里，怎么放由代理插件的冻结文件定）
+FIELD_GUESSES = [dict(GUESSES[0], fields={"interface_slip": "fields/p1/interface_slip.npy"}), dict(GUESSES[1], fields={})]
+WITH_FIELD = dict(rows=FIELD_GUESSES, columns=[*PREDICTED, COLUMNS[5]], files=FILES)
+BAD_PREDICTIONS += [
+    ("场的名字不是场的列", dict(WITH_FIELD, rows=changed(FIELD_GUESSES, 0, fields={"rotation": "fields/p1/interface_slip.npy"})), "rotation"),
+    ("场指的文件清单里没有", dict(WITH_FIELD, rows=changed(FIELD_GUESSES, 0, fields={"interface_slip": "fields/p9/none.npy"})), "fields/p9/none.npy"),
+    ("场不在 fields/ 下", dict(WITH_FIELD, rows=changed(FIELD_GUESSES, 0, fields={"interface_slip": "rows.jsonl"})), "fields/"),
+    ("fields 不是对象", dict(WITH_FIELD, rows=changed(FIELD_GUESSES, 0, fields=[])), "fields"),
+    ("values 里有场的列", dict(WITH_FIELD, rows=values(0, "values", FIELD_GUESSES, interface_slip=1.0)), "interface_slip"),
+    ("列里没有场，行里却带了场", dict(WITH_FIELD, columns=PREDICTED), "interface_slip"),
+]
+
+
+def test_a_prediction_may_carry_predicted_fields(tmp_path):
+    assert data.PREDICTABLE == ("label", "derived", "field"), "标签、推导量和场都预测得了；设计、条件和建模时的量不是预测出来的"
+    assert check_format("prediction", make(tmp_path / "p", kind="prediction", **WITH_FIELD)) == []
+    assert check_format("prediction", make(tmp_path / "none", kind="prediction", rows=changed(FIELD_GUESSES, 0, fields={}),
+                                           columns=[*PREDICTED, COLUMNS[5]])) == [], "列里有场，这几个点没给出场：可以"
+    only = [{"point": P1, "bone_id": "femur042", "values": {}, "lower": {}, "upper": {}, "fields": FIELD_GUESSES[0]["fields"]}]
+    assert check_format("prediction", make(tmp_path / "only", kind="prediction", rows=only, columns=[COLUMNS[5]], files=FILES)) == [], \
+        "只预测场、一个标量都不预测，也是一份预测"
 
 
 @pytest.mark.parametrize("why,how,word", BAD_PREDICTIONS, ids=[row[0] for row in BAD_PREDICTIONS])

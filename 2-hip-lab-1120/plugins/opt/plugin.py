@@ -5,6 +5,7 @@
     策略选出来的点先过 feasible.py：不在池里的、不可行的拦下并记成问题；写出的一批点再独立核一遍
     条件由这里照“选点设定”补全；理由里一定有哪份策略、种子、哪版目标、用的哪个模型
     选完记一笔（replay.py），之后可以重放
+    候选池记着是哪个内核模板化的（清单的 made_by）；选点时候选池、各份数据、预测器得是同一个内核算的
 
 自由代码要给的这几样，接口不变就可以整个重写：
     pool.check(handle) -> 原因或 None
@@ -133,7 +134,8 @@ def pool_poll(handle):
             else:
                 rows.append({"name": one["name"], "bone_id": bone, "design": one["design"], "feasible": said["feasible"],
                              "info": said.get("info") if isinstance(said.get("info"), dict) else {}})
-        hooks.write_points(_out(handle, "pool"), rows, kind="pool")
+        made_by = hooks.made_by(_listed(handle.input("kernel")), handle.input_info("kernel").hash)       # 是哪个内核模板化的
+        hooks.write_points(_out(handle, "pool"), rows, kind="pool", made_by=made_by)
     except (KeyError, TypeError, ValueError, OSError) as error:
         _failed(handle, POOL, "error", f"候选池写不出来：{type(error).__name__}: {error}")
         return
@@ -159,8 +161,21 @@ def _how(setting) -> list[str]:
     return found
 
 
+def _makers(handle) -> list[str]:
+    """候选池、数据、预测器里的数，得是同一个内核算的。几份数据要合在一起用，所以都得记着；候选池、预测器记了才比。"""
+    pool = ("候选池", _listed(handle.input("pool")).get("made_by"))
+    datas = [(f"第 {number} 份数据", _listed(folder).get("made_by")) for number, folder in enumerate(handle.input("data"), start=1)]
+    found = hooks.mixed_makers(datas)
+    others = list(datas)
+    if handle.input("predictor") is not None:
+        guess = ("预测器", _listed(handle.input("predictor")).get("made_by"))
+        found += [why for why in (hooks.maker_clash(guess, one) for one in datas) if why]
+        others.append(guess)
+    return found + [why for why in (hooks.maker_clash(one, pool) for one in others) if why]
+
+
 def select_check(handle):
-    found = feasible.problems(handle.input("objective")) + _how(handle.input("defaults"))
+    found = feasible.problems(handle.input("objective")) + _how(handle.input("defaults")) + _makers(handle)
     needs = _listed(handle.input("strategy")).get("needs") or []
     if "data" in needs and not handle.input("data"):
         found.append("这份策略要数据（清单的 needs 里有 data），没有填")

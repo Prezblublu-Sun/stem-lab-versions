@@ -72,3 +72,35 @@ def test_a_predictor_packed_on_linux_loads_on_windows(linux, data, tmp_path):
         for group in ("values", "lower", "upper"):
             for target, number in row[group].items():
                 assert math.isclose(number, there[row["point"]][group][target], rel_tol=1e-9), f"{target} 两边差得比容差大"
+
+
+def test_a_field_predictor_packed_on_linux_loads_on_windows(linux, data, tmp_path):
+    """场也一样：训练那一部分的场传到 Linux 上学，打的包在 Windows 上出的场和 Linux 上出的在容差内相同。"""
+    import numpy as np
+
+    field = "interface_slip"
+    rows = real.data_rows(real.spread(80, seed=22), fields=True)
+    made = real.train([real.data(tmp_path, rows)], real.train_setting(fields=[field], model={"name": "pod"}))
+    assert start.start(made).ok
+    real.run(made, seconds=600)
+    status = view.view(made)
+    assert real.tasks(made) == {"train": ("done", "trained")}, (status.rounds[-1].reason, status.rounds[-1].problems)
+    assert status.tasks["train"].machine == "linux", "训练是在 worker 上做的"
+    report = json.loads((real.output(made, "report") / "report.json").read_bytes())
+    assert report["fields"] == [field] and report["holdout"][field]["n"] > 5 and report["holdout"][field]["rmse"] < 0.05
+
+    pulled = work_dir(made) / "trained-r1"
+    there = {row["point"]: row for row in read_points(pulled / "asked.jsonl")}                         # Linux 上对留出各点出的预测
+    held = [row for row in rows if row["point"] in there][:12]
+    batch = real.points(tmp_path, [real.point(f"h{number}", row["values"]["length"], load=row["values"]["load"])
+                                   for number, row in enumerate(held)])
+    asked = real.predict(status.rounds[-1].outputs["predictor"]["item"], batch)
+    assert start.start(asked).ok
+    real.run(asked, seconds=120)
+    assert real.tasks(asked) == {"predict": ("done", "predicted")}, view.view(asked).rounds[-1].problems
+    out = real.output(asked, "prediction")
+    here = read_points(out / "rows.jsonl")
+    assert len(here) >= 5, "留出的点里总有几个在适用范围里"
+    for row in here:
+        one, other = np.load(out / row["fields"][field]), np.load(pulled / there[row["point"]]["fields"][field])
+        assert one.shape == other.shape == (3, 5) and np.allclose(one, other, rtol=1e-9, atol=1e-12), "场两边差得比容差大"

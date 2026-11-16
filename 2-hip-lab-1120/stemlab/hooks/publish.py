@@ -11,6 +11,8 @@
     6 记一条 output                                                                    _record
 
 对账（reconcile）把断在第 3 步之后的接着做完；做两遍和做一遍结果相同。
+接着做的那一份还没登记的话，登记之前再按第 1、2 步核一遍：断开之后它还不是只读的，可能被动过，
+也可能根本不是这里移进去的。没过就挪去 work/rejected/，记成问题，不登记。
 """
 from __future__ import annotations
 
@@ -31,9 +33,9 @@ def publish(experiment: str, number: int, name: str, folder: Path) -> str | None
     row = next((row for row in status.outputs if row["name"] == name), None)
     done = status.rounds[-1].outputs.get(name)
     if done is None and row is not None and layout.output_dir(experiment, number, name).exists():
-        # 上次发布断在了第 3 步之后：文件已经移过来了，先把那一份接着做完
+        # 上次发布断在了第 3 步之后：文件已经移过来了，先把那一份接着做完。它没过再核，就当这次是头一回交
         item_id = _resume(experiment, number, row)
-        done = {"item": item_id, "hash": lookup.get(item_id)["hash"]}
+        done = {"item": item_id, "hash": lookup.get(item_id)["hash"]} if item_id else None
     if done is not None:
         # 插件在两次调用之间不留状态，断过之后会把同一样产物再交一次：内容一样就当已经交过，不算问题
         if not folder.exists() or _same(folder, done["hash"]):
@@ -44,7 +46,7 @@ def publish(experiment: str, number: int, name: str, folder: Path) -> str | None
     if why:
         return _reject(experiment, number, name, why)
     _move(folder, layout.output_dir(experiment, number, name))                                 # 3 的前一半
-    return _resume(experiment, number, row)                                                    # 3 的后一半到 6
+    return _resume(experiment, number, row, checked=True)                                      # 3 的后一半到 6
 
 
 def _same(folder: Path, digest: str) -> bool:
@@ -72,6 +74,11 @@ def _in_table(experiment: str, row: dict | None, name: str, folder: Path) -> str
         return f"产物表里没有 {name!r}"
     if not folder.is_dir() or layout.work_dir(experiment).resolve() not in folder.resolve().parents:
         return f"要交的文件夹必须在这个实验的 work/ 里：{folder}"
+    return _kind(row, folder)
+
+
+def _kind(row: dict, folder: Path) -> str | None:
+    """第 1 步的后一半：文件夹带清单，清单写的种类就是产物表里的那一种。"""
     try:
         listed = manifest.read_manifest(folder)
     except ValueError as error:
@@ -130,12 +137,32 @@ def _record(experiment: str, number: int, name: str, item: dict) -> str:
     return item["id"]
 
 
-def _resume(experiment: str, number: int, row: dict) -> str:
-    """文件已经在 outputs/ 里了：从第 3 步的后一半做到第 6 步。做到哪一步断的，就从哪一步接着做。"""
+def _rejected(experiment: str, number: int, name: str) -> Path:
+    """再核没过的那一份挪去的地方：work/rejected/产物名-r轮号，已经有了就往后加 -2、-3。"""
+    base = layout.work_dir(experiment) / "rejected"
+    base.mkdir(parents=True, exist_ok=True)
+    target, count = base / f"{name}-r{number}", 1
+    while target.exists():
+        count += 1
+        target = base / f"{name}-r{number}-{count}"
+    return target
+
+
+def _resume(experiment: str, number: int, row: dict, checked: bool = False) -> str | None:
+    """文件已经在 outputs/ 里了：从第 3 步的后一半做到第 6 步。做到哪一步断的，就从哪一步接着做。
+
+    还没登记的，登记之前再按第 1、2 步核一遍；刚核过、刚移过来的（checked）不用。
+    没过：挪去 work/rejected/，记成问题，返回 None。
+    """
     name = row["name"]
     target = layout.output_dir(experiment, number, name)
     item = _registered(experiment, number, name)
     if item is None:                                    # 还没登记：断在了第 5 步之前
+        why = None if checked else (_kind(row, target) or _fits_format(view.view(experiment), row, target))   # 1、2 再核一遍
+        if why:
+            moved = _rejected(experiment, number, name)
+            _move(target, moved)
+            return _reject(experiment, number, name, f"接着做发布之前再核了一遍，没过：{why}。挪去了 {layout.inside(moved)}")
         tree = _hash(target)                            # 3
         _read_only(target)                              # 4
         item = _register(experiment, number, row, target, tree)                                # 5
@@ -143,7 +170,7 @@ def _resume(experiment: str, number: int, row: dict) -> str:
 
 
 def reconcile(experiment: str) -> list[str]:
-    """对账：这一轮里移过来了却没登记、或登记了却没记 output 的产物，接着做完。返回这次补做了哪几样。"""
+    """对账：这一轮里移过来了却没登记、或登记了却没记 output 的产物，接着做完。返回这次补做成了哪几样。"""
     status = view.view(experiment)
     if not states.can("report", status):
         return []
@@ -152,7 +179,6 @@ def reconcile(experiment: str) -> list[str]:
     present = sorted(path.name for path in folder.iterdir() if path.is_dir()) if folder.is_dir() else []
     done = []
     for row in status.outputs:
-        if row["name"] in present and row["name"] not in current.outputs:
-            _resume(experiment, current.number, row)
+        if row["name"] in present and row["name"] not in current.outputs and _resume(experiment, current.number, row):
             done.append(row["name"])
     return done

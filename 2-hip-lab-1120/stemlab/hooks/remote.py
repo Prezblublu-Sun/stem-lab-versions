@@ -38,6 +38,7 @@ from stemlab.experiments import log, view
 from stemlab.hooks import load, local
 
 RETRIES = (1.0, 4.0, 15.0)      # 连不上时隔多少秒再试
+STOP_WAIT = 10                  # 停止时发了 TERM 之后等它自己收尾的秒数，过了还在就强杀
 _QUIET = local.QUIET            # 不在桌面上弹出窗口
 
 
@@ -235,11 +236,24 @@ def pull(given, machine_name: str, name: str = "pulled") -> Path:
 
 
 def stop(given, machine_name: str) -> None:
-    """结束远端的 worker 和它起的进程。已经不在了就什么都不做，所以可以重复叫。"""
+    """结束远端的 worker 和它起的进程，并确认停住了。已经不在了就什么都不做，所以可以重复叫。
+
+    先对它那一组发 TERM，让它自己收尾；等 STOP_WAIT 秒还在，就发 KILL；再查一遍还在，就报错：
+    插件的停止于是没停成，核心不记“停止”，实验还是运行中，可以再停一次。
+    """
     given._allow_write()
     machine = worker(machine_name, given.machines)
-    place = shlex.quote(job_dir(given, machine))
-    ssh(machine, f'if {_running(place)}; then kill -TERM -- "-$p" 2>/dev/null; fi; true')
+    alive = _running(shlex.quote(job_dir(given, machine)))
+    try:
+        ssh(machine, f'if {alive}; then kill -TERM -- "-$p" 2>/dev/null;'
+                     f' for i in $(seq {STOP_WAIT * 5}); do sleep 0.2; {alive} || exit 0; done;'
+                     f' kill -KILL -- "-$p" 2>/dev/null; sleep 1;'
+                     f' if {alive}; then echo "pid $p still running after TERM and KILL" >&2; exit 3; fi; fi; true',
+            timeout=STOP_WAIT + 60.0)
+    except Unreachable:
+        raise
+    except Refused as error:
+        raise Refused(f"远端的 worker 没停住：{error}") from None
 
 
 # ---------------------------------------------------------------- worker 那一边
