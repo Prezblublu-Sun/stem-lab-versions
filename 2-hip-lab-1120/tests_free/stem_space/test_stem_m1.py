@@ -34,6 +34,7 @@ import pytest
 from plugins.fea import given
 from stemlab import hooks
 from stemlab.contract import hashing
+from stemlab.contract.formats import bone_model
 from stemlab.contract.formats import declaration as d
 from stemlab.contract.formats import package as package_format
 from stemlab.contract.formats import stem_model
@@ -344,7 +345,7 @@ def test_the_package_is_a_well_formed_stem_space(built):
 def test_the_names_the_fem_declaration_refers_to_are_promised(built):
     """4b 的有限元声明里引用的柄上的名字（stem.faces.interface），这个包在清单里答应一定给。"""
     promised = given.promised(read_manifest(built))
-    names = {"bone.region": {"cortical", "cancellous"}, "bone.landmark": {"head_center"}, **promised}
+    names = {"bone.region": {"cortical", "cancellous"}, "bone.landmark": set(bone_model.LANDMARKS), **promised}   # 骨模型第 1 版必有的五个
     assert d.check_setting(d.test_setting(FEM.FEM, "R0002"), FEM.FEM, names=names) == []
     referred = [item["test"]["ref"] for item in FEM.FEM["items"] if item["type"] == "ref" and item["test"]["ref"].startswith("stem.")]
     assert referred == ["stem.faces.interface"], "有限元声明引用的柄上的名字变了：这里跟着核"

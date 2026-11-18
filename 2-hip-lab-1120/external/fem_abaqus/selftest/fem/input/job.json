@@ -1,0 +1,1 @@
+{"mode": "selfcheck", "load": {"resultant_N": 2391.0, "alpha_front_deg": 20.0, "alpha_sagit_deg": 18.0}, "contact": {"mu": 0.3, "slip_tol": 0.00025, "lagrange": false, "method": "clearance", "delta": 0.1, "n_interf": 1, "n_noint": 1}, "cylinder": {"radius": 5.0, "length": 20.0, "box": 30.0, "h": 2.5}}

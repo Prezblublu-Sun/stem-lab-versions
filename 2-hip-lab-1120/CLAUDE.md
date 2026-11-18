@@ -8,8 +8,9 @@ stem-lab 1.0：管实验的系统。设计的依据是 `docs/蓝图.md`，拿不
 - plugins/*/ 里没标冻结的文件，和 plugins/*/tests/
 - stemlab/desk/ui/、stemlab/board/，和 tests_free/：界面和仪表盘的测试，另有自由代码里要经真的核心走一遍的测试
   （`tests_free/recon/`：CT 骨源经重建插件；`tests_free/strategies/`：选点策略）
-- external/：把外面的东西做成能登记的包或数据的做法（内核包、柄空间包、推导量定义、旧数据库的转换、选点策略）。
-  external/ 自己不在检查的范围里；选点策略的测试放在 tests_free/strategies/，M1 柄空间包的放在 tests_free/stem_space/，所以跟着检查跑。
+- external/：把外面的东西做成能登记的包或数据的做法（内核包、柄空间包、有限元包、推导量定义、旧数据库的转换、选点策略）。
+  external/ 自己不在检查的范围里；选点策略的测试放在 tests_free/strategies/，M1 柄空间包的放在 tests_free/stem_space/，
+  Abaqus 有限元包的放在 tests_free/fem_abaqus/，所以跟着检查跑。
   选点的算法有哪几种、怎么用，见 `docs/优化算法.md`
 - worker_env/：把 worker 的环境照锁装出来的做法。不在检查的范围里
 
@@ -68,6 +69,9 @@ stem-lab 1.0：管实验的系统。设计的依据是 `docs/蓝图.md`，拿不
     它只动 worker 上 `/tmp` 下自己建的临时文件夹，测完删掉。
   - 科学验收，要旧系统的文件（只读）和 Abaqus：`python -m pytest tests/science -m science`。
   - 界面和仪表盘换一份写法、固定的测试照过，要几分钟：`python -m pytest tests/swap -m swap`。改了界面的约定就跑一遍。
+- Abaqus 有限元包（`external/fem_abaqus/`）用真的 Abaqus 经 `fea.run` 走一遍设计 A 的那条测试，平时的检查里跳过：
+  设 `STEMLAB_ABAQUS_RUN=1` 再跑 `python -m pytest tests_free/fem_abaqus -k with_abaqus -s`，要十几分钟到半小时，放后台跑。
+  启动器换了地方设 `STEMLAB_ABAQUS`（包也认它，不设就用旧系统配置里的 `D:\SIMULIA\Commands\abq2025.bat`）。
 - 三样测试工具在开发依赖里（worker 不装）；每条目标用哪种测试来证明，见 `docs/审查/2026-11-15-修改目标.md`：
   - 属性测试（Hypothesis）：文件名以 `_properties.py` 结尾，共用的设置在 `tests/properties.py`。平时的检查每次试同一批例子；
     要多找就设 `STEMLAB_HYPOTHESIS=explore` 再跑。还没做到的目标写成 `xfail(strict=True)`，原因里写《修改目标》的编号；

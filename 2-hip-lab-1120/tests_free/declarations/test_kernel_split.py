@@ -14,12 +14,15 @@ import math
 from pathlib import Path
 
 from plugins.fea import export, running
+from stemlab.contract.formats import bone_model
 from stemlab.contract.formats import declaration as d
 from stemlab.contract.formats import package
 from tests.science.test_fea import CONDITIONS, A
 
 REPO = Path(__file__).resolve().parents[2]
-NAMES = {"bone.region": {"cortical", "cancellous"}, "bone.landmark": {"head_center"}, "stem.faces": {"interface"}}
+# 3406 的骨模型（第 1 版）和柄的模型里会有的名字：骨模型的两个实体、必有的五个标志点；柄空间包答应给的面组
+# （4d 的有限元声明多引用了小转子，远端截断从它那一层量起，所以标志点从只写头心改成必有的五个）
+NAMES = {"bone.region": {"cortical", "cancellous"}, "bone.landmark": set(bone_model.LANDMARKS), "stem.faces": {"interface"}}
 
 
 def _load(rel: str, name: str):

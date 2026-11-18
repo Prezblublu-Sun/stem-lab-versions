@@ -1,4 +1,4 @@
-"""从 M1-3406-v1 拆出来的 Abaqus 有限元包的声明（fem）。拆内核 4b 写的，4d 打包时放进包的清单。
+"""从 M1-3406-v1 拆出来的 Abaqus 有限元包的声明（fem）。拆内核 4b 写的，4d 打包时放进包的清单（external/fem_abaqus/build.py）。
 
 照 Abaqus 分组：材料和截面、网格、相互作用、分析步、边界条件、载荷、初始条件、输出、作业和求解控制（约束这一组 M1 没有用到）。
 照的是原项目在 3406 上生产时的设定（原项目只读：H:\\projects\\Femoral implant generation\\sandbox\\mobo_toy）：
@@ -7,13 +7,27 @@
     写死的建模、求解设置  v2/model3d_m1.py（单元、接触、分析步、输出）、v2/config_v2a.yaml（载荷、网格、界面），
                        和 main.py（FIXED 里的 fric_only、罚摩擦的弹性滑移、Abaqus 的核数）。各项的 test_source 写了是哪一处
 原来写在导出设定里的几项：slip_tol 改写成弹性滑移 elastic_slip_um（原来不写就是 0.00025 × 2 / h，即弹性滑移约 0.5 µm）；
-abaqus.cpus 是这里的 cpus；abaqus.timeout_s 和 Abaqus 启动器放在哪，只管怎么跑，不在这里（见 plugins/fea/running.py 和机器清单）。
+abaqus.cpus 是这里的 cpus；abaqus.timeout_s 只管怎么跑，是运行设定的 solve_timeout_s（plugins/fea/running.py）。
+Abaqus 的启动器放在哪，是有限元包的运行要求（4d 定的）：清单的 programs 写 Abaqus 2025，包先看环境变量 STEMLAB_ABAQUS，
+没设就用原项目配置里的位置（config.yaml 的 abaqus.launcher）。不在这里，也不在机器清单里。
 
 柄和骨的材料来自柄的模型和骨模型，不在这里；E_canc_MPa 是研究里每个点覆盖骨模型某个区域的模量（原来的条件）。
 原项目里写死的那几项没有上下限。声明里给它们的范围是放宽了的、物理上说得通的界，只用来拦明显写错的值。
 
+4d 拆的时候改了三处（2026-11-18）：
+    加了 distal_from、distal_cut_mm（远端截断在哪）。原模型在它自己的模型坐标里 z = −150 mm 处截断（v2/config_v2a.yaml 的
+    femur.z_trunc_mm），模型坐标的原点在骨干轴上、小转子那一层的高度（v2/femur_real.py 的 landmarks）。拆开以后在骨模型自己的坐标里建，
+    截断的地方由这两项定：截断面垂直于干轴，在 distal_from 那个标志点那一层以下 distal_cut_mm。柄的模型里没有截断。
+    加了 load_frame（载荷的坐标系）。两个倾角要量在冠状面、矢状面里，原项目的冠状面由后髁连线定（v2/femur_real.py 的 landmarks，
+    Bergmann 2016 的做法），骨模型第 1 版没有后髁这两个标志点，所以改用颈轴定内侧，和重建插件找小转子时的写法一样（plugins/recon/landmarks.py）。
+    3406 上它和原模型的坐标绕干轴差 3.8°（原模型算出的前倾角）。
+    cycles 的下限从 1 改成 2：原项目的写法至少两个加载循环（v2/model3d_m1.py 的分析步总有 UNLOAD、LOAD2），后处理的微动就取第二循环。
+
 不写进声明、算作这个有限元包本身的（换了这些就是另一个有限元包）：
     M1 的界面做法：界面节点复制一份给柄侧，摩擦模型用孪生节点加接触对（v2/model3d_m1.py）；与皮质相邻的节点不施过盈。
+    接触的离散是面对面（SURFACE TO SURFACE），骨侧是从面；压配那一步头固定；卸载步把关节力撤成 0。
+    网格：二阶四面体用直边（gmsh 的 SecondOrderLinear），尺寸场是到柄表面的距离（v2/model3d_v2.py 的 MESH_OPTS、_size_field）；
+    划不成时依次换三维算法和把界面尺寸乘 0.97，一共四档（原项目六档里换柄截面点数的那三档，归柄空间包的 section_points）。
 """
 from __future__ import annotations
 
@@ -73,9 +87,9 @@ FEM = {
               unit="um", range={"min": 0.0, "max": 10.0, "min_open": True}, when={"tangential": ["penalty"]},
               abaqus="*FRICTION, SLIP TOLERANCE"),
         # ---- 分析步
-        _item("cycles", "加载循环数", "消过盈、释放之后，加载、卸载交替几次：2 次就是 LOAD、UNLOAD、LOAD2", "分析步", "integer", 2,
-              f"{BASELINE}；{MODEL} 的 build 默认 2", per_point=True, range={"min": 1, "max": 10},
-              abaqus="*STEP 的序列：PRESSFIT、RELEASE、LOAD、UNLOAD、LOAD2……"),
+        _item("cycles", "加载循环数", "消过盈、释放之后，加载、卸载交替几次：2 次就是 LOAD、UNLOAD、LOAD2。至少 2 次：微动取第二循环",
+              "分析步", "integer", 2, f"{BASELINE}；{MODEL} 的 build 默认 2，分析步总有 UNLOAD、LOAD2", per_point=True,
+              range={"min": 2, "max": 10}, abaqus="*STEP 的序列：PRESSFIT、RELEASE、LOAD、UNLOAD、LOAD2……"),
         _item("nlgeom", "几何非线性", "分析步里算不算几何非线性", "分析步", "bool", False,
               f"{MODEL} 的 *STEP 没写 NLGEOM，Abaqus/Standard 默认关", abaqus="*STEP, NLGEOM"),
         _item("max_increments", "每步最多几个增量", "一个分析步里最多试多少个增量", "分析步", "integer", 1000, f"{MODEL}：*STEP, INC=1000",
@@ -91,14 +105,25 @@ FEM = {
         # ---- 边界条件
         _item("distal", "远端怎么约束", "骨在远端截断，截断面上的节点三个方向都固定", "边界条件", "choice", "fixed",
               f"{MODEL}：*BOUNDARY FIXED, 1, 3", choices=_choices(("fixed", "远端截断面固定"))),
+        _item("distal_from", "远端截断从哪量起", "截断面垂直于干轴，从这个标志点那一层往远端量 distal_cut_mm。干轴照骨模型的格式：从 "
+              "shaft_distal 指向 shaft_proximal", "边界条件", "ref", {"ref": "bone.landmark.lesser_trochanter"},
+              "v2/femur_real.py 的 landmarks：模型坐标的原点在骨干轴上、小转子那一层的高度（4d 加的）", refers=["bone.landmark"]),
+        _item("distal_cut_mm", "远端截断的深度", "截断面在 distal_from 那一层以下多远。截断面以下的骨不建，截断面上的节点固定", "边界条件",
+              "number", 150.0, f"{CONFIG} femur.z_trunc_mm = −150：模型坐标里小转子下 150 mm 截断并固支（4d 加的）", unit="mm",
+              range={"min": 0.0, "max": 500.0, "min_open": True}),
         # ---- 载荷
+        _item("load_frame", "载荷的坐标系", "两个倾角量在哪个坐标系里。shaft_neck：z 沿干轴指向近端（骨模型的 shaft_distal 指向 "
+              "shaft_proximal），x 是颈轴（neck_center 指向 head_center）投到垂直干轴的面上、指向内侧，y 指向后方；冠状面是 x、z 张成的面",
+              "载荷", "choice", "shaft_neck", "4d 加的：原项目的冠状面由后髁连线定（v2/femur_real.py 的 landmarks，Bergmann 2016 的做法），"
+              "骨模型第 1 版没有后髁的标志点，改用颈轴，和 plugins/recon/landmarks.py 找小转子时的写法一样",
+              choices=_choices(("shaft_neck", "干轴加颈轴"))),
         _item("load_N", "关节力的大小", "加在头上的合力", "载荷", "number", 2391.0,
               f"{BASELINE}；{CONFIG} load.resultant_N（v1 的合力，介于 Bergmann 2016 AVER75 2232 N 和 HIGH100 3606 N 之间）",
               per_point=True, unit="N", range={"min": 0.0, "max": 20000.0, "min_open": True}, abaqus="*CLOAD"),
-        _item("load_front_deg", "冠状面的倾角", "合力在冠状面里和干轴的夹角", "载荷", "number", 20.0, f"{BASELINE}；{BERGMANN}",
-              per_point=True, unit="deg", range={"min": -90.0, "max": 90.0}),
-        _item("load_sagit_deg", "矢状面的倾角", "合力在矢状面里和干轴的夹角", "载荷", "number", 18.0, f"{BASELINE}；{BERGMANN}",
-              per_point=True, unit="deg", range={"min": -90.0, "max": 90.0}),
+        _item("load_front_deg", "冠状面的倾角", "合力在冠状面里和干轴的夹角，正的是合力朝外侧（冠状面照 load_frame）", "载荷", "number", 20.0,
+              f"{BASELINE}；{BERGMANN}", per_point=True, unit="deg", range={"min": -90.0, "max": 90.0}),
+        _item("load_sagit_deg", "矢状面的倾角", "合力在矢状面里和干轴的夹角，正的是合力朝后方（矢状面照 load_frame）", "载荷", "number", 18.0,
+              f"{BASELINE}；{BERGMANN}", per_point=True, unit="deg", range={"min": -90.0, "max": 90.0}),
         _item("load_point", "关节力打在哪", "合力的作用点。头心复位：假体头心就是股骨头心", "载荷", "ref", {"ref": "bone.landmark.head_center"},
               f"{MODEL}：HEADN 是柄上离股骨头心 head_coupling_radius_mm 以内的节点", refers=["bone.landmark", "stem.feature"]),
         _item("load_spread_mm", "关节力分到多大范围", "合力平均分到柄上离作用点这么远以内的节点上", "载荷", "number", 14.0,
