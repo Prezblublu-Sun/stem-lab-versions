@@ -1,6 +1,9 @@
-"""把“床支撑 F”打成 stem-lab 的一个带代码的包（种类 derive_def）。
+"""把“床支撑 F”打成 stem-lab 的一个带代码的包（种类 derive_def）。旧常数的那一个：只给参照包那条（fea.reference）用。
 
     python external/derive_bed_f/build.py <包放到哪个文件夹>
+
+常数（bed_f.json）写在旧系统的模型坐标里，是 Sawbones 3406 专用的；参照包交的点云也在那个坐标里。
+fea.run 上的点云在骨模型的坐标里，要用照名字引用取位置的那一个：external/derive_bed_f_named。
 
 自检样本是这里现造的一小片界面点云：九个节点，哪几个落在支撑区里、F 该是多少，手算得出来（见 sample()）。
 打好之后登记：python -m stemlab.desk register derive_def bed-f-3406 --path <包的文件夹> --note "..."

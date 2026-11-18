@@ -30,14 +30,14 @@ import tarfile
 import time
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from plugins.fea import given
-from stemlab.contract import hashing
 from stemlab.contract.formats import declaration as d
 from stemlab.contract.formats import package as package_format
 from stemlab.contract.formats import stem_model
-from stemlab.contract.formats.manifest import check_format, make_manifest, read_manifest, write_manifest
+from stemlab.contract.formats.manifest import check_format, read_manifest
 from stemlab.contract.formats.points import read_points
 from stemlab.desk.core import start as starting
 from stemlab.experiments import view
@@ -45,10 +45,12 @@ from stemlab.registry import register
 from tests import real
 from tests.plugins.fea_cases import kept, rows_of, stages
 from tests.science import tools
+from tests_free import sawbone3406
+from tests_free.derive_bed_f import oracle
+from tests_free.sawbone3406 import SUMMARY, bone_folder
 
 REPO = Path(__file__).resolve().parents[2]
 HERE = REPO / "external" / "fem_abaqus"
-SUMMARY = "v2/out/femur_3406_summary.json"     # 旧系统自己找出的 3406 的标志点和坐标系（只读）
 LEGACY_JOB = "sb13_a105_91e458e3"              # 旧数据库 v0.14 里设计 A 的那一行
 SLOW = os.environ.get("STEMLAB_ABAQUS_RUN") == "1"
 
@@ -65,14 +67,13 @@ BUILD = _load("external/fem_abaqus/build.py", "fem_abaqus_build_4d")
 STEM_DECL = _load("external/stem_m1_3406/declarations.py", "stem_m1_3406_declarations_4d")
 STEM_BUILD = _load("external/stem_m1_3406/build.py", "stem_m1_3406_build_4d")
 KERNEL = _load("external/kernel_m1_3406/build.py", "kernel_m1_3406_build_4d")
+BED_F = _load("external/derive_bed_f_named/declarations.py", "derive_bed_f_named_declarations_4d")    # 床支撑 F（名字引用，4e）
 SHAPE_A = dict(STEM_DECL.A)                                 # 设计 A 的 12 个形状项
 TEST = d.test_setting(DECL.FEM, "R0002")["values"]          # 测试轮的有限元设定
 PLACE = d.test_setting(STEM_DECL.PLACEMENT, "R0001")["values"]
 # 原来的 8 个条件：拆开以后它们是有限元设定里每个点能变的项，测试轮的取值就是设计 A 在旧数据库里用的
 CONDITIONS = ("E_canc_MPa", "h_int_mm", "mu", "cycles", "load_N", "load_front_deg", "load_sagit_deg", "delta_mm")
-# 骨模型的材料：Sawbones 3406 的皮质和 PCF 20 泡沫（和旧系统的配置、real.BONE_EXTRA 一样）
-MATERIALS = {"cortical": {"model": "linear_elastic", "E_MPa": 16800.0, "nu": 0.3},
-             "cancellous": {"model": "linear_elastic", "E_MPa": 155.0, "nu": 0.3}}
+# 3406 的骨模型（两个实体、标志点、材料）怎么造，在 tests_free/sawbone3406.py：4e 的测试也用
 
 
 # ---------------------------------------------------------------- 造输入
@@ -102,34 +103,6 @@ def run(package: Path, job: dict, where: Path, env: dict | None = None) -> dict:
     (where / "ask").mkdir(parents=True, exist_ok=True)
     (where / "ask" / "job.json").write_text(json.dumps(job), encoding="utf-8")
     return start(package, where / "ask", where / "out", env)
-
-
-def landmarks(summary: dict) -> dict:
-    """3406 的五个标志点，照旧系统自己找出的那一套放（femur_real.landmarks，记在 v2/out/femur_3406_summary.json）：
-    干轴上的两个点就在旧系统的干轴上，小转子放在干轴上它那一层的高度（这个包只用它的高度），颈中心在颈轴上。
-    这样拆出的包截断的地方就是旧模型的 z = −150 mm；载荷的冠状面改用颈轴定，和旧模型差一个前倾角。"""
-    origin, shaft_c, head = (summary[key] for key in ("origin", "shaft_c", "head_c"))
-    neck = summary["neck_axis"]["u_baked"]
-    on_axis = "on the legacy shaft axis (femur_real.landmarks: line fitted to the outer section centroids 150-330 mm below the top)"
-    return {"head_center": {"xyz": list(head), "definition": "centre of the sphere fitted to the head by the legacy code"},
-            "neck_center": {"xyz": [h - 23.3 * u for h, u in zip(head, neck)],
-                            "definition": "on the legacy isthmus neck axis, 23.3 mm from the head centre"},
-            "shaft_proximal": {"xyz": list(origin), "definition": f"{on_axis}, at the level of the lesser trochanter"},
-            "shaft_distal": {"xyz": list(shaft_c), "definition": f"{on_axis}, centroid of the fitted sections"},
-            "lesser_trochanter": {"xyz": list(origin), "definition": "the level of the most prominent point of the lesser "
-                                  "trochanter, put on the shaft axis (the legacy model origin); only its level is used"}}
-
-
-def bone_folder(folder: Path, legacy: Path, summary: dict, bone_id: str = tools.BONE_ID) -> Path:
-    """3406 的骨模型：两个实体是旧系统用的那两个 STEP，标志点照旧系统找出的，材料是 3406 的。"""
-    source = legacy / "v2" / "data" / "femur_3406"
-    (folder / "solids").mkdir(parents=True)
-    for name, file in tools.STEPS.items():
-        shutil.copyfile(source / file, folder / "solids" / f"{name}.step")
-    frame = {"origin": "the origin of the baked 3406R CAD files", "x": "medial", "y": "posterior", "z": "proximal"}
-    write_manifest(folder, make_manifest("bone_model", hashing.list_tree(folder), bone_id=bone_id,
-                                         **{**real.BONE_EXTRA, "landmarks": landmarks(summary), "frame": frame, "materials": MATERIALS}))
-    return folder
 
 
 # ---------------------------------------------------------------- 读 Abaqus 的输入
@@ -668,25 +641,80 @@ def test_post_of_a_solve_that_did_not_finish(built, made_a, bone, stem, tmp_path
 
 # ---------------------------------------------------------------- 经真的 fea.run
 
+def derive_package(folder: Path, which: str = "derive_bed_f_named") -> Path:
+    """现打一个床支撑 F 的推导量定义：照名字引用的（给 fea.run），或者 derive_bed_f，旧常数的那个（参照包那条用的）。"""
+    done = subprocess.run([sys.executable, str(REPO / "external" / which / "build.py"), str(folder)],
+                          capture_output=True, timeout=600, env=dict(os.environ, **tools.ENV))
+    assert done.returncode == 0, done.stderr.decode("utf-8", "replace")[-2000:]
+    return folder
+
+
 def registered(legacy: Path, summary: dict, tmp: Path, stem_package: Path, built: Path) -> dict:
-    """在这本空账里登记 3406 的骨模型、4c 的柄空间包、这个有限元包、床支撑 F 的推导量定义。"""
+    """在这本空账里登记 3406 的骨模型、4c 的柄空间包、这个有限元包、床支撑 F 的推导量定义（照名字引用的那个，4e）。"""
     bone = register.register_external("bone_model", "sawbone3406-model", source=bone_folder(tmp / "bone", legacy, summary),
                                       note="测试用：3406 的两个实体，标志点照旧系统找出的", by="tester", bone_id=tools.BONE_ID, new_bone=True)
     stem = register.register_external("stem_space", "m1-3406", source=stem_package, note="测试用：现打的 M1 柄空间包", by="tester")
     fem = register.register_external("fem", "abaqus-m1", source=built, note="测试用：现打的 Abaqus 有限元包", by="tester")
-    done = subprocess.run([sys.executable, str(REPO / "external" / "derive_bed_f" / "build.py"), str(tmp / "derive")],
-                          capture_output=True, timeout=600, env=dict(os.environ, **tools.ENV))
-    assert done.returncode == 0, done.stderr.decode("utf-8", "replace")[-2000:]
-    derive = register.register_external("derive_def", "bed-f-3406", source=tmp / "derive", note="测试用：床支撑 F", by="tester")
+    derive = register.register_external("derive_def", "bed-f", source=derive_package(tmp / "derive"),
+                                        note="测试用：床支撑 F（支撑区照名字引用定）", by="tester")
     return {"bone": bone, "stem": stem, "fem": fem, "derive": derive}
 
 
 def experiment(tmp: Path, items: dict, rows) -> str:
-    """一个 fea.run：原来的 8 个条件在有限元设定里写成每个点给，截骨高度在放置设定里每个点给。"""
+    """一个 fea.run：原来的 8 个条件在有限元设定里写成每个点给，截骨高度在放置设定里每个点给，推导量设定照测试轮的取值。"""
     values = {"placement": real.declared(STEM_DECL.PLACEMENT, items["stem"]["id"], h_cut=real.PER_POINT),
-              "fem_setting": real.declared(DECL.FEM, items["fem"]["id"], **{name: real.PER_POINT for name in CONDITIONS})}
+              "fem_setting": real.declared(DECL.FEM, items["fem"]["id"], **{name: real.PER_POINT for name in CONDITIONS}),
+              "derive_setting": real.declared(BED_F.DERIVE, items["derive"]["id"])}
     return real.fea_run(tmp, rows, packages_={name: items[name] for name in ("stem", "fem", "derive")}, settings=values,
                         bone=items["bone"])
+
+
+def legacy_cloud(row: dict):
+    """旧数据库里这一行的界面点云（参照包那一套算的，在旧模型坐标里），写成旧的床支撑 F 要的那几个数组。没有就是 None。"""
+    shard = tools.LEGACY_DB.parent / "fields" / f"{row.get('field_shard')}.npz"
+    if not row.get("field_shard") or not shard.is_file():
+        return None
+    held, index = np.load(shard, allow_pickle=False), int(row["field_index"])
+    start_, stop = int(held["off"][index]), int(held["off"][index + 1])
+    assert row["job_id"] == str(held["job_id"][index])
+    return {"X": held["X"][start_:stop], "area": held["area"][start_:stop], "d_canal": held["d_canal"][start_:stop],
+            "collar": held["collar"][start_:stop].astype(bool), "P0": held["frame"][index][0], "stem_axis": held["frame"][index][1]}
+
+
+def bed_support_side_by_side(tmp: Path, new: dict, cloud, model: dict, summary: dict, landmarks: dict, old_row: dict) -> list[str]:
+    """设计 A 的床支撑 F 四种算法并排，给人看，不判：旧常数或名字引用，配旧点云或这次的点云。
+    旧常数的两个数是旧的包（external/derive_bed_f）算的，点云在旧模型坐标里交给它；名字引用配旧点云的那个是照定义另算的。"""
+    turned, origin = sawbone3406.model_frame(summary)
+    package = derive_package(tmp / "derive-old", "derive_bed_f")
+    values = d.test_setting(BED_F.DERIVE, "none")["values"]
+
+    def old_way(name: str, arrays: dict) -> dict:
+        (tmp / name).mkdir()
+        np.savez(tmp / name / "interface.npz", **arrays)
+        return run(package, {"fields": {"interface": str(tmp / name / "interface.npz")}, "labels": {}, "pre": {}, "point": {}},
+                   tmp / name)["derived"]
+
+    frame = model["placement"]["frame"]
+    there = old_way("old-on-new", {"X": (np.asarray(cloud["X"], float) - origin) @ turned.T, "area": cloud["area"], "d_canal": cloud["d_canal"],
+                                   "collar": cloud["collar"], "P0": (np.asarray(frame["origin"], float) - origin) @ turned.T,
+                                   "stem_axis": np.asarray(frame["z"], float) @ turned.T})
+    lines = ["", "设计 A 的床支撑 F（mm，括号里是支撑区里的节点数），四种算法并排，不判：",
+             f"  {'':14}{'旧点云（参照包那一套算的）':>22}{'这次 fea.run 的点云':>22}"]
+    was = legacy_cloud(old_row)
+    if was is None:
+        lines.append("  旧数据库里找不到设计 A 的界面点云：左边一列没有")
+        here = renamed = None
+    else:
+        here = old_way("old-on-old", was)
+        renamed = oracle.of_cloud({**was, "X": was["X"] @ turned + origin}, values, model, landmarks)
+
+    def cell(found) -> str:
+        return f"{'':>22}" if found is None else f"{found['F_mm']:>14.2f} ({found['F_n_nodes']})".rjust(22)
+
+    lines.append(f"  {'旧常数、旧算法':<10}{cell(here)}{cell(there)}")
+    lines.append(f"  {'名字引用':<13}{cell(renamed)}{cell(new)}")
+    lines.append("  左上是参照包那条的数，右下是这次 fea.run 交的数")
+    return lines
 
 
 def point(name: str, h_cut: float) -> dict:
@@ -762,10 +790,21 @@ def test_design_a_goes_through_fea_run_with_abaqus(real_lab, data, legacy, summa
     record = json.loads((Path(read_manifest(archive)["root"]) / solved["file"]).read_bytes())["m_fric"]
     assert record["status"] == "OK" and record["release"].startswith("2025"), "求解器报的版本就是清单里写的 Abaqus 2025"
 
+    # 床支撑 F（4e）：推导量定义照名字引用，从这次的点云、柄的模型和骨模型算出来的，和照定义另算的一样
+    cloud = np.load(real.output(made, "data") / row["fields"]["interface"])
+    shown = next(row for row in read_points(archive / "index.jsonl") if row["task"] == "A" and row["file"].endswith("/stem_model.json"))
+    model = json.loads((Path(read_manifest(archive)["root"]) / shown["file"]).read_bytes())
+    landmarks = read_manifest(tmp_path / "bone")["landmarks"]
+    wanted = oracle.of_cloud(cloud, d.test_setting(BED_F.DERIVE, "none")["values"], model, landmarks)
+    bed = {name: values[name] for name in wanted}
+    assert bed == pytest.approx(wanted, rel=1e-9) and bed["F_n_nodes"] > 100, f"数据里的 {bed}，照定义另算的 {wanted}"
+    assert listed["made_by"]["derive"] == {"package": frozen["derive"][0]["hash"]} and listed["made_by"]["settings"]["derive"]
+
     old = tools.legacy_rows(LEGACY_JOB)[0]
     with capsys.disabled():
         print("\n设计 A：fea.run（柄空间包加有限元包） 和 旧数据库（参照包那一套） 并排，不判")
         for name in ("rot_first_deg", "rot_rev_deg", "rot_perm_deg", "subsid_first_um", "f1_p95_um", "f1_first_p95_um",
                      "contact_area_load2_mm2", "open_frac_load2", "area_frac_gt150", "iface_force_err_load", "n_pairs",
-                     "bone_total_mm3", "F_mm"):
+                     "bone_total_mm3"):
             print(f"  {name:24} 新 {values.get(name)!s:>24}  旧 {old.get(name)!s:>24}")
+        print("\n".join(bed_support_side_by_side(tmp_path, bed, cloud, model, summary, landmarks, old)))

@@ -10,7 +10,9 @@ stem-lab 1.0：管实验的系统。设计的依据是 `docs/蓝图.md`，拿不
   （`tests_free/recon/`：CT 骨源经重建插件；`tests_free/strategies/`：选点策略）
 - external/：把外面的东西做成能登记的包或数据的做法（内核包、柄空间包、有限元包、推导量定义、旧数据库的转换、选点策略）。
   external/ 自己不在检查的范围里；选点策略的测试放在 tests_free/strategies/，M1 柄空间包的放在 tests_free/stem_space/，
-  Abaqus 有限元包的放在 tests_free/fem_abaqus/，所以跟着检查跑。
+  Abaqus 有限元包的放在 tests_free/fem_abaqus/，床支撑 F（推导量定义）的放在 tests_free/derive_bed_f/，所以跟着检查跑。
+  床支撑 F 有两个包：`external/derive_bed_f_named/` 照名字引用取位置，给 `fea.run`；`external/derive_bed_f/` 是旧常数（旧模型坐标、
+  3406 专用），只给 `fea.reference`。
   选点的算法有哪几种、怎么用，见 `docs/优化算法.md`
 - worker_env/：把 worker 的环境照锁装出来的做法。不在检查的范围里
 

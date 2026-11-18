@@ -9,6 +9,10 @@ F = 对柄身界面节点里落在支撑区内的那些，求 面积 / max(泡�
 
 区的边界、参考点、颈轴这几个常数在 data/bed_f.json 里，是 Sawbones 3406 这根骨专用的：换一根骨要另登记一份定义。
 算法和旧系统判定文件里的 mesh_F 逐行相同。
+
+只给参照包那条（fea.reference）用：常数写在旧系统的模型坐标里，参照包交的点云也在那个坐标里。
+fea.run 上有限元包交的点云在骨模型的坐标里，这里的常数对不上：那条路上的 job 带着骨模型，碰到就不算、说出原因。
+fea.run 用照名字引用的那个定义（external/derive_bed_f_named）。
 """
 import json
 import pathlib
@@ -42,6 +46,13 @@ def bed_support(X, area, d_canal, collar, P0, ax, how: dict) -> dict:
 def main() -> int:
     source, out = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
     job = json.loads((source / "job.json").read_text(encoding="utf-8"))
+    if "bone_model" in job:             # fea.run 那条路上的 job 另带骨模型、柄的模型和推导量设定
+        reason = ("这个定义只认参照包（fea.reference）交的点云：它的常数写在旧模型的坐标里。fea.run 上的点云在骨模型的坐标里，"
+                  "要用照名字引用的那个定义（external/derive_bed_f_named）")
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        print(f"床支撑 F 算不了：{reason}")
+        (out / "result.json").write_text(json.dumps({"derived": None, "reason": reason}), encoding="utf-8")
+        return 0
     where = pathlib.Path(job["fields"]["interface"])
     cloud = np.load(where if where.is_absolute() else source / where)
     how = json.loads((HERE.parent / "data" / "bed_f.json").read_text(encoding="utf-8"))
