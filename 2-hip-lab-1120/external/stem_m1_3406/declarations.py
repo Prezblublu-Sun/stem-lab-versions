@@ -13,8 +13,16 @@
 原项目里写死的那几项（放置的规则、选号的界）没有上下限。声明里给它们的范围是放宽了的、物理上说得通的界，
 只用来拦明显写错的值；不是研究过的可行范围。
 
+4c 打包时改了两处（2026-11-18）：
+    去掉了 penetration_tol_mm（允许的皮质穿透 0.25 mm）。它照的是 v2/geom3d.py 的 TOL，但那个量只用在没有距离场的解析股骨上；
+    3406 带距离场，模板化里用的是写死的 0.05 mm 数值容差，柄面离内膜面多远由设计项 m（皮质余量）管。声明了也用不上，所以不留。
+    加了 section_points（柄截面取几个点）。它只管交出的柄的实体怎么分片：原项目划不成网格时会换它重建柄再试（40、24、72），
+    拆开以后柄的实体由柄空间包定，所以这一项归这里，可以每个点给。
+
 不写进声明、算作这个柄空间本身的（换了这些就是另一个柄空间包）：
-    平端的帽高 1.5 mm（main.py 的 CAP_H）；无领（阶段 9 起 collar_w 固定为 0）；截面是四象限超椭圆加楔形（geom3d.py）。
+    平端的帽高 1.5 mm（main.py 的 CAP_H）；无领（阶段 9 起 collar_w 固定为 0）；截面是四象限超椭圆加楔形（geom3d.py）；
+    放得下的数值容差 0.05 mm（geom3d.template）；假体颈底面伸出柄的截口不超过 2 mm² 才算落在截口里（collar_rule.py）；
+    假体头的半径 14 mm、柄的材料 Ti6Al4V（E 110 GPa，ν 0.3）：v2/config_v2a.yaml 的 prosthesis.head_radius_mm、materials.titanium。
 """
 from __future__ import annotations
 
@@ -66,7 +74,7 @@ def _choices(*pairs):
 
 PLACEMENT = {
     "name": "placement",
-    "groups": ["截骨", "颈轴", "入口", "选号"],
+    "groups": ["截骨", "颈轴", "入口", "选号", "柄的实体"],
     "items": [
         {"name": "h_cut", "label": "截骨高度", "meaning": "截骨面到股骨头心的距离，沿颈轴量。原内核里它是设计项", "group": "截骨",
          "type": "number", "unit": "mm", "range": {"min": 16.0, "max": 32.0}, "per_point": True, "required": True, "test": 16.0,
@@ -99,9 +107,6 @@ PLACEMENT = {
         _rule("margin_check", "皮质余量查得多密", "dense 是截骨面下每 0.25 mm 一环的严格检查；sparse 是原来稀的那种", "选号", "choice",
               "dense", f"{FIXED}；用户 2026-10-24 采纳（B1 重放：候选池 1750 → 1542）",
               choices=_choices(("dense", "截骨面下每 0.25 mm 一环"), ("sparse", "原来的稀疏取样"))),
-        _rule("penetration_tol_mm", "允许的皮质穿透", "模板化时柄面允许穿进皮质多深", "选号", "number", 0.25,
-              "v2/geom3d.py 的 TOL；v2/config_v2a.yaml templating.tol_mm（用户 2026-09-27 选定）", unit="mm",
-              range={"min": 0.0, "max": 2.0}),
         _rule("area_min_mm2", "肩部面积的下界", "选号时在这个面积区间里二分，取放得下的最大号：下界", "选号", "number", 20.0,
               "v2/geom3d.py 的 A_BOUNDS[0]", unit="mm2", range={"min": 0.0, "max": 5000.0, "min_open": True}),
         _rule("area_max_mm2", "肩部面积的上界", "选号时二分的上界。3406 的髓腔截口大，上界 900 会判“髓腔比最大号还大”", "选号", "number",
@@ -110,6 +115,10 @@ PLACEMENT = {
               range={"min": 1, "max": 40}),
         _rule("min_tip_area_mm2", "尖端的最小面积", "尖端截面积比它小判“太细”（约 Ø 3.9 mm）", "选号", "number", 12.0,
               "v2/geom3d.py 的 MIN_TIP_AREA", unit="mm2", range={"min": 0.0, "max": 200.0}),
+        {"name": "section_points", "label": "柄截面取几个点", "meaning": "交出的柄的实体是过各截面上这么多个点的曲线放样出来的。"
+         "点数只改实体怎么分片，不改模板化的结果；划不成网格时可以换一个再试", "group": "柄的实体", "type": "integer",
+         "range": {"min": 12, "max": 144}, "per_point": True, "required": True, "test": 40,
+         "test_source": "v2/model3d_m1.py build 的 attempts：第一次用 40，划不成网格时换 24、72 重建柄再试"},
     ],
     "relations": [{"less": "offset_min_mm", "than": "offset_max_mm"}, {"less": "area_min_mm2", "than": "area_max_mm2"}],
 }

@@ -8,8 +8,8 @@ stem-lab 1.0：管实验的系统。设计的依据是 `docs/蓝图.md`，拿不
 - plugins/*/ 里没标冻结的文件，和 plugins/*/tests/
 - stemlab/desk/ui/、stemlab/board/，和 tests_free/：界面和仪表盘的测试，另有自由代码里要经真的核心走一遍的测试
   （`tests_free/recon/`：CT 骨源经重建插件；`tests_free/strategies/`：选点策略）
-- external/：把外面的东西做成能登记的包或数据的做法（内核包、推导量定义、旧数据库的转换、选点策略）。
-  external/ 自己不在检查的范围里；选点策略的测试放在 tests_free/strategies/，所以跟着检查跑。
+- external/：把外面的东西做成能登记的包或数据的做法（内核包、柄空间包、推导量定义、旧数据库的转换、选点策略）。
+  external/ 自己不在检查的范围里；选点策略的测试放在 tests_free/strategies/，M1 柄空间包的放在 tests_free/stem_space/，所以跟着检查跑。
   选点的算法有哪几种、怎么用，见 `docs/优化算法.md`
 - worker_env/：把 worker 的环境照锁装出来的做法。不在检查的范围里
 
