@@ -18,6 +18,7 @@ The FE setting of the point (job["settings"]) may say: load (N, given per point 
 solver takes), build_seconds (how long building takes), load_point (a name reference: where the load goes).
 load_point is looked up in the stem model or in the bone model, and what it found is written into the deck,
 so a test can see that the name reference reached the package together with the stem model.
+job["programs"] (where the programs its manifest lists are installed, taken from the machine list) goes into the deck as well.
 """
 import json
 import os
@@ -66,7 +67,8 @@ def build(job: dict) -> dict:
     where = pathlib.Path(job["job"])
     where.mkdir(parents=True, exist_ok=True)
     deck = {"length": design["length"], "load": settings["load"], "behave": behave, "seconds": settings.get("seconds", 0),
-            "implant": stem is not None, "load_point": where_is(settings.get("load_point"), stem, job["bone_model"])}
+            "implant": stem is not None, "load_point": where_is(settings.get("load_point"), stem, job["bone_model"]),
+            "programs": job.get("programs")}
     (where / "deck.json").write_text(json.dumps(deck))
     (where / "mesh.json").write_text(json.dumps({"nodes": 100 + int(design["length"]), "elements": 50}))
     return {"status": "built", "reason": "", "pre": {"n_nodes": 100 + int(design["length"])},

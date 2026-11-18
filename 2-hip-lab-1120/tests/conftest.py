@@ -21,6 +21,9 @@ from stemlab.desk.core import code_state
 from stemlab.hooks import call, load
 
 REPO = Path(__file__).resolve().parents[1]
+# 带真插件的仓库拷贝里，操作台这台装着的外部程序：假的有限元包（tests/packages/fem_fake）清单里要 fake-solver 1.0。
+# 只是一个位置，不去起它：假的有限元包把它写进交给假求解器的输入，测试看得到位置交到了包手里
+FAKE_SOLVER = {"name": "fake-solver", "version": "1.0", "path": "/opt/fake-solver/1.0/run"}
 
 
 def git(root: Path, *args: str) -> str:
@@ -101,7 +104,8 @@ def real_repo(tmp_path_factory) -> Path:
     shutil.copytree(REPO / "plugins", root / "plugins", ignore=ignore)
     for name in (".importlinter", ".gitattributes", "uv.lock"):
         shutil.copy(REPO / name, root / name)
-    machines = {"format": 1, "machines": [{"name": "here", "role": "desk", "host": socket.gethostname(), "slots": 2}]}
+    machines = {"format": 1, "machines": [{"name": "here", "role": "desk", "host": socket.gethostname(), "slots": 2,
+                                           "programs": [FAKE_SOLVER]}]}
     (root / "machines.json").write_bytes(hashing.canonical(machines) + b"\n")
     frozen_in_plugins = [rel for rel in load.parse_frozen((REPO / load.FROZEN).read_bytes()).files if rel.startswith("plugins/")]
     with pytest.MonkeyPatch.context() as patch:

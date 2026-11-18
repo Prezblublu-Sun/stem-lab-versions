@@ -90,6 +90,24 @@ def test_desk_alone_is_enough():
     assert check_machines({"format": 1, "machines": [MACHINES["machines"][0]]}) == []
 
 
+ABAQUS = {"name": "abaqus", "version": "2025", "path": "D:/SIMULIA/Commands/abq2025.bat"}
+
+
+def test_a_machine_says_where_its_programs_are():
+    """装在哪是机器的事：包只写要哪个程序哪一版，位置照名字和版本在这台机器的清单里找。同一个程序可以装几个版本。"""
+    older = {"name": "abaqus", "version": "2024", "path": "D:\\SIMULIA\\Commands\\abq2024.bat"}
+    solver = {"name": "calculix", "version": "2.21", "path": "/usr/local/bin/ccx_2.21"}
+    doc = with_row(with_row(MACHINES, 0, programs=[ABAQUS, older]), 1, programs=[solver])
+    assert check_machines(doc) == []
+    desk, worker = parse_machines(doc)
+    assert desk.program("abaqus", "2025") == ABAQUS["path"] and desk.program("abaqus", "2024") == older["path"]
+    assert desk.program("abaqus", "2023") is None and desk.program("calculix", "2.21") is None
+    assert worker.program("calculix", "2.21") == "/usr/local/bin/ccx_2.21"
+    assert parse_machines(MACHINES)[0].programs == () and parse_machines(MACHINES)[0].program("abaqus", "2025") is None, \
+        "不写 programs 的清单照样合格：这台机器没有登记的外部程序"
+    assert check_machines(with_row(MACHINES, 0, programs=[])) == []
+
+
 BAD_MACHINES = [
     ("不是对象", []),
     ("没有 machines", {"format": 1}),
@@ -115,6 +133,14 @@ BAD_MACHINES = [
     ("connect 多了一项", with_row(MACHINES, 1, connect={"ssh": "user@host", "password": "x"})),
     ("desk 写了 connect", with_row(MACHINES, 0, connect={"ssh": "user@host"})),
     ("机器多了一项", with_row(MACHINES, 0, gpu="RTX")),
+    ("programs 不是列表", with_row(MACHINES, 0, programs={"abaqus": "D:/SIMULIA/Commands/abq2025.bat"})),
+    ("程序少写了位置", with_row(MACHINES, 0, programs=[{"name": "abaqus", "version": "2025"}])),
+    ("程序多写了一项", with_row(MACHINES, 0, programs=[dict(ABAQUS, licence="27000@server")])),
+    ("程序的名字不合规矩", with_row(MACHINES, 0, programs=[dict(ABAQUS, name="Abaqus Standard")])),
+    ("程序的版本是空的", with_row(MACHINES, 0, programs=[dict(ABAQUS, version=" ")])),
+    ("程序的位置不是完整的路径", with_row(MACHINES, 0, programs=[dict(ABAQUS, path="abq2025.bat")])),
+    ("程序的位置里有 &", with_row(MACHINES, 0, programs=[dict(ABAQUS, path="D:/SIMULIA/abq2025.bat & del x")])),
+    ("同一个程序同一版写了两遍", with_row(MACHINES, 0, programs=[ABAQUS, dict(ABAQUS, path="E:/abq2025.bat")])),
 ]
 
 

@@ -3,7 +3,8 @@
     {
       "format": 1,
       "machines": [
-        {"name": "win", "role": "desk", "host": "...", "slots": 4},
+        {"name": "win", "role": "desk", "host": "...", "slots": 4,
+         "programs": [{"name": "abaqus", "version": "2025", "path": "D:/SIMULIA/Commands/abq2025.bat"}]},
         {"name": "linux", "role": "worker", "host": "...",
          "connect": {"ssh": "user@10.0.0.1", "port": 22, "options": ["-o", "BatchMode=yes"],
                      "bin": "C:/Windows/System32/OpenSSH"},
@@ -14,18 +15,26 @@
 系统只用“操作台连 worker”这一个方向：desk 只有一台，data/ 的全部只由它写。
 connect.bin 是 ssh 和 scp 所在的文件夹；不写就用 PATH 上的。Windows 上要用系统自带的 OpenSSH
 才读得到 ssh-agent 里的密钥，所以最好写明。
+
+programs 是这台机器装了哪些外部程序（求解器之类），可以不写。每个写名字、确切的版本、位置（完整的路径）；
+同一个程序装了几个版本就各写一行。装在哪是机器的事：包的清单只写它要哪个程序哪一版（formats/package.py 的 programs），
+叫包的一方照名字和版本在要跑它的那台机器的清单里找位置（Machine.program），交给包。
+位置可能经 Windows 的 cmd 去起，所以不许带 cmd 里有特别意思的几个字符。
+加了 programs 以后格式版本还是 1：不写它的清单照样合格。
 """
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
 
-from stemlab.contract.layout import is_key
+from stemlab.contract.layout import is_key, is_label
 from stemlab.contract.versions import FORMATS
 
 DESK, WORKER = "desk", "worker"
 ROLES = (DESK, WORKER)
 _SAFE_PATH = re.compile(r"[A-Za-z0-9_./-]+")       # 这些位置要拼进远端的命令里，所以只许这些字符；~ 不会被展开，也不许
+# 外部程序的位置：完整的路径（盘符开头，或者 / 开头），不带引号、& | < > ^ % ! 和控制字符
+_PROGRAM_PATH = re.compile(r'(?:[A-Za-z]:[\\/]|/)[^"&|<>^%!\x00-\x1f]*')
 
 
 @dataclass(frozen=True)
@@ -41,6 +50,11 @@ class Machine:
     python: str = "python3"         # 这台机器上跑 worker 用的解释器（它那个环境里的 python）
     job_root: str | None = None     # 作业根目录，worker 必写
     backup_root: str | None = None  # 备份推到哪，收备份的那台必写
+    programs: tuple = ()            # 装了哪些外部程序：（名字，版本，位置）的元组
+
+    def program(self, name, version) -> str | None:
+        """这台机器上这个程序这一版装在哪。清单里没写就是 None。"""
+        return next((path for got, which, path in self.programs if (got, which) == (name, version)), None)
 
 
 def check_machines(doc) -> list[str]:
@@ -55,7 +69,7 @@ def check_machines(doc) -> list[str]:
             problems.append("machines 里有一项不是 JSON 对象")
             continue
         title = f"机器 {row.get('name')!r}"
-        known = ("name", "role", "host", "slots", "connect", "python", "job_root", "backup_root")
+        known = ("name", "role", "host", "slots", "connect", "python", "job_root", "backup_root", "programs")
         problems += [f"{title} 多了 {key}" for key in row if key not in known]
         if not is_key(row.get("name")):
             problems.append(f"{title}：name 要用小写字母、数字和下划线")
@@ -74,6 +88,7 @@ def check_machines(doc) -> list[str]:
             if isinstance(row.get(key), str) and not row[key].startswith("/"):
                 problems.append(f"{title}：{key} 要写从 / 开始的完整位置")
         problems += [f"{title}：{text}" for text in _check_connect(row)]
+        problems += [f"{title}：{text}" for text in _check_programs(row.get("programs"))]
     if len(set(names)) != len(names):
         problems.append("机器的名字有重复的")
     if [row.get("role") for row in doc["machines"] if isinstance(row, dict)].count(DESK) != 1:
@@ -101,6 +116,31 @@ def _check_connect(row: dict) -> list[str]:
     return problems
 
 
+def _check_programs(programs) -> list[str]:
+    """一台机器装的外部程序：[{"name", "version", "path"}]。不写就是没有。"""
+    if programs is None:
+        return []
+    if not isinstance(programs, list):
+        return ['programs 要是一个列表：[{"name": 程序, "version": 确切的版本, "path": 位置}]']
+    problems, seen = [], set()
+    for one in programs:
+        if not isinstance(one, dict) or set(one) != {"name", "version", "path"}:
+            problems.append('programs 里每一项要写且只写 "name"、"version"、"path"')
+            continue
+        name, version, path = one["name"], one["version"], one["path"]
+        if not is_label(name):
+            problems.append(f"programs 里程序的名字要用 ASCII 的字母、数字和 . _ -：{name!r}")
+        if not (isinstance(version, str) and version.strip() and version == version.strip()):
+            problems.append(f"programs 里 {name!r} 要写确切的版本，不能是空的：{version!r}")
+        if not (isinstance(path, str) and path == path.strip() and _PROGRAM_PATH.fullmatch(path)):
+            problems.append(f"programs 里 {name!r} 的位置要写完整的路径，不带引号和 & | < > ^ % ! 这几个字符：{path!r}")
+        key = (name, version) if isinstance(name, str) and isinstance(version, str) else None
+        if key is not None and key in seen:
+            problems.append(f"programs 里 {name} {version} 写了两遍")
+        seen.add(key)
+    return problems
+
+
 def parse_machines(doc) -> tuple[Machine, ...]:
     """把核对过的清单读成 Machine。清单不符就报 ValueError。"""
     problems = check_machines(doc)
@@ -114,5 +154,6 @@ def parse_machines(doc) -> tuple[Machine, ...]:
             ssh=connect.get("ssh"), port=connect.get("port", 22), options=tuple(connect.get("options", ())),
             bin=connect.get("bin"), python=row.get("python") or "python3",
             job_root=row.get("job_root"), backup_root=row.get("backup_root"),
+            programs=tuple((one["name"], one["version"], one["path"]) for one in row.get("programs") or []),
         ))
     return tuple(machines)

@@ -10,7 +10,8 @@
     range      预测器另加：适用范围。别的不带
 
 第 2 版另加六段（《设定的声明和包的清单》第六节）。新的四种（NEW_KINDS）必写；原来的四种可以写，也可以不写：
-    programs      用到的外部程序和确切的版本：[{"name", "version"}]，比如 {"name": "abaqus", "version": "2025"}
+    programs      用到的外部程序和确切的版本：[{"name", "version"}]，比如 {"name": "abaqus", "version": "2025"}。
+                  只写要哪个、哪一版，不写装在哪：装在哪是机器的事，写在机器清单里（contract/machines.py 的 programs）
     declarations  声明的设定：[声明, …]，写法和规矩见 declaration.py，一个包里不重名。各种包至少要有的几份见 DECLARED
     modes         能做的事：MODES 里这一种包的那几样，不重复
     inputs        对输入的要求：{输入名: {…}}。里面具体写什么，由用它的冻结代码核
@@ -27,6 +28,9 @@
 各种包和叫它的那一方的约定。契约不核这些：清单里另加的项、输入输出里的内容，由用它的冻结文件核，
 不符就在启动的检查里说出原因。写在这里，是为了包和叫它的一方只有这一处可对。
 输入文件夹里都有一个 job.json，说这一次要它做什么；列的说明都写成 {"name", "unit", "meaning"}。
+包清单的 programs 里写了外部程序的，叫它的一方照名字和版本在要跑它的那台机器的清单里找位置，
+放进 job.json 的 programs：{名字: 位置}。包不自己去找（不看环境变量、不留自己的默认位置）；job 里没有，就当这台机器没装。
+现在照这样带的是 fea.run 交给柄空间包、有限元包、推导量定义的 job（plugins/fea/given.py），启动前也核操作台都装了。
 
     内核（kernel）       清单另加 modes（会哪几种做法：template、build、post）、design 和 conditions
                          （一个点要带的设计项、条件项的说明）、pre / labels / fields（它给出的三类量的说明）、
@@ -63,17 +67,17 @@
                          outputs 是模板化算出的量（role 都是 pre）
         template         job：bone_model、bone_id、designs [{name, design}]、settings（放置设定的取值）
                          result：designs [{name, feasible, info}]。只模板化，不出柄的模型。优化取候选时用
-        model            job：bone_model、bone_id、point {name, hash, design}、settings（这个点的放置设定）
+        model            job：bone_model、bone_id、point {name, hash, design}、settings（这个点的放置设定）、programs
                          result：status（ok、misfit、env、error）、reason、pre {模板化算出的量}。
                          status 是 ok 的，柄的模型（stem_model.py 的格式）写在输出文件夹的 model/ 里，design 原样抄这个点的
     有限元（fem）         outputs 是它给出的量：role 是 pre（建模时就有的）、label（标量）、field（场）
         build            job：bone_model、bone_id、stem_model（柄的模型的文件夹，无植入物是 null）、point {name, hash}、
-                         settings（这个点的有限元设定）、job（求解用的文件夹）
+                         settings（这个点的有限元设定）、job（求解用的文件夹）、programs
                          result：status（built、mesh_failed、env、error）、reason、pre {…}、
                          solve {"command": 求解命令的各个参数，在 job 文件夹里跑，跑完才返回; 可另带 "timeout_s"}
         post             job：同 build。求解已经结束，结果在 job 文件夹里。result 同内核的 post
     推导量定义在拆内核以后的那条路上，job 另带 bone_model、stem_model（无植入物是 null）、
-    settings（这个点的推导量设定，没有推导量设定是 null），pre 是柄空间包和有限元包两次给的合起来
+    settings（这个点的推导量设定，没有推导量设定是 null）、programs，pre 是柄空间包和有限元包两次给的合起来
 """
 from __future__ import annotations
 

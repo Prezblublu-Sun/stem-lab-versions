@@ -19,6 +19,7 @@ from stemlab.desk.core import start
 from stemlab.experiments import view
 from stemlab.hooks import load
 from tests import packages, real
+from tests.conftest import FAKE_SOLVER
 from tests.plugins.fea_cases import kept, refused, rows_of, stages
 
 P = real.point_run
@@ -211,3 +212,20 @@ def test_the_run_setting_follows_what_fea_run_declares(real_lab, data, tmp_path)
         other["declaration"], hash="0" * 64))})), "声明改过了，旧的运行设定对不上"
     assert "规则 4" in refused(real.fea_run(tmp_path, [P("p1")], run={"build_slots": 0}))
     assert "规则 3" in refused(real.fea_run(tmp_path, [P("p1")], run={"solve_timeout_s": None})), "运行设定也要写全"
+
+
+# ---- 7 外部程序装在哪：写在机器清单里，照名字和版本交到包手里 ----
+
+def test_the_programs_a_package_needs_come_from_the_machine_list(real_lab, data, tmp_path):
+    """包的清单只写要哪个程序哪一版；装在哪写在操作台这台的机器清单里，骨架照名字和版本找到，放进交给包的 job。
+    包要的程序这台机器的清单里没有（版本对不上也算没有），启动前就拒，说出是哪个包要的哪个程序哪一版。"""
+    made = real.fea_run(tmp_path, [P("p1")])
+    finished(made)
+    assert real.tasks(made) == {"p1": ("done", "finished")}
+    assert deck(made, "p1")["programs"] == {FAKE_SOLVER["name"]: FAKE_SOLVER["path"]}, "有限元包拿到了假求解器在这台机器上的位置"
+    newer = real.package("fem_fake", tmp_path, programs=[{"name": "fake-solver", "version": "2.0"}])
+    said = refused(real.fea_run(tmp_path, [P("p1")], packages_={"fem": newer}))
+    assert "有限元包" in said and "fake-solver 2.0" in said and "机器清单" in said, said
+    other = real.package("stem_fake", tmp_path, programs=[{"name": "cad-kernel", "version": "7"}])
+    said = refused(real.fea_run(tmp_path, [P("p1")], packages_={"stem": other}))
+    assert "柄空间包" in said and "cad-kernel 7" in said, said

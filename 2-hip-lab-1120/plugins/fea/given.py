@@ -9,8 +9,11 @@
                  跑的时候再核交出的柄的模型（stem_wrong），不合的作业归成出错
     数据说明      设计项、三组每个点给的项（role 都是 condition）、柄空间包和有限元包的产出、推导量，列名不重复。
                  每个点给的项要写进数据的行，只能是数、整数、是否、几选一、文字
+    外部程序      三个包清单的 programs 里写的程序（名字和确切的版本），操作台这台的机器清单里都写了装在哪。
+                 FEA 的包都在操作台上跑
 
-交给包的 job.json 也在这里拼（ask、derive_ask）：包拿到的设定就是登记的那几份，加上这个点给的，没有隐含的默认值。
+交给包的 job.json 也在这里拼（ask、derive_ask）：包拿到的设定就是登记的那几份，加上这个点给的，没有隐含的默认值；
+它要的外部程序在操作台上装在哪，照机器清单放进 programs（{名字: 位置}），包不自己去找。
 自由代码照它写 job.json。作业结束以后，冻结的代码照登记的输入再核一遍，自由代码交上来的说法不作数。
 """
 from __future__ import annotations
@@ -66,6 +69,23 @@ def promised(stem_listed) -> dict:
             for part in NAME_PARTS}
 
 
+def _desk(handle):
+    return next((machine for machine in handle.machines if machine.role == "desk"), None)
+
+
+def _wanted(listed) -> list:
+    """一个包清单里写的外部程序：[{"name", "version"}]。没写就是没有。"""
+    programs = listed.get("programs") if isinstance(listed, dict) else None
+    return [one for one in programs if isinstance(one, dict)] if isinstance(programs, list) else []
+
+
+def located(handle, listed) -> dict:
+    """这个包要的外部程序在操作台这台上装在哪：{名字: 位置}。照机器清单，名字和版本都对上的才算。"""
+    desk = _desk(handle)
+    found = {one.get("name"): desk.program(one.get("name"), one.get("version")) if desk else None for one in _wanted(listed)}
+    return {name: where for name, where in found.items() if where is not None}
+
+
 # ---------------------------------------------------------------- 启动前
 
 def problems(handle) -> list[str]:
@@ -75,6 +95,7 @@ def problems(handle) -> list[str]:
     except ValueError as error:
         return [str(error)]
     found = _package_problems(given)
+    found += _program_problems(handle, given)
     found += _setting_problems(handle, given)
     if found:
         return found
@@ -119,6 +140,16 @@ def _package_problems(given: dict) -> list[str]:
     if lacking:
         found.append(f"推导量定义要的场 {lacking}，这个有限元包不给")
     return found
+
+
+def _program_problems(handle, given: dict) -> list[str]:
+    """三个包要的外部程序，操作台这台的机器清单里都写了装在哪：名字和版本都对上。"""
+    desk = _desk(handle)
+    where = f"操作台（{desk.name}）" if desk else "操作台"
+    return [f"{label}要 {one.get('name')} {one.get('version')}，{where}的机器清单里没写它装在哪（programs）"
+            for package, label in (("stem", "柄空间包"), ("fem", "有限元包"), ("derive", "推导量定义"))
+            for one in _wanted(given["listed"][package])
+            if not (desk and desk.program(one.get("name"), one.get("version")))]
 
 
 def _setting_problems(handle, given: dict) -> list[str]:
@@ -226,16 +257,18 @@ def maker(handle, given: dict) -> dict:
 
 def ask(handle, job: dict, mode: str, stem=None, solve=None) -> dict:
     """交给包的 job.json。mode 是 model（柄空间包出柄的模型），或 build、post（有限元包）。
-    stem 是柄空间包的输出文件夹（柄的模型在它的 model/ 里），无植入物是 None；solve 是求解用的文件夹。"""
+    stem 是柄空间包的输出文件夹（柄的模型在它的 model/ 里），无植入物是 None；solve 是求解用的文件夹。
+    programs 是这个包要的外部程序在操作台上装在哪（照机器清单）。"""
     point = job["point"]
     base = {"mode": mode, "bone_model": str(handle.input("bone")), "bone_id": point["bone_id"]}
     if mode == "model":
         return dict(base, point={"name": point["name"], "hash": point["hash"], "design": point["design"]},
-                    settings=hooks.merged(handle.input("placement"), point.get("placement") or {}))
+                    settings=hooks.merged(handle.input("placement"), point.get("placement") or {}),
+                    programs=located(handle, _manifest(handle.input("stem"))))
     return dict(base, stem_model=None if stem is None else str(Path(stem) / MODEL),
                 point={"name": point["name"], "hash": point["hash"]},
                 settings=hooks.merged(handle.input("fem_setting"), point.get("conditions") or {}),
-                job=None if solve is None else str(solve))
+                job=None if solve is None else str(solve), programs=located(handle, _manifest(handle.input("fem"))))
 
 
 def pre(result: dict) -> dict:
@@ -250,7 +283,7 @@ def derive_ask(handle, job: dict, result: dict) -> dict:
     return {"bone_model": str(handle.input("bone")),
             "stem_model": str(Path(folder) / MODEL) if handle.input_info("stem") is not None and folder else None,
             "settings": None if setting is None else hooks.merged(setting, point.get("derive") or {}),
-            "pre": pre(result)}
+            "pre": pre(result), "programs": located(handle, _manifest(handle.input("derive")))}
 
 
 # ---------------------------------------------------------------- 作业结束以后
