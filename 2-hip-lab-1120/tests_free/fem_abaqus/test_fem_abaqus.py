@@ -6,13 +6,16 @@
     自检      包自带的样本过得去
     建模      设计 A 照测试轮的设定建模：Abaqus 的输入里材料、节点集、载荷、远端约束、接触、分析步、输出都照设定和两份输入
     设定      每一项换一个值，输入跟着变：包用的是设定，不是自己留的常数
-    别的结局  没有柄的模型归 error；找不到启动器归 env；求解没留下结果、没算完，后处理各归到对的结局
-    fea.run   登记进一本空账，经真的 fea.run：放不下的设计归 misfit、不建模；找不到启动器的归 env（这两样不用 Abaqus）。
+    别的结局  没有柄的模型归 error；job 里没有 Abaqus 的位置、写的位置上没有启动器，归 env；求解没留下结果、没算完，后处理各归到对的结局
+    fea.run   登记进一本空账，经真的 fea.run：操作台的机器清单里没写 Abaqus 2025 就不启动；放不下的设计归 misfit、不建模；
+              写的位置上找不到启动器的归 env（这几样不用 Abaqus）。
               设计 A 用真的 Abaqus 走完一遍：一次要十几分钟到半小时，设 STEMLAB_ABAQUS_RUN=1 才跑
 
-要旧系统的文件（只读；换了地方设 STEMLAB_LEGACY）、gmsh 和 Abaqus（启动器换了地方设 STEMLAB_ABAQUS）。
+要旧系统的文件（只读；换了地方设 STEMLAB_LEGACY）、gmsh 和 Abaqus（启动器在哪照这个仓库的机器清单，操作台那一项的 programs）。
 哪样没有，这里的测试跳过并说明原因：看到跳过，不等于那部分验过了。
-只建模、不求解的测试不要 Abaqus：给包一个假的启动器（一个空文件），它只核启动器在不在。
+Abaqus 装在哪是机器的事：叫有限元包的一方照包清单里的名字和版本，在机器清单里找到位置，放进 job.json 的 programs。
+只建模、不求解的测试不要 Abaqus：job 里给一个假的启动器（一个空文件），包只核它在不在。
+经 fea.run 的几条在这次测试自己的仓库拷贝（real_own_lab）里改写机器清单，写上这次要的 Abaqus 的位置。
 external/ 不在检查的范围里，所以测试放在这里。
 """
 from __future__ import annotations
@@ -34,16 +37,18 @@ import numpy as np
 import pytest
 
 from plugins.fea import given
+from stemlab.contract import hashing
 from stemlab.contract.formats import declaration as d
 from stemlab.contract.formats import package as package_format
 from stemlab.contract.formats import stem_model
 from stemlab.contract.formats.manifest import check_format, read_manifest
 from stemlab.contract.formats.points import read_points
+from stemlab.contract.machines import parse_machines
 from stemlab.desk.core import start as starting
 from stemlab.experiments import view
 from stemlab.registry import register
 from tests import real
-from tests.plugins.fea_cases import kept, rows_of, stages
+from tests.plugins.fea_cases import kept, refused, rows_of, stages
 from tests.science import tools
 from tests_free import sawbone3406
 from tests_free.derive_bed_f import oracle
@@ -84,9 +89,11 @@ def settings(**change) -> dict:
     return {name: value for name, value in values.items() if value is not None}
 
 
-def build_job(bone: Path, stem: Path | None, where: Path, values: dict | None = None) -> dict:
+def build_job(bone: Path, stem: Path | None, where: Path, values: dict | None = None, programs: dict | None = None) -> dict:
+    """交给有限元包建模的 job。programs 是叫它的一方照机器清单找到的外部程序的位置：{名字: 位置}。"""
     return {"mode": "build", "bone_model": str(bone), "bone_id": tools.BONE_ID, "stem_model": None if stem is None else str(stem),
-            "point": {"name": "A", "hash": "a" * 64}, "settings": settings() if values is None else values, "job": str(where)}
+            "point": {"name": "A", "hash": "a" * 64}, "settings": settings() if values is None else values, "job": str(where),
+            "programs": programs or {}}
 
 
 def start(package: Path, source: Path, out: Path, env: dict | None = None) -> dict:
@@ -269,17 +276,17 @@ def stem(stem_package, bone, works, tmp_path_factory) -> Path:
 
 @pytest.fixture(scope="module")
 def launcher(tmp_path_factory) -> dict:
-    """只建模的测试用的启动器：一个空文件。包只核它在不在，不去起它。"""
+    """只建模的测试交给包的 programs：Abaqus 的启动器是一个空文件。包只核它在不在，不去起它。"""
     fake = tmp_path_factory.mktemp("abaqus") / "abq-not-run.bat"
     fake.write_text("@echo this test only builds\n", encoding="ascii")
-    return {"STEMLAB_ABAQUS": str(fake)}
+    return {"abaqus": str(fake)}
 
 
 @pytest.fixture(scope="module")
 def made_a(built, bone, stem, launcher, tmp_path_factory) -> tuple[dict, Path]:
     """设计 A 照测试轮的设定建模。返回（result，求解用的文件夹）。"""
     where = tmp_path_factory.mktemp("build-A")
-    result = run(built, build_job(bone, stem, where / "solve"), where, launcher)
+    result = run(built, build_job(bone, stem, where / "solve", programs=launcher), where)
     return result, where / "solve"
 
 
@@ -304,7 +311,7 @@ def varied(built, bone, stem, launcher, tmp_path_factory) -> dict:
     found = {}
     for name, values in VARIANTS.items():
         where = tmp_path_factory.mktemp(f"build-{name}")
-        found[name] = (run(built, build_job(bone, stem, where / "solve", values), where, launcher), where / "solve")
+        found[name] = (run(built, build_job(bone, stem, where / "solve", values, programs=launcher), where), where / "solve")
     return found
 
 
@@ -596,25 +603,31 @@ def test_a_stem_touching_bone_outside_the_named_faces_is_refused(built, bone, st
     (tmp_path / "stem" / stem_model.MANIFEST).write_text(json.dumps(model), encoding="utf-8")
     assert stem_model.check(tmp_path / "stem") == []
     values = settings(h_int_mm=4.0, h_far_mm=10.0, contact_faces={"ref": "stem.faces.upper"})
-    result = run(built, build_job(bone, tmp_path / "stem", tmp_path / "solve", values), tmp_path, launcher)
+    result = run(built, build_job(bone, tmp_path / "stem", tmp_path / "solve", values, programs=launcher), tmp_path)
     assert result["status"] == "error" and "upper" in result["reason"], result
 
 
 # ---------------------------------------------------------------- 别的结局
 
 def test_a_point_without_a_stem_model_is_refused(built, bone, launcher, tmp_path):
-    result = run(built, build_job(bone, None, tmp_path / "solve"), tmp_path, launcher)
+    result = run(built, build_job(bone, None, tmp_path / "solve", programs=launcher), tmp_path)
     assert result["status"] == "error" and "无植入物" in result["reason"], result
 
 
-def test_a_missing_launcher_is_an_environment_problem(built, bone, stem, tmp_path):
+def test_a_launcher_that_is_not_where_the_machine_list_says_is_an_environment_problem(built, bone, stem, tmp_path):
     missing = tmp_path / "nowhere" / "abq2025.bat"
-    result = run(built, build_job(bone, stem, tmp_path / "solve"), tmp_path, {"STEMLAB_ABAQUS": str(missing)})
+    result = run(built, build_job(bone, stem, tmp_path / "solve", programs={"abaqus": str(missing)}), tmp_path)
     assert result["status"] == "env" and str(missing) in result["reason"], result
 
 
+def test_without_the_place_of_abaqus_in_the_job_it_is_an_environment_problem(built, bone, stem, tmp_path):
+    """包不自己找启动器（不看环境变量，不用原项目配置里的位置）：位置要由叫它的一方照机器清单给。"""
+    result = run(built, build_job(bone, stem, tmp_path / "solve"), tmp_path, {"STEMLAB_ABAQUS": r"D:\SIMULIA\Commands\abq2025.bat"})
+    assert result["status"] == "env" and "机器清单" in result["reason"] and "abaqus 2025" in result["reason"], result
+
+
 def test_a_setting_that_is_not_filled_is_said_by_name(built, bone, stem, launcher, tmp_path):
-    result = run(built, build_job(bone, stem, tmp_path / "solve", settings(distal_cut_mm=None)), tmp_path, launcher)
+    result = run(built, build_job(bone, stem, tmp_path / "solve", settings(distal_cut_mm=None), programs=launcher), tmp_path)
     assert result["status"] == "error" and "distal_cut_mm" in result["reason"], result
 
 
@@ -733,12 +746,30 @@ def watch(made: str, seconds: float) -> None:
     raise AssertionError(f"{made} 等了 {seconds} 秒还没结束：{real.tasks(made)}")
 
 
-def test_fea_run_with_the_split_packages_without_abaqus(real_lab, data, legacy, summary, stem_package, built, works, tmp_path,
-                                                        monkeypatch):
-    """不用 Abaqus：放不下的设计归 misfit、不建模；放得下的找不到启动器，建模那一步归 env、不求解。
-    启动前的核对认两个包的清单、声明和 names；包的自检在这台机器上第一次用时跑。"""
-    monkeypatch.setenv("STEMLAB_ABAQUS", str(tmp_path / "nowhere" / "abq2025.bat"))
+def desk_programs(repo: Path, programs: list) -> None:
+    """这次测试自己的仓库拷贝里，操作台这台的机器清单只写这几个外部程序（名字、版本、位置）。"""
+    listed = json.loads((repo / "machines.json").read_bytes())
+    for machine in listed["machines"]:
+        if machine["role"] == "desk":
+            machine["programs"] = programs
+    (repo / "machines.json").write_bytes(hashing.canonical(listed) + b"\n")
+
+
+def abaqus_here() -> Path | None:
+    """这个仓库的机器清单里，操作台这台写的 Abaqus 2025 的位置。没写就是 None。"""
+    desk = next(machine for machine in parse_machines(json.loads((REPO / "machines.json").read_bytes())) if machine.role == "desk")
+    where = desk.program("abaqus", "2025")
+    return Path(where) if where else None
+
+
+def test_fea_run_with_the_split_packages_without_abaqus(real_own_lab, data, legacy, summary, stem_package, built, works, tmp_path):
+    """不用 Abaqus。操作台的机器清单里没写 Abaqus 2025，启动前就拒。写了位置以后：放不下的设计归 misfit、不建模；
+    放得下的在写的位置上找不到启动器，建模那一步归 env、不求解。启动前的核对认两个包的清单、声明和 names；
+    包的自检在这台机器上第一次用时跑。"""
     items = registered(legacy, summary, tmp_path, stem_package, built)
+    said = refused(experiment(tmp_path, items, [point("fits", 16.0)]))
+    assert "有限元包要 abaqus 2025" in said and "机器清单" in said, said
+    desk_programs(real_own_lab, [{"name": "abaqus", "version": "2025", "path": str(tmp_path / "nowhere" / "abq2025.bat")}])
     made = experiment(tmp_path, items, [point("fits", 16.0), point("tight", 24.0)])
     began = starting.start(made)
     assert began.ok, began
@@ -749,12 +780,14 @@ def test_fea_run_with_the_split_packages_without_abaqus(real_lab, data, legacy, 
 
 
 @pytest.mark.skipif(not SLOW, reason="设计 A 用真的 Abaqus 走一遍要十几分钟到半小时：设 STEMLAB_ABAQUS_RUN=1 才跑")
-def test_design_a_goes_through_fea_run_with_abaqus(real_lab, data, legacy, summary, stem_package, built, works, tmp_path, capsys):
+def test_design_a_goes_through_fea_run_with_abaqus(real_own_lab, data, legacy, summary, stem_package, built, works, tmp_path, capsys):
     """真的 Abaqus：设计 A 走完出柄的模型、建模、求解、后处理、推导量、交数据、归档；放不下的那个归 misfit。
+    Abaqus 的位置照这个仓库的机器清单，写进这次测试自己的仓库拷贝的机器清单里。
     算得对不对暂时不判（2026-11-16 定的）：和旧数据库里设计 A 的那一行并排打出来，不拿差去挡。"""
-    launcher = Path(os.environ.get("STEMLAB_ABAQUS", r"D:\SIMULIA\Commands\abq2025.bat"))
-    if not launcher.is_file():
-        pytest.skip(f"这台机器上找不到 Abaqus 的启动器（{launcher}）")
+    launcher = abaqus_here()
+    if launcher is None or not launcher.is_file():
+        pytest.skip(f"这个仓库的机器清单里，操作台没写 Abaqus 2025 的位置，或者那个位置上没有启动器（{launcher}）")
+    desk_programs(real_own_lab, [{"name": "abaqus", "version": "2025", "path": str(launcher)}])
     items = registered(legacy, summary, tmp_path, stem_package, built)
     made = experiment(tmp_path, items, [point("A", 16.0), point("tight", 24.0)])
     began = starting.start(made)
@@ -789,6 +822,7 @@ def test_design_a_goes_through_fea_run_with_abaqus(real_lab, data, legacy, summa
     solved = next(row for row in read_points(archive / "index.jsonl") if row["task"] == "A" and row["file"].endswith("/solve.json"))
     record = json.loads((Path(read_manifest(archive)["root"]) / solved["file"]).read_bytes())["m_fric"]
     assert record["status"] == "OK" and record["release"].startswith("2025"), "求解器报的版本就是清单里写的 Abaqus 2025"
+    assert Path(record["launcher"]) == launcher, "用的启动器就是机器清单里写的那个"
 
     # 床支撑 F（4e）：推导量定义照名字引用，从这次的点云、柄的模型和骨模型算出来的，和照定义另算的一样
     cloud = np.load(real.output(made, "data") / row["fields"]["interface"])

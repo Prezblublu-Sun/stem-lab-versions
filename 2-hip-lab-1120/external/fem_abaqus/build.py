@@ -9,7 +9,8 @@ config_v2a.yaml 用不到，材料、载荷、网格都从骨模型、柄的模�
 别的运行时文件（RUNTIME）从工作树按字节复制，复制完照自检样本里记的哈希核一遍：工作树里的文件变了，就不打包。
 
 清单里带 declarations.py 的那份声明（fem）、programs（Abaqus 2025）、对两份输入的要求、产出的列。
-Abaqus 的启动器不写进清单：包先看环境变量 STEMLAB_ABAQUS，没设就用旧系统配置里的位置（config.yaml 的 abaqus.launcher）。
+Abaqus 装在哪不写进包的清单：那是机器的事，写在机器清单里（操作台那一项的 programs）。叫这个包的一方照名字和版本找到，
+放进 job.json 的 programs；包自己不去找。
 测试轮用的骨模型：3406 的骨模型登记以后，用 --test-bone 把它的编号写进来。
 
 打好之后登记：python -m stemlab.desk register fem abaqus-m1 --path <包的文件夹> --note "..."

@@ -73,7 +73,8 @@ stem-lab 1.0：管实验的系统。设计的依据是 `docs/蓝图.md`，拿不
   - 界面和仪表盘换一份写法、固定的测试照过，要几分钟：`python -m pytest tests/swap -m swap`。改了界面的约定就跑一遍。
 - Abaqus 有限元包（`external/fem_abaqus/`）用真的 Abaqus 经 `fea.run` 走一遍设计 A 的那条测试，平时的检查里跳过：
   设 `STEMLAB_ABAQUS_RUN=1` 再跑 `python -m pytest tests_free/fem_abaqus -k with_abaqus -s`，要十几分钟到半小时，放后台跑。
-  启动器换了地方设 `STEMLAB_ABAQUS`（包也认它，不设就用旧系统配置里的 `D:\SIMULIA\Commands\abq2025.bat`）。
+  Abaqus 装在哪写在机器清单里（操作台那一项的 `programs`：名字、确切的版本、位置）。外部程序都照这样写，
+  包的清单只写要哪个程序哪一版，`fea.run` 的骨架照名字和版本找到位置交给包，操作台没写就不启动。
 - 三样测试工具在开发依赖里（worker 不装）；每条目标用哪种测试来证明，见 `docs/审查/2026-11-15-修改目标.md`：
   - 属性测试（Hypothesis）：文件名以 `_properties.py` 结尾，共用的设置在 `tests/properties.py`。平时的检查每次试同一批例子；
     要多找就设 `STEMLAB_HYPOTHESIS=explore` 再跑。还没做到的目标写成 `xfail(strict=True)`，原因里写《修改目标》的编号；

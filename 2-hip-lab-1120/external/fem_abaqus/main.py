@@ -20,7 +20,8 @@
     远端截断        垂直于干轴（骨模型的 shaft_distal 指向 shaft_proximal），在 distal_from 那个标志点那一层以下 distal_cut_mm
     载荷的坐标系    load_frame 是 shaft_neck：z 沿干轴指向近端，x 是颈轴（neck_center 指向 head_center）投到垂直干轴的面上、
                     指向内侧，y 指向后方。两个倾角照原项目的 load_vector（Bergmann 2016）在这个坐标系里换成合力
-求解的命令交给 solve.py（同一个文件夹）。Abaqus 的启动器：环境变量 STEMLAB_ABAQUS，没设就用旧系统配置里的位置；建模时就核它在不在。
+求解的命令交给 solve.py（同一个文件夹）。Abaqus 装在哪是机器的事：叫这个包的一方照清单 programs 里写的 abaqus 2025，
+在机器清单里找到位置，放进 job 的 programs。这个包不自己去找（不看环境变量，不用旧系统配置里的位置）；建模时就核它在不在。
 
 旧代码每个作业要一个自己的进程（它会改进程里的全局状态），所以这个入口一次只做一件事。
 """
@@ -44,7 +45,7 @@ LEGACY_FILES = ("abaqus/odb_export.py", "config.yaml", "femur2d.py", "inp_writer
                 "spot3d/model3d.py", "spot3d/qoi3d.py", "stem2d.py", "v2/fe3d_geom.py", "v2/femur_real.py", "v2/geom3d.py",
                 "v2/jobs.py", "v2/model3d_m1.py", "v2/model3d_v2.py", "v2/post.py", "v2/post_m1.py", "v2/stability.py")
 UNIT = "m_fric"                     # 求解的那个作业叫什么（原项目的 <名字>_fric）
-RELEASE = "2025"                    # 清单的 programs 里写的 Abaqus 的版本
+PROGRAM, RELEASE = "abaqus", "2025"  # 清单的 programs 里写的那个程序和它确切的版本
 STEPS = ("RELEASE", "LOAD", "UNLOAD", "LOAD2")
 UNSTABLE_UM = 150.0                 # 界面相对位移超过它就长不上骨（Pilliar 1986；Jasty 1997）。不收敛时拿它判是不是已经松动
 
@@ -84,14 +85,10 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def launcher() -> Path:
-    """Abaqus 的启动器：环境变量 STEMLAB_ABAQUS，没设就用旧系统配置里的位置（config.yaml 的 abaqus.launcher）。"""
-    given = os.environ.get("STEMLAB_ABAQUS")
-    if given:
-        return Path(given)
-    import yaml
-
-    return Path(yaml.safe_load((LEGACY / "config.yaml").read_text(encoding="utf-8"))["abaqus"]["launcher"])
+def launcher(job: dict) -> Path | None:
+    """Abaqus 的启动器：叫这个包的一方照机器清单放进 job 的 programs。没有就是 None。"""
+    given = (job.get("programs") or {}).get(PROGRAM) if isinstance(job.get("programs"), dict) else None
+    return Path(given) if isinstance(given, str) and given else None
 
 
 # ---------------------------------------------------------------- 设定和两份输入
@@ -487,9 +484,12 @@ def build(job: dict, out: Path) -> dict:
         raise Unsupported("这个点没有柄的模型（无植入物）：这个有限元包只会 M1 的界面做法，不做无植入物的模型")
     stem = stem_of(job["stem_model"], settings)
     bone = bone_of(job["bone_model"])
-    run_with = launcher()
+    run_with = launcher(job)
+    if run_with is None:
+        return {"status": "env", "pre": {},
+                "reason": f"job 里没有 {PROGRAM} {RELEASE} 的位置（programs）：要跑它的那台机器的机器清单里要写上它装在哪"}
     if not run_with.is_file():
-        return {"status": "env", "reason": f"这台机器上找不到 Abaqus 的启动器：{run_with}（设 STEMLAB_ABAQUS 指到 abq2025.bat）", "pre": {}}
+        return {"status": "env", "reason": f"机器清单里写的 Abaqus 的启动器不在：{run_with}", "pre": {}}
     place = placed(bone, stem, settings)
     _legacy_on_path()
     import model3d_v2 as M2

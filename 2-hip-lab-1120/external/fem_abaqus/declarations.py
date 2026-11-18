@@ -8,8 +8,8 @@
                        和 main.py（FIXED 里的 fric_only、罚摩擦的弹性滑移、Abaqus 的核数）。各项的 test_source 写了是哪一处
 原来写在导出设定里的几项：slip_tol 改写成弹性滑移 elastic_slip_um（原来不写就是 0.00025 × 2 / h，即弹性滑移约 0.5 µm）；
 abaqus.cpus 是这里的 cpus；abaqus.timeout_s 只管怎么跑，是运行设定的 solve_timeout_s（plugins/fea/running.py）。
-Abaqus 的启动器放在哪，是有限元包的运行要求（4d 定的）：清单的 programs 写 Abaqus 2025，包先看环境变量 STEMLAB_ABAQUS，
-没设就用原项目配置里的位置（config.yaml 的 abaqus.launcher）。不在这里，也不在机器清单里。
+Abaqus 装在哪是机器的事（2026-11-18 用户定的）：写在机器清单里，包的清单的 programs 只写 Abaqus 2025，
+叫包的一方照名字和版本找到位置，放进 job.json 的 programs。不在这里。
 
 柄和骨的材料来自柄的模型和骨模型，不在这里；E_canc_MPa 是研究里每个点覆盖骨模型某个区域的模量（原来的条件）。
 原项目里写死的那几项没有上下限。声明里给它们的范围是放宽了的、物理上说得通的界，只用来拦明显写错的值。

@@ -5,7 +5,10 @@
       "name": "win",
       "role": "desk",
       "host": "DESKTOP-LQNAMNB",
-      "slots": 3
+      "slots": 3,
+      "programs": [
+        {"name": "abaqus", "version": "2025", "path": "D:/SIMULIA/Commands/abq2025.bat"}
+      ]
     },
     {
       "name": "linux",
