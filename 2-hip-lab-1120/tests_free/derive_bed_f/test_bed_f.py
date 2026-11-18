@@ -7,8 +7,10 @@
     位置      一份造的输入（柄的模型、骨模型的清单、十二个节点的点云），哪几个节点落在支撑区里手算得出来：
               包算的和手算的一样；8 项各换一个值，结果照预想的变；整个场面一起挪动转动，F 不变
     算不了的  没有柄的模型、设定缺项、名字不在、0 度的方向定不出来：不交数，说出原因
-    3406      设计 A 的柄的模型（4c 的柄空间包交出的，截骨高度 16 mm 和 18 mm 各一个）：旧常数换到骨模型的坐标里，
-              就是名字指的那几样；同一份点云上，旧的包（旧常数、旧模型坐标）和这个包只在 ±45° 边上那一窄条里不一样
+    3406      设计 A 的柄的模型（4c 的柄空间包交出的，截骨高度 16 mm 和 18 mm 各一个）。照旧系统的取法写设定（参照点是头心
+              沿颈轴往远端 16 mm）：旧常数换到骨模型的坐标里，就是名字指的那几样；同一份点云上，旧的包（旧常数、旧模型坐标）
+              和这个包只在 ±45° 边上那一窄条里不一样。测试轮的取值不是旧系统的取法：参照点跟着每个点自己的截骨面走
+              （用户 2026-11-18 定的），16 mm 的那个和旧系统是同一个点，18 mm 的那个深 2 mm
     fea.run   登记进一本空账，配一个只出点云的假有限元包（fem_cloud），经真的 fea.run：启动前核推导量设定和名字引用；
               推导量定义拿到骨模型、柄的模型和这个点的推导量设定；每个点给的项进数据的行；made_by 里记着推导量设定
 设计 A 用真的 Abaqus 走一遍、把 F 和参照包那条的并排打出来，在 tests_free/fem_abaqus（设 STEMLAB_ABAQUS_RUN=1 才跑）。
@@ -65,9 +67,11 @@ DECL = _load("external/derive_bed_f_named/declarations.py", "derive_bed_f_named_
 BUILD = _load("external/derive_bed_f_named/build.py", "derive_bed_f_named_build")
 STEM_DECL = _load("external/stem_m1_3406/declarations.py", "stem_m1_3406_declarations_4e")
 STEM_BUILD = _load("external/stem_m1_3406/build.py", "stem_m1_3406_build_4e")
-TEST = d.test_setting(DECL.DERIVE, "R0003")["values"]           # 测试轮的推导量设定
+TEST = d.test_setting(DECL.DERIVE, "R0003")["values"]           # 测试轮的推导量设定：参照点是这个点自己的颈底（截骨中心）
 PLACE = d.test_setting(STEM_DECL.PLACEMENT, "R0001")["values"]   # 测试轮的放置设定（设计 A 用的）
 SHAPE_A = dict(STEM_DECL.A)                                      # 设计 A 的 12 个形状项
+# 旧系统的取法：参照点是股骨头心沿颈轴往远端 16 mm（设计 A 的截骨中心），所有设计同一个点。设定里照样写得出来
+OLD_SYSTEM = {"zone_from": {"ref": "bone.landmark.head_center"}, "zone_offset_mm": 16.0}
 
 
 # ---------------------------------------------------------------- 跑包
@@ -98,7 +102,9 @@ def settings(**change) -> dict:
 
 # 柄自己的坐标系：x 内侧，y 前方，z 沿柄轴指向远端（M1 柄空间包的写法）。颈轴从颈底指向头，在 x、z 张成的面里
 NECK = (0.6, 0.0, -0.8)
-FEATURES = {"head_center": [12.0, 0.0, -16.0], "neck_base": [0.0, 0.0, 0.0], "shoulder": [0.0, 0.0, 0.0], "tip": [0.0, 0.0, 40.0]}
+# 特征点。mark 是造的：在颈底沿颈轴往远端 2 mm，拿来换 zone_from
+FEATURES = {"head_center": [12.0, 0.0, -16.0], "neck_base": [0.0, 0.0, 0.0], "shoulder": [0.0, 0.0, 0.0], "tip": [0.0, 0.0, 40.0],
+            "mark": [-1.2, 0.0, 1.6]}
 AXES = {"stem_axis": {"point": [0.0, 0.0, 0.0], "direction": [0.0, 0.0, 1.0]},
         "neck_axis": {"point": [0.0, 0.0, 0.0], "direction": list(NECK)},
         "up_axis": {"point": [0.0, 0.0, 0.0], "direction": [0.0, 0.0, -1.0]},       # 沿柄轴指向近端：拿来换 depth_axis
@@ -115,21 +121,21 @@ def node(theta_deg: float, s: float, t: float = 1.0, collar: bool = False, r: fl
     return {"x": [r * math.cos(angle), r * math.sin(angle), s], "area": 2.0, "thickness": t, "collar": collar}
 
 
-# 测试轮的设定下：参照点是头心沿颈轴往远端 16 mm，就是 (2.4, 0, −3.2)；深度 ζ = 4 − 0.6x + 0.8z；角从 +x 起。
+# 测试轮的设定下：参照点是颈底，就是原点；深度 ζ = −0.6x + 0.8z；角从 +x 起。
 # 落在支撑区里的是 medial、plus30、minus30、edge 四个：F = 2/1 + 2/0.5 + 2/0.25 + 2/4 = 14.5
 NODES = {
-    "medial": node(0, 5, t=1.0),            # ζ 4.4
-    "plus30": node(30, 5, t=0.5),           # ζ 4.88
-    "minus30": node(-30, 5, t=0.1),         # ζ 4.88，厚度比下限 0.25 薄
-    "front": node(90, 5),                   # ζ 8，角度出去了
-    "plus140": node(140, 5),
-    "lateral": node(180, 5),
-    "minus140": node(-140, 5),
-    "back": node(-90, 5),
-    "deep": node(0, 20),                    # ζ 16.4，比 15 深
-    "collar": node(0, 5, collar=True),      # 领上的不算
-    "plus50": node(50, 5, t=2.0),           # ζ 5.69，角度 50° 出去了
-    "edge": node(0, 17, t=4.0),             # ζ 14.0，贴着 15 的边
+    "medial": node(0, 10, t=1.0),           # ζ 4.4
+    "plus30": node(30, 10, t=0.5),          # ζ 4.88
+    "minus30": node(-30, 10, t=0.1),        # ζ 4.88，厚度比下限 0.25 薄
+    "front": node(90, 10),                  # ζ 8，角度出去了
+    "plus140": node(140, 10),
+    "lateral": node(180, 10),
+    "minus140": node(-140, 10),
+    "back": node(-90, 10),
+    "deep": node(0, 25),                    # ζ 16.4，比 15 深
+    "collar": node(0, 10, collar=True),     # 领上的不算
+    "plus50": node(50, 10, t=2.0),          # ζ 5.69，角度 50° 出去了
+    "edge": node(0, 22, t=4.0),             # ζ 14.0，贴着 15 的边
 }
 BASE = {"F_mm": 14.5, "F_area_mm2": 8.0, "F_n_nodes": 4, "F_t_min_mm": 0.1, "F_frac_floor": 0.25}
 
@@ -282,6 +288,8 @@ def test_the_package_is_a_well_formed_derive_def(built):
     assert all(item["per_point"] == (item["type"] == "number") for item in by_name.values()), "数可以每个点给，名字引用所有点都一样"
     assert all(len(item["test_source"]) > 20 for item in by_name.values()), "每项写了来路"
     assert (TEST["zeta_max_mm"], TEST["theta_max_deg"], TEST["t_floor_mm"]) == (15.0, 45.0, 0.25), "区的大小照 bed_f.json"
+    assert (TEST["zone_from"], TEST["zone_offset_mm"]) == ({"ref": "stem.feature.neck_base"}, 0.0), \
+        "参照点是这个点自己的颈底，跟着截骨面走（用户 2026-11-18 定的）"
 
 
 def test_the_test_round_setting_points_at_names_that_are_there(built):
@@ -291,9 +299,11 @@ def test_the_test_round_setting_points_at_names_that_are_there(built):
     setting = d.test_setting(read_manifest(built)["declarations"][0], "R0003")
     assert d.check_setting(setting, DECL.DERIVE, of="R0003", use="test", names=names) == []
     referred = sorted(value["ref"] for value in setting["values"].values() if isinstance(value, dict))
-    assert referred == ["bone.landmark.head_center", "stem.axis.neck_axis", "stem.axis.neck_axis", "stem.axis.stem_axis"]
+    assert referred == ["stem.axis.neck_axis", "stem.axis.neck_axis", "stem.axis.stem_axis", "stem.feature.neck_base"]
     lost = dict(setting, values=dict(setting["values"], angle_from={"ref": "stem.axis.taper_axis"}))
     assert any("规则 8" in text for text in d.check_setting(lost, DECL.DERIVE, names=names)), "柄空间包没答应给的名字，核得出来"
+    old = dict(setting, values={**setting["values"], **OLD_SYSTEM})
+    assert d.check_setting(old, DECL.DERIVE, of="R0003", use="test", names=names) == [], "旧系统的取法（头心往远端 16 mm）照样写得出来"
 
 
 def test_the_package_passes_its_own_self_check(built, tmp_path):
@@ -317,23 +327,26 @@ def test_the_zone_is_where_the_names_say(built, tmp_path):
 
 
 def only(*names: str, floor: float = 0.25) -> dict:
-    """只有这几个节点落在支撑区里时该交的五个量。"""
+    """只有这几个节点落在支撑区里时该交的五个量。一个都没有时，最薄的厚度和占比都没有。"""
     inside = [NODES[name] for name in names]
     area = sum(one["area"] for one in inside)
     return {"F_mm": sum(one["area"] / max(one["thickness"], floor) for one in inside), "F_area_mm2": area, "F_n_nodes": len(inside),
-            "F_t_min_mm": min(one["thickness"] for one in inside),
-            "F_frac_floor": sum(one["area"] for one in inside if one["thickness"] < floor) / area}
+            "F_t_min_mm": min(one["thickness"] for one in inside) if inside else None,
+            "F_frac_floor": sum(one["area"] for one in inside if one["thickness"] < floor) / area if inside else None}
 
 
 # 每一项换一个值：项名 ->（换成什么，这时落在支撑区里的节点，为什么）
 VARIANTS = {
-    "zone_from": ({"zone_from": {"ref": "stem.feature.neck_base"}}, ("medial", "plus30", "minus30", "edge", "deep"),
-                  "从颈底量起，参照点往远端挪了 20 mm，所有节点都够得着：deep 进来了"),
-    "zone_from_bone": ({"zone_from": {"ref": "bone.landmark.neck_center"}}, ("medial", "plus30", "minus30", "edge", "deep"),
-                       "从骨的颈中心（离头心 2 mm）量起，ζ 都小 2：deep 是 14.4，进来了"),
-    "zone_offset_mm": ({"zone_offset_mm": 14.0}, ("medial", "plus30", "minus30"), "参照点往近端回 2 mm，ζ 都大 2：edge 成了 16，出去了"),
+    "zone_from": ({"zone_from": {"ref": "stem.feature.mark"}}, ("medial", "plus30", "minus30", "edge", "deep"),
+                  "从 mark（颈底沿颈轴往远端 2 mm）量起，ζ 都小 2：deep 是 14.4，进来了"),
+    "zone_from_bone": ({"zone_from": {"ref": "bone.landmark.head_center"}}, (),
+                       "从骨的头心量起，ζ 都大 20：一个节点都够不着"),
+    "old_system": (OLD_SYSTEM, ("medial", "plus30", "minus30"),
+                   "旧系统的取法：头心沿颈轴往远端 16 mm。这里的颈底离头心 20 mm，ζ 都大 4：edge 成了 18，出去了"),
+    "zone_offset_mm": ({"zone_offset_mm": 2.0}, ("medial", "plus30", "minus30", "edge", "deep"),
+                       "参照点往远端挪 2 mm，ζ 都小 2：deep 成了 14.4，进来了"),
     "depth_axis": ({"depth_axis": {"ref": "stem.axis.up_axis"}}, ("medial", "plus30", "minus30"),
-                   "深度改沿柄轴量：参照点是 (12, 0, 0)，ζ 就是 z。edge 的 17 出去了"),
+                   "深度改沿柄轴量：ζ 就是 z。edge 的 22 出去了"),
     "zeta_max_mm": ({"zeta_max_mm": 12.0}, ("medial", "plus30", "minus30"), "edge 的 ζ 是 14，出去了"),
     "zeta_max_mm_up": ({"zeta_max_mm": 17.0}, ("medial", "plus30", "minus30", "edge", "deep"), "deep 的 ζ 是 16.4，进来了"),
     "angle_axis": ({"angle_axis": {"ref": "stem.axis.side_axis"}}, ("medial", "minus30", "edge"),
@@ -434,24 +447,28 @@ def placed(model: dict, point) -> np.ndarray:
 
 
 def test_the_old_constants_are_the_named_things_on_3406(stems, summary, bone):
-    """旧常数换到骨模型的坐标里，就是测试轮的设定照名字指的那几样。截骨高度 16 mm 和 18 mm 的两个柄都是：
-    参照点是头心沿颈轴往远端 16 mm，不跟着截骨面走（18 mm 的那个，颈底离它 2 mm）。"""
+    """旧常数换到骨模型的坐标里，就是照旧系统的取法写的设定照名字指的那几样。截骨高度 16 mm 和 18 mm 的两个柄都是：
+    旧系统的参照点是头心沿颈轴往远端 16 mm，不跟着截骨面走。
+    测试轮的取值跟着截骨面走：参照点是这个点自己的颈底。16 mm 的那个就是 cref，18 mm 的那个沿颈轴往远端深 2 mm。"""
     old = old_constants(summary)
     landmarks = read_manifest(bone)["landmarks"]
     for name, folder in stems.items():
         model = stem_model.read(folder)
-        where = located(TEST, model, landmarks)
+        where = located(settings(**OLD_SYSTEM), model, landmarks)
         axis = turned(model, where["axis"])
-        assert np.linalg.norm(placed(model, where["ref"]) - old["cref"]) < 1e-6, f"{name}：参照点就是 cref"
+        assert np.linalg.norm(placed(model, where["ref"]) - old["cref"]) < 1e-6, f"{name}：旧系统的取法，参照点就是 cref"
         assert angle_between(turned(model, where["depth"]), old["u_neck"]) < 1e-3, f"{name}：深度轴就是 u_neck（它只留了 5 位小数）"
         zero = turned(model, where["zero"])
         zero, was = unit(zero - (zero @ axis) * axis), unit(old["n3"] - (old["n3"] @ axis) * axis)
         assert angle_between(zero, was) < 0.05, f"{name}：0 度的方向就是 n3 投到垂直柄轴的面上（n3 只留了 3 位小数）"
         skew = angle_between(was, unit(old["y"] - (old["y"] @ axis) * axis))
         assert 86.0 < skew < 89.0, f"{name}：旧写法 90 度的方向（旧模型的 y 轴）和 0 度的方向不垂直，夹角 {skew:.2f}°"
+    for name, deeper in (("h16", 0.0), ("h18", 2.0)):
+        model = stem_model.read(stems[name])
+        moved = placed(model, located(TEST, model, landmarks)["ref"]) - old["cref"]
+        assert np.linalg.norm(moved) == pytest.approx(deeper, abs=1e-6) and moved @ old["u_neck"] == pytest.approx(-deeper, abs=1e-4), \
+            f"{name}：测试轮的取值，参照点是这个点自己的颈底，比 cref 沿颈轴往远端深 {deeper} mm"
     lower = stem_model.read(stems["h18"])
-    assert np.linalg.norm(placed(lower, lower["features"]["neck_base"]) - old["cref"]) == pytest.approx(2.0, abs=1e-6), \
-        "截骨高度 18 mm：颈底比 cref 深 2 mm"
     assert np.linalg.norm(placed(lower, lower["features"]["shoulder"]) - placed(lower, lower["features"]["neck_base"])) > 1.0, \
         "截骨高度 18 mm：肩部中心不在颈底上（入口偏移 −2 mm）"
 
@@ -471,9 +488,10 @@ def rings(keep) -> list[dict]:
     return made
 
 
-def both_packages(built: Path, old_package: Path, folder: Path, model_folder: Path, bone: Path, old: dict, nodes: list[dict]) -> tuple:
-    """同一份点云交给两个包：这个包拿骨模型坐标里的点云，旧的包拿换到旧模型坐标里的同一份，外加柄的位姿。
-    返回（这个包交的，旧的包交的）。离 ζ = 15 mm 不到 0.05 mm 的节点先去掉：u_neck 只留了 5 位小数。"""
+def both_packages(built: Path, old_package: Path, folder: Path, model_folder: Path, bone: Path, old: dict, nodes: list[dict],
+                  values: dict) -> tuple:
+    """同一份点云交给两个包：这个包拿骨模型坐标里的点云、照 values 这份设定算，旧的包拿换到旧模型坐标里的同一份，外加柄的位姿。
+    返回（这个包交的，旧的包交的）。离旧的包 ζ = 15 mm 那条边不到 0.05 mm 的节点先去掉：u_neck 只留了 5 位小数。"""
     model = stem_model.read(model_folder)
     frame = {key: np.asarray(value, float) for key, value in model["placement"]["frame"].items()}
     local = np.array([one["x"] for one in nodes])
@@ -488,28 +506,38 @@ def both_packages(built: Path, old_package: Path, folder: Path, model_folder: Pa
              stem_axis=frame["z"] @ old["turned"].T, **arrays)
     ask = {"labels": {}, "pre": {}, "point": {"name": "A"}}
     new = run(built, dict(ask, fields={"interface": str(folder / "bone-frame.npz")}, bone_model=str(bone), stem_model=str(model_folder),
-                          settings=settings()), folder / "new")
+                          settings=values), folder / "new")
     was = run(old_package, dict(ask, fields={"interface": str(folder / "model-frame.npz")}), folder / "old")
     return new["derived"], was["derived"]
 
 
 def test_on_one_cloud_the_old_package_differs_only_at_the_edge(built, old_package, stems, summary, bone, tmp_path):
-    """同一份点云上，旧的包（旧常数、旧模型坐标、参照包那条的写法）和这个包（名字引用、骨模型坐标）：
-    离 ±45° 那两条边 3° 以外的节点，两个包算出同一个数；差只在边上那一窄条里。旧写法 90 度的方向和 0 度的方向不垂直，
-    它的支撑区整个往前偏了约 1.4°：朝前的那条边上旧的包多算进一窄条，朝后的那条边上这个包多算进一窄条。
-    截骨高度 16 mm 和 18 mm 的两个柄都是这样：参照点不跟着截骨面走，和旧的包一样。"""
+    """同一份点云上，旧的包（旧常数、旧模型坐标、参照包那条的写法）和这个包（名字引用、骨模型坐标）。
+    这个包照旧系统的取法写设定（参照点是头心沿颈轴往远端 16 mm）：
+        离 ±45° 那两条边 3° 以外的节点，两个包算出同一个数；差只在边上那一窄条里。旧写法 90 度的方向和 0 度的方向不垂直，
+        它的支撑区整个往前偏了约 1.4°：朝前的那条边上旧的包多算进一窄条，朝后的那条边上这个包多算进一窄条。
+        截骨高度 16 mm 和 18 mm 的两个柄都是这样：旧系统的参照点不跟着截骨面走。
+    这个包照测试轮的取值（参照点是这个点自己的颈底）：
+        16 mm 的那个，颈底就是旧系统的参照点，和旧的包还是同一个数；18 mm 的那个，支撑区跟着截骨面深了 2 mm，多出两毫米的节点。"""
     old = old_constants(summary)
+    as_before = settings(**OLD_SYSTEM)
     for name, folder in stems.items():
         new, was = both_packages(built, old_package, tmp_path / name / "clear", folder, bone, old,
-                                 rings(lambda theta: abs(abs(theta) - 45.0) > 3.0))
+                                 rings(lambda theta: abs(abs(theta) - 45.0) > 3.0), as_before)
         assert new["F_n_nodes"] > 2000 and new["F_frac_floor"] > 0.0, f"{name}：支撑区里有节点，也有比下限薄的（{new}）"
         assert same(new, was), f"{name}：这个包 {new}，旧的包 {was}"
         new, was = both_packages(built, old_package, tmp_path / name / "front", folder, bone, old,
-                                 rings(lambda theta: abs(theta - 45.0) <= 3.0))
+                                 rings(lambda theta: abs(theta - 45.0) <= 3.0), as_before)
         assert was["F_n_nodes"] > new["F_n_nodes"] > 0, f"{name}：朝前的那条边，这个包 {new['F_n_nodes']} 个，旧的包 {was['F_n_nodes']} 个"
         new, was = both_packages(built, old_package, tmp_path / name / "back", folder, bone, old,
-                                 rings(lambda theta: abs(theta + 45.0) <= 3.0))
+                                 rings(lambda theta: abs(theta + 45.0) <= 3.0), as_before)
         assert new["F_n_nodes"] > was["F_n_nodes"] > 0, f"{name}：朝后的那条边，这个包 {new['F_n_nodes']} 个，旧的包 {was['F_n_nodes']} 个"
+    clear = rings(lambda theta: abs(abs(theta) - 45.0) > 3.0)
+    new, was = both_packages(built, old_package, tmp_path / "follow" / "h16", stems["h16"], bone, old, clear, settings())
+    assert same(new, was), f"截骨高度 16 mm，测试轮的取值：这个包 {new}，旧的包 {was}"
+    new, was = both_packages(built, old_package, tmp_path / "follow" / "h18", stems["h18"], bone, old, clear, settings())
+    assert new["F_n_nodes"] > was["F_n_nodes"] and new["F_mm"] > was["F_mm"], \
+        f"截骨高度 18 mm，测试轮的取值：支撑区跟着截骨面深了 2 mm。这个包 {new}，旧的包 {was}"
 
 
 def test_the_old_package_refuses_a_fea_run_job(old_package, tmp_path):
@@ -574,7 +602,8 @@ def archived(made: str, task: str, name: str) -> dict:
 
 def test_bed_support_goes_through_fea_run(real_lab, data, legacy, summary, stem_package, built, works, tmp_path):
     """现打的包登记进一本空账，配 4c 的柄空间包和一个只出点云的假有限元包，经冻结的 fea.run 骨架走一遍：
-    推导量定义拿到了骨模型、柄的模型和这个点的推导量设定，照名字引用算出 F；每个点给的深度进了数据的行。"""
+    推导量定义拿到了骨模型、柄的模型和这个点的推导量设定，照名字引用算出 F；每个点给的深度进了数据的行。
+    三个点：截骨高度 16、16、18 mm，支撑区深 15、8、15 mm。参照点跟着各自的截骨面走，所以第一个和第三个的 F 一样。"""
     items = registered(tmp_path, legacy, summary, stem_package, built)
     made = experiment(tmp_path, items, [point("deep", 16.0, 15.0), point("shallow", 16.0, 8.0), point("lower", 18.0, 15.0)])
     began = starting.start(made)
@@ -606,7 +635,8 @@ def test_bed_support_goes_through_fea_run(real_lab, data, legacy, summary, stem_
         assert same({key: values[key] for key in COLUMNS}, wanted), f"{name}：数据里的 {values} 对照定义另算的 {wanted}"
         assert values["F_n_nodes"] > 20 and values["F_frac_floor"] > 0.0, f"{name}：支撑区里有节点，也有比下限薄的（{values}）"
     assert rows["deep"]["values"]["F_mm"] > rows["shallow"]["values"]["F_mm"] > 0.0, "支撑区浅了，F 小了"
-    assert rows["lower"]["values"]["F_mm"] != pytest.approx(rows["deep"]["values"]["F_mm"], rel=1e-3), "换了一个柄的模型，F 跟着变"
+    assert same({key: rows["lower"]["values"][key] for key in COLUMNS}, {key: rows["deep"]["values"][key] for key in COLUMNS}), \
+        "参照点跟着截骨面走：假有限元包在柄周围出的是同样的一圈圈节点，截骨高度 16 mm 和 18 mm 算出同一个 F"
     assert {"derive-result.json", "stem_model.json", "cloud.json"} <= set().union(*kept(made, "deep").values())
 
 

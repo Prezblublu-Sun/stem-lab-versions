@@ -14,9 +14,14 @@
              柄轴、颈轴、n3 都在颈平面里，所以它投出来就是柄的内侧方向（femur_real.pose 的 e_ml），和颈轴投出来的是同一个方向
     P0、ax   柄的位姿（肩部中心、柄轴），旧系统从点云里拿
 
-和旧写法不一样的一处：旧代码里 90 度的方向用的是旧模型坐标的 y 轴（后方，由后髁连线定），它和 0 度的方向不垂直
-（设计 A 上夹角 87.3°），所以旧的支撑区整个往前偏了约 1.4°。骨模型第 1 版没有后髁的标志点，这个方向没有名字可指；
-这里量的是绕 angle_axis 的几何角度。同一份点云上，设计 A 的 F 因此大 0.4% 到 1.0%。
+和旧系统不一样的两处：
+    参照点   测试轮的取值跟着每个点自己的截骨面走：从颈底（截骨中心，stem.feature.neck_base）量起，不再挪（用户 2026-11-18 定的）。
+             旧系统所有设计都从头心沿颈轴往远端 16 mm 的那个点量起。截骨高度是 16 mm 的设计（设计 A），两种取法是同一个点；
+             截骨面更深的设计，旧系统的支撑区只剩截骨面到 31 mm 之间的那一段，这里的还是截骨面以下 15 mm。
+             要照旧系统取，设定里 zone_from 写 bone.landmark.head_center，zone_offset_mm 写 16
+    角度     旧代码里 90 度的方向用的是旧模型坐标的 y 轴（后方，由后髁连线定），它和 0 度的方向不垂直（设计 A 上夹角 87.3°），
+             所以旧的支撑区整个往前偏了约 1.4°。骨模型第 1 版没有后髁的标志点，这个方向没有名字可指；
+             这里量的是绕 angle_axis 的几何角度。同一份点云上，设计 A 的 F 因此大 0.4% 到 1.0%
 
 范围是放宽了的、几何上说得通的界，只用来拦明显写错的值；不是研究过的范围。
 """
@@ -24,6 +29,7 @@ from __future__ import annotations
 
 OLD = "external/derive_bed_f/bed_f.json（旧系统 tools/db_export.py 的 BED_F、ops/facts.json 的 bed_F_*）"
 POSE = "旧系统 tools/db_export.py 的 bed_support：柄的位姿 P0（肩部中心）、ax（柄轴）取自点云；拆开以后从柄的模型拿"
+FOLLOW = "用户 2026-11-18 定的：支撑区的参照点跟着每个点自己的截骨面走"
 
 
 def _item(name, label, meaning, group, kind, test, source, per_point=False, **more):
@@ -37,12 +43,13 @@ DERIVE = {
     "items": [
         # ---- 支撑区的深度
         _item("zone_from", "深度从哪个点量起", "支撑区的深度从这个点起、沿 depth_axis 往远端量。这个点先沿 depth_axis 往远端挪 zone_offset_mm，"
-              "挪到的地方是参照点", "支撑区的深度", "ref", {"ref": "bone.landmark.head_center"},
-              f"{OLD} 的 cref：设计 A 的截骨中心，就是股骨头心沿颈轴往远端 16 mm；旧系统里所有设计都用这一个点。"
-              "要参照点跟着每个点自己的截骨面走，写 stem.feature.neck_base，zone_offset_mm 写 0",
+              "挪到的地方是参照点", "支撑区的深度", "ref", {"ref": "stem.feature.neck_base"},
+              f"{FOLLOW}，取颈底（截骨中心）。旧系统（{OLD} 的 cref）所有设计都用设计 A 的截骨中心，就是股骨头心沿颈轴往远端 16 mm；"
+              "要照旧系统取，写 bone.landmark.head_center，zone_offset_mm 写 16。设计 A 上两种取法是同一个点",
               refers=["bone.landmark", "stem.feature"]),
         _item("zone_offset_mm", "参照点往远端挪多少", "zone_from 那个点沿 depth_axis 往远端挪这么多，才是量深度的参照点", "支撑区的深度",
-              "number", 16.0, f"{OLD} 的 cref = 头心 − 16·颈轴：16 mm 是设计 A 的截骨高度，也是放置设定里去骨量的截骨参照 ref_cut_mm",
+              "number", 0.0, f"{FOLLOW}，参照点就是颈底，不挪。照旧系统取头心时写 16（{OLD} 的 cref = 头心 − 16·颈轴："
+              "16 mm 是设计 A 的截骨高度，也是放置设定里去骨量的截骨参照 ref_cut_mm）",
               per_point=True, unit="mm", range={"min": 0.0, "max": 100.0}),
         _item("depth_axis", "深度沿哪根轴量", "深度逆着这根轴的方向量。颈轴从颈底指向头，所以往远端是正的", "支撑区的深度", "ref",
               {"ref": "stem.axis.neck_axis"},
