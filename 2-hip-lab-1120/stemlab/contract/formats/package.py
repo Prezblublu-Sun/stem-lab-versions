@@ -16,7 +16,7 @@
     modes         能做的事：MODES 里这一种包的那几样，不重复
     inputs        对输入的要求：{输入名: {…}}。里面具体写什么，由用它的冻结代码核。
                   对骨模型的要求（bone）有固定的写法，见 bone_model.py：要哪些角色的区域、哪种几何文件、哪些材料模型、
-                  哪些标志点、覆盖范围、坐标系的定法；用它的冻结代码拿 check_wanted、lacking 核
+                  哪些标志点、覆盖范围、坐标系的定法；用它的冻结代码拿 check_wanted、lacking 核。没写就是不挑
     outputs       产出的列：[{"name", "unit", "meaning", "role"}]，和数据的列一样写；交出的不是列（比如预测器）就写 []
     test_round    测试轮用的参照输入：{"inputs": {输入名: {"folder": 包里的文件夹} 或 {"item": 登记的编号}}}
 第 1 版的清单读成第 2 版时只改版本号：新的几段原来都没有。
@@ -33,6 +33,18 @@
 包清单的 programs 里写了外部程序的，叫它的一方照名字和版本在要跑它的那台机器的清单里找位置，
 放进 job.json 的 programs：{名字: 位置}。包不自己去找（不看环境变量、不留自己的默认位置）；job 里没有，就当这台机器没装。
 现在照这样带的是 fea.run 交给柄空间包、有限元包、推导量定义的 job（plugins/fea/given.py），启动前也核操作台都装了。
+
+骨模型交给包的时候是两样（2026-11-19，第 5 步的 5b）：
+    bone_model   骨模型的文件夹。几何文件从这里拿
+    bone         骨模型的清单，叫包的一方已经读成现在这一版的样子（bone_model.read：盘上是旧版本的照样读，
+                 旧版本没有的几样是 null）。直接写在 job.json 里
+包读 bone，不自己打开文件夹里的 manifest.json，也就不用认旧版本。找区域照角色（role）找，不照名字找；
+名字引用（bone.region.<名字>）指的还是名字：照名字找到那个区域，再看它的角色。
+包对骨模型的要求写在清单 inputs 的 bone 里。叫它的一方启动前照它核：要求自己写得不对，或者这根骨缺哪一样，就不启动，
+说出是哪个包、缺哪一样。叫的一方自己不挑骨：收不收某种骨，只照包写的要求。要求里写不出的限制
+（比如只认某两个文件），由包在跑的时候自己核，说出原因。
+现在照这样带、照这样核的是 fea.run 交给柄空间包、有限元包、推导量定义的 job（plugins/fea/given.py）。
+内核（参照包那条）的 job 不带 bone：它是登记后不改的旧代码，自己读文件夹里的清单。
 
     内核（kernel）       清单另加 modes（会哪几种做法：template、build、post）、design 和 conditions
                          （一个点要带的设计项、条件项的说明）、pre / labels / fields（它给出的三类量的说明）、
@@ -67,18 +79,18 @@
                          清单另加 names：它交出的柄的模型里一定有的名字，{"region", "faces", "feature", "axis"} 各一个名字列表。
                          启动前，设定里的名字引用照它核；跑的时候再核交出的柄的模型里真的有。
                          outputs 是模板化算出的量（role 都是 pre）
-        template         job：bone_model、bone_id、designs [{name, design}]、settings（放置设定的取值）
+        template         job：bone_model、bone、bone_id、designs [{name, design}]、settings（放置设定的取值）
                          result：designs [{name, feasible, info}]。只模板化，不出柄的模型。优化取候选时用
-        model            job：bone_model、bone_id、point {name, hash, design}、settings（这个点的放置设定）、programs
+        model            job：bone_model、bone、bone_id、point {name, hash, design}、settings（这个点的放置设定）、programs
                          result：status（ok、misfit、env、error）、reason、pre {模板化算出的量}。
                          status 是 ok 的，柄的模型（stem_model.py 的格式）写在输出文件夹的 model/ 里，design 原样抄这个点的
     有限元（fem）         outputs 是它给出的量：role 是 pre（建模时就有的）、label（标量）、field（场）
-        build            job：bone_model、bone_id、stem_model（柄的模型的文件夹，无植入物是 null）、point {name, hash}、
+        build            job：bone_model、bone、bone_id、stem_model（柄的模型的文件夹，无植入物是 null）、point {name, hash}、
                          settings（这个点的有限元设定）、job（求解用的文件夹）、programs
                          result：status（built、mesh_failed、env、error）、reason、pre {…}、
                          solve {"command": 求解命令的各个参数，在 job 文件夹里跑，跑完才返回; 可另带 "timeout_s"}
         post             job：同 build。求解已经结束，结果在 job 文件夹里。result 同内核的 post
-    推导量定义在拆内核以后的那条路上，job 另带 bone_model、stem_model（无植入物是 null）、
+    推导量定义在拆内核以后的那条路上，job 另带 bone_model、bone、stem_model（无植入物是 null）、
     settings（这个点的推导量设定，没有推导量设定是 null）、programs，pre 是柄空间包和有限元包两次给的合起来
 """
 from __future__ import annotations

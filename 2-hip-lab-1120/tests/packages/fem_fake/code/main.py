@@ -19,6 +19,10 @@ solver takes), build_seconds (how long building takes), load_point (a name refer
 load_point is looked up in the stem model or in the bone model, and what it found is written into the deck,
 so a test can see that the name reference reached the package together with the stem model.
 job["programs"] (where the programs its manifest lists are installed, taken from the machine list) goes into the deck as well.
+
+The bone model comes as two things: job["bone_model"], the folder its geometry files are in, and job["bone"], its manifest
+already read as the current version by the caller. This package reads job["bone"] and never opens the manifest in the folder,
+so it need not know older versions. What it saw of the bone goes into the deck too (see bone_seen).
 """
 import json
 import os
@@ -35,15 +39,24 @@ def _stem(job: dict):
     return json.loads((pathlib.Path(folder) / "stem_model.json").read_text()) if folder else None
 
 
-def where_is(reference, stem, bone_model: str):
-    """Look a name reference up: {"ref": "stem.feature.taper_center"} or {"ref": "bone.landmark.head_center"}."""
+def where_is(reference, stem, bone: dict):
+    """Look a name reference up: {"ref": "stem.feature.taper_center"} or {"ref": "bone.landmark.head_center"}.
+    bone is the manifest of the bone model as the caller handed it over (job["bone"])."""
     if not reference:
         return None
     source, part, name = reference["ref"].split(".")
     if source == "stem":
         return {"feature": stem["features"], "axis": {k: v["point"] for k, v in stem["axes"].items()}}.get(part, {}).get(name, name)
-    listed = json.loads((pathlib.Path(bone_model) / "manifest.json").read_text())
-    return listed["landmarks"][name]["xyz"] if part == "landmark" else name
+    return bone["landmarks"][name]["xyz"] if part == "landmark" else name
+
+
+def bone_seen(job: dict) -> dict:
+    """What reached this package of the bone model: the version its manifest was handed over in, how its anatomical frame
+    was fixed, and its regions told apart by role (not by name): the file, whether it is there in the folder, the material model."""
+    listed, folder = job["bone"], pathlib.Path(job["bone_model"])
+    return {"format": listed["format"], "frame": listed["frame"]["method"],
+            "regions": {region["role"]: {"file": region["geometry"]["file"], "there": (folder / region["geometry"]["file"]).is_file(),
+                                         "material": (region["material"] or {}).get("model")} for region in listed["regions"]}}
 
 
 def build(job: dict) -> dict:
@@ -67,8 +80,8 @@ def build(job: dict) -> dict:
     where = pathlib.Path(job["job"])
     where.mkdir(parents=True, exist_ok=True)
     deck = {"length": design["length"], "load": settings["load"], "behave": behave, "seconds": settings.get("seconds", 0),
-            "implant": stem is not None, "load_point": where_is(settings.get("load_point"), stem, job["bone_model"]),
-            "programs": job.get("programs")}
+            "implant": stem is not None, "load_point": where_is(settings.get("load_point"), stem, job["bone"]),
+            "programs": job.get("programs"), "bone": bone_seen(job)}
     (where / "deck.json").write_text(json.dumps(deck))
     (where / "mesh.json").write_text(json.dumps({"nodes": 100 + int(design["length"]), "elements": 50}))
     return {"status": "built", "reason": "", "pre": {"n_nodes": 100 + int(design["length"])},

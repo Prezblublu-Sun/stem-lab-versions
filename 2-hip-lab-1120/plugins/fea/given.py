@@ -11,9 +11,15 @@
                  每个点给的项要写进数据的行，只能是数、整数、是否、几选一、文字
     外部程序      三个包清单的 programs 里写的程序（名字和确切的版本），操作台这台的机器清单里都写了装在哪。
                  FEA 的包都在操作台上跑
+    骨模型        三个包各自在清单 inputs 的 bone 里写的要求（写法见契约的 bone_model.py）：要求自己写得对，这根骨样样都有。
+                 没写就是不挑。骨架自己不挑骨：收哪种几何文件、哪些角色的区域、哪种定法的坐标系，都只照包写的核
+
+骨模型的清单一律读成现在这一版再用（hooks.read_bone_model；盘上是旧版本的照样读）：名字引用照它给名字，
+包的要求照它核，交给包的也是它。
 
 交给包的 job.json 也在这里拼（ask、derive_ask）：包拿到的设定就是登记的那几份，加上这个点给的，没有隐含的默认值；
-它要的外部程序在操作台上装在哪，照机器清单放进 programs（{名字: 位置}），包不自己去找。
+它要的外部程序在操作台上装在哪，照机器清单放进 programs（{名字: 位置}），包不自己去找；
+骨模型是两样：bone_model 是文件夹（几何文件在里面），bone 是读成现在这一版的清单，包不用自己认旧版本。
 自由代码照它写 job.json。作业结束以后，冻结的代码照登记的输入再核一遍，自由代码交上来的说法不作数。
 """
 from __future__ import annotations
@@ -35,6 +41,7 @@ ROLE_ORDER = ("design", "condition", "pre", "label", "field", "derived")
 GROUPS = (("conditions", "fem_setting", "fem", "fem", "有限元设定"),
           ("placement", "placement", "stem", "placement", "放置设定"),
           ("derive", "derive_setting", "derive", "derive", "推导量设定"))
+PACKAGES = (("stem", "柄空间包"), ("fem", "有限元包"), ("derive", "推导量定义"))      # 三样包输入，和说给人听叫什么
 _MAX_PROBLEMS = 20
 
 
@@ -46,19 +53,25 @@ def _decl(listed, name: str):
     return hooks.find_declaration(listed.get("declarations"), name) if isinstance(listed, dict) else None
 
 
+def _bone(handle) -> dict:
+    """骨模型的清单，读成现在这一版的样子（盘上是旧版本的照样读，盘上的不动）。读不出、转不了报 ValueError。"""
+    return hooks.read_bone_model(handle.input("bone"))
+
+
 def read(handle) -> dict:
-    """这一次调用里要反复用的几样：三个包的清单、几份设定、它们照的声明、名字引用能用的名字。读不出清单报 ValueError。"""
+    """这一次调用里要反复用的几样：三个包的清单、骨模型的清单（读成现在这一版的）、几份设定、它们照的声明、
+    名字引用能用的名字。读不出清单报 ValueError。"""
     try:
         stem = handle.input("stem")
         listed = {"stem": _manifest(stem) if stem is not None else None,
                   "fem": _manifest(handle.input("fem")), "derive": _manifest(handle.input("derive"))}
-        bone = _manifest(handle.input("bone"))
+        bone = _bone(handle)
     except (OSError, ValueError) as error:
         raise ValueError(f"读不出包或骨模型的清单：{error}") from None
     settings = {name: handle.input(name) for name in ("placement", "fem_setting", "derive_setting", "run")}
     declared = {setting: _decl(listed[package], decl) for _, setting, package, decl, _ in GROUPS}
     names = {**hooks.bone_names(bone), **promised(listed["stem"])}
-    return {"listed": listed, "settings": settings, "design": _decl(listed["stem"], "design"), "declared": declared,
+    return {"listed": listed, "bone": bone, "settings": settings, "design": _decl(listed["stem"], "design"), "declared": declared,
             "names": names, "implant": stem is not None}
 
 
@@ -96,6 +109,7 @@ def problems(handle) -> list[str]:
         return [str(error)]
     found = _package_problems(given)
     found += _program_problems(handle, given)
+    found += _bone_problems(given)
     found += _setting_problems(handle, given)
     if found:
         return found
@@ -147,9 +161,21 @@ def _program_problems(handle, given: dict) -> list[str]:
     desk = _desk(handle)
     where = f"操作台（{desk.name}）" if desk else "操作台"
     return [f"{label}要 {one.get('name')} {one.get('version')}，{where}的机器清单里没写它装在哪（programs）"
-            for package, label in (("stem", "柄空间包"), ("fem", "有限元包"), ("derive", "推导量定义"))
-            for one in _wanted(given["listed"][package])
+            for package, label in PACKAGES for one in _wanted(given["listed"][package])
             if not (desk and desk.program(one.get("name"), one.get("version")))]
+
+
+def _bone_problems(given: dict) -> list[str]:
+    """这根骨合不合三个包各自写的要求（清单 inputs 里的 bone）。要求自己写错的，只说它写错了；写对了的，缺哪一样说哪一样。
+    没写就是不挑，无植入物没有柄空间包。骨架自己不加别的条件：收不收这种骨，由包写的要求定。"""
+    found = []
+    for package, label in PACKAGES:
+        inputs = (given["listed"][package] or {}).get("inputs")
+        want = inputs.get("bone", {}) if isinstance(inputs, dict) else {}
+        wrong = hooks.check_bone_wanted(want)
+        found += [f"{label}的清单里对骨模型的要求（inputs 的 bone）写得不对：{text}" for text in wrong] if wrong else \
+                 [f"这份骨模型不合{label}的要求：{text}" for text in hooks.bone_lacking(want, given["bone"])]
+    return found
 
 
 def _setting_problems(handle, given: dict) -> list[str]:
@@ -258,9 +284,10 @@ def maker(handle, given: dict) -> dict:
 def ask(handle, job: dict, mode: str, stem=None, solve=None) -> dict:
     """交给包的 job.json。mode 是 model（柄空间包出柄的模型），或 build、post（有限元包）。
     stem 是柄空间包的输出文件夹（柄的模型在它的 model/ 里），无植入物是 None；solve 是求解用的文件夹。
-    programs 是这个包要的外部程序在操作台上装在哪（照机器清单）。"""
+    programs 是这个包要的外部程序在操作台上装在哪（照机器清单）。
+    骨模型是两样：bone_model 是它的文件夹，bone 是它的清单、读成现在这一版的样子。"""
     point = job["point"]
-    base = {"mode": mode, "bone_model": str(handle.input("bone")), "bone_id": point["bone_id"]}
+    base = {"mode": mode, "bone_model": str(handle.input("bone")), "bone": _bone(handle), "bone_id": point["bone_id"]}
     if mode == "model":
         return dict(base, point={"name": point["name"], "hash": point["hash"], "design": point["design"]},
                     settings=hooks.merged(handle.input("placement"), point.get("placement") or {}),
@@ -277,10 +304,11 @@ def pre(result: dict) -> dict:
 
 
 def derive_ask(handle, job: dict, result: dict) -> dict:
-    """推导量定义在这条路上另拿到的：骨模型、柄的模型、这个点的推导量设定；建模时的量两次合起来。"""
+    """推导量定义在这条路上另拿到的：骨模型（文件夹，和读成现在这一版的清单）、柄的模型、这个点的推导量设定；
+    建模时的量两次合起来。"""
     point, setting = job["point"], handle.input("derive_setting")
     folder = (result.get("dirs") or {}).get("stem")
-    return {"bone_model": str(handle.input("bone")),
+    return {"bone_model": str(handle.input("bone")), "bone": _bone(handle),
             "stem_model": str(Path(folder) / MODEL) if handle.input_info("stem") is not None and folder else None,
             "settings": None if setting is None else hooks.merged(setting, point.get("derive") or {}),
             "pre": pre(result), "programs": located(handle, _manifest(handle.input("derive")))}

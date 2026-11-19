@@ -11,6 +11,9 @@ The design has two items: length (mm) and behave. How a design behaves at the "m
 Other values of behave (mesh, diverge, loose, crash, env, hang ...) are for the fake FE package: here they are like ok.
 
 The placement setting may say cut_drop (mm): how far below the reference the cut is. It moves the cut and adds to the bone removed.
+
+At the "model" step the bone model must come the way the convention says: job["bone"] is its manifest, already read as the
+current version by the caller (job["bone_model"] is still the folder). Handed anything else, this package reports an error.
 """
 import json
 import pathlib
@@ -60,6 +63,8 @@ def stem_model(design: dict, settings: dict) -> tuple[dict, dict]:
 def model(job: dict, out: pathlib.Path) -> dict:
     design, settings = job["point"]["design"], job.get("settings") or {}
     behave = design.get("behave", "ok")
+    if (job.get("bone") or {}).get("format") != 2 or "head_center" not in job["bone"]["landmarks"]:
+        return {"status": "error", "reason": "the bone manifest was not handed over read as version 2 (job['bone'])", "pre": {}}
     if not fits(design):
         return {"status": "misfit", "reason": "no entry offset lets this stem fit", "pre": {"bone_removed": None}}
     if behave in FAILS:

@@ -39,7 +39,8 @@ BONE_EXTRA = {
 
 def bone_folder(root: Path, kind: str = "bone_model", bone_id: str = BONE, **change) -> Path:
     """一个符合格式的骨模型（或候选骨模型）文件夹。写的是第 1 版（BONE_EXTRA 是第 1 版的内容），清单明写版本号：
-    重建现在写的、各个包现在读的都还是第 1 版，契约读的时候把它读成第 2 版。"""
+    重建现在写的还是第 1 版，契约读的时候把它读成第 2 版；fea.run 交给包的是读成第 2 版的那一份（5b）。
+    盘上就是第 2 版的见 bone_v2。"""
     files = {"solids/cortical.step": b"ISO-10303-21; fake cortical shell\n", "solids/cancellous.step": b"ISO-10303-21; fake core\n"}
     helpers.write_files(root, files)
     write_manifest(root, {**make_manifest(kind, list(files), bone_id=bone_id, **{**BONE_EXTRA, **change}), "format": 1})
@@ -51,6 +52,23 @@ def bone_model(tmp: Path, bone_id: str = BONE) -> dict:
     seen = any(item["bone_id"] == bone_id for item in lookup.find())
     return register.register_external("bone_model", f"{bone_id}-model", source=bone_folder(tmp / f"bone-{next(_NAMES)}", bone_id=bone_id),
                                       note="测试用的骨模型", by="tester", bone_id=bone_id, new_bone=not seen)
+
+
+def bone_v2(tmp: Path, bone_id: str = BONE, stl: bool = False, **change) -> dict:
+    """登记一根盘上就是第 2 版的骨模型：tests/contract/bone_samples.py 的好样本（完整的股骨，皮质、松质、髓腔三个区域，
+    照后髁连线定坐标系）。stl=True 时三个区域的几何都换成 STL 文件。change 盖掉清单里的同名项。"""
+    from tests.contract import bone_samples
+
+    listed, files = {**bone_samples.good(), "bone_id": bone_id, **change}, dict(bone_samples.FILES)
+    if stl:
+        for region in listed["regions"]:
+            files.pop(region["geometry"]["file"])
+            region["geometry"] = {"kind": "solid", "format": "stl", "file": f"regions/{region['name']}.stl"}
+            files[region["geometry"]["file"]] = b"solid " + region["name"].encode()
+    seen = any(item["bone_id"] == bone_id for item in lookup.find())
+    folder = bone_samples.write(tmp / f"bone-{next(_NAMES)}", listed, files=files)
+    return register.register_external("bone_model", f"{bone_id}-model", source=folder, note="测试用的骨模型（盘上是第 2 版）",
+                                      by="tester", bone_id=bone_id, new_bone=not seen)
 
 
 def point(name: str, length: float = 30.0, behave: str = "ok", load: float = 2000.0, bone_id: str = BONE) -> dict:

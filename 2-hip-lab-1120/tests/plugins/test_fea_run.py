@@ -3,6 +3,9 @@
 核心核过的设定（第 1 到 5、7、9 条），骨架再核每个点给的项（第 6 条）、名字引用（第 8 条），
 和几份设定照的是不是该照的那份声明。用假的柄空间包、假的有限元包（tests/packages/stem_fake、fem_fake）。
 参照包那条（fea.reference）的验收在 test_fea.py，情形本身没改。
+
+骨模型（第 5 步的 5b）：三个包各自在清单的 inputs.bone 里写对骨模型的要求，骨架启动前照它核，自己不挑骨；
+交给包的骨模型清单一律是读成第 2 版的那一份（job 的 bone），盘上是第 1 版的也一样。见最后一组。
 """
 from __future__ import annotations
 
@@ -18,6 +21,7 @@ from stemlab.contract.hashing import hash_json, is_hash
 from stemlab.desk.core import start
 from stemlab.experiments import view
 from stemlab.hooks import load
+from stemlab.registry import lookup
 from tests import packages, real
 from tests.conftest import FAKE_SOLVER
 from tests.plugins.fea_cases import kept, refused, rows_of, stages
@@ -229,3 +233,87 @@ def test_the_programs_a_package_needs_come_from_the_machine_list(real_lab, data,
     other = real.package("stem_fake", tmp_path, programs=[{"name": "cad-kernel", "version": "7"}])
     said = refused(real.fea_run(tmp_path, [P("p1")], packages_={"stem": other}))
     assert "柄空间包" in said and "cad-kernel 7" in said, said
+
+
+# ---- 8 骨模型：包在清单里写要什么，骨架启动前照它核；交给包的清单一律是第 2 版 ----
+
+# 一份写全了的要求，real.bone_v2 的那根骨样样都合：皮质、松质各一块，髓腔有没有都行；STEP、STL 都收；线弹性；
+# 两个标志点；完整的股骨，往远端至少到 400 mm；坐标系照后髁连线定
+WANT = {"regions": {"cortical": [1, 1], "cancellous": [1, 1], "canal": [0, 1]}, "geometry": ["step", "stl"], "materials": ["elastic"],
+        "landmarks": ["head_center", "lesser_trochanter"], "coverage": {"extent": ["whole"], "distal_mm": 400.0},
+        "frame": {"methods": ["shaft_condyles"]}, "what": "测试：写全了的一份要求"}
+LABELS = {"stem": "柄空间包", "fem": "有限元包", "derive": "推导量定义"}
+
+
+def wanting(tmp: Path, bone: dict, **wants) -> str:
+    """一个 fea.run：三个假包各自在清单里写对骨模型的要求（没给的那个写 WANT），配上这根骨。返回实验的编号。"""
+    given = {name: real.package(f"{name}_fake", tmp, inputs={"bone": wants.get(name, WANT)}) for name in LABELS}
+    return real.fea_run(tmp, [P("p1")], packages_=given, bone=bone)
+
+
+def test_a_bone_model_that_has_what_every_package_asks_for_goes_through(real_lab, data, tmp_path):
+    """盘上就是第 2 版的骨模型，三个包要的它都有：走得通；清单原样交到包手里，几何文件在 bone_model 那个文件夹里。"""
+    made = wanting(tmp_path, real.bone_v2(tmp_path))
+    status = finished(made)
+    assert real.tasks(made) == {"p1": ("done", "finished")}, status.rounds[-1].problems
+    assert deck(made, "p1")["bone"] == {"format": 2, "frame": "shaft_condyles", "regions": {
+        "cortical": {"file": "regions/cortical.step", "there": True, "material": "elastic"},
+        "cancellous": {"file": "regions/cancellous.stp", "there": True, "material": "elastic"},
+        "canal": {"file": "regions/canal.stl", "there": True, "material": None}}}
+
+
+@pytest.mark.parametrize("why,package,change,said", [
+    ("区域的角色：不收髓腔", "fem", {"regions": {"cortical": [1, 1], "cancellous": [1, 1]}}, ["区域", "不收髓腔"]),
+    ("区域的个数：要两块皮质", "stem", {"regions": {"cortical": [2, None], "cancellous": [1, 1], "canal": [0, 1]}}, ["至少 2 个皮质"]),
+    ("几何文件：只收 STEP，髓腔那一块是 STL", "fem", {"geometry": ["step"]}, ["几何", "'canal' 是 stl"]),
+    ("材料模型：只会 neo-Hookean", "derive", {"materials": ["neo_hooke"]}, ["材料", "elastic"]),
+    ("标志点：要大转子", "derive", {"landmarks": ["head_center", "greater_trochanter"]}, ["标志点", "greater_trochanter"]),
+    ("覆盖范围：要往远端到 500 mm", "stem", {"coverage": {"extent": ["whole"], "distal_mm": 500.0}}, ["覆盖范围", "远端"]),
+    ("坐标系的定法：只收照颈轴定的", "fem", {"frame": {"methods": ["shaft_neck"]}}, ["解剖坐标系", "shaft_condyles"]),
+    ("要求自己写错：旧写法的 solids", "fem", {"solids": ["cortical", "cancellous"]}, ["写得不对", "solids"]),
+])
+def test_what_a_package_asks_of_the_bone_model_is_checked_before_the_start(real_lab, data, tmp_path, why, package, change, said):
+    """这根骨缺包要的哪一样，启动前被拒，说出是哪个包、缺哪一样；要求自己写错的，说出是哪个包、错在哪。
+    每个情形只动一个包的一项，另外两个包要的这根骨都有：它们不被点名。同一根骨配三份没动过的要求走得通（上一条）。"""
+    text = refused(wanting(tmp_path, real.bone_v2(tmp_path), **{package: {**WANT, **change}}))
+    assert LABELS[package] in text and all(part in text for part in said), f"{why}：{text}"
+    assert not [label for name, label in LABELS.items() if name != package and label in text], f"{why}：只该点 {LABELS[package]} 的名：{text}"
+
+
+def test_the_skeleton_does_not_pick_bones_the_packages_do(real_lab, data, tmp_path):
+    """收哪种几何文件由包在自己的清单里写，骨架只照它核：只收 STEP 的有限元包配上三个区域都是 STL 的骨，启动前被拒，
+    说出是有限元包不收；同一个包把清单改成也收 STL，同一根骨就走得通。骨架自己没有“只认 STEP”这一条。"""
+    bone = real.bone_v2(tmp_path, stl=True)
+    step_only = real.package("fem_fake", tmp_path, inputs={"bone": {"geometry": ["step"]}})
+    said = refused(real.fea_run(tmp_path, [P("p1")], packages_={"fem": step_only}, bone=bone))
+    assert "有限元包" in said and "是 stl" in said and "柄空间包" not in said and "推导量定义" not in said, said
+    both = real.package("fem_fake", tmp_path, inputs={"bone": {"geometry": ["step", "stl"]}})
+    made = real.fea_run(tmp_path, [P("p1")], packages_={"fem": both}, bone=bone)
+    status = finished(made)
+    assert real.tasks(made) == {"p1": ("done", "finished")}, status.rounds[-1].problems
+    assert {region["file"] for region in deck(made, "p1")["bone"]["regions"].values()} == {
+        "regions/cortical.stl", "regions/cancellous.stl", "regions/canal.stl"}
+
+
+def test_a_version_1_bone_model_reaches_the_packages_read_as_version_2(real_lab, data, tmp_path):
+    """盘上是第 1 版的骨模型：盘上的不动；交给包的 job 里，bone 是读成第 2 版的清单（区域带着角色，材料换成了 elastic，
+    坐标系照颈轴定），bone_model 还是那个文件夹。假柄空间包、假推导量定义拿到的不是第 2 版就不干，所以走完就是三个包都拿到了。"""
+    made = real.fea_run(tmp_path, [P("p1")])
+    status = finished(made)
+    assert real.tasks(made) == {"p1": ("done", "finished")}, status.rounds[-1].problems
+    stored = read_manifest(lookup.content(status.frozen["bone"][0]["id"]))
+    assert stored["format"] == 1 and set(stored["solids"]) == {"cortical", "cancellous"}, "盘上的还是第 1 版"
+    assert deck(made, "p1")["bone"] == {"format": 2, "frame": "shaft_neck", "regions": {
+        "cortical": {"file": "solids/cortical.step", "there": True, "material": "elastic"},
+        "cancellous": {"file": "solids/cancellous.step", "there": True, "material": "elastic"}}}
+
+
+def test_what_a_version_1_bone_model_does_not_know_counts_as_missing(real_lab, data, tmp_path):
+    """第 1 版读成第 2 版，有几样是不知道的。包要它，就算缺；照颈轴定、前倾角不知道的坐标系，包说了收才收。"""
+    bone = real.bone_model(tmp_path)
+    text = refused(wanting(tmp_path, bone, stem={}, derive={}, fem={"coverage": {"extent": ["whole"]}}))
+    assert "有限元包" in text and "不知道覆盖范围" in text, text
+    text = refused(wanting(tmp_path, bone, stem={}, derive={}, fem={"frame": {"methods": ["shaft_neck"]}}))
+    assert "有限元包" in text and "前倾角不知道" in text, text
+    taken = wanting(tmp_path, bone, stem={}, derive={}, fem={"frame": {"methods": ["shaft_neck"], "unknown_anteversion": True}})
+    assert start.start(taken).ok
