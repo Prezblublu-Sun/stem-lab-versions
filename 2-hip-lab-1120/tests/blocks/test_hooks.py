@@ -37,8 +37,15 @@ def test_the_facade_is_exactly_what_plugins_may_use():
         "made_by", "mixed_makers", "maker_clash", "common_maker",
         # 拆内核（第 4 步）加的：跑柄空间包、有限元包；fea.run 的骨架核每个点给的项、名字引用、柄的模型用的几个核对
         "run_stem", "run_fem", "made_by_split", "check_setting", "check_point", "check_design", "merged", "is_declared",
-        "find_declaration", "per_point_items", "check_stem_model", "read_stem_model", "stem_names", "bone_names"}
+        "find_declaration", "per_point_items", "check_stem_model", "read_stem_model", "stem_names", "bone_names",
+        # 骨模型第 2 版（第 5 步的 5a）加的：读成现在这一版、核用的一方的要求、从标志点算解剖坐标系
+        "read_bone_model", "check_bone_wanted", "bone_lacking", "bone_frame", "bone_anteversion"}
     assert all(hasattr(hooks, name) for name in hooks.__all__)
+    from stemlab.contract.formats import bone_model
+
+    assert (hooks.read_bone_model, hooks.check_bone_wanted, hooks.bone_lacking, hooks.bone_frame, hooks.bone_anteversion,
+            hooks.bone_names) == (bone_model.read, bone_model.check_wanted, bone_model.lacking, bone_model.frame,
+                                  bone_model.anteversion, bone_model.names), "门面只转出，规矩和算法还是契约里那一份"
     assert hooks.TASK_STATES == ("queued", "running", "done", "failed", "stopped")
     assert hooks.Kind is plugin_api.Kind and hooks.spawn is local.spawn and hooks.kill is local.kill
 

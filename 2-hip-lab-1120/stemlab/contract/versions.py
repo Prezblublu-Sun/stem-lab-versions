@@ -18,7 +18,7 @@ FORMATS = {
     "record": 1,        # 实验记录的一条
     "manifest": 1,      # 文件夹形态的东西共用的清单
     "points": 2,        # 一批点、候选池。第 2 版一批点多了放置、推导量两组
-    "bone_model": 1,    # 骨模型、候选骨模型
+    "bone_model": 2,    # 骨模型、候选骨模型。第 2 版：区域各有角色和材料、解剖坐标系、覆盖范围、来源（formats/bone_model.py）
     "data": 1,          # 数据、一份预测
     "package": 2,       # 带代码的包。第 2 版加了 programs、declarations、modes、inputs、outputs、test_round
     "stem_model": 1,    # 柄的模型：柄空间包交给有限元包、推导量定义包的，不进账（formats/stem_model.py）
@@ -27,6 +27,13 @@ FORMATS = {
     "backup": 1,        # 备份时记下的链头
 }
 
+def _bone_model_from_v1(old: dict) -> dict:
+    """骨模型的第 1 版读成第 2 版：一块骨、两个区域、均匀材料。怎么读写在 formats/bone_model.py 的 from_v1。"""
+    from stemlab.contract.formats import bone_model     # 它用到这个文件，所以在这里才 import
+
+    return bone_model.from_v1(old)
+
+
 # (格式, 旧版本) -> 把这个版本转成下一个版本的函数
 UPCASTS: dict[tuple[str, int], Callable[[dict], dict]] = {
     # 包的第 2 版只多了几段（原来的几种包可以不写）：第 1 版的清单只改版本号
@@ -34,6 +41,8 @@ UPCASTS: dict[tuple[str, int], Callable[[dict], dict]] = {
     # 一批点的第 2 版多了放置、推导量两组：第 1 版的清单这两组的单子是空的（行里没写的，核对时当成空的）
     ("points", 1): lambda old: {**old, "format": 2,
                                 **({"placement_keys": [], "derive_keys": []} if old.get("kind") == "points" else {})},
+    # 骨模型的第 2 版：先照第 1 版的规矩核，再读成第 2 版的样子；第 1 版没有的几样是 null（不知道）
+    ("bone_model", 1): _bone_model_from_v1,
 }
 
 

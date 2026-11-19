@@ -14,7 +14,9 @@
                   只写要哪个、哪一版，不写装在哪：装在哪是机器的事，写在机器清单里（contract/machines.py 的 programs）
     declarations  声明的设定：[声明, …]，写法和规矩见 declaration.py，一个包里不重名。各种包至少要有的几份见 DECLARED
     modes         能做的事：MODES 里这一种包的那几样，不重复
-    inputs        对输入的要求：{输入名: {…}}。里面具体写什么，由用它的冻结代码核
+    inputs        对输入的要求：{输入名: {…}}。里面具体写什么，由用它的冻结代码核。
+                  对骨模型的要求（bone）有固定的写法，见 bone_model.py：要哪些角色的区域、哪种几何文件、哪些材料模型、
+                  哪些标志点、覆盖范围、坐标系的定法；用它的冻结代码拿 check_wanted、lacking 核
     outputs       产出的列：[{"name", "unit", "meaning", "role"}]，和数据的列一样写；交出的不是列（比如预测器）就写 []
     test_round    测试轮用的参照输入：{"inputs": {输入名: {"folder": 包里的文件夹} 或 {"item": 登记的编号}}}
 第 1 版的清单读成第 2 版时只改版本号：新的几段原来都没有。

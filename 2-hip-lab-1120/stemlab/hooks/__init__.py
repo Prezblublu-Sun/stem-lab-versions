@@ -20,8 +20,19 @@
     check_setting、check_point、check_design、merged、is_declared、find_declaration、per_point_items   设定的声明
     check_stem_model、read_stem_model、stem_names                                                      柄的模型
     bone_names                                                                                          骨模型里能被名字引用的
+骨模型第 2 版（第 5 步）加的，规矩和算法都在契约的 formats/bone_model.py：
+    read_bone_model       读一份骨模型的清单，读成现在这一版的样子（盘上是第 1 版的照样读）。交给包的、拿去核要求的都是它
+    check_bone_wanted     包清单 inputs 里对骨模型的要求，自己写得对不对
+    bone_lacking          一份骨模型缺要求里的哪几样
+    bone_frame            从标志点算解剖坐标系（算法只有契约里那一份）
+    bone_anteversion      照后髁连线量出的前倾角
 """
+from stemlab.contract.formats.bone_model import anteversion as bone_anteversion
+from stemlab.contract.formats.bone_model import check_wanted as check_bone_wanted
+from stemlab.contract.formats.bone_model import frame as bone_frame
+from stemlab.contract.formats.bone_model import lacking as bone_lacking
 from stemlab.contract.formats.bone_model import names as bone_names
+from stemlab.contract.formats.bone_model import read as read_bone_model
 from stemlab.contract.formats.declaration import (check_design, check_point, check_setting, is_declared, merged,
                                                   per_point_items)
 from stemlab.contract.formats.declaration import find as find_declaration
@@ -46,4 +57,5 @@ __all__ = [
     "spawn", "alive", "kill", "remote",
     "check_setting", "check_point", "check_design", "merged", "is_declared", "find_declaration", "per_point_items",
     "check_stem_model", "read_stem_model", "stem_names", "bone_names",
+    "read_bone_model", "check_bone_wanted", "bone_lacking", "bone_frame", "bone_anteversion",
 ]

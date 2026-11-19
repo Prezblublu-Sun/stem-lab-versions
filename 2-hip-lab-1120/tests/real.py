@@ -38,10 +38,11 @@ BONE_EXTRA = {
 
 
 def bone_folder(root: Path, kind: str = "bone_model", bone_id: str = BONE, **change) -> Path:
-    """一个符合格式的骨模型（或候选骨模型）文件夹。"""
+    """一个符合格式的骨模型（或候选骨模型）文件夹。写的是第 1 版（BONE_EXTRA 是第 1 版的内容），清单明写版本号：
+    重建现在写的、各个包现在读的都还是第 1 版，契约读的时候把它读成第 2 版。"""
     files = {"solids/cortical.step": b"ISO-10303-21; fake cortical shell\n", "solids/cancellous.step": b"ISO-10303-21; fake core\n"}
     helpers.write_files(root, files)
-    write_manifest(root, make_manifest(kind, list(files), bone_id=bone_id, **{**BONE_EXTRA, **change}))
+    write_manifest(root, {**make_manifest(kind, list(files), bone_id=bone_id, **{**BONE_EXTRA, **change}), "format": 1})
     return root
 
 
