@@ -29,7 +29,7 @@ def ct_style_draft(tmp) -> tuple:
     extra = dict(real.BONE_EXTRA, solids={name: {"file": f"solids/{name}.stl"} for name in made}, checks=[],
                  measures={"cortical_volume_mm3": whole - hollow, "cancellous_volume_mm3": hollow},
                  history=[{"step": "ct-input", "what": "测试：照 CT 重建的写法写出来的两个实体"}])
-    write_manifest(folder, make_manifest("bone_draft", list(files), bone_id=real.BONE, **extra))
+    write_manifest(folder, {**make_manifest("bone_draft", list(files), bone_id=real.BONE, **extra), "format": 1})    # 第 1 版的内容，明写第 1 版
     assert check_format("bone_draft", folder) == []
     draft = register.register_external("bone_draft", f"{real.BONE}-ct-draft", note="测试：CT 那种实体的候选", by="tester", bone_id=real.BONE,
                                        source=folder, new_bone=True)

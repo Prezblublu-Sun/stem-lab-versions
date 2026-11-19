@@ -598,8 +598,9 @@ def registered_bone(folder: Path, legacy: Path) -> dict:
                  "neck_center": {"xyz": [32.4, 0.4, 101.1], "definition": rough}, "shaft_proximal": {"xyz": [7.0, 0.0, 0.0], "definition": rough},
                  "shaft_distal": {"xyz": [7.0, 0.0, -150.0], "definition": rough}, "lesser_trochanter": {"xyz": [20.0, 15.0, 30.0], "definition": rough}}
     frame = {"origin": "the origin of the baked 3406R CAD files", "x": "medial", "y": "posterior", "z": "proximal"}
-    write_manifest(folder, make_manifest("bone_model", hashing.list_tree(folder), bone_id=tools.BONE_ID,
-                                         **{**real.BONE_EXTRA, "landmarks": landmarks, "frame": frame}))
+    listed = make_manifest("bone_model", hashing.list_tree(folder), bone_id=tools.BONE_ID,
+                           **{**real.BONE_EXTRA, "landmarks": landmarks, "frame": frame})
+    write_manifest(folder, {**listed, "format": 1})         # 第 1 版的内容，明写第 1 版
     return register.register_external("bone_model", "sawbone3406-model", source=folder, note="测试用：3406 的两个实体", by="tester",
                                       bone_id=tools.BONE_ID, new_bone=True)
 

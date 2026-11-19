@@ -41,8 +41,9 @@ def bone_folder(folder: Path, legacy: Path, summary: dict, bone_id: str = tools.
     for name, file in tools.STEPS.items():
         shutil.copyfile(source / file, folder / "solids" / f"{name}.step")
     frame = {"origin": "the origin of the baked 3406R CAD files", "x": "medial", "y": "posterior", "z": "proximal"}
-    write_manifest(folder, make_manifest("bone_model", hashing.list_tree(folder), bone_id=bone_id,
-                                         **{**real.BONE_EXTRA, "landmarks": landmarks(summary), "frame": frame, "materials": MATERIALS}))
+    listed = make_manifest("bone_model", hashing.list_tree(folder), bone_id=bone_id,
+                           **{**real.BONE_EXTRA, "landmarks": landmarks(summary), "frame": frame, "materials": MATERIALS})
+    write_manifest(folder, {**listed, "format": 1})         # 第 1 版的内容，明写第 1 版：各个包现在读的还是它
     return folder
 
 
