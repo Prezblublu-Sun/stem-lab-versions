@@ -35,7 +35,9 @@ def columns(*rows) -> list[dict]:
 
 
 EXTRA = {
-    "modes": ["template", "build", "post", "bench"],
+    # 清单的 modes 只写系统会叫的三样（契约 MODES 里内核的那三样；多写一样，登记时就过不了核对）。
+    # 入口另认 bench（Lamé 对照）和 selfcheck（自检）：直接叫包才用得到，不写进清单
+    "modes": ["template", "build", "post"],
     "bones": ["sawbone3406"],
     "model": {"name": "M1-3406-v1", "code_hash": CODE_HASH, "solver": "Abaqus/Standard 2025"},
     "design": columns(
