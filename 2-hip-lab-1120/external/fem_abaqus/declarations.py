@@ -20,8 +20,13 @@ Abaqus 装在哪是机器的事（2026-11-18 用户定的）：写在机器清�
     截断的地方由这两项定：截断面垂直于干轴，在 distal_from 那个标志点那一层以下 distal_cut_mm。柄的模型里没有截断。
     加了 load_frame（载荷的坐标系）。两个倾角要量在冠状面、矢状面里，原项目的冠状面由后髁连线定（v2/femur_real.py 的 landmarks，
     Bergmann 2016 的做法），骨模型第 1 版没有后髁这两个标志点，所以改用颈轴定内侧，和重建插件找小转子时的写法一样（plugins/recon/landmarks.py）。
-    3406 上它和原模型的坐标绕干轴差 3.8°（原模型算出的前倾角）。
+    3406 上它和原模型的坐标绕干轴差 3.8°（原模型算出的前倾角）。这一项第 5 步的 5b 去掉了，见下。
     cycles 的下限从 1 改成 2：原项目的写法至少两个加载循环（v2/model3d_m1.py 的分析步总有 UNLOAD、LOAD2），后处理的微动就取第二循环。
+
+第 5 步的 5b 去掉了 load_frame（2026-11-19，用户定的）。它原来只有 shaft_neck 一个值：包自己从颈轴算内侧朝哪。
+骨模型第 2 版把解剖坐标系记在骨模型里（完整的股骨照后髁连线，只有近端一段的照颈轴加前倾角），包照它加力、照它的 z 截远端，
+不再自己算，这一项就没有东西可选了。两个倾角量在骨模型记的解剖坐标系的冠状面、矢状面里。
+盘上第 1 版的骨模型读出来是照颈轴定、前倾角不知道的坐标系，和原来 shaft_neck 算的是同一个：旧骨模型上的数不变。
 
 不写进声明、算作这个有限元包本身的（换了这些就是另一个有限元包）：
     M1 的界面做法：界面节点复制一份给柄侧，摩擦模型用孪生节点加接触对（v2/model3d_m1.py）；与皮质相邻的节点不施过盈。
@@ -105,24 +110,21 @@ FEM = {
         # ---- 边界条件
         _item("distal", "远端怎么约束", "骨在远端截断，截断面上的节点三个方向都固定", "边界条件", "choice", "fixed",
               f"{MODEL}：*BOUNDARY FIXED, 1, 3", choices=_choices(("fixed", "远端截断面固定"))),
-        _item("distal_from", "远端截断从哪量起", "截断面垂直于干轴，从这个标志点那一层往远端量 distal_cut_mm。干轴照骨模型的格式：从 "
-              "shaft_distal 指向 shaft_proximal", "边界条件", "ref", {"ref": "bone.landmark.lesser_trochanter"},
+        _item("distal_from", "远端截断从哪量起", "截断面垂直于干轴，从这个标志点那一层往远端量 distal_cut_mm。干轴是骨模型记的解剖坐标系的 "
+              "z：从 shaft_distal 指向 shaft_proximal", "边界条件", "ref", {"ref": "bone.landmark.lesser_trochanter"},
               "v2/femur_real.py 的 landmarks：模型坐标的原点在骨干轴上、小转子那一层的高度（4d 加的）", refers=["bone.landmark"]),
         _item("distal_cut_mm", "远端截断的深度", "截断面在 distal_from 那一层以下多远。截断面以下的骨不建，截断面上的节点固定", "边界条件",
               "number", 150.0, f"{CONFIG} femur.z_trunc_mm = −150：模型坐标里小转子下 150 mm 截断并固支（4d 加的）", unit="mm",
               range={"min": 0.0, "max": 500.0, "min_open": True}),
         # ---- 载荷
-        _item("load_frame", "载荷的坐标系", "两个倾角量在哪个坐标系里。shaft_neck：z 沿干轴指向近端（骨模型的 shaft_distal 指向 "
-              "shaft_proximal），x 是颈轴（neck_center 指向 head_center）投到垂直干轴的面上、指向内侧，y 指向后方；冠状面是 x、z 张成的面",
-              "载荷", "choice", "shaft_neck", "4d 加的：原项目的冠状面由后髁连线定（v2/femur_real.py 的 landmarks，Bergmann 2016 的做法），"
-              "骨模型第 1 版没有后髁的标志点，改用颈轴，和 plugins/recon/landmarks.py 找小转子时的写法一样",
-              choices=_choices(("shaft_neck", "干轴加颈轴"))),
         _item("load_N", "关节力的大小", "加在头上的合力", "载荷", "number", 2391.0,
               f"{BASELINE}；{CONFIG} load.resultant_N（v1 的合力，介于 Bergmann 2016 AVER75 2232 N 和 HIGH100 3606 N 之间）",
               per_point=True, unit="N", range={"min": 0.0, "max": 20000.0, "min_open": True}, abaqus="*CLOAD"),
-        _item("load_front_deg", "冠状面的倾角", "合力在冠状面里和干轴的夹角，正的是合力朝外侧（冠状面照 load_frame）", "载荷", "number", 20.0,
+        _item("load_front_deg", "冠状面的倾角", "合力在冠状面里和干轴的夹角，正的是合力朝外侧。冠状面是骨模型记的解剖坐标系的 x（内侧）、"
+              "z（近端）张成的面", "载荷", "number", 20.0,
               f"{BASELINE}；{BERGMANN}", per_point=True, unit="deg", range={"min": -90.0, "max": 90.0}),
-        _item("load_sagit_deg", "矢状面的倾角", "合力在矢状面里和干轴的夹角，正的是合力朝后方（矢状面照 load_frame）", "载荷", "number", 18.0,
+        _item("load_sagit_deg", "矢状面的倾角", "合力在矢状面里和干轴的夹角，正的是合力朝后方。矢状面是骨模型记的解剖坐标系的 y（后方）、"
+              "z（近端）张成的面", "载荷", "number", 18.0,
               f"{BASELINE}；{BERGMANN}", per_point=True, unit="deg", range={"min": -90.0, "max": 90.0}),
         _item("load_point", "关节力打在哪", "合力的作用点。头心复位：假体头心就是股骨头心", "载荷", "ref", {"ref": "bone.landmark.head_center"},
               f"{MODEL}：HEADN 是柄上离股骨头心 head_coupling_radius_mm 以内的节点", refers=["bone.landmark", "stem.feature"]),

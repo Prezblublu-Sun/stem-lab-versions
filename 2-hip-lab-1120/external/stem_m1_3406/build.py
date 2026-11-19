@@ -35,6 +35,13 @@ TAKEN = ("femur_real.py", "geom3d.py", "fe3d_geom.py", "config_v2a.yaml")       
 RUNTIME = ("config.yaml", "femur2d.py", "plotstyle.py", "v2/collar_rule.py", "v2/femur_3406.py")
 SELFTEST = "stem"
 BONE_ID = "sawbone3406"
+# 对骨模型的要求，照契约的写法（stemlab/contract/formats/bone_model.py）：fea.run 启动前照它核。
+# 只认 3406 的那两个文件、骨标识要是 sawbone3406，这两条要求里写不出：包在跑的时候核（main.py 的 setup），
+# 那两个文件的 sha256 另写在清单的 only_bone 里，给人看
+INPUT_BONE = {"regions": {"cortical": [1, 1], "cancellous": [1, 1]}, "geometry": ["step"],
+              "what": "皮质、松质各一个 STEP 实体。只认 3406R_v1_hollowcore 的那两个文件（按 sha256，见清单的 only_bone），"
+                      "骨标识要是 sawbone3406：这两条由包在跑的时候核。头心、颈轴、骨干轴由包从这两个实体里自己找，"
+                      "不用骨模型清单里的标志点"}
 
 # 交出的柄的模型里一定有的名字。有限元设定、推导量设定里的名字引用（比如 stem.faces.interface）照它核
 NAMES = {"region": ["stem"], "faces": ["interface"], "feature": ["head_center", "neck_base", "shoulder", "tip"],
@@ -117,13 +124,11 @@ def main() -> int:
         "programs": [],
         "declarations": _declarations(),
         "modes": ["template", "model"],
-        "inputs": {"bone": {"bone_id": [BONE_ID], "solids": bone_solids((code / "legacy" / "v2" / "femur_3406.py").read_bytes()),
-                            "landmarks": [],
-                            "what": "只认 3406R_v1_hollowcore 的两个实体，按 sha256 认。头心、颈轴、骨干轴由包从这两个实体里自己找，"
-                                    "不用骨模型清单里的标志点"}},
+        "inputs": {"bone": INPUT_BONE},
         "outputs": OUTPUTS,
         "test_round": {"inputs": {"bone": {"item": args.test_bone}} if args.test_bone else {}},
         "names": NAMES,
+        "only_bone": {"bone_id": [BONE_ID], "sha256": bone_solids((code / "legacy" / "v2" / "femur_3406.py").read_bytes())},
         "source": {"model": "M1-3406-v1", "code_hash": CODE_HASH, "taken": list(TAKEN)},
     }
     text = json.dumps(manifest, sort_keys=True, ensure_ascii=False, separators=(",", ":"))

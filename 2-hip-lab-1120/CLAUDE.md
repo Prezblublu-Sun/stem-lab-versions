@@ -52,7 +52,11 @@ stem-lab 1.0：管实验的系统。设计的依据是 `docs/蓝图.md`，拿不
   拆到哪一步、还剩什么，见 `docs/拆内核.md`。
   下一步是骨模型第 2 版和重建做成方法包：分几小步、你定的两件（解剖坐标系的两种定法、第 2 版先做到多宽），见 `docs/重建方法包.md`。
   5a（骨模型第 2 版的格式）做完了：契约认第 2 版（`contract/formats/bone_model.py`），第 1 版的照样读，读出来是第 2 版的样子。
-  重建现在写的、各个包现在读的还是第 1 版，5b 起接上。造骨模型的测试样本要明写是第几版：`make_manifest` 盖的是现在的版本号。
+  5b（读的一方）做完了：`fea.run` 启动前照三个包清单里 `inputs.bone` 写的要求核骨模型，骨架自己不挑骨
+  （“只收 STEP”“只认 3406”是现在两个真包自己写的限制，不是骨架的前提）；交给包的 job 里 `bone_model` 是文件夹，
+  `bone` 是读成第 2 版的清单，包读 `bone`、照角色找区域，不自己打开文件夹里的清单；
+  Abaqus 有限元包加关节力照骨模型记的解剖坐标系。约定在 `contract/formats/package.py` 开头。
+  重建现在写的还是第 1 版，5c 起接上。造骨模型的测试样本要明写是第几版：`make_manifest` 盖的是现在的版本号。
   有限元的做法照 Abaqus 的设定；默认值随包放入，只用来跑测试轮。
   分层和四种实验的重新设计见 `docs/核心、插件和模型包.md`，骨模型的写法见 `docs/骨模型的写法.md`，
   设定的声明和包的清单的格式见 `docs/设定的声明和包的清单.md`（都是草案，等你看）。
@@ -78,7 +82,8 @@ stem-lab 1.0：管实验的系统。设计的依据是 `docs/蓝图.md`，拿不
   - 科学验收，要旧系统的文件（只读）和 Abaqus：`python -m pytest tests/science -m science`。
   - 界面和仪表盘换一份写法、固定的测试照过，要几分钟：`python -m pytest tests/swap -m swap`。改了界面的约定就跑一遍。
 - Abaqus 有限元包（`external/fem_abaqus/`）用真的 Abaqus 经 `fea.run` 走一遍设计 A 的那条测试，平时的检查里跳过：
-  设 `STEMLAB_ABAQUS_RUN=1` 再跑 `python -m pytest tests_free/fem_abaqus -k with_abaqus -s`，要十几分钟到半小时，放后台跑。
+  设 `STEMLAB_ABAQUS_RUN=1` 再跑 `python -m pytest tests_free/fem_abaqus -k with_abaqus -s`，放后台跑。
+  两根骨模型各走一遍（盘上第 1 版的 3406，和盘上第 2 版、照后髁连线定的 3406），一遍十几分钟到半小时；只跑一根加 `-k "with_abaqus and v1"`。
   Abaqus 装在哪写在机器清单里（操作台那一项的 `programs`：名字、确切的版本、位置）。外部程序都照这样写，
   包的清单只写要哪个程序哪一版，`fea.run` 的骨架照名字和版本找到位置交给包，操作台没写就不启动。
 - 三样测试工具在开发依赖里（worker 不装）；每条目标用哪种测试来证明，见 `docs/审查/2026-11-15-修改目标.md`：

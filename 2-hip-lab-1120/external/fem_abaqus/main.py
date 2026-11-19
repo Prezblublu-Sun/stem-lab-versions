@@ -15,11 +15,18 @@
     把结果翻成约定的 result.json。
 有限元设定的每一项都从 job 的 settings 里取，这里不留它们的默认值：少了哪一项就说出来。
 
-坐标：在骨模型自己的坐标里建，骨的两个实体不动。柄的实体、面组、特征点在柄自己的坐标系里，照 placement.frame 换过来。
+骨模型是 job 里的两样：bone_model 是文件夹（实体文件在里面），bone 是它的清单，叫这个包的一方已经读成第 2 版的样子。
+这个包读 bone，不自己打开文件夹里的清单。皮质、松质两个区域照角色找，不照名字找；别的角色的区域它不会，
+清单里对骨模型的要求写着，启动前就拦下了。
+
+坐标：在骨模型文件自己的坐标里建，骨的两个实体不动。柄的实体、面组、特征点在柄自己的坐标系里，照 placement.frame 换过来。
     截骨面          柄的模型的 placement.cut，法向指向头那一侧：骨只留它的另一侧
-    远端截断        垂直于干轴（骨模型的 shaft_distal 指向 shaft_proximal），在 distal_from 那个标志点那一层以下 distal_cut_mm
-    载荷的坐标系    load_frame 是 shaft_neck：z 沿干轴指向近端，x 是颈轴（neck_center 指向 head_center）投到垂直干轴的面上、
-                    指向内侧，y 指向后方。两个倾角照原项目的 load_vector（Bergmann 2016）在这个坐标系里换成合力
+    解剖坐标系      骨模型记的那一个（bone 的 frame）：原点在干轴上，x 指向内侧，y 指向后方，z 沿干轴指向近端。
+                    它是照后髁连线定的还是照颈轴定的，写在骨模型里；这个包只读记下的原点和三个轴，不自己从标志点算
+    远端截断        垂直于解剖坐标系的 z（干轴），在 distal_from 那个标志点那一层以下 distal_cut_mm；
+                    截断面过干轴的那一点从标志点 shaft_distal 沿 z 量
+    关节力          两个倾角照原项目的 load_vector（Bergmann 2016）换成（内侧、后方、近端）三个分量，
+                    合力 = 三个分量各乘上解剖坐标系的 x、y、z。两侧同一个算式，不分左右
 求解的命令交给 solve.py（同一个文件夹）。Abaqus 装在哪是机器的事：叫这个包的一方照清单 programs 里写的 abaqus 2025，
 在机器清单里找到位置，放进 job 的 programs。这个包不自己去找（不看环境变量，不用旧系统配置里的位置）；建模时就核它在不在。
 
@@ -46,16 +53,18 @@ LEGACY_FILES = ("abaqus/odb_export.py", "config.yaml", "femur2d.py", "inp_writer
                 "v2/jobs.py", "v2/model3d_m1.py", "v2/model3d_v2.py", "v2/post.py", "v2/post_m1.py", "v2/stability.py")
 UNIT = "m_fric"                     # 求解的那个作业叫什么（原项目的 <名字>_fric）
 PROGRAM, RELEASE = "abaqus", "2025"  # 清单的 programs 里写的那个程序和它确切的版本
+BONE_FORMAT = 2                     # 叫这个包的一方交来的骨模型清单（job 的 bone）是第几版的样子
+ROLES = ("cortical", "cancellous")  # 建模用的两种区域：照角色找，各要一个
 STEPS = ("RELEASE", "LOAD", "UNLOAD", "LOAD2")
 UNSTABLE_UM = 150.0                 # 界面相对位移超过它就长不上骨（Pilliar 1986；Jasty 1997）。不收敛时拿它判是不是已经松动
 
 # 这个包要的设定项。elastic_slip_um 只在罚摩擦时有
 ALWAYS = ("E_canc_MPa", "override_region", "element", "h_int_mm", "h_far_mm", "dist_min_mm", "dist_max_mm", "models", "contact_faces",
           "normal", "sliding", "tangential", "mu", "cycles", "nlgeom", "max_increments", "initial_increment", "min_increment",
-          "max_increment", "distal", "distal_from", "distal_cut_mm", "load_frame", "load_N", "load_front_deg", "load_sagit_deg",
+          "max_increment", "distal", "distal_from", "distal_cut_mm", "load_N", "load_front_deg", "load_sagit_deg",
           "load_point", "load_spread_mm", "delta_mm", "interference_method", "field_outputs", "contact_outputs", "cpus")
 # 只有一种做法的几项：这个包只会这一种
-ONLY = {"element": "C3D10", "models": "friction", "normal": "hard", "sliding": "small", "distal": "fixed", "load_frame": "shaft_neck"}
+ONLY = {"element": "C3D10", "models": "friction", "normal": "hard", "sliding": "small", "distal": "fixed"}
 # 后处理要的输出：位移，接触应力（CPRESS）、接触位移（CSLIP）、接触状态
 NEEDED = {"field_outputs": ("U",), "contact_outputs": ("CSTRESS", "CDISP", "CSTATUS")}
 NODE_OUT, ELEMENT_OUT, CONTACT_OUT = ("U", "RF"), ("S", "E", "ELSE", "EVOL"), ("CSTRESS", "CDISP", "CSTATUS", "CFORCE", "CNAREA")
@@ -137,21 +146,30 @@ def unit(vector):
     return vector / size
 
 
-def bone_of(folder) -> SimpleNamespace:
-    """骨模型：两个实体的文件、材料、标志点、哪一侧。"""
+def bone_of(job: dict) -> SimpleNamespace:
+    """骨模型：皮质、松质各一个区域（实体的文件、材料，都照角色记）、这两个区域的名字、标志点、解剖坐标系。
+    清单是 job 的 bone（叫这个包的一方读成第 2 版的），实体的文件在 bone_model 那个文件夹里。"""
     import numpy as np
 
+    listed, folder = job.get("bone"), job.get("bone_model")
+    if not isinstance(listed, dict) or listed.get("format") != BONE_FORMAT or not folder:
+        raise Unsupported(f"job 里要带骨模型的文件夹（bone_model）和读成第 {BONE_FORMAT} 版的清单（bone）")
     try:
-        listed = json.loads((Path(folder) / "manifest.json").read_text(encoding="utf-8"))
-        solids = {name: Path(folder) / listed["solids"][name]["file"] for name in ("cortical", "cancellous")}
+        found = {role: [region for region in listed["regions"] if region["role"] == role] for role in ROLES}
+        odd = {role: len(regions) for role, regions in found.items() if len(regions) != 1}
+        if odd:
+            raise Unsupported(f"这个包要骨模型里皮质、松质各一个区域，这里是 {odd}")
+        solids = {role: Path(folder) / regions[0]["geometry"]["file"] for role, regions in found.items()}
+        materials = {role: regions[0]["material"] for role, regions in found.items()}
+        names = {regions[0]["name"]: role for role, regions in found.items()}
         points = {name: np.asarray(point["xyz"], float) for name, point in listed["landmarks"].items()}
-        materials, side = listed["materials"], listed["side"]
-    except (OSError, ValueError, KeyError, TypeError) as error:
-        raise Unsupported(f"读不出骨模型的清单：{type(error).__name__}: {error}") from None
-    odd = [name for name in solids if materials.get(name, {}).get("model") != "linear_elastic"]
+        frame = {key: np.asarray(listed["frame"][key], float) for key in ("origin", "x", "y", "z")}
+    except (ValueError, KeyError, TypeError) as error:
+        raise Unsupported(f"骨模型的清单不是第 {BONE_FORMAT} 版的样子：{type(error).__name__}: {error}") from None
+    odd = [role for role in ROLES if not isinstance(materials[role], dict) or materials[role].get("model") != "elastic"]
     if odd:
-        raise Unsupported(f"骨模型里 {odd} 的材料不是 linear_elastic：这个包只会线弹性的骨")
-    return SimpleNamespace(solids=solids, points=points, materials=materials, side=side)
+        raise Unsupported(f"骨模型里 {odd} 的材料不是 elastic：这个包只会线弹性的骨")
+    return SimpleNamespace(solids=solids, materials=materials, names=names, points=points, frame=frame)
 
 
 def stem_of(folder, settings: dict) -> SimpleNamespace:
@@ -190,15 +208,13 @@ def placed(bone, stem, settings: dict) -> SimpleNamespace:
     _legacy_on_path()
     import model3d_v2 as M2
 
-    points = bone.points
-    up = unit(points["shaft_proximal"] - points["shaft_distal"])
-    neck = points["head_center"] - points["neck_center"]
-    medial = unit(neck - (neck @ up) * up)
-    posterior = np.cross(up, medial) if bone.side == "right" else np.cross(medial, up)
+    points, anatomical = bone.points, bone.frame
+    medial, posterior, up = anatomical["x"], anatomical["y"], anatomical["z"]      # 骨模型记的：内侧、后方、沿干轴指向近端
     _, _, start = reference(settings["distal_from"], ("bone.landmark",))
     if start not in points:
         raise Unsupported(f"骨模型里没有标志点 {start!r}")
-    bottom = points["shaft_distal"] + ((points[start] - points["shaft_distal"]) @ up - float(settings["distal_cut_mm"])) * up
+    axis = points["shaft_distal"]           # 干轴上的一个点：照骨模型的格式，干轴从它指向 shaft_proximal，方向就是解剖坐标系的 z
+    bottom = axis + ((points[start] - axis) @ up - float(settings["distal_cut_mm"])) * up
     frame = {key: np.asarray(stem.frame[key], float) for key in ("origin", "x", "y", "z")}
 
     def to_bone(point):
@@ -215,14 +231,14 @@ def placed(bone, stem, settings: dict) -> SimpleNamespace:
     normal = unit(stem.cut["normal"])
     across = min((np.eye(3)[k] for k in range(3)), key=lambda axis: abs(axis @ normal))
     _, _, region = reference(settings["override_region"], ("bone.region",))
-    if region not in bone.solids:
-        raise Unsupported(f"骨模型里没有区域 {region!r}")
+    if region not in bone.names:
+        raise Unsupported(f"骨模型里没有区域 {region!r}，或者它不是皮质、松质的那两个（{sorted(bone.names)}）")
     return SimpleNamespace(
         up=up, medial=medial, posterior=posterior, bottom=bottom, load_point=at, force=force, load_frame=in_frame,
         stem_matrix=matrix(frame["origin"], frame["x"], frame["y"], frame["z"]),
         box_matrix=matrix(bottom, medial, np.cross(up, medial), up),
         cut=SimpleNamespace(C03=np.asarray(stem.cut["point"], float), u3=normal, n3=unit(across - (across @ normal) * normal)),
-        override=region, frame=frame)
+        override=region, override_role=bone.names[region], frame=frame)
 
 
 # ---------------------------------------------------------------- 建模
@@ -404,8 +420,8 @@ def build_once(where: Path, bone, stem, place, settings: dict, algo: int, h: flo
         raise M2.BuildError("L3", "head load nodes touch the interface")
     canal = canal_distance(elems, coords, nodes, place.cut, place)
     F = place.force
-    material = {name: (float(bone.materials[name]["E_MPa"]), float(bone.materials[name]["nu"])) for name in ("cortical", "cancellous")}
-    material[place.override] = (float(settings["E_canc_MPa"]), material[place.override][1])
+    material = {role: (float(bone.materials[role]["E"]), float(bone.materials[role]["nu"])) for role in ROLES}
+    material[place.override_role] = (float(settings["E_canc_MPa"]), material[place.override_role][1])
     element = settings["element"]
 
     inp = Inp(f"stem-lab fem-abaqus (M1-3406-v1 interface model) {UNIT} delta={delta} mu={mu} E_override={settings['E_canc_MPa']} "
@@ -483,7 +499,7 @@ def build(job: dict, out: Path) -> dict:
     if job.get("stem_model") is None:
         raise Unsupported("这个点没有柄的模型（无植入物）：这个有限元包只会 M1 的界面做法，不做无植入物的模型")
     stem = stem_of(job["stem_model"], settings)
-    bone = bone_of(job["bone_model"])
+    bone = bone_of(job)
     run_with = launcher(job)
     if run_with is None:
         return {"status": "env", "pre": {},

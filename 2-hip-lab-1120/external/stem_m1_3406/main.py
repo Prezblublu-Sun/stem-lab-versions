@@ -6,6 +6,9 @@
     template   一批设计各自放进这根骨里：放不放得下、去多少骨。不出柄的模型
     model      一个点：模板化，交出柄的模型（stemlab/contract/formats/stem_model.py 的格式），写在输出文件夹的 model/ 里
     selfcheck  自检，不用骨模型
+骨模型是 job 里的两样：bone_model 是文件夹（两个 STEP 在里面），bone 是它的清单，叫这个包的一方已经读成第 2 版的样子。
+这个包读 bone，不自己打开文件夹里的清单；两个实体照区域的角色（皮质、松质）找，不照名字找。
+它只认 3406R_v1_hollowcore 的那两个文件（按 sha256）：清单里对骨模型的要求写不出这一条，所以在这里跑的时候核。
 
 旧代码在 code/legacy/ 下，从旧系统按原字节搬来，一个字节不改。这个文件只做四件事：
     把一个点的设计项和放置设定翻成对旧代码的调用：模板化叫的就是旧代码的 collar_rule.template_neck_in_shoulder；
@@ -48,7 +51,8 @@ LEGACY = HERE / "legacy"
 LEGACY_FILES = ("config.yaml", "femur2d.py", "plotstyle.py", "v2/collar_rule.py", "v2/config_v2a.yaml", "v2/fe3d_geom.py",
                 "v2/femur_3406.py", "v2/femur_real.py", "v2/geom3d.py")
 BONE_ID = "sawbone3406"
-STEP_NAMES = {"cortical": "3406R_cortical.STEP", "cancellous": "3406R_cancellous_v2.STEP"}
+BONE_FORMAT = 2                 # 叫这个包的一方交来的骨模型清单（job 的 bone）是第几版的样子
+STEP_NAMES = {"cortical": "3406R_cortical.STEP", "cancellous": "3406R_cancellous_v2.STEP"}     # 区域的角色 -> 旧代码要的文件名
 
 SHAPE = ("L", "rho_tip", "q", "lam", "g_ml", "g_ap", "n_a", "n_p", "tau_a", "tau_p", "alpha", "m")     # 12 个设计项
 PLACED = ("h_cut", "ref_cut_mm", "neck_axis", "entry", "collar_rule", "neck_radius_mm", "margin_check", "area_min_mm2",
@@ -95,19 +99,27 @@ def _legacy_on_path() -> None:
             sys.path.insert(0, str(folder))
 
 
-def setup(bone_model) -> None:
-    """让旧代码能在这个进程里跑：两个 STEP 从骨模型里取，缓存放到这台机器可写的地方。"""
-    _legacy_on_path()
-    try:
-        listed = json.loads((Path(bone_model) / "manifest.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError) as error:
-        raise Unsupported(f"读不出骨模型的清单：{error}") from None
+def solids_of(job: dict) -> dict:
+    """骨模型里皮质、松质两个实体的文件：{角色: 文件}。清单是 job 的 bone（读成第 2 版的），文件在 bone_model 那个文件夹里。"""
+    listed, folder = job.get("bone"), job.get("bone_model")
+    if not isinstance(listed, dict) or listed.get("format") != BONE_FORMAT or not folder:
+        raise Unsupported(f"job 里要带骨模型的文件夹（bone_model）和读成第 {BONE_FORMAT} 版的清单（bone）")
     if listed.get("bone_id") != BONE_ID:
         raise Unsupported(f"这个柄空间只认 {BONE_ID}，骨模型是 {listed.get('bone_id')!r}")
+    found = {role: [region for region in listed["regions"] if region["role"] == role] for role in STEP_NAMES}
+    odd = {role: len(regions) for role, regions in found.items() if len(regions) != 1}
+    if odd:
+        raise Unsupported(f"这个柄空间要骨模型里皮质、松质各一个区域，这里是 {odd}")
+    return {role: Path(folder) / regions[0]["geometry"]["file"] for role, regions in found.items()}
+
+
+def setup(job: dict) -> None:
+    """让旧代码能在这个进程里跑：两个 STEP 从骨模型里取，缓存放到这台机器可写的地方。"""
+    _legacy_on_path()
+    sources = solids_of(job)
     import femur_3406 as F3
     import femur_real as FR
 
-    sources = {name: Path(bone_model) / listed["solids"][name]["file"] for name in STEP_NAMES}
     hashes = {name: _sha256(path) for name, path in sources.items()}
     if hashes != F3.SHA256:
         raise Unsupported("骨模型里的两个实体不是这个柄空间认的那两个 STEP 文件（哈希不同）：它只能放进 3406R_v1_hollowcore")
@@ -356,7 +368,7 @@ def _write_model(folder: Path, point: dict, fm, found: dict, pre: dict, made: di
 # ---------------------------------------------------------------- 三种做法
 
 def template(job: dict, out: Path) -> dict:
-    setup(job["bone_model"])
+    setup(job)
     placed = placing(job.get("settings"), with_solid=False)
     fm = femur(placed)
     rows = []
@@ -372,7 +384,7 @@ def template(job: dict, out: Path) -> dict:
 
 
 def model(job: dict, out: Path) -> dict:
-    setup(job["bone_model"])
+    setup(job)
     placed = placing(job.get("settings"), with_solid=True)
     fm = femur(placed)
     point = job["point"]

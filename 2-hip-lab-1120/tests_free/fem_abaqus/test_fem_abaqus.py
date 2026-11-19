@@ -5,6 +5,9 @@
     原字节    用到的 7 个冻结文件和冻结时存下的一样，别的运行时文件和旧系统工作树里的一样；code_hash 对不上不打包
     自检      包自带的样本过得去
     建模      设计 A 照测试轮的设定建模：Abaqus 的输入里材料、节点集、载荷、远端约束、接触、分析步、输出都照设定和两份输入
+    骨模型    清单是叫包的一方读成第 2 版交来的（job 的 bone），包照角色找两个实体，干轴、内侧、后方照骨模型记的解剖坐标系
+              （第 5 步的 5b）。盘上第 1 版的 3406：读出来的坐标系就是这个包原来自己从颈轴算的那一个，建模出的数和 4d 记的一样。
+              盘上第 2 版、照后髁连线定的 3406：合力在旧系统的模型坐标里就是旧系统加的那个向量，和前一种绕干轴差 3.8°
     设定      每一项换一个值，输入跟着变：包用的是设定，不是自己留的常数
     别的结局  没有柄的模型归 error；job 里没有 Abaqus 的位置、写的位置上没有启动器，归 env；求解没留下结果、没算完，后处理各归到对的结局
     fea.run   登记进一本空账，经真的 fea.run：操作台的机器清单里没写 Abaqus 2025 就不启动；放不下的设计归 misfit、不建模；
@@ -38,6 +41,7 @@ import pytest
 
 from plugins.fea import given
 from stemlab.contract import hashing
+from stemlab.contract.formats import bone_model
 from stemlab.contract.formats import declaration as d
 from stemlab.contract.formats import package as package_format
 from stemlab.contract.formats import stem_model
@@ -90,8 +94,10 @@ def settings(**change) -> dict:
 
 
 def build_job(bone: Path, stem: Path | None, where: Path, values: dict | None = None, programs: dict | None = None) -> dict:
-    """交给有限元包建模的 job。programs 是叫它的一方照机器清单找到的外部程序的位置：{名字: 位置}。"""
-    return {"mode": "build", "bone_model": str(bone), "bone_id": tools.BONE_ID, "stem_model": None if stem is None else str(stem),
+    """交给有限元包建模的 job。programs 是叫它的一方照机器清单找到的外部程序的位置：{名字: 位置}。
+    骨模型照约定是两样：文件夹，和读成第 2 版的清单（盘上是第 1 版的也读成第 2 版）。"""
+    return {"mode": "build", "bone_model": str(bone), "bone": bone_model.read(bone), "bone_id": tools.BONE_ID,
+            "stem_model": None if stem is None else str(stem),
             "point": {"name": "A", "hash": "a" * 64}, "settings": settings() if values is None else values, "job": str(where),
             "programs": programs or {}}
 
@@ -178,19 +184,25 @@ def cross(a, b):
     return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
 
 
-def load_frame(listed: dict) -> dict:
-    """载荷的坐标系，照声明里 load_frame 写的定义自己算一遍：z 沿干轴指向近端，x 是颈轴投到垂直干轴的面上、指向内侧，y 指向后方。"""
+def anatomical(bone: Path) -> dict:
+    """骨模型记的解剖坐标系：原点和三个轴（x 内侧、y 后方、z 沿干轴指向近端）。包加力、截远端都照它。"""
+    return {key: bone_model.read(bone)["frame"][key] for key in ("origin", "x", "y", "z")}
+
+
+def from_neck(listed: dict) -> dict:
+    """这个包在 5b 以前自己算的那个坐标系（原来的 load_frame = shaft_neck），照原来的定义再算一遍：
+    z 沿干轴指向近端，x 是颈轴投到垂直干轴的面上、指向内侧，y 指向后方。listed 是骨模型的清单（两个版本的标志点都有 xyz）。"""
     points = {name: listed["landmarks"][name]["xyz"] for name in listed["landmarks"]}
     z = unit(sub(points["shaft_proximal"], points["shaft_distal"]))
     neck = sub(points["head_center"], points["neck_center"])
     x = unit(sub(neck, [dot(neck, z) * part for part in z]))
     y = cross(z, x) if listed["side"] == "right" else cross(x, z)
-    return {"x": x, "y": y, "z": z, "shaft": points["shaft_distal"]}
+    return {"x": x, "y": y, "z": z}
 
 
 def level(frame: dict, point) -> float:
-    """一个点在干轴上的高度。"""
-    return dot(sub(point, frame["shaft"]), frame["z"])
+    """一个点沿干轴的高度：从解剖坐标系的原点量起。"""
+    return dot(sub(point, frame["origin"]), frame["z"])
 
 
 def expected_load(values: dict) -> list:
@@ -265,7 +277,7 @@ def bone(legacy, summary, tmp_path_factory) -> Path:
 def stem(stem_package, bone, works, tmp_path_factory) -> Path:
     """设计 A 的柄的模型：4c 的柄空间包照测试轮的放置设定交出来的。返回柄的模型的文件夹。"""
     where = tmp_path_factory.mktemp("stem-model")
-    job = {"mode": "model", "bone_model": str(bone), "bone_id": tools.BONE_ID, "settings": PLACE,
+    job = {"mode": "model", "bone_model": str(bone), "bone": bone_model.read(bone), "bone_id": tools.BONE_ID, "settings": PLACE,
            "point": {"name": "A", "hash": "a" * 64, "design": SHAPE_A}}
     (where / "ask").mkdir()
     (where / "ask" / "job.json").write_text(json.dumps(job), encoding="utf-8")
@@ -290,6 +302,12 @@ def made_a(built, bone, stem, launcher, tmp_path_factory) -> tuple[dict, Path]:
     return result, where / "solve"
 
 
+@pytest.fixture(scope="module")
+def bone_v2(legacy, summary, tmp_path_factory) -> Path:
+    """3406 的骨模型，盘上就是第 2 版：完整的股骨，解剖坐标系照后髁连线定。两个实体和 bone 那一份是同样的两个文件。"""
+    return sawbone3406.bone_folder_v2(tmp_path_factory.mktemp("bone3406-v2") / "bone", legacy, summary)
+
+
 # 设定换值的两次建模：网格放粗一点，省时间。每一项换成什么、在输入里该看到什么，见 test_every_setting_reaches_the_deck
 VARIANTS = {
     "penalty": settings(h_int_mm=3.0, h_far_mm=9.0, dist_min_mm=1.0, dist_max_mm=12.0, E_canc_MPa=9000.0,
@@ -301,7 +319,7 @@ VARIANTS = {
     "lagrange": settings(h_int_mm=3.0, h_far_mm=9.0, tangential="lagrange", elastic_slip_um=None, interference_method="offset",
                          distal_from={"ref": "bone.landmark.head_center"}, distal_cut_mm=180.0),
 }
-FIXED_CHOICE = {"element", "models", "normal", "sliding", "distal", "load_frame"}     # 只有一种可选的值：换不了
+FIXED_CHOICE = {"element", "models", "normal", "sliding", "distal"}     # 只有一种可选的值：换不了
 ELSEWHERE = {"contact_faces"}       # 柄的模型只有一组面：换它另有一条测试（test_a_stem_touching_bone_outside_the_named_faces_is_refused）
 
 
@@ -330,9 +348,40 @@ def test_the_package_is_a_well_formed_fem(built):
         "原内核给的标签，这个包都给"
     assert [name for name, role in roles.items() if role == "field"] == ["interface"]
     assert listed["inputs"]["stem"]["required"] is True and listed["inputs"]["stem"]["materials"] == ["elastic"]
-    assert set(listed["inputs"]["bone"]["landmarks"]) == {"head_center", "neck_center", "shaft_proximal", "shaft_distal",
-                                                          "lesser_trochanter"}
+    wanted = listed["inputs"]["bone"]
+    assert bone_model.check_wanted(wanted) == [], "对骨模型的要求照契约的写法：fea.run 启动前照它核"
+    assert {key: value for key, value in wanted.items() if key != "what"} == {
+        "regions": {"cortical": [1, 1], "cancellous": [1, 1]}, "geometry": ["step"], "materials": ["elastic"],
+        "landmarks": ["shaft_distal"], "frame": {"methods": ["shaft_condyles", "shaft_neck"], "unknown_anteversion": True}}, \
+        "这个包自己的限制照实写在这里：皮质、松质各一个 STEP 实体，线弹性；干轴上的一个点；坐标系两种定法都收，前倾角不知道的也收"
     assert listed["test_round"] == {"inputs": {}}, "3406 的骨模型还没登记：测试轮的骨模型打包时用 --test-bone 写进来"
+
+
+def test_both_bone_models_of_3406_have_what_the_package_asks_for(built, bone, bone_v2):
+    """3406 的两份骨模型（盘上第 1 版的、盘上第 2 版照后髁连线定的）都合这个包写的要求。
+    STL 的、带髓腔的骨不合，缺的是哪一样说得出来：这是这个包自己的限制，启动前照它的清单拦下，骨架里没有这一条。"""
+    wanted = read_manifest(built)["inputs"]["bone"]
+    assert check_format("bone_model", bone) == [] and check_format("bone_model", bone_v2) == []
+    assert read_manifest(bone)["format"] == 1 and read_manifest(bone_v2)["format"] == 2
+    assert bone_model.lacking(wanted, bone_model.read(bone)) == [] and bone_model.lacking(wanted, bone_model.read(bone_v2)) == []
+    from tests.contract import bone_samples
+
+    said = bone_model.lacking(wanted, bone_samples.manifest(bone_samples.good()))
+    assert any("不收髓腔" in text for text in said) and any("几何" in text and "stl" in text for text in said), said
+
+
+def test_a_version_1_bone_model_records_the_frame_this_package_used_to_work_out(bone, bone_v2, summary):
+    """盘上第 1 版的骨模型读成第 2 版，记的解剖坐标系是照颈轴定的：就是这个包 5b 以前自己从标志点算的那一个，所以旧骨模型上的数不变。
+    盘上第 2 版、照后髁连线定的那一份，记的是旧系统的模型坐标；两个绕干轴差 3.8°（3406 的前倾角）。"""
+    old, was = anatomical(bone), from_neck(read_manifest(bone))
+    for axis in "xyz":
+        assert old[axis] == pytest.approx(was[axis], abs=1e-12), axis
+    new = anatomical(bone_v2)
+    turned, origin = sawbone3406.model_frame(summary)
+    for axis, row in zip("xyz", turned):
+        assert new[axis] == pytest.approx(list(row), abs=1e-9), axis
+    assert new["origin"] == pytest.approx(list(origin), abs=1e-9) and new["z"] == pytest.approx(old["z"], abs=1e-12)
+    assert math.degrees(math.acos(dot(new["x"], old["x"]))) == pytest.approx(abs(summary["anteversion_deg"]), abs=1e-6)
 
 
 def test_the_names_it_refers_to_are_there(built, stem_package):
@@ -414,16 +463,19 @@ def test_design_a_is_built_and_says_how(made_a, built, stem):
     area = stem_model.read(stem)["templating"]["interface_area_mm2"]
     assert 0.98 < model["interface_area_mm2"] / area < 1.0, \
         "接触面就是柄的模型里的那组面：网格是折面，比曲面小一点（4c 量过：2 mm 网格小 0.34%）"
+    assert (result["pre"]["n_tet"], result["pre"]["n_pairs"]) == (30686, 4016) and model["interface_area_mm2"] == pytest.approx(
+        2427.85, abs=0.01), "和 4d 记的一样（2026-11-18；旧数据库里设计 A 的界面节点对也是 4016）：5b 改成读骨模型记的坐标系以后，数没有变"
 
 
 def test_the_deck_takes_the_materials_from_the_two_models_and_the_setting(made_a, bone, stem):
     result, where = made_a
     found = deck(where / "m_fric.inp")
-    listed = read_manifest(bone)
+    given_ = {region["role"]: region["material"] for region in bone_model.read(bone)["regions"]}       # 交给包的那一份清单里的
     titanium = stem_model.read(stem)["regions"][0]["material"]
-    assert found["materials"] == {"CORTICAL": (listed["materials"]["cortical"]["E_MPa"], listed["materials"]["cortical"]["nu"]),
-                                  "CANCELLOUS": (TEST["E_canc_MPa"], listed["materials"]["cancellous"]["nu"]),
+    assert found["materials"] == {"CORTICAL": (given_["cortical"]["E"], given_["cortical"]["nu"]),
+                                  "CANCELLOUS": (TEST["E_canc_MPa"], given_["cancellous"]["nu"]),
                                   "STEM": (titanium["E"], titanium["nu"])}, "柄的材料照柄的模型（钛合金），不再写死在包里"
+    assert found["materials"]["CORTICAL"] == (sawbone3406.MATERIALS["cortical"]["E_MPa"], 0.3), "盘上第 1 版写的 E_MPa 读成了 E"
     assert found["sections"] == {"CORTEX": "CORTICAL", "CANC": "CANCELLOUS", "STEM": "STEM"}
     assert {kind for kind, _ in found["elements"].values()} == {TEST["element"]}
     assert sum(count for _, count in found["elements"].values()) == result["pre"]["n_tet"]
@@ -440,7 +492,7 @@ def test_the_bone_is_cut_where_the_stem_model_and_the_setting_say(made_a, bone, 
     cut = stem_model.read(stem)["placement"]["cut"]
     bone_nodes = {int(n) for part in ("cortex_conn", "cancellous_conn") for n in mesh[part].ravel()}
     assert max(dot(sub(lookup[n], cut["point"]), cut["normal"]) for n in bone_nodes) < 1e-6, "骨都在截骨面以下"
-    frame = load_frame(read_manifest(bone))
+    frame = anatomical(bone)
     lt = read_manifest(bone)["landmarks"]["lesser_trochanter"]["xyz"]
     bottom = level(frame, lt) - TEST["distal_cut_mm"]
     assert min(level(frame, lookup[n]) for n in bone_nodes) == pytest.approx(bottom, abs=1e-6)
@@ -452,13 +504,13 @@ def test_the_bone_is_cut_where_the_stem_model_and_the_setting_say(made_a, bone, 
 
 
 def test_the_load_is_put_where_and_how_the_setting_says(made_a, bone):
-    """关节力：合力的大小和两个倾角照设定，方向在 load_frame 定的坐标系里；平均分到柄上离作用点 load_spread_mm 以内的节点上。"""
+    """关节力：合力的大小和两个倾角照设定，方向在骨模型记的解剖坐标系里；平均分到柄上离作用点 load_spread_mm 以内的节点上。"""
     import numpy as np
 
     _, where = made_a
     found = deck(where / "m_fric.inp")
     listed = read_manifest(bone)
-    frame = load_frame(listed)
+    frame = anatomical(bone)
     head = listed["landmarks"]["head_center"]["xyz"]          # load_point 的测试轮取值是 bone.landmark.head_center
     spread = TEST["load_spread_mm"]
     loaded = found["nsets"]["HEADN"]
@@ -470,8 +522,9 @@ def test_the_load_is_put_where_and_how_the_setting_says(made_a, bone):
     assert not set(loaded) & ({int(n) for n in mesh["pair_bone"]} | {int(n) for n in mesh["pair_stem"]}), "加载的节点不碰界面"
     model = json.loads((where / "model3d.json").read_text(encoding="utf-8"))
     assert [dot(model["load_N"], frame[axis]) for axis in "xyz"] == pytest.approx(expected_load(TEST), abs=1e-9), \
-        "合力照原项目的写法（Bergmann 2016），在载荷的坐标系里"
+        "合力照原项目的写法（Bergmann 2016）：三个分量各乘上骨模型记的三个轴"
     assert model["load_frame_N"] == pytest.approx(expected_load(TEST), abs=1e-9)
+    assert model["frames"]["load"] == {axis: pytest.approx(frame[axis], abs=1e-15) for axis in "xyz"}, "用的就是骨模型记的那三个轴"
     steps = {step["name"]: step for step in found["steps"]}
     assert cload(steps["LOAD"]) == pytest.approx([part / len(loaded) for part in model["load_N"]], rel=1e-8), "平均分到这些节点上"
     assert cload(steps["LOAD2"]) == cload(steps["LOAD"]) and cload(steps["UNLOAD"]) == [0.0, 0.0, 0.0]
@@ -513,6 +566,44 @@ def test_the_steps_and_outputs_follow_the_setting(made_a):
     assert "*CONTACT INTERFERENCE, SHRINK" in found["steps"][0]["lines"]
 
 
+# ---------------------------------------------------------------- 力照骨模型记的解剖坐标系加
+
+def test_the_load_follows_the_frame_the_bone_model_records(built, bone_v2, stem, launcher, made_a, summary, tmp_path):
+    """同一个设计、同一份设定，骨模型换成盘上第 2 版、照后髁连线定的那一份（实体还是那两个文件）：
+    合力在旧系统的模型坐标里就是旧系统加的那个向量（两个倾角直接量在它的冠状面、矢状面里），
+    和配第 1 版骨模型建的那一次（照颈轴定）绕干轴差 3.8°。远端截断、加载的节点、材料都不跟着变。网格放粗，省时间。"""
+    values = settings(h_int_mm=3.0, h_far_mm=9.0)
+    result = run(built, build_job(bone_v2, stem, tmp_path / "solve", values, programs=launcher), tmp_path)
+    assert result["status"] == "built", result
+    model = json.loads((tmp_path / "solve" / "model3d.json").read_text(encoding="utf-8"))
+    turned, origin = sawbone3406.model_frame(summary)           # 旧系统的模型坐标：三行是内侧、后方、近端
+    assert [dot(model["load_N"], row) for row in turned] == pytest.approx(expected_load(TEST), abs=1e-6), \
+        "合力在旧系统的模型坐标里，就是旧系统照这两个倾角加的那个向量"
+    before = json.loads((made_a[1] / "model3d.json").read_text(encoding="utf-8"))
+    assert before["load_frame_N"] == model["load_frame_N"], "三个分量是同一组数：变的只是坐标系"
+    force = expected_load(TEST)
+    across = (force[0] ** 2 + force[1] ** 2) / TEST["load_N"] ** 2          # 合力垂直干轴的那部分占多少
+    apart = 1.0 - dot(unit(model["load_N"]), unit(before["load_N"]))
+    assert apart == pytest.approx(across * (1.0 - math.cos(math.radians(summary["anteversion_deg"]))), rel=1e-6) and apart > 1e-4, \
+        "两次的合力方向不一样：垂直干轴的那部分绕干轴转了 3.8°"
+    for axis, row in zip("xyz", turned):
+        assert model["frames"]["load"][axis] == pytest.approx(list(row), abs=1e-9), axis
+    assert math.degrees(math.acos(dot(model["frames"]["load"]["x"], before["frames"]["load"]["x"]))) == pytest.approx(
+        abs(summary["anteversion_deg"]), abs=1e-6), "两次的内侧方向绕干轴差 3406 的前倾角"
+    assert model["truncation"]["normal"] == pytest.approx(before["truncation"]["normal"], abs=1e-12)
+    assert dot(sub(model["truncation"]["point"], before["truncation"]["point"]), model["truncation"]["normal"]) == pytest.approx(
+        0.0, abs=1e-9), "远端还是截在同一层：干轴是同一根，小转子那一层没有变"
+    assert model["materials"] == before["materials"] and model["load_point"] == before["load_point"]
+
+
+def test_a_bone_manifest_that_was_not_read_as_version_2_is_refused(built, bone, stem, launcher, tmp_path):
+    """约定是叫包的一方把清单读成第 2 版交来。交来的还是盘上原样的第 1 版，或者根本没带，包不猜，说出来。"""
+    job = build_job(bone, stem, tmp_path / "solve", programs=launcher)
+    for number, handed in enumerate((read_manifest(bone), None)):
+        result = run(built, {**job, "bone": handed}, tmp_path / str(number))
+        assert result["status"] == "error" and "第 2 版" in result["reason"] and "bone" in result["reason"], result
+
+
 # ---------------------------------------------------------------- 设定是真用上的
 
 def test_every_setting_reaches_the_deck(varied, made_a, bone, stem):
@@ -526,7 +617,7 @@ def test_every_setting_reaches_the_deck(varied, made_a, bone, stem):
         f"有限元声明加了项：这里也要加上换它一个值的情形（{sorted(names - changed - FIXED_CHOICE - ELSEWHERE)}）"
     base = deck(made_a[1] / "m_fric.inp")
     listed = read_manifest(bone)
-    frame = load_frame(listed)
+    frame = anatomical(bone)
     lt = listed["landmarks"]["lesser_trochanter"]["xyz"]
 
     result, where = varied["penalty"]
@@ -662,9 +753,10 @@ def derive_package(folder: Path, which: str = "derive_bed_f_named") -> Path:
     return folder
 
 
-def registered(legacy: Path, summary: dict, tmp: Path, stem_package: Path, built: Path) -> dict:
-    """在这本空账里登记 3406 的骨模型、4c 的柄空间包、这个有限元包、床支撑 F 的推导量定义（照名字引用的那个，4e）。"""
-    bone = register.register_external("bone_model", "sawbone3406-model", source=bone_folder(tmp / "bone", legacy, summary),
+def registered(legacy: Path, summary: dict, tmp: Path, stem_package: Path, built: Path, maker=bone_folder) -> dict:
+    """在这本空账里登记 3406 的骨模型、4c 的柄空间包、这个有限元包、床支撑 F 的推导量定义（照名字引用的那个，4e）。
+    maker 造骨模型的文件夹：默认是盘上第 1 版的，sawbone3406.bone_folder_v2 是盘上第 2 版、照后髁连线定的。"""
+    bone = register.register_external("bone_model", "sawbone3406-model", source=maker(tmp / "bone", legacy, summary),
                                       note="测试用：3406 的两个实体，标志点照旧系统找出的", by="tester", bone_id=tools.BONE_ID, new_bone=True)
     stem = register.register_external("stem_space", "m1-3406", source=stem_package, note="测试用：现打的 M1 柄空间包", by="tester")
     fem = register.register_external("fem", "abaqus-m1", source=built, note="测试用：现打的 Abaqus 有限元包", by="tester")
@@ -780,15 +872,20 @@ def test_fea_run_with_the_split_packages_without_abaqus(real_own_lab, data, lega
 
 
 @pytest.mark.skipif(not SLOW, reason="设计 A 用真的 Abaqus 走一遍要十几分钟到半小时：设 STEMLAB_ABAQUS_RUN=1 才跑")
-def test_design_a_goes_through_fea_run_with_abaqus(real_own_lab, data, legacy, summary, stem_package, built, works, tmp_path, capsys):
+@pytest.mark.parametrize("stored", ["v1", "v2"])
+def test_design_a_goes_through_fea_run_with_abaqus(real_own_lab, data, legacy, summary, stem_package, built, works, tmp_path, capsys,
+                                                   stored):
     """真的 Abaqus：设计 A 走完出柄的模型、建模、求解、后处理、推导量、交数据、归档；放不下的那个归 misfit。
     Abaqus 的位置照这个仓库的机器清单，写进这次测试自己的仓库拷贝的机器清单里。
-    算得对不对暂时不判（2026-11-16 定的）：和旧数据库里设计 A 的那一行并排打出来，不拿差去挡。"""
+    算得对不对暂时不判（2026-11-16 定的）：和旧数据库里设计 A 的那一行并排打出来，不拿差去挡。
+    两根骨模型各走一遍（第 5 步的 5b），实体是同样的两个文件：
+        v1  盘上第 1 版的，读出来是照颈轴定的解剖坐标系：合力和旧系统的绕干轴差 3.8°（4d 记的转动、微动小 7% 到 11% 就是它）
+        v2  盘上第 2 版、照后髁连线定的：合力的方向就是旧系统的那一个"""
     launcher = abaqus_here()
     if launcher is None or not launcher.is_file():
         pytest.skip(f"这个仓库的机器清单里，操作台没写 Abaqus 2025 的位置，或者那个位置上没有启动器（{launcher}）")
     desk_programs(real_own_lab, [{"name": "abaqus", "version": "2025", "path": str(launcher)}])
-    items = registered(legacy, summary, tmp_path, stem_package, built)
+    items = registered(legacy, summary, tmp_path, stem_package, built, bone_folder if stored == "v1" else sawbone3406.bone_folder_v2)
     made = experiment(tmp_path, items, [point("A", 16.0), point("tight", 24.0)])
     began = starting.start(made)
     assert began.ok, began
@@ -836,7 +933,8 @@ def test_design_a_goes_through_fea_run_with_abaqus(real_own_lab, data, legacy, s
 
     old = tools.legacy_rows(LEGACY_JOB)[0]
     with capsys.disabled():
-        print("\n设计 A：fea.run（柄空间包加有限元包） 和 旧数据库（参照包那一套） 并排，不判")
+        frame = "盘上第 1 版，照颈轴定" if stored == "v1" else "盘上第 2 版，照后髁连线定"
+        print(f"\n设计 A：fea.run（柄空间包加有限元包；骨模型{frame}） 和 旧数据库（参照包那一套） 并排，不判")
         for name in ("rot_first_deg", "rot_rev_deg", "rot_perm_deg", "subsid_first_um", "f1_p95_um", "f1_first_p95_um",
                      "contact_area_load2_mm2", "open_frac_load2", "area_frac_gt150", "iface_force_err_load", "n_pairs",
                      "bone_total_mm3"):

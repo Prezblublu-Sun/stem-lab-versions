@@ -154,6 +154,7 @@ FRAME = (rotation((1.0, 2.0, -0.5), 73.0), np.array([30.0, -5.0, 90.0]))       #
 def scene(folder: Path, values: dict | None, turn=None, shift=(0.0, 0.0, 0.0), cloud_too: bool = True, nodes: dict | None = None,
           drop: tuple = ()) -> dict:
     """写一份造的输入：柄的模型、骨模型的清单、界面点云。返回交给包的 job。
+    骨模型的清单照约定直接放在 job 的 bone 里（叫包的一方读成第 2 版交来的那一份；这里只写了这个包读的标志点）。
 
     turn、shift 把整个场面（柄的坐标系、骨的标志点、点云）再刚体挪一次；cloud_too=False 时点云留在原地。
     drop 是点云里不写的数组。"""
@@ -178,16 +179,16 @@ def scene(folder: Path, values: dict | None, turn=None, shift=(0.0, 0.0, 0.0), c
                       "removed": None, "landmarks": []},
         "templating": {}}), encoding="utf-8")
     assert stem_model.check(stem) == [], "造的柄的模型本身合格式"
-    bone.mkdir(parents=True, exist_ok=True)
-    (bone / "manifest.json").write_text(json.dumps({"bone_id": "made-up", "side": "right", "landmarks": {
-        name: {"xyz": to_bone(point).tolist(), "definition": "made up"} for name, point in LANDMARKS.items()}}), encoding="utf-8")
+    bone.mkdir(parents=True, exist_ok=True)         # 骨模型的文件夹是空的：这个包只读交来的清单（job 的 bone），而且只读标志点
+    handed = {"format": 2, "bone_id": "made-up", "side": "right",
+              "landmarks": {name: {"xyz": to_bone(point).tolist()} for name, point in LANDMARKS.items()}}
     listed = list((NODES if nodes is None else nodes).values())
     arrays = {"X": np.array([(to_bone(one["x"]) if cloud_too else FRAME[1] + FRAME[0] @ np.asarray(one["x"])) for one in listed]),
               "area": np.array([one["area"] for one in listed]), "d_canal": -np.array([one["thickness"] for one in listed]),
               "collar": np.array([one["collar"] for one in listed], bool)}
     np.savez(folder / "interface.npz", **{key: value for key, value in arrays.items() if key not in drop})
     return {"fields": {"interface": str(folder / "interface.npz")}, "labels": {}, "pre": {}, "point": {"name": "made-up"},
-            "bone_model": str(bone), "stem_model": str(stem), "settings": values}
+            "bone_model": str(bone), "bone": handed, "stem_model": str(stem), "settings": values}
 
 
 # 照定义另算的那一份在 oracle.py：位置留在柄自己的坐标系里、一个节点一个节点地算，不用包里的代码
@@ -262,7 +263,8 @@ def stems(stem_package, bone, works, tmp_path_factory) -> dict:
     found = {}
     for name, h_cut in (("h16", 16.0), ("h18", 18.0)):
         where = tmp_path_factory.mktemp(f"stem-model-{name}")
-        job = {"mode": "model", "bone_model": str(bone), "bone_id": tools.BONE_ID, "settings": {**PLACE, "h_cut": h_cut},
+        job = {"mode": "model", "bone_model": str(bone), "bone": bone_model.read(bone), "bone_id": tools.BONE_ID,
+               "settings": {**PLACE, "h_cut": h_cut},
                "point": {"name": name, "hash": "a" * 64, "design": SHAPE_A}}
         said = run(stem_package, job, where)
         assert said["status"] == "ok", said
@@ -281,6 +283,8 @@ def test_the_package_is_a_well_formed_derive_def(built):
     assert [column["name"] for column in listed["columns"]] == list(COLUMNS)
     assert all(column["unit"] in d.UNITS and column["meaning"].strip() for column in listed["columns"])
     assert set(listed["inputs"]) == {"bone", "stem", "fields"} and "bones" not in listed, "要哪几样输入写在清单里；不再只认一根骨"
+    assert bone_model.check_wanted(listed["inputs"]["bone"]) == [] and set(listed["inputs"]["bone"]) == {"what"}, \
+        "对骨模型的要求照契约的写法，这个包不挑骨：它读的标志点是设定里引用的那个，启动前由名字引用核"
     assert [item["name"] for item in DECL.DERIVE["items"]] == [
         "zone_from", "zone_offset_mm", "depth_axis", "zeta_max_mm", "angle_axis", "angle_from", "theta_max_deg", "t_floor_mm"]
     by_name = {item["name"]: item for item in DECL.DERIVE["items"]}
@@ -319,11 +323,11 @@ def test_the_package_passes_its_own_self_check(built, tmp_path):
 
 def test_the_zone_is_where_the_names_say(built, tmp_path):
     """造的输入里，照测试轮的设定落在支撑区里的是四个节点，手算 F = 14.5。柄的坐标系在骨模型的坐标里转过、挪过。"""
-    result = run(built, scene(tmp_path, settings()), tmp_path)
+    job = scene(tmp_path, settings())
+    result = run(built, job, tmp_path)
     assert same(result["derived"], BASE), result
     model = stem_model.read(tmp_path / "stem")
-    landmarks = json.loads((tmp_path / "bone" / "manifest.json").read_bytes())["landmarks"]
-    assert same(truth(NODES.values(), located(settings(), model, landmarks), settings()), BASE), "测试里另算的那一份也是这个数"
+    assert same(truth(NODES.values(), located(settings(), model, job["bone"]["landmarks"]), settings()), BASE), "测试里另算的那一份也是这个数"
 
 
 def only(*names: str, floor: float = 0.25) -> dict:
@@ -367,13 +371,13 @@ def test_every_setting_reaches_the_result(built, tmp_path, name):
     """每一项换一个值，结果照预想的变：包用的是设定，不是自己留的常数。"""
     change, inside, why = VARIANTS[name]
     values = settings(**change)
-    result = run(built, scene(tmp_path, values), tmp_path)
+    job = scene(tmp_path, values)
+    result = run(built, job, tmp_path)
     wanted = only(*inside, floor=values["t_floor_mm"])
     assert same(result["derived"], wanted), f"{name}：{why}。包交的是 {result}"
     assert not same(result["derived"], BASE), f"{name} 换了值，结果没变"
     model = stem_model.read(tmp_path / "stem")
-    landmarks = json.loads((tmp_path / "bone" / "manifest.json").read_bytes())["landmarks"]
-    assert same(truth(NODES.values(), located(values, model, landmarks), values), wanted), f"{name}：测试里另算的那一份"
+    assert same(truth(NODES.values(), located(values, model, job["bone"]["landmarks"]), values), wanted), f"{name}：测试里另算的那一份"
 
 
 def test_moving_everything_together_changes_nothing(built, tmp_path):
@@ -390,6 +394,7 @@ def test_moving_everything_together_changes_nothing(built, tmp_path):
 
 REFUSED = {
     "no_stem": (lambda job: dict(job, stem_model=None), "柄的模型"),
+    "no_bone_manifest": (lambda job: dict(job, bone=None), "bone"),     # 只给了文件夹，没把读好的清单交来：包不自己去读
     "no_setting": (lambda job: dict(job, settings=None), "推导量设定"),
     "missing_item": (lambda job: dict(job, settings=settings(t_floor_mm=None)), "t_floor_mm"),
     "left_per_point": (lambda job: dict(job, settings=settings(zeta_max_mm={"per_point": True})), "zeta_max_mm"),
@@ -505,8 +510,8 @@ def both_packages(built: Path, old_package: Path, folder: Path, model_folder: Pa
     np.savez(folder / "model-frame.npz", X=(X - old["origin"]) @ old["turned"].T, P0=(frame["origin"] - old["origin"]) @ old["turned"].T,
              stem_axis=frame["z"] @ old["turned"].T, **arrays)
     ask = {"labels": {}, "pre": {}, "point": {"name": "A"}}
-    new = run(built, dict(ask, fields={"interface": str(folder / "bone-frame.npz")}, bone_model=str(bone), stem_model=str(model_folder),
-                          settings=values), folder / "new")
+    new = run(built, dict(ask, fields={"interface": str(folder / "bone-frame.npz")}, bone_model=str(bone), bone=bone_model.read(bone),
+                          stem_model=str(model_folder), settings=values), folder / "new")
     was = run(old_package, dict(ask, fields={"interface": str(folder / "model-frame.npz")}), folder / "old")
     return new["derived"], was["derived"]
 
@@ -549,7 +554,7 @@ def test_the_old_package_refuses_a_fea_run_job(old_package, tmp_path):
     job["fields"]["interface"] = str(tmp_path / "with-pose.npz")
     result = run(old_package, job, tmp_path / "split")
     assert result["derived"] is None and "fea.run" in result["reason"] and "derive_bed_f_named" in result["reason"], result
-    reference = {key: value for key, value in job.items() if key not in ("bone_model", "stem_model", "settings")}
+    reference = {key: value for key, value in job.items() if key not in ("bone_model", "bone", "stem_model", "settings")}
     assert set(run(old_package, reference, tmp_path / "reference")["derived"]) == set(COLUMNS), "参照包那条的 job 照旧算"
 
 

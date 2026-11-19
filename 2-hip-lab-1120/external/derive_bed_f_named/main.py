@@ -11,7 +11,8 @@ F = 对柄身（不在领上）界面节点里落在支撑区内的那些，求 
 
 输入文件夹里的 job.json（约定见 stemlab/contract/formats/package.py 的“推导量定义”，拆内核以后的那条路）：
     fields.interface   界面点云（npz）：X、area、d_canal、collar，在骨模型的坐标里
-    bone_model         骨模型的文件夹：读清单里的标志点（zone_from 指向骨模型时）
+    bone               骨模型的清单，叫这个包的一方已经读成现在这一版的样子：读里面的标志点（zone_from 指向骨模型时）。
+                       这个包不打开骨模型的文件夹（bone_model），也不用认旧版本的清单
     stem_model         柄的模型的文件夹：读特征点、轴和 placement.frame。无植入物（null）不算
     settings           这个点的推导量设定，照清单里的 derive 声明。每一项都从这里取，这里不留它们的默认值
 柄的特征点和轴在柄自己的坐标系里，照 placement.frame 换到骨模型的坐标里；骨的标志点和点云本来就在骨模型的坐标里。
@@ -68,9 +69,9 @@ def _unit(vector, what: str):
     return vector / size
 
 
-def located(settings: dict, stem_folder: pathlib.Path, bone_folder: pathlib.Path) -> dict:
+def located(settings: dict, stem_folder: pathlib.Path, bone: dict) -> dict:
     """照名字引用把位置找出来，都放在骨模型的坐标里：参照点 ref、深度轴的方向 depth、量角的轴 axis 和它过的点 centre、
-    0 度的方向 zero 和 90 度的方向 side。"""
+    0 度的方向 zero 和 90 度的方向 side。bone 是骨模型的清单（job 的 bone）。"""
     try:
         model = json.loads((stem_folder / "stem_model.json").read_text(encoding="utf-8"))
         frame = {key: np.asarray(model["placement"]["frame"][key], float) for key in ("origin", "x", "y", "z")}
@@ -88,10 +89,9 @@ def located(settings: dict, stem_folder: pathlib.Path, bone_folder: pathlib.Path
             if name not in features:
                 raise Unsupported(f"{item} 指的是 {where}.{name}，柄的模型里没有这个特征点（有 {sorted(features)}）")
             return frame["origin"] + turn(features[name])
-        try:
-            landmarks = json.loads((bone_folder / "manifest.json").read_text(encoding="utf-8"))["landmarks"]
-        except (OSError, ValueError, KeyError, TypeError) as error:
-            raise Unsupported(f"读不出骨模型的标志点：{type(error).__name__}: {error}") from None
+        landmarks = bone.get("landmarks")
+        if not isinstance(landmarks, dict):
+            raise Unsupported("骨模型的清单里读不出标志点（landmarks）")
         if name not in landmarks:
             raise Unsupported(f"{item} 指的是 {where}.{name}，骨模型里没有这个标志点（有 {sorted(landmarks)}）")
         return np.asarray(landmarks[name]["xyz"], float)
@@ -152,9 +152,9 @@ def derive(job: dict, source: pathlib.Path) -> dict:
     if job.get("stem_model") is None:
         raise Unsupported("这个点没有柄的模型（无植入物）：床支撑量的是柄周围的骨床，没有柄就没有这个量")
     settings = reading(job.get("settings"))
-    if not job.get("bone_model"):
-        raise Unsupported("job 里没有骨模型（bone_model）")
-    where = located(settings, folder(job["stem_model"]), folder(job["bone_model"]))
+    if not isinstance(job.get("bone"), dict):
+        raise Unsupported("job 里没有骨模型的清单（bone）：叫这个包的一方要把它读成现在这一版交来")
+    where = located(settings, folder(job["stem_model"]), job["bone"])
     given = (job.get("fields") or {}).get("interface")
     if not given:
         raise Unsupported("job 里没有界面点云（fields.interface）")

@@ -46,6 +46,7 @@ from stemlab.registry import register
 from tests import packages, real
 from tests.plugins.fea_cases import kept, rows_of, stages
 from tests.science import tools
+from tests_free import sawbone3406
 
 REPO = Path(__file__).resolve().parents[2]
 HERE = REPO / "external" / "stem_m1_3406"
@@ -134,12 +135,13 @@ VARIANTS = {
 
 
 def template_job(bone: Path, settings: dict, designs) -> dict:
-    return {"mode": "template", "bone_model": str(bone), "bone_id": tools.BONE_ID, "settings": settings,
+    """骨模型照约定是两样：文件夹，和读成第 2 版的清单（这个包读它）。参照包只看文件夹，自己读里面第 1 版的清单。"""
+    return {"mode": "template", "bone_model": str(bone), "bone": bone_model.read(bone), "bone_id": tools.BONE_ID, "settings": settings,
             "designs": [{"name": name, "design": design} for name, design in designs]}
 
 
 def model_job(bone: Path, settings: dict, design: dict | None = None, name: str = "A") -> dict:
-    return {"mode": "model", "bone_model": str(bone), "bone_id": tools.BONE_ID, "settings": settings,
+    return {"mode": "model", "bone_model": str(bone), "bone": bone_model.read(bone), "bone_id": tools.BONE_ID, "settings": settings,
             "point": {"name": name, "hash": "a" * 64, "design": dict(SHAPE_A if design is None else design)}}
 
 
@@ -160,16 +162,16 @@ def run(package: Path, job: dict, where: Path) -> tuple[dict, Path]:
 
 
 def bone_folder(folder: Path, files: dict, bone_id: str = tools.BONE_ID) -> Path:
-    """一个骨模型文件夹。包只认骨标识和两个实体，所以清单只写它用得到的几项（和科学验收的夹具一样）。"""
+    """一个骨模型文件夹，盘上第 1 版。这个包只用骨标识和两个实体；清单照样写全（别的几项用 real.BONE_EXTRA 的，
+    标志点不是这根骨的）：写全了，叫包的一方才读得成第 2 版交给它。"""
     (folder / "solids").mkdir(parents=True)
     for name, content in files.items():
         if isinstance(content, Path):
             shutil.copyfile(content, folder / "solids" / f"{name}.step")
         else:
             (folder / "solids" / f"{name}.step").write_bytes(content)
-    listed = {"format": 1, "kind": "bone_model", "files": sorted(f"solids/{name}.step" for name in files), "bone_id": bone_id,
-              "solids": {name: {"file": f"solids/{name}.step"} for name in files}}
-    (folder / "manifest.json").write_text(json.dumps(listed), encoding="utf-8")
+    listed = make_manifest("bone_model", sorted(f"solids/{name}.step" for name in files), bone_id=bone_id, **real.BONE_EXTRA)
+    write_manifest(folder, {**listed, "format": 1})         # 第 1 版的内容，明写第 1 版
     return folder
 
 
@@ -338,7 +340,14 @@ def test_the_package_is_a_well_formed_stem_space(built):
     assert listed["outputs"] and all(column["role"] == "pre" for column in listed["outputs"])
     assert {column["name"] for column in listed["outputs"]} == {column["name"] for column in KERNEL.EXTRA["pre"]} - MESH_ONLY, \
         "原内核给的建模之前就知道的量里，模板化的那几个由柄空间包给，网格的那几个留给有限元包"
-    assert listed["inputs"]["bone"]["bone_id"] == [tools.BONE_ID]
+    wanted = listed["inputs"]["bone"]
+    assert bone_model.check_wanted(wanted) == [], "对骨模型的要求照契约的写法：fea.run 启动前照它核"
+    assert {key: value for key, value in wanted.items() if key != "what"} == {
+        "regions": {"cortical": [1, 1], "cancellous": [1, 1]}, "geometry": ["step"]}, "皮质、松质各一个 STEP 实体"
+    only = listed["only_bone"]
+    assert only["bone_id"] == [tools.BONE_ID] and set(only["sha256"]) == {"cortical", "cancellous"} and all(
+        hashing.is_hash(value) for value in only["sha256"].values()), \
+        "只认 3406 的那两个文件：要求的写法里没有这一项，包在跑的时候核；认的是哪两个文件写在这里给人看"
     assert listed["test_round"] == {"inputs": {}}, "3406 的骨模型还没登记：测试轮的骨模型打包时用 --test-bone 写进来"
 
 
@@ -538,6 +547,26 @@ def test_a_bone_it_was_not_made_for_is_refused(built, legacy, tmp_path):
         result, out = run(built, model_job(folder, placement()), tmp_path / f"model-{number}")
         assert result["status"] == "error" and said in result["reason"] and result["pre"] == {}, result
         assert not (out / given.MODEL).exists()
+
+
+def test_a_version_2_bone_model_of_3406_templates_the_same(built, legacy, bone, works, templated, tmp_path):
+    """骨模型盘上就是第 2 版（完整的股骨，照后髁连线定；实体还是那两个文件）：包照角色找到两个实体，模板化的结果一位不差。
+    这个包不用清单里的标志点和坐标系，头心、颈轴、骨干轴它自己从实体里找。"""
+    summary = legacy / sawbone3406.SUMMARY
+    if not summary.is_file():
+        pytest.skip(f"找不到旧系统的文件（{summary}）")
+    newer = sawbone3406.bone_folder_v2(tmp_path / "bone-v2", legacy, json.loads(summary.read_text(encoding="utf-8")))
+    assert check_format("bone_model", newer) == [] and read_manifest(newer)["format"] == 2 and read_manifest(bone)["format"] == 1
+    assert bone_model.lacking(read_manifest(built)["inputs"]["bone"], bone_model.read(newer)) == []
+    result, _ = run(built, template_job(newer, placement(), [("A", SHAPE_A)]), tmp_path / "template")
+    assert result["designs"] == [{**templated[0]["rule16-A"], "name": "A"}], result
+
+
+def test_a_bone_manifest_that_was_not_read_as_version_2_is_refused(built, bone, tmp_path):
+    """约定是叫包的一方把清单读成第 2 版交来。交来的还是盘上原样的第 1 版，或者根本没带，包不猜，说出来。"""
+    for number, handed in enumerate((read_manifest(bone), None)):
+        result, _ = run(built, {**template_job(bone, placement(), [("A", SHAPE_A)]), "bone": handed}, tmp_path / str(number))
+        assert result.get("status") == "error" and "第 2 版" in result["reason"] and "designs" not in result, result
 
 
 def test_a_setting_that_is_not_filled_is_said_by_name(built, bone, tmp_path):

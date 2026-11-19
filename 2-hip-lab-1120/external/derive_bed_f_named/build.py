@@ -4,7 +4,8 @@
 
 清单照改格式以后的写法：programs（空的：不用外部程序）、declarations（declarations.py 的那份 derive）、modes、
 inputs（要骨模型、柄的模型、界面点云里的什么）、needs（要哪个场）、columns（算出的五个量）。不写只认哪根骨：位置都来自输入。
-自检样本是这里现造的一份输入：一个柄的模型（只写了这个包读的那几段）、一份骨模型的清单（只有标志点）、十二个节点的界面点云。
+自检样本是这里现造的一份输入：一个柄的模型（只写了这个包读的那几段）、一份骨模型的清单（只有标志点，照约定直接写在 job 的
+bone 里）、十二个节点的界面点云。
 哪几个节点落在支撑区里、F 该是多少，手算得出来（见 sample()）。
 打好之后登记：python -m stemlab.desk register derive_def bed-f --path <包的文件夹> --note "..."
 
@@ -32,7 +33,9 @@ COLUMNS = [
     {"name": "F_frac_floor", "unit": "1", "meaning": "支撑区内厚度小于下限的面积占比"},
 ]
 INPUTS = {
-    "bone": {"version": 1, "what": "zone_from 指向骨模型时，读那个标志点的位置。点云就在骨模型的坐标里"},
+    # 对骨模型的要求照契约的写法（stemlab/contract/formats/bone_model.py）。这个包不挑骨：它读的标志点是设定里
+    # zone_from 引用的那个，在不在由 fea.run 启动前照名字引用核
+    "bone": {"what": "zone_from 指向骨模型时，读那个标志点的位置。点云就在骨模型的坐标里"},
     "stem": {"required": True, "what": "读设定引用到的特征点和轴，和 placement.frame（把它们从柄自己的坐标系换到骨模型的坐标里）。"
                                        "无植入物（没有柄的模型）不算：没有柄就没有床支撑"},
     "fields": {"interface": ["X", "area", "d_canal", "collar"],
@@ -79,7 +82,7 @@ def sample() -> tuple[dict, dict, dict, dict]:
             "axes": {"stem_axis": {"point": [0.0, 0.0, 0.0], "direction": [0.0, 0.0, 1.0]},
                      "neck_axis": {"point": [0.0, 0.0, 0.0], "direction": [0.6, 0.0, -0.8]}},
             "placement": {"frame": {"origin": origin.tolist(), "x": spin[:, 0].tolist(), "y": spin[:, 1].tolist(), "z": spin[:, 2].tolist()}}}
-    bone = {"landmarks": {"head_center": {"xyz": to_bone([12.0, 0.0, -16.0]), "definition": "made up for the self-check: the head centre is restored"}}}
+    bone = {"format": 2, "landmarks": {"head_center": {"xyz": to_bone([12.0, 0.0, -16.0])}}}      # 造的：头心复位
     cloud = {"X": np.array([to_bone(x) for x, _, _ in nodes]), "area": np.full(len(nodes), 2.0),
              "d_canal": -np.array([thickness for _, thickness, _ in nodes]), "collar": np.array([collar for _, _, collar in nodes])}
     expected = {"derived": {"F_mm": 14.5, "F_area_mm2": 8.0, "F_n_nodes": 4, "F_t_min_mm": 0.1, "F_frac_floor": 0.25}}
@@ -95,12 +98,11 @@ def main() -> int:
     shutil.copyfile(HERE / "main.py", package / "code" / "main.py")
     test = package / "data" / "selftest" / SAMPLE
     stem, bone, cloud, expected = sample()
-    for name, listed in (("stem/stem_model.json", stem), ("bone/manifest.json", bone)):
-        (test / "input" / name).parent.mkdir(parents=True)
-        (test / "input" / name).write_bytes(json.dumps(listed).encode("utf-8") + b"\n")
+    (test / "input" / "stem").mkdir(parents=True)
+    (test / "input" / "stem" / "stem_model.json").write_bytes(json.dumps(stem).encode("utf-8") + b"\n")
     np.savez(test / "input" / "interface.npz", **cloud)
     settings = {item["name"]: item["test"] for item in declarations[0]["items"]}
-    job = {"fields": {"interface": "interface.npz"}, "labels": {}, "pre": {}, "point": {}, "bone_model": "bone", "stem_model": "stem",
+    job = {"fields": {"interface": "interface.npz"}, "labels": {}, "pre": {}, "point": {}, "bone": bone, "stem_model": "stem",
            "settings": settings}
     (test / "input" / "job.json").write_bytes(json.dumps(job).encode("utf-8") + b"\n")
     (test / "expected.json").write_bytes(json.dumps(expected).encode("utf-8") + b"\n")

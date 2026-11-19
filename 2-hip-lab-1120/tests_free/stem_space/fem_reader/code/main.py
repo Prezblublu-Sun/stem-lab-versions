@@ -20,9 +20,8 @@ def looked_up(job: dict) -> dict:
     source, part, name = settings["load_point"]["ref"].split(".")
     if source == "stem":
         point = stem["features"][name]
-    else:
-        listed = json.loads((pathlib.Path(job["bone_model"]) / "manifest.json").read_text(encoding="utf-8"))
-        point = listed["landmarks"][name]["xyz"]
+    else:       # the manifest of the bone model, handed over by the caller already read as the current version
+        point = job["bone"]["landmarks"][name]["xyz"]
     solid = folder / stem["regions"][0]["geometry"]["file"]
     return {"interface_kb": patch.stat().st_size / 1000.0, "solid_kb": solid.stat().st_size / 1000.0, "load_point": point,
             "load": settings["load"], "material": stem["regions"][0]["material"], "design": stem["design"],

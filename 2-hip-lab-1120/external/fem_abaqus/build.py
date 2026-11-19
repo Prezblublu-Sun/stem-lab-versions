@@ -36,7 +36,6 @@ RUNTIME = ("config.yaml", "femur2d.py", "plotstyle.py", "stem2d.py", "inp_writer
            "abaqus/odb_export.py", "spot3d/model3d.py", "spot3d/qoi3d.py", "v2/jobs.py", "v2/stability.py")
 SELFTEST = "fem"
 PROGRAMS = [{"name": "abaqus", "version": "2025"}]
-LANDMARKS = ["head_center", "neck_center", "shaft_proximal", "shaft_distal", "lesser_trochanter"]
 
 
 def _columns(role: str, *rows) -> list[dict]:
@@ -59,8 +58,15 @@ OUTPUTS = _columns(
     ("load_z_N", "N", "同上 z（沿干轴向近端为正）")) + _columns(
     "field", ("interface", "mm", "界面点云：每个节点对的位置、法向、面积、过盈、四个分析步的相对位移、到髓腔壁的距离，都在骨模型的坐标里"))
 INPUTS = {
-    "bone": {"version": 1, "solids": ["cortical", "cancellous"], "landmarks": LANDMARKS, "materials": ["linear_elastic"],
-             "what": "两个实体照原样用；干轴、颈轴、远端截断、载荷的坐标系由标志点定；两个实体的材料照清单，override_region 那个的模量换成 E_canc_MPa"},
+    # 对骨模型的要求，照契约的写法（stemlab/contract/formats/bone_model.py）：fea.run 启动前照它核。
+    # 标志点只列 shaft_distal（干轴上的一个点，远端截断从它沿干轴量）；设定里名字引用到的那几个（distal_from、load_point）
+    # 不在这里列，启动前由名字引用核
+    "bone": {"regions": {"cortical": [1, 1], "cancellous": [1, 1]}, "geometry": ["step"], "materials": ["elastic"],
+             "landmarks": ["shaft_distal"],
+             "frame": {"methods": ["shaft_condyles", "shaft_neck"], "unknown_anteversion": True},
+             "what": "皮质、松质各一个 STEP 实体，照原样用；材料照清单（线弹性），override_region 那个区域的模量换成 E_canc_MPa。"
+                     "干轴、内侧、后方照骨模型记的解剖坐标系：远端截断、关节力的方向都照它，两种定法都收。"
+                     "照颈轴定、前倾角不知道的（第 1 版读来的）也收：那时内侧就是颈轴投到垂直干轴的面上的方向"},
     "stem": {"required": True, "dimension": "3d", "regions": 1, "geometry": ["solid"], "materials": ["elastic"],
              "what": "一个区域的实体（柄体、假体颈、假体头并好的），contact_faces 引用的那组面落在它上面；placement.frame 和 placement.cut "
                      "照原样用。无植入物（没有柄的模型）不做：这个包只会 M1 的界面做法"},
