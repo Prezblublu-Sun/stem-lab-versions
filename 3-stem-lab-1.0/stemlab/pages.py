@@ -55,13 +55,27 @@ def e(x):
     return escape("" if x is None else str(x))
 
 
-def page(title, body, here=""):
+def page(title, body, here="", data=None):
+    """拼一整页。给了 data，账本有对不上的地方就在顶上用红字说出来。"""
     nav = "".join(f'<a href="{u}"{" class=here" if u == here else ""}>{t}</a>' for u, t in NAV)
+    bad = ledger.trouble(data) if data else []
+    warn = (f'<div class="err">账本有 {len(bad)} 处对不上：{e(bad[0][2])}。下面显示的记录不一定可信，'
+            f'<a href="/check?go=1">去核对页看是哪几条</a>。</div>' if bad else "")
     return (f'<!doctype html><html lang="zh"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>{e(title)} - stem-lab</title><style>{CSS}</style></head><body>'
-            f'<nav><b>stem-lab</b>{nav}</nav><main><h1>{e(title)}</h1>{body}</main>'
+            f'<nav><b>stem-lab</b>{nav}</nav><main>{warn}<h1>{e(title)}</h1>{body}</main>'
             f'<script>{JS}</script></body></html>')
+
+
+def what(entry):
+    """账本里的一条是什么，用人话说。"""
+    kind, n = entry.get("kind"), entry.get("exp") or entry.get("n") or 0
+    if kind == "register":
+        made_by = (entry.get("source") or {}).get("experiment")
+        return f'{entry.get("type")}「{entry.get("name")}」的登记' + (f"（{eid(made_by)} 的产出）" if made_by else "")
+    return {"seal": f'{eid(n)}「{entry.get("title")}」的封存记录', "start": f'{eid(n)} 的第 {entry.get("attempt")} 次启动',
+            "end": f"{eid(n)} 的结束记录"}.get(kind, f"一条“{kind}”记录")
 
 
 def msgs(errors=(), notes=()):
@@ -118,6 +132,27 @@ def origin(st, t, html=True):
             f'（{e(m["name"])} 第{m["version"]}版；{word(verdict)}）')
 
 
+def gate_text(gates, reports):
+    """把门槛写成一句话，比如“最大应力 ≤ 120；平均微动 ≤ 50”。"""
+    return "；".join(f'{reports.get(g["metric"], {}).get("name") or g["metric"]} {OPS[g["op"]]} {fmt(g["value"])}'
+                    for g in gates) or "未设"
+
+
+def same_before(st, x):
+    """封存这个实验之前，已经用同一版做法、同样指纹的东西、同样的设置跑出过结果，门槛却不一样的实验。"""
+    s = x["seal"]
+    def key(t):
+        return (t["method"]["fingerprint"], {k: r and r["fingerprint"] for k, r in t["inputs"].items()}, t["settings"])
+    gates = lambda t: {g["metric"]: (g["op"], g["value"]) for g in t["gates"]}
+    return [(y, final(y)) for y in st.exps.values() if y is not x and final(y) and final(y)["n"] < s["n"]
+            and key(y["seal"]) == key(s) and gates(y["seal"]) != gates(s)]
+
+
+def ver(t, sep=""):
+    """外来的东西和做法：“第几版”；实验的产出不排版本，返回空。"""
+    return "" if (t.get("source") or {}).get("experiment") else f'{sep}第{t["version"]}版'
+
+
 def spec_of(data, t):
     try:
         return things.read_method(things.method_dir(data, t))
@@ -137,7 +172,7 @@ def bar(p):
 # ---------- 仪表盘 ----------
 
 def dashboard(data):
-    return page("仪表盘", f'<div data-live="/live">{dashboard_live(data)}</div>', "/")
+    return page("仪表盘", f'<div data-live="/live">{dashboard_live(data)}</div>', "/", data)
 
 
 def dashboard_live(data):
@@ -232,7 +267,7 @@ def new_form(data, v, errors=(), notes=(), changed=()):
         f'<a class="pick{" on" if c == cat else ""}" href="/new?cat={quote(c)}">{e(c)}</a>'
         for c in dict.fromkeys(list(CATEGORIES) + [t["category"] for t in methods])) + "</p>")
     if not cat:
-        return page("新建实验", "".join(out), "/new")
+        return page("新建实验", "".join(out), "/new", data)
     out.append("<h2>第 2 步：选做法和要用的东西</h2>")
     groups = {}
     for t in methods:
@@ -241,7 +276,7 @@ def new_form(data, v, errors=(), notes=(), changed=()):
     if not groups:
         out.append(f'<p>「{e(cat)}」这一类还没有登记做法。到<a href="/things">登记的东西</a>里登记一个：类型写“做法”，'
                    f'路径指向一个带 method.toml 的文件夹（里面写 category = "{e(cat)}"）。</p>')
-        return page("新建实验", "".join(out), "/new")
+        return page("新建实验", "".join(out), "/new", data)
     if not m:
         for name, vs in groups.items():
             spec = spec_of(data, vs[-1]) or {}
@@ -249,12 +284,12 @@ def new_form(data, v, errors=(), notes=(), changed=()):
             out.append(f'<p><a class="pick" href="/new?method={vs[-1]["n"]}">{e(name)} · 第{vs[-1]["version"]}版'
                        f'</a> <span class="small">{"更早的：" + older if older else ""}</span><br>'
                        f'<span class="small">{e(spec.get("about", ""))}</span></p>')
-        return page("新建实验", "".join(out), "/new")
+        return page("新建实验", "".join(out), "/new", data)
     try:
         spec = things.read_method(things.method_dir(data, m))
     except things.Problem as err:
         out.append(msgs([f"这个做法读不出来：{err}。换一个版本，或把 method.toml 改好再登记一版。"]))
-        return page("新建实验", "".join(out), "/new")
+        return page("新建实验", "".join(out), "/new", data)
     others = " ".join(f'<a href="/new?method={t["n"]}">第{t["version"]}版</a>'
                       for t in reversed(groups.get(m["name"], [])) if t["n"] != m["n"])
     out.append(f'<p>做法：<b>{e(m["name"])} · 第{m["version"]}版</b> <a href="/new?cat={quote(cat)}">换一个做法</a>'
@@ -264,9 +299,8 @@ def new_form(data, v, errors=(), notes=(), changed=()):
          f'<input type="hidden" name="from" value="{e(v.get("from") or "")}">']
     for key, t, why in changed:
         button = (f' <button name="action" value="rereg:{e(key)}">把它现在的样子登记成新的一版，并选上它</button>'
-                  if key != "做法" else "")
-        f.append(f'<div class="err">{e(t["type"])}「{e(t["name"])}」第{t["version"]}版和登记时不一样了：'
-                 f'{e(why)}{button}</div>')
+                  if key != "做法" else ' 做法的留底被动过：到<a href="/check?go=1">核对页</a>点“照原来的文件夹恢复”。')
+        f.append(f'<div class="err">{e(t["type"])}{e(things.label(t))}和登记时不一样了：{e(why)}{button}</div>')
     rows = []
     for inp in spec.get("inputs", []):
         key, typ, label = inp["key"], inp["type"], inp.get("label") or inp["key"]
@@ -275,10 +309,10 @@ def new_form(data, v, errors=(), notes=(), changed=()):
             rows.append(f'<tr><td>{e(label)}</td><td>还没有登记过「{e(typ)}」。到<a href="/things">登记的东西</a>'
                         f'里登记一个，或者先跑一个产出「{e(typ)}」的实验。</td></tr>')
             continue
-        chosen = v.get("inputs", {}).get(key, opts[0]["n"])
-        o = ['<option value="">（不选）</option>'] if inp.get("optional") else []
-        o += [f'<option value="{t["n"]}"{" selected" if t["n"] == chosen else ""}>{e(t["name"])} · '
-              f'第{t["version"]}版 · {e(origin(st, t, html=False))}</option>' for t in opts]
+        chosen = v.get("inputs", {}).get(key)   # 没选过就停在“请选”，不替用户挑
+        o = [f'<option value="">{"（不选）" if inp.get("optional") else "（请选）"}</option>']
+        o += [f'<option value="{t["n"]}"{" selected" if t["n"] == chosen else ""}>{e(t["name"])}{ver(t, " · ")}'
+              f' · {e(origin(st, t, html=False))}</option>' for t in opts]
         rows.append(f'<tr><td>{e(label)}<div class="small">{e(typ)}{"，可以不选" if inp.get("optional") else ""}'
                     f'</div></td><td><select name="in_{e(key)}" aria-label="{e(label)}">{"".join(o)}</select></td></tr>')
     f.append("<table>" + "".join(rows) + "</table>" if rows else "<p>这个做法不用选东西。</p>")
@@ -320,7 +354,7 @@ def new_form(data, v, errors=(), notes=(), changed=()):
              f'<p><button class="go" name="action" value="start">封存并启动</button> '
              f'<span class="small">点了以后，这些选择、设置和门槛就封存了，改不了；想换就再开一个。'
              f'然后到仪表盘看它跑。</span></p></form>')
-    return page("新建实验", "".join(out + f), "/new")
+    return page("新建实验", "".join(out + f), "/new", data)
 
 
 # ---------- 实验和结果 ----------
@@ -342,7 +376,7 @@ def exps_list(data, cat=""):
                     f'</td><td>{word(i["word"])}</td><td>{verdict}</td><td>{e(s["time"])}</td></tr>')
     out.append("<table><tr><th>实验</th><th>类</th><th>做法</th><th>现在</th><th>判定</th><th>封存时间</th></tr>"
                + "".join(rows) + "</table>" if rows else '<p>还没有实验。<a href="/new">新建一个</a></p>')
-    return page("实验和结果", "".join(out), "/exps")
+    return page("实验和结果", "".join(out), "/exps", data)
 
 
 def experiment_live(data, n):
@@ -389,7 +423,11 @@ def experiment(data, n, errors=(), notes=()):
     if not s["gates"]:
         out.append(f"<p>{word('未设门槛')}：这个实验封存时没写门槛，所以不显示合格或不合格。</p>")
     else:
-        out.append(f'<p class="small">门槛写于 {e(s["time"])}，和实验一起封存，在任何结果出来之前。</p>')
+        out.append(f'<p class="small">门槛写于 {e(s["time"])}，和实验一起封存，在这个实验的结果出来之前。</p>')
+    for y, y_end in same_before(st, x):   # 只是摆出来，不挡
+        out.append(msgs(notes=[f'同样的东西和设置，{eid(y["seal"]["n"])} 已经跑出过结果（门槛：'
+                               f'{gate_text(y["seal"]["gates"], reports)}，{y_end["verdict"]["result"]}）。'
+                               f'这次的门槛是在那之后写的。']))
     if end:
         if s["gates"]:
             out.append(f'<p>判定：{word(end["verdict"]["result"])} <span class="small">（{e(end["time"])} 跑完时由系统'
@@ -420,12 +458,16 @@ def experiment(data, n, errors=(), notes=()):
     labels = {inp["key"]: inp.get("label") or inp["key"] for inp in spec.get("inputs", [])}
     for key, ref in s["inputs"].items():
         t = st.things.get(ref["n"]) if ref else None
-        what = (f'{e(ref["type"])}「{e(ref["name"])}」第{ref["version"]}版 · {origin(st, t)} <span class="small">'
+        used = (f'{e(ref["type"])}「{e(ref["name"])}」{ver(t)} · {origin(st, t)} <span class="small">'
                 f'指纹 {e(ref["fingerprint"][:12])} · {e(t["path"])}</span>' if t else "（没选）")
-        out.append(f'<tr><th>{e(labels.get(key, key))}</th><td>{what}</td></tr>')
+        out.append(f'<tr><th>{e(labels.get(key, key))}</th><td>{used}</td></tr>')
     if s.get("from"):
         out.append(f'<tr><th>照哪个开的</th><td><a href="/exp?id={s["from"]}">{eid(s["from"])}</a></td></tr>')
-    out.append(f'<tr><th>系统</th><td><span class="small">stemlab/ 的指纹 {e(s["system"][:12])}</span></td></tr></table>')
+    drift = "".join(f'<br>第 {ev["attempt"]} 次启动时 stemlab/ 的指纹是 {e(ev["system"][:12])}，和封存时不一样：'
+                    f'中间改过系统，那一次跑的是改过的代码' for ev in x["events"]
+                    if ev["kind"] == "start" and ev.get("system") and ev["system"] != s["system"])
+    out.append(f'<tr><th>系统</th><td><span class="small">封存时 stemlab/ 的指纹 {e(s["system"][:12])}</span>'
+               f'{drift}</td></tr></table>')
     named = {d["key"]: d for d in spec.get("settings", [])}   # 按做法里写的顺序列，做法读不出来就按键
     keys = [k for k in named if k in s["settings"]] + [k for k in s["settings"] if k not in named]
     out.append("<h3>设置</h3><table><tr><th>分组</th><th>名字</th><th>值</th><th>单位</th></tr>" + "".join(
@@ -436,7 +478,7 @@ def experiment(data, n, errors=(), notes=()):
     out.append("<h2>产出</h2>")
     if x["outputs"]:
         out.append("<ul>" + "".join(f'<li>{e(t["type"])}「<a href="/things#t{t["n"]}">{e(t["name"])}</a>」'
-                                     f'第{t["version"]}版 <span class="small">{e(t["path"])}</span></li>'
+                                     f' <span class="small">{e(t["path"])}</span></li>'
                                      for t in x["outputs"]) + "</ul>")
     else:
         out.append("<p>还没有产出。</p>")
@@ -445,7 +487,7 @@ def experiment(data, n, errors=(), notes=()):
     if end and end.get("table"):
         out.append("<h3>结果表</h3>" + csv_table(os.path.join(run, end["table"])))
     out.append("<h2>实验目录里的文件</h2>" + file_list(run, n))
-    return page(s["title"], "".join(out), "/exps")
+    return page(s["title"], "".join(out), "/exps", data)
 
 
 def csv_table(path, limit=200):
@@ -482,7 +524,7 @@ def rereg_button(t, label="登记成新的一版"):
     return (f'<form class="inline" method="post" action="/register">'
             + "".join(f'<input type="hidden" name="{k}" value="{e(val)}">' for k, val in
                       (("type", t["type"]), ("name", t["name"]), ("path", t["path"]),
-                       ("note", f'重新登记：第{t["version"]}版登记以后内容变了')))
+                       ("note", f'重新登记：{things.label(t)}登记以后内容变了')))
             + f"<button>{label}</button></form>")
 
 
@@ -510,16 +552,18 @@ def things_page(data, form=None, errors=(), notes=()):
             continue
         out.append(f"<h2>{e(typ)}</h2>")
         for name, vs in names:
-            out.append(f"<h3>{e(name)}</h3><table><tr><th>第几版</th>{'<th>类</th>' if typ == METHOD else ''}"
+            out.append(f"<h3>{e(name)}</h3><table><tr><th>哪一版</th>{'<th>类</th>' if typ == METHOD else ''}"
                        "<th>登记时间</th><th>来历</th><th>位置</th><th>说明</th></tr>")
             for t in reversed(vs):
                 cat = f'<td>{e(t.get("category"))}</td>' if typ == METHOD else ""
-                out.append(f'<tr id="t{t["n"]}"><td class="nw">第{t["version"]}版 <span class="small">#{t["n"]}</span>'
+                made_by = (t.get("source") or {}).get("experiment")
+                out.append(f'<tr id="t{t["n"]}"><td class="nw">{ver(t) or eid(made_by) + " 的产出"} '
+                           f'<span class="small">#{t["n"]}</span>'
                            f'</td>{cat}<td class="nw">{e(t["time"])}</td><td>{origin(st, t)}</td><td>{e(t["path"])}<br>'
                            f'<span class="small">指纹 {e(t["fingerprint"][:12])} · {len(t["files"])} 个文件</span>'
                            f'</td><td>{e(t["note"])}</td></tr>')
             out.append("</table>")
-    return page("登记的东西", "".join(out), "/things")
+    return page("登记的东西", "".join(out), "/things", data)
 
 
 # ---------- 核对 ----------
@@ -528,25 +572,36 @@ def check_page(data, go=False):
     out = ["<p>把账本的链、每样登记的东西、每个实验的产出，和记下时比一遍。东西多、文件大时要等一会儿。</p>"]
     if not go:
         out.append('<p><a class="pick" href="/check?go=1">开始核对</a></p>')
-        return page("核对", "".join(out), "/check")
+        return page("核对", "".join(out), "/check", data)
     st = ledger.state(data)
-    ok, msg = ledger.verify(data)
-    out.append(f'<h2>账本</h2><p>{word("一样" if ok else "不一样")} {e(msg)}</p>')
+    count, bad = ledger.verify(data)
+    out.append(f"<h2>账本</h2><p>{word('一样') if not bad else word('不一样')} 一共 {count} 行，"
+               f"{'链是完整的' if not bad else f'{len(bad)} 处对不上'}。</p>")
+    if bad:
+        out.append("<table>" + "".join(
+            f"<tr><td>{f'第 {i} 行' if i else '末尾'}</td><td>{e(what(x)) if x else ''}</td><td>{e(why)}</td></tr>"
+            for i, x, why in bad[:20]) + "</table>" + (f"<p>……一共 {len(bad)} 处，只列前 20 处。</p>" if len(bad) > 20 else ""))
     rows, bad = [], 0
     for t in st.things.values():
         why = things.check(data, t)
-        latest = st.names[(t["type"], t["name"])][-1] is t
+        outside = [x for x in st.names[(t["type"], t["name"])] if not x.get("source")]
+        latest = bool(outside) and outside[-1] is t
+        made_by = (t.get("source") or {}).get("experiment")
         again = rereg_button(t) if latest else '<span class="small">后面已经登记过新的版本</span>'
+        if why and t["type"] == METHOD:   # 原来的文件夹没变，再登记一次就照它恢复留底；变了就成为新的一版
+            again = (rereg_button(t, "照原来的文件夹恢复") + ' <span class="small">原来的文件夹也改过的话，'
+                     '会成为新的一版，这一版的留底照旧是坏的</span>')
+        elif made_by:
+            again = f'<span class="small">这是 {eid(made_by)} 的产出，那个实验跑完以后被改过</span>'
         if why:
             bad += 1
-            note = f"{word('不一样')} {e(why)} " + (
-                again if t["type"] != METHOD else '<span class="small">做法的留底不该有人动</span>')
+            note = f"{word('不一样')} {e(why)} " + again
         elif t["type"] == METHOD and latest and fingerprint.check(t["path"], t["fingerprint"], t["files"]):
             note = (f"{word('一样')} <span class='small'>留底没变；原来的文件夹后来改过，"
                     f"要用改过的就再登记一版</span> " + again)
         else:
             note = word("一样")
-        rows.append(f'<tr><td>{e(t["type"])}「{e(t["name"])}」第{t["version"]}版 <span class="small">#{t["n"]}</span>'
+        rows.append(f'<tr><td>{e(t["type"])}{e(things.label(t))} <span class="small">#{t["n"]}</span>'
                     f'</td><td>{note}</td></tr>')
     out.append(f"<h2>登记的东西</h2><p>{len(rows)} 样，{bad} 样不一样。</p><table>{''.join(rows)}</table>")
     rows, bad = [], 0
@@ -574,4 +629,4 @@ def check_page(data, go=False):
     other = sum(1 for x in st.exps.values() if x["seal"]["system"] != now)
     out.append(f'<h2>系统自己</h2><p>stemlab/ 现在的指纹 <span class="small">{now[:12]}</span>；'
                f'{other} 个实验封存时用的是别的版本（每个实验页上都记着它当时的指纹）。</p>')
-    return page("核对", "".join(out), "/check")
+    return page("核对", "".join(out), "/check", data)

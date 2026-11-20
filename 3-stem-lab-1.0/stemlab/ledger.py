@@ -4,6 +4,7 @@
   prev  上一条的指纹；
   hash  这一条自己的指纹（除 hash 以外的全部内容，连同 prev，一起算 SHA-256）。
 哪一行被改过，它自己的 hash 就对不上；哪一行被删掉、换掉或插进来，下一行的 prev 就对不上。
+账本旁边还有一个 ledger.head，记着最后一条的编号和指纹：末尾被砍掉、或整个换成旧的，和它一比就知道。
 
 页面服务和各个实验的看护进程都会往里加，所以加之前先拿文件锁。
 """
@@ -14,8 +15,10 @@ import threading
 import time
 
 FILE = "ledger.jsonl"
+HEAD = "ledger.head"
 _threads = threading.Lock()   # 同一个进程里的几个线程先在这里排队
 _cache = {}                   # 账本没变就不重读：{路径: ((大小, 修改时间), 条目)}
+_trouble = {}                 # 账本没变就不重新核对：{路径: ((大小, 修改时间), 对不上的地方)}
 
 
 def now():
@@ -128,29 +131,64 @@ def append(data, make):
                 f.write(_canon(entry) + "\n")
                 f.flush()
                 os.fsync(f.fileno())
+            with open(os.path.join(data, HEAD), "w", encoding="utf-8") as f:
+                json.dump({"n": entry["n"], "hash": entry["hash"]}, f)
             return entry
         finally:
             _unlock(lk)
 
 
 def verify(data):
-    """从头核对账本的链。返回 (对不对, 一句话)。"""
+    """从头核对账本。返回 (一共几行, [(第几行, 那一条, 哪里不对)])；列表是空的就是都对得上。
+    除了逐行核对链，还和旁边的头比：账本比头短，就是末尾被砍掉过，或被换成了旧的。"""
     path = os.path.join(data, FILE)
     if not os.path.exists(path):
-        return True, "账本还是空的"
-    prev, count = "", 0
-    with open(path, encoding="utf-8") as f:
-        for i, line in enumerate(f, 1):
+        return 0, []
+    with _threads, grab(path + ".lock", float("inf")) as lk:   # 和往里加的错开，账本和头是同一刻的
+        try:
+            with open(path, encoding="utf-8") as f:
+                lines = f.read().splitlines()
             try:
-                entry = json.loads(line)
+                with open(os.path.join(data, HEAD), encoding="utf-8") as f:
+                    head = json.load(f)
+            except FileNotFoundError:
+                head = None                     # 早先的数据没有头，就不比
             except ValueError:
-                return False, f"第 {i} 行读不懂，不是一条完整的记录"
-            if entry.get("hash") != _digest(entry):
-                return False, f"第 {i} 行的内容和它自己的指纹对不上：这一行被改过"
-            if entry.get("prev") != prev:
-                return False, f"第 {i} 行接不上上一行：它前面有一行被删掉、换掉或插进来过"
-            prev, count = entry["hash"], i
-    return True, f"链是完整的，一共 {count} 条"
+                head = {}
+        finally:
+            _unlock(lk)
+    bad, prev, last_n = [], "", 0
+    for i, line in enumerate(lines, 1):
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            bad.append((i, None, "读不懂，不是一条完整的记录"))
+            prev = None
+            continue
+        if entry.get("hash") != _digest(entry):
+            bad.append((i, entry, "内容和它自己的指纹对不上：这一行被改过"))
+        elif prev is not None and entry.get("prev") != prev:
+            bad.append((i, entry, "接不上上一行：它前面有一行被删掉、换掉或插进来过"))
+        prev, last_n = entry.get("hash"), entry.get("n", last_n)
+    if head is not None and not isinstance(head, dict) or head == {}:
+        bad.append((None, None, "账本旁边的头读不懂：被改过"))
+    elif head and isinstance(head.get("n"), int) and last_n < head["n"]:
+        bad.append((None, None, f"账本末尾少了 {head['n'] - last_n} 条：被砍掉过，或被换成了旧的"))
+    return len(lines), bad
+
+
+def trouble(data):
+    """账本现在有没有对不上的地方（每一页顶上都要说）。只在账本变了以后重算一次。"""
+    path = os.path.join(data, FILE)
+    try:
+        st = os.stat(path)
+    except FileNotFoundError:
+        return []
+    key = (st.st_size, st.st_mtime_ns)
+    hit = _trouble.get(path)
+    if not hit or hit[0] != key:
+        hit = _trouble[path] = (key, verify(data)[1])
+    return hit[1]
 
 
 class State:

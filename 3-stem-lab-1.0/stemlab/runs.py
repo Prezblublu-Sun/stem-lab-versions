@@ -38,6 +38,16 @@ def run_dir(data, n):
     return os.path.join(data, "runs", f"e{n:04d}")
 
 
+def inside(folder, path):
+    """path 化简以后在不在 folder 里面（挡住 ..、绝对路径、换盘符）。"""
+    folder = os.path.normcase(os.path.realpath(folder))
+    path = os.path.normcase(os.path.realpath(os.path.join(folder, path)))
+    try:
+        return os.path.commonpath([folder, path]) == folder
+    except ValueError:
+        return False
+
+
 def lock_path(data, n):
     """看护进程握着的锁。放在实验目录外面，不进产出的指纹。"""
     return run_dir(data, n) + ".lock"
@@ -112,7 +122,7 @@ def start(data, n, verify=True):
         bad = changed_uses(data, st, method, inputs)
         if bad:
             raise Problem("这个实验用的东西和封存时不一样了，不能启动：" + "；".join(
-                f"{t['type']}「{t['name']}」第{t['version']}版：{why}" for _, t, why in bad)
+                f"{t['type']}{things.label(t)}：{why}" for _, t, why in bad)
                 + "。可以“照这个再开一个”，选上新登记的一版。")
     run = run_dir(data, n)
     attempt = 1 + sum(1 for e in x["events"] if e["kind"] == "start")
@@ -133,7 +143,7 @@ def start(data, n, verify=True):
         "inputs": {k: (things.where(data, t) if t else None) for k, t in inputs.items()},
         "settings": s["settings"],
     })
-    ledger.append(data, {"kind": "start", "exp": n, "attempt": attempt})
+    ledger.append(data, {"kind": "start", "exp": n, "attempt": attempt, "system": fingerprint.of(SYSTEM)[0]})
     try:   # 先起一个中间进程，它起看护进程后马上退出；这里等它退出
         with open(os.path.join(run, "log.txt"), "ab") as log:
             _detached("--launch", data, n, log).wait()
@@ -227,6 +237,10 @@ def finish(data, n, code, why=""):
     reports = result.get("reports") or {}
     outputs, problems = [], []
     for o in result.get("outputs") or []:
+        if not inside(run, str(o.get("path", ""))):
+            problems.append(f"产出「{o.get('name')}」写的位置 {o.get('path')} 不在实验目录里，没有登记："
+                            f"产出要放在这个实验的目录里（比如 out/ 下面），才算它的产出、才进它的指纹。")
+            continue
         try:
             t = things.register(data, o["type"], o["name"], os.path.join(run, o["path"]),
                                 o.get("note", ""), source={"experiment": n})

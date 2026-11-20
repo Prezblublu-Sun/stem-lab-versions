@@ -34,9 +34,11 @@ class SixSteps(unittest.TestCase):
         # 2. 选要用的东西：从登记过的里挑；3. 填设置：有名字、单位、默认值、范围
         _, html = lab.get(f"/new?method={method['n']}")
         for t in inputs.values():
-            self.assertIn(f'value="{t["n"]}" selected', html)
-        for words in look_for + ["默认"]:
+            self.assertIn(f'value="{t["n"]}"', html)
+        for words in look_for + ["默认", "（请选）"]:
             self.assertIn(words, html)
+        _, html = lab.post("/new", lab.form(method, {k: None for k in inputs}))   # 不替用户挑：没选就不让启动
+        self.assertIn("还没选", html)
         # 4. 点启动，在仪表盘上看它跑
         n = lab.start(lab.form(method, inputs))
         _, html = lab.get("/live")

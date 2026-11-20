@@ -1,6 +1,7 @@
 """页面服务：只听 127.0.0.1。看页面用 GET；会往账本里写的一律用 POST，并且核对 Origin——
 不然随便哪个网页都能让这台机器登记并运行一个做法。"""
 import json
+import math
 import os
 import tomllib
 import traceback
@@ -91,7 +92,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(pages.experiment_live(d, n))
         if path == "/things":
             t = ledger.state(d).things.get(_int(q.get("new")))
-            notes = [f'登记好了：{t["type"]}「{t["name"]}」第{t["version"]}版。'] if t else []
+            notes = [f'登记好了：{t["type"]}{things.label(t)}。'] if t else []
             return self.send(pages.things_page(d, notes=notes))
         if path == "/check":
             return self.send(pages.check_page(d, q.get("go") == "1"))
@@ -101,13 +102,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def file(self, n, rel):
         """只许读实验目录里的文件。"""
-        run = os.path.normcase(os.path.realpath(runs.run_dir(self.data, n or 0)))
-        full = os.path.normcase(os.path.realpath(os.path.join(run, rel)))
-        try:
-            inside = n is not None and os.path.commonpath([run, full]) == run
-        except ValueError:
-            inside = False
-        if not inside or not os.path.isfile(full):
+        run = runs.run_dir(self.data, n or 0)
+        full = os.path.realpath(os.path.join(run, rel))
+        if n is None or not runs.inside(run, rel) or not os.path.isfile(full):
             return self.send("只能看实验目录里的文件；这个不在里面，或者不存在。", 404, TEXT)
         size = os.path.getsize(full)
         if size > 20 * 2 ** 20:
@@ -183,11 +180,11 @@ class Handler(BaseHTTPRequestHandler):
             old = st.things.get(v["inputs"].get(action[len("rereg:"):]))
             try:
                 t = things.register(d, old["type"], old["name"], old["path"],
-                                    f'重新登记：第{old["version"]}版登记以后内容变了')
+                                    f'重新登记：{things.label(old)}登记以后内容变了')
             except (Problem, TypeError) as err:
                 return self.send(pages.new_form(d, v, [f"没登记上：{err}"]))
             v["inputs"][action[len("rereg:"):]] = t["n"]
-            return self.send(pages.new_form(d, v, notes=[f'登记好了：{t["type"]}「{t["name"]}」第{t["version"]}版，'
+            return self.send(pages.new_form(d, v, notes=[f'登记好了：{t["type"]}{things.label(t)}，'
                                                          f'已经替你选上。']))
         errors, inputs, settings, gates = [], {}, {}, []
         for i in spec.get("inputs", []):
@@ -204,9 +201,12 @@ class Handler(BaseHTTPRequestHandler):
             op, val = v["gates"][r["key"]]
             if op in runs.OPS:
                 try:
-                    gates.append({"metric": r["key"], "op": op, "value": float(val)})
+                    value = float(val)
+                    if not math.isfinite(value):
+                        raise ValueError
+                    gates.append({"metric": r["key"], "op": op, "value": value})
                 except ValueError:
-                    errors.append(f'门槛「{r.get("name") or r["key"]}」要填一个数，现在是 {val!r}')
+                    errors.append(f'门槛「{r.get("name") or r["key"]}」要填一个实实在在的数，现在是 {val!r}')
         if errors:
             return self.send(pages.new_form(d, v, errors))
         changed = runs.changed_uses(d, st, m, inputs)

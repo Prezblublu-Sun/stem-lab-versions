@@ -9,6 +9,17 @@ from stemlab import fingerprint, ledger, runs, things
 from stemlab.things import Problem
 
 
+def tiny_method(lab, folder, script):
+    """在测试的数据目录里写一个最小的做法，登记上。"""
+    folder = os.path.join(lab.data, folder)
+    os.makedirs(folder)
+    with open(os.path.join(folder, "method.toml"), "w", encoding="utf-8") as f:
+        f.write('name = "%s"\ncategory = "FEA"\ncommand = "{python} {method}/run.py {run}"\n' % os.path.basename(folder))
+    with open(os.path.join(folder, "run.py"), "w", encoding="utf-8") as f:
+        f.write(textwrap.dedent(script))
+    return things.register(lab.data, "做法", "", folder)
+
+
 class Untouched(unittest.TestCase):
     """记下来的不被悄悄改：只往后加；内容和登记时不一样，认得出来。"""
 
@@ -22,23 +33,21 @@ class Untouched(unittest.TestCase):
         d = self.lab.data
         for i in range(3):
             ledger.append(d, {"kind": "note", "text": f"第 {i + 1} 条"})
-        self.assertTrue(ledger.verify(d)[0])
+        self.assertEqual(ledger.verify(d), (3, []))
         path = os.path.join(d, ledger.FILE)
         with open(path, encoding="utf-8") as f:
             lines = f.readlines()
         with open(path, "w", encoding="utf-8", newline="\n") as f:
-            f.writelines([lines[0], lines[1].replace("第 2 条", "改过的"), lines[2]])
-        ok, msg = ledger.verify(d)
-        self.assertFalse(ok)
-        self.assertIn("第 2 行", msg)
+            f.writelines([lines[0], lines[1].replace("第 2 条", "改过的"), lines[2].replace("第 3 条", "也改过")])
+        self.assertEqual([i for i, _, _ in ledger.verify(d)[1]], [2, 3])   # 不在第一处就停
+        _, html = self.lab.get("/")                                          # 平常的页面顶上就说
+        self.assertIn("账本有 2 处对不上", html)
         with open(path, "w", encoding="utf-8", newline="\n") as f:
             f.writelines([lines[0], lines[2]])
-        ok, msg = ledger.verify(d)
-        self.assertFalse(ok)
-        self.assertIn("第 2 行", msg)
+        self.assertEqual([i for i, _, _ in ledger.verify(d)[1]], [2])
 
     def test_cut_tail_shows_up_in_check(self):
-        """链本身认不出末尾被砍；data 里有、账本上没有的东西能露出来。"""
+        """末尾被砍，和账本旁边的头一比就认得出来；data 里有、账本上没有的东西也列出来。"""
         lab = self.lab
         m = lab.method("fea_demo")
         os.makedirs(os.path.join(lab.data, "runs", "e0099"))
@@ -47,8 +56,9 @@ class Untouched(unittest.TestCase):
             lines = f.readlines()
         with open(path, "w", encoding="utf-8", newline="\n") as f:
             f.writelines(lines[:-1])          # 砍掉最后一条：登记做法的那条
-        self.assertTrue(ledger.verify(lab.data)[0])
+        self.assertIn("末尾少了 1 条", ledger.verify(lab.data)[1][-1][2])
         _, html = lab.get("/check?go=1")
+        self.assertIn("末尾少了 1 条", html)
         self.assertIn("账本上没有", html)
         self.assertIn("e0099", html)
         self.assertIn(m["fingerprint"][:16], html)
@@ -69,21 +79,15 @@ class Untouched(unittest.TestCase):
     def test_previous_result_is_not_taken_for_this_attempt(self):
         """第一次写了结果但失败；继续以后什么也没算、退出码 0：不能把第一次的结果当成这一次的。"""
         lab = self.lab
-        folder = os.path.join(lab.data, "twice")
-        os.makedirs(folder)
-        with open(os.path.join(folder, "method.toml"), "w", encoding="utf-8") as f:
-            f.write('name = "两次"\ncategory = "FEA"\ncommand = "{python} {method}/run.py {run}"\n')
-        with open(os.path.join(folder, "run.py"), "w", encoding="utf-8") as f:
-            f.write(textwrap.dedent("""\
-                import json, os, sys
-                run = sys.argv[1]
-                if os.path.exists(os.path.join(run, "result.attempt1.json")):
-                    sys.exit(0)              # 第二次：什么也没算，退出码 0
-                with open(os.path.join(run, "result.json"), "w") as f:
-                    json.dump({"reports": {"a": 1}}, f)
-                sys.exit(3)                  # 第一次：写了结果，但失败了
-                """))
-        m = things.register(lab.data, "做法", "", folder)
+        m = tiny_method(lab, "twice", """\
+            import json, os, sys
+            run = sys.argv[1]
+            if os.path.exists(os.path.join(run, "result.attempt1.json")):
+                sys.exit(0)              # 第二次：什么也没算，退出码 0
+            with open(os.path.join(run, "result.json"), "w") as f:
+                json.dump({"reports": {"a": 1}}, f)
+            sys.exit(3)                  # 第一次：写了结果，但失败了
+            """)
         n = runs.seal(lab.data, "FEA", "两次", m, {}, {}, [])["n"]
         runs.start(lab.data, n)
         self.assertEqual(lab.wait(n)["end"]["code"], 3)
@@ -141,6 +145,18 @@ class Untouched(unittest.TestCase):
         form["action"], form["in_points"] = "start", new
         self.assertEqual(lab.wait(lab.start(form))["word"], "完成")
 
+    def test_broken_method_copy_can_be_restored(self):
+        lab = self.lab
+        m = lab.method("fea_demo")
+        with open(os.path.join(things.method_dir(lab.data, m), "run.py"), "a", encoding="utf-8") as f:
+            f.write("# 有人动了留底\n")
+        self.assertIn("run.py 变了", things.check(lab.data, m))
+        _, html = lab.get("/check?go=1")
+        self.assertIn("照原来的文件夹恢复", html)
+        with self.assertRaisesRegex(Problem, "已经照原来的文件夹恢复"):
+            lab.method("fea_demo")
+        self.assertIsNone(things.check(lab.data, m))
+
     def test_changed_output_is_caught(self):
         lab = self.lab
         m = lab.method("surrogate_demo")
@@ -181,11 +197,30 @@ class Traceable(unittest.TestCase):
                          (1, bone["fingerprint"]))
         self.assertEqual(s["settings"]["load"], 2600.0)
         self.assertEqual(s["system"], fingerprint.of(runs.SYSTEM)[0])
+        self.assertEqual([e["system"] for e in x["events"] if e["kind"] == "start"], [s["system"]])
         [out] = x["outputs"]
-        self.assertEqual((out["type"], out["source"]), ("结果", {"experiment": n}))
+        self.assertEqual((out["type"], out["source"], out["version"]), ("结果", {"experiment": n}, None))
         _, html = lab.get(f"/exp?id={n}")
         for words in ("它用了什么", "示例骨」第1版", "示例点」第1版", "FEA 示例 · 第1版", "载荷", "2600", "摩擦系数"):
             self.assertIn(words, html)
+
+
+    def test_output_must_be_inside_the_experiment(self):
+        """做法把目录外面一个早就有的文件报成产出，不能算这个实验的产出。"""
+        lab = Lab()
+        self.addCleanup(lab.close)
+        outside = os.path.join(REPO, "examples", "bone_demo.json")
+        m = tiny_method(lab, "claims", f"""\
+            import json, os, sys
+            run = sys.argv[1]
+            with open(os.path.join(run, "result.json"), "w") as f:
+                json.dump({{"reports": {{}}, "outputs": [{{"type": "骨", "name": "别人的骨", "path": {outside!r}}}]}}, f)
+            """)
+        n = runs.seal(lab.data, "FEA", "冒领", m, {}, {}, [])["n"]
+        runs.start(lab.data, n)
+        end = lab.wait(n)["end"]
+        self.assertEqual(lab.state().exps[n]["outputs"], [])
+        self.assertIn("不在实验目录里", end["problems"][0])
 
 
 class GateFirst(unittest.TestCase):
@@ -221,6 +256,18 @@ class GateFirst(unittest.TestCase):
         sm = lab.method("surrogate_demo")
         _, html = lab.get(f"/new?method={sm['n']}")
         self.assertIn("不合格", html)
+        # 照不合格的那个再开、只把门槛放宽：页面上要看得出这次的门槛是在同样的结果出来以后写的
+        again = lab.start(dict(lab.form(m, {"bone": bone, "points": pts}, gates={"max_stress": ("<=", "1e8")}),
+                               **{"from": strict}))
+        lab.wait(again)
+        _, html = lab.get(f"/exp?id={again}")
+        self.assertIn("在这个实验的结果出来之前", html)
+        self.assertIn(f"e{strict:04d} 已经跑出过结果（门槛：最大应力 ≤ 1，不合格）", html)
+        # nan、inf 不算数
+        _, html = lab.post("/new", lab.form(m, {"bone": bone, "points": pts}, gates={"max_stress": ("<=", "nan")}))
+        self.assertIn("实实在在的数", html)
+        _, html = lab.post("/new", lab.form(m, {"bone": bone, "points": pts}, load="inf"))
+        self.assertIn("实实在在的数", html)
 
 
 if __name__ == "__main__":

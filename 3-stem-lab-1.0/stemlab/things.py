@@ -1,11 +1,13 @@
 """登记：往账本加一条“有这么一样东西”——类型、名字、位置、指纹、说明（来源）。
 
 类型就是一个词（骨、点、CT、结果、模型……），这里不写死清单。
-同类型同名字再登记一次，就是新的一版；旧的一版留着。
+外来的东西同类型同名字再登记一次，就是新的一版；旧的一版留着。
+实验的产出不排版本：同名的产出各属各的实验，互不相干。
 
 只有“做法”这一种类型特别：做法是一个带 method.toml 的文件夹，登记时按指纹抄一份到
 data/methods/ 里留底，实验跑的是留底的那一份。别的东西（可能很大）留在原处不抄，用的时候核对指纹。
 """
+import math
 import os
 import shutil
 import tomllib
@@ -24,6 +26,12 @@ class Problem(Exception):
 def method_dir(data, entry):
     """做法留底的位置。只用指纹做文件夹名，所以 data/ 里的路径全是 ASCII。"""
     return os.path.join(data, "methods", entry["fingerprint"][:16])
+
+
+def label(t):
+    """一样东西给人看的叫法：外来的东西和做法带“第几版”；实验的产出不排版本，写它是哪个实验的。"""
+    made_by = (t.get("source") or {}).get("experiment")
+    return f'「{t["name"]}」' + (f"（e{made_by:04d} 的产出）" if made_by else f'第{t["version"]}版')
 
 
 def where(data, entry):
@@ -74,7 +82,7 @@ def register(data, type_, name, path, note="", source=None):
         raise Problem("要写类型，比如 骨、点、CT、结果、模型、做法")
     if not os.path.exists(path):
         raise Problem(f"找不到这个路径：{path}")
-    extra = {}
+    extra, extra_note = {}, ""
     if type_ == METHOD:
         spec = read_method(path)
         name = name or spec["name"]
@@ -84,6 +92,9 @@ def register(data, type_, name, path, note="", source=None):
         shutil.copytree(path, tmp, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
         fp, files = fingerprint.of(tmp)
         final = os.path.join(data, "methods", fp[:16])
+        if os.path.exists(final) and fingerprint.of(final)[0] != fp:   # 同样内容的留底被动过：照刚抄的换掉
+            shutil.rmtree(final)
+            extra_note = "这个做法的留底被动过，已经照原来的文件夹恢复。"
         if os.path.exists(final):
             shutil.rmtree(tmp)
         else:
@@ -96,17 +107,18 @@ def register(data, type_, name, path, note="", source=None):
     same = {}
 
     def make(entries):
-        older = [x for x in entries if x.get("kind") == "register" and x["type"] == type_ and x["name"] == name]
+        older = [x for x in entries if x.get("kind") == "register" and x["type"] == type_ and x["name"] == name
+                 and not x.get("source")]   # 只有外来的东西和做法排版本
         # 外来的东西，内容和位置都和最新一版一样，就不再加一版；实验的产出每次都登记
         if source is None and older and older[-1]["fingerprint"] == fp and older[-1]["path"] == path:
             same["version"] = older[-1]["version"]
             return None
-        version = max((x["version"] for x in older), default=0) + 1
+        version = None if source else max((x["version"] for x in older), default=0) + 1
         return {"kind": "register", "type": type_, "name": name, "version": version, "path": path,
                 "fingerprint": fp, "files": files, "note": note, "source": source, **extra}
     entry = ledger.append(data, make)
     if entry is None:
-        raise Problem(f"没有新登记：{type_}「{name}」的内容和位置都和第{same['version']}版一样。")
+        raise Problem(f"没有新登记：{type_}「{name}」的内容和位置都和第{same['version']}版一样。{extra_note}")
     return entry
 
 
@@ -150,6 +162,8 @@ def parse_value(s, raw):
                 else int(str(raw).strip())
     except (TypeError, ValueError):
         raise Problem(f"「{label}」要填一个{kind}，现在是 {raw!r}")
+    if not math.isfinite(value):
+        raise Problem(f"「{label}」要填一个实实在在的数，{raw!r} 不算")
     lo, hi = s.get("min"), s.get("max")
     if (lo is not None and value < lo) or (hi is not None and value > hi):
         shown = int(value) if isinstance(value, float) and value.is_integer() else value
