@@ -5,15 +5,16 @@
          全部设置的值、门槛、系统自己的指纹、照哪个实验开的。封存以后没有任何入口能改它。
   start  每启动（或继续）一次加一条。
   end    每结束一次加一条：完成 / 失败 / 停了。完成的带着报的数、判定和产出的指纹。
-现状 = 这几条 + 进度文件的最后一行 + 心跳。不另存一份状态。
+现状 = 这几条 + 进度文件的最后一行 + 看护进程的锁有没有人握着。不另存一份状态。
 
 每个实验一个目录 data/runs/e0005/：
   task.json       核心写给做法的：选用的东西在哪、设置的值、输出放哪
   progress.jsonl  做法一行一行追加的进度
   result.json     做法跑完写的结果
   log.txt         做法的标准输出和错误输出
-  heartbeat.json  看护进程每隔几秒写一次
+  pid.json        看护进程和做法的进程号，停的时候用；每次启动前清掉上一次的
   out/            做法放产出的地方
+目录外面还有一个 e0005.lock：看护进程从头到尾握着它（收尾时也握着），进程一死系统就放开。
 """
 import json
 import os
@@ -27,8 +28,7 @@ from . import fingerprint, ledger, things
 from .things import Problem
 
 SYSTEM = os.path.dirname(os.path.abspath(__file__))   # stemlab/ 文件夹：系统自己
-BEAT_EVERY = 2    # 心跳间隔，秒
-BEAT_LOST = 15    # 这么久没有心跳就算中断，秒
+STARTING = 10    # 刚启动的这几秒，看护进程可能还没拿到锁，先算在跑
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 OPS = {"<=": lambda a, b: a <= b, ">=": lambda a, b: a >= b,
        "<": lambda a, b: a < b, ">": lambda a, b: a > b}
@@ -36,6 +36,11 @@ OPS = {"<=": lambda a, b: a <= b, ">=": lambda a, b: a >= b,
 
 def run_dir(data, n):
     return os.path.join(data, "runs", f"e{n:04d}")
+
+
+def lock_path(data, n):
+    """看护进程握着的锁。放在实验目录外面，不进产出的指纹。"""
+    return run_dir(data, n) + ".lock"
 
 
 def _read_json(path):
@@ -110,6 +115,17 @@ def start(data, n, verify=True):
                 f"{t['type']}「{t['name']}」第{t['version']}版：{why}" for _, t, why in bad)
                 + "。可以“照这个再开一个”，选上新登记的一版。")
     run = run_dir(data, n)
+    attempt = 1 + sum(1 for e in x["events"] if e["kind"] == "start")
+    if ledger.held(lock_path(data, n)):
+        raise Problem("上一次的看护进程还没结束（可能正在收尾），不能再起一个。等它结束再说。")
+    if attempt == 1 and os.path.isdir(run) and os.listdir(run):
+        raise Problem(f"这个实验的目录 {run} 里已经有东西了，可它是第一次启动：账本可能被动过"
+                      f"（末尾被砍掉，或被旧的备份盖回去）。先去“核对”页看看。这个实验没有启动。")
+    # 上一次留下的结果改名留着，免得这一次没写结果也被当成跑完；上一次的进程号清掉，免得停错进程
+    if os.path.exists(os.path.join(run, "result.json")):
+        os.replace(os.path.join(run, "result.json"), os.path.join(run, f"result.attempt{attempt - 1}.json"))
+    if os.path.exists(os.path.join(run, "pid.json")):
+        os.remove(os.path.join(run, "pid.json"))
     os.makedirs(os.path.join(run, "out"), exist_ok=True)
     _write_json(os.path.join(run, "task.json"), {
         "experiment": f"e{n:04d}", "run": run, "out": os.path.join(run, "out"),
@@ -117,7 +133,6 @@ def start(data, n, verify=True):
         "inputs": {k: (things.where(data, t) if t else None) for k, t in inputs.items()},
         "settings": s["settings"],
     })
-    attempt = 1 + sum(1 for e in x["events"] if e["kind"] == "start")
     ledger.append(data, {"kind": "start", "exp": n, "attempt": attempt})
     try:   # 先起一个中间进程，它起看护进程后马上退出；这里等它退出
         with open(os.path.join(run, "log.txt"), "ab") as log:
@@ -149,8 +164,10 @@ def _detached(mode, data, n, log):
 
 def stop(data, n):
     """停下实验 n：杀掉看护进程和它下面整棵进程树，再替它在账本里记一笔“停了”。"""
-    beat = _read_json(os.path.join(run_dir(data, n), "heartbeat.json")) or {}
-    for pid in (beat.get("pid"), beat.get("child")):
+    pids = _read_json(os.path.join(run_dir(data, n), "pid.json"))
+    if not pids:
+        raise Problem("它刚启动，还没记下进程号。过两秒再点停下。")
+    for pid in (pids.get("pid"), pids.get("child")):
         if not pid:
             continue
         if os.name == "nt":
@@ -172,7 +189,11 @@ def stop(data, n):
 # ---------- 看护进程 ----------
 
 def watch(data, n):
-    """看护进程的全部工作：跑做法的命令，留心跳，跑完收尾。"""
+    """看护进程的全部工作：握住锁，跑做法的命令，跑完收尾。锁一直握到进程结束。"""
+    lock = ledger.grab(lock_path(data, n), 3)   # 页面探锁时会短暂碰到它，所以等一两秒
+    if lock is None:
+        print("这个实验已经有一个看护进程在跑，这一个不起。", flush=True)
+        return
     st = ledger.state(data)
     s = st.exps[n]["seal"]
     mdir = things.method_dir(data, st.things[s["method"]["n"]])
@@ -190,14 +211,8 @@ def watch(data, n):
         except OSError as err:
             log.write(f"命令起不来：{err}\n".encode("utf-8"))
             return finish(data, n, None, f"命令起不来：{err}")
-        while True:
-            _write_json(os.path.join(run, "heartbeat.json"),
-                        {"pid": os.getpid(), "child": child.pid, "time": ledger.now()})
-            try:
-                code = child.wait(timeout=BEAT_EVERY)
-                break
-            except subprocess.TimeoutExpired:
-                pass
+        _write_json(os.path.join(run, "pid.json"), {"pid": os.getpid(), "child": child.pid})
+        code = child.wait()
     finish(data, n, code)
 
 
@@ -239,7 +254,8 @@ def _age(path):
 
 
 def status(data, x):
-    """一个实验现在怎样：没启动 / 在跑 / 中断 / 完成 / 失败 / 停了。"""
+    """一个实验现在怎样：没启动 / 在跑 / 中断 / 完成 / 失败 / 停了。
+    最后一条是启动时：看护进程握着锁（收尾时也握着）就是在跑；锁没人握、又过了刚启动那几秒，就是中断。"""
     events = x["events"]
     last = events[-1] if events else None
     info = {"attempts": sum(1 for e in events if e["kind"] == "start"), "end": None}
@@ -248,9 +264,8 @@ def status(data, x):
     elif last["kind"] == "end":
         info["word"], info["end"] = last["status"], last
     else:
-        beat = _age(os.path.join(run_dir(data, x["seal"]["n"]), "heartbeat.json"))
-        fresh = (beat is not None and beat < BEAT_LOST) or time.time() - _seconds(last["time"]) < BEAT_LOST
-        info["word"] = "在跑" if fresh else "中断"
+        alive = ledger.held(lock_path(data, x["seal"]["n"]))
+        info["word"] = "在跑" if alive or time.time() - _seconds(last["time"]) < STARTING else "中断"
     return info
 
 

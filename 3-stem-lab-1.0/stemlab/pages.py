@@ -43,10 +43,11 @@ if(b.dataset.word&&w&&w!==b.dataset.word){location.reload();return}b.innerHTML=t
 setInterval(pull,3000);document.addEventListener('visibilitychange',pull)})();
 """
 
+CATEGORIES = ("重建", "FEA", "代理", "优化")   # 一页纸里的四类；做法写了别的类，也照样列出来
 NAV = [("/", "仪表盘"), ("/new", "新建实验"), ("/exps", "实验和结果"), ("/things", "登记的东西"), ("/check", "核对")]
 OPS = {"<=": "≤", ">=": "≥", "<": "<", ">": ">"}
 WORD_CLASS = {"在跑": "run", "完成": "ok", "失败": "bad", "中断": "mid", "停了": "small", "没启动": "small",
-              "合格": "ok", "不合格": "bad", "未设门槛": "mid", "一样": "ok", "不一样": "bad"}
+              "合格": "ok", "不合格": "bad", "未设门槛": "mid", "一样": "ok", "不一样": "bad", "没有": "ok"}
 
 
 def e(x):
@@ -105,8 +106,10 @@ def origin(st, t, html=True):
     """一样东西的来历：外来的，还是哪个实验产出的（连同那个实验用的做法和判定）。"""
     n = (t.get("source") or {}).get("experiment")
     x = st.exps.get(n)
-    if not x:
-        return "外来"
+    if not x:   # 外来的：登记时写了说明，就带上说明的前一小段
+        note = (t.get("note") or "").strip()
+        text = "外来" + (f"（{note[:24]}{'…' if len(note) > 24 else ''}）" if note else "")
+        return e(text) if html else text
     end, m = final(x), x["seal"]["method"]
     verdict = end["verdict"]["result"] if end else "还没判定"
     if not html:
@@ -161,7 +164,7 @@ def dashboard_live(data):
     for x, i in stuck:
         n, s, end = x["seal"]["n"], x["seal"], i["end"] or {}
         p, quiet = runs.progress(data, n)
-        why = {"中断": "看护进程的心跳断了（机器重启、进程被杀……）", "没启动": "封存了但没启动起来"}.get(
+        why = {"中断": "看护进程不在了（机器重启、进程被杀……）", "没启动": "封存了，但没启动起来"}.get(
             i["word"], end.get("why", ""))
         code = f' · 退出码 {e(end["code"])}' if end.get("code") is not None else ""
         log = runs.tail(os.path.join(runs.run_dir(data, n), "log.txt"), 8)
@@ -192,6 +195,14 @@ def split_gate(text):
     return "", ""
 
 
+def default_and_range(s):
+    """一个设置项的默认值和范围，比如“默认 2300 N · 范围 500 ~ 5000 N”。"""
+    parts = [f'默认 {fmt(s["default"])} {s.get("unit", "")}'.strip()] if "default" in s else []
+    if things.range_text(s):
+        parts.append(("可选 " if s["kind"] == "选项" else "范围 ") + things.range_text(s))
+    return " · ".join(parts)
+
+
 def setting_input(s, raw):
     """一个设置项的输入框：开关是勾选框，选项是下拉框，数、整数、文字是文本框。"""
     attrs = f'name="set_{e(s["key"])}" aria-label="{e(s.get("name") or s["key"])}"'
@@ -217,14 +228,9 @@ def new_form(data, v, errors=(), notes=(), changed=()):
     m = m if m and m["type"] == METHOD else None
     cat = m["category"] if m else v.get("cat")
     out = [msgs(errors, notes), "<h2>第 1 步：选哪一类</h2>"]
-    if not methods:
-        out.append('<p>还没有登记任何做法。先到<a href="/things">登记的东西</a>里登记一个做法'
-                   '（一个带 method.toml 的文件夹）。</p>')
-        return page("新建实验", "".join(out), "/new")
     out.append("<p>" + "".join(
         f'<a class="pick{" on" if c == cat else ""}" href="/new?cat={quote(c)}">{e(c)}</a>'
-        for c in dict.fromkeys(t["category"] for t in methods)) + "</p><p class='small'>只列出登记过做法的类；"
-        "要别的类，先到“登记的东西”登记一个那一类的做法。</p>")
+        for c in dict.fromkeys(list(CATEGORIES) + [t["category"] for t in methods])) + "</p>")
     if not cat:
         return page("新建实验", "".join(out), "/new")
     out.append("<h2>第 2 步：选做法和要用的东西</h2>")
@@ -232,6 +238,10 @@ def new_form(data, v, errors=(), notes=(), changed=()):
     for t in methods:
         if t["category"] == cat:
             groups.setdefault(t["name"], []).append(t)
+    if not groups:
+        out.append(f'<p>「{e(cat)}」这一类还没有登记做法。到<a href="/things">登记的东西</a>里登记一个：类型写“做法”，'
+                   f'路径指向一个带 method.toml 的文件夹（里面写 category = "{e(cat)}"）。</p>')
+        return page("新建实验", "".join(out), "/new")
     if not m:
         for name, vs in groups.items():
             spec = spec_of(data, vs[-1]) or {}
@@ -240,9 +250,10 @@ def new_form(data, v, errors=(), notes=(), changed=()):
                        f'</a> <span class="small">{"更早的：" + older if older else ""}</span><br>'
                        f'<span class="small">{e(spec.get("about", ""))}</span></p>')
         return page("新建实验", "".join(out), "/new")
-    spec = spec_of(data, m)
-    if spec is None:
-        out.append(msgs([f"这个做法的留底读不出来（{things.method_dir(data, m)}），换一个版本或重新登记。"]))
+    try:
+        spec = things.read_method(things.method_dir(data, m))
+    except things.Problem as err:
+        out.append(msgs([f"这个做法读不出来：{err}。换一个版本，或把 method.toml 改好再登记一版。"]))
         return page("新建实验", "".join(out), "/new")
     others = " ".join(f'<a href="/new?method={t["n"]}">第{t["version"]}版</a>'
                       for t in reversed(groups.get(m["name"], [])) if t["n"] != m["n"])
@@ -286,7 +297,7 @@ def new_form(data, v, errors=(), notes=(), changed=()):
         f.append(f"<fieldset><legend>{e(g)}</legend><table>" + "".join(
             f'<tr><td>{e(s.get("name") or s["key"])}</td>'
             f'<td>{setting_input(s, v.get("settings", {}).get(s["key"], s.get("default", "")))}</td>'
-            f'<td>{e(s.get("unit", ""))}</td><td class="small">{e(things.range_text(s))}</td>'
+            f'<td>{e(s.get("unit", ""))}</td><td class="small">{e(default_and_range(s))}</td>'
             f'<td class="small">{e(s.get("about", ""))}</td></tr>' for s in items) + "</table></fieldset>")
     if not sgroups:
         f.append("<p>这个做法没有设置项。</p>")
@@ -550,6 +561,15 @@ def check_page(data, go=False):
                     f'<td>{(word("不一样") + " " + e(why)) if why else word("一样")}</td></tr>')
     out.append(f"<h2>实验的产出</h2><p>{len(rows)} 个跑完的实验，{bad} 个的目录和跑完时不一样。</p>"
                f"<table>{''.join(rows)}</table>")
+    # 账本末尾被砍掉、或被旧的换回去，链本身看不出来；data/ 里有、账本上没有的东西能露出一点
+    known = {os.path.basename(runs.run_dir(data, n)) for n in st.exps}
+    known |= {t["fingerprint"][:16] for t in st.things.values() if t["type"] == METHOD}
+    extra = [os.path.join(part, d) for part in ("runs", "methods") if os.path.isdir(os.path.join(data, part))
+             for d in sorted(os.listdir(os.path.join(data, part)))
+             if os.path.isdir(os.path.join(data, part, d)) and d not in known and not d.startswith("tmp-")]
+    out.append("<h2>data 里有、账本上没有的</h2>" + (
+        msgs([f"data 里有 {len(extra)} 个实验目录或做法留底，账本上没有：{'、'.join(extra)}。"
+              "账本末尾可能被砍掉过，或被换成了旧的。"]) if extra else f"<p>{word('没有')}</p>"))
     now = fingerprint.of(runs.SYSTEM)[0]
     other = sum(1 for x in st.exps.values() if x["seal"]["system"] != now)
     out.append(f'<h2>系统自己</h2><p>stemlab/ 现在的指纹 <span class="small">{now[:12]}</span>；'

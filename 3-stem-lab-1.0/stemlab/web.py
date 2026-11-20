@@ -143,7 +143,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/stop":
             if now != "在跑":
                 return self.send(pages.experiment(d, n, errors=[f"它现在是“{now}”，不在跑，不用停。"]))
-            runs.stop(d, n)
+            try:
+                runs.stop(d, n)
+            except Problem as err:
+                return self.send(pages.experiment(d, n, errors=[str(err)]))
             return self.go(f"/exp?id={n}")
         if path == "/continue":
             if now not in ("中断", "失败", "停了", "没启动"):
@@ -162,7 +165,10 @@ class Handler(BaseHTTPRequestHandler):
         m = st.things.get(_int(form.get("method")))
         if not m or m["type"] != METHOD:
             return self.go("/new")
-        spec = things.read_method(things.method_dir(d, m))
+        try:
+            spec = things.read_method(things.method_dir(d, m))
+        except Problem:   # 新建页会把读不出来的原因说清楚
+            return self.go(f"/new?method={m['n']}")
         v = {"method": m["n"], "from": _int(form.get("from")), "title": form.get("title", "").strip(),
              "inputs": {i["key"]: _int(form.get("in_" + i["key"])) for i in spec.get("inputs", [])},
              "settings": {s["key"]: form.get("set_" + s["key"], "") for s in spec.get("settings", [])},
@@ -209,7 +215,10 @@ class Handler(BaseHTTPRequestHandler):
                                             changed=changed))
         title = v["title"] or f'{m["name"]} {ledger.now()[5:16]}'
         x = runs.seal(d, m["category"], title, m, inputs, settings, gates, v["from"])
-        runs.start(d, x["n"], verify=False)
+        try:
+            runs.start(d, x["n"], verify=False)
+        except Problem as err:   # 封存了但没启动起来：落到实验页上说清楚
+            return self.send(pages.experiment(d, x["n"], errors=[str(err)]))
         self.go(f"/exp?id={x['n']}")
 
 

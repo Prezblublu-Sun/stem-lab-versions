@@ -1,10 +1,12 @@
 """一页纸里最少要守住的三件事，各几条。"""
 import os
 import shutil
+import textwrap
 import unittest
 
 from util import REPO, Lab
-from stemlab import fingerprint, ledger, runs
+from stemlab import fingerprint, ledger, runs, things
+from stemlab.things import Problem
 
 
 class Untouched(unittest.TestCase):
@@ -34,6 +36,87 @@ class Untouched(unittest.TestCase):
         ok, msg = ledger.verify(d)
         self.assertFalse(ok)
         self.assertIn("第 2 行", msg)
+
+    def test_cut_tail_shows_up_in_check(self):
+        """链本身认不出末尾被砍；data 里有、账本上没有的东西能露出来。"""
+        lab = self.lab
+        m = lab.method("fea_demo")
+        os.makedirs(os.path.join(lab.data, "runs", "e0099"))
+        path = os.path.join(lab.data, ledger.FILE)
+        with open(path, encoding="utf-8") as f:
+            lines = f.readlines()
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
+            f.writelines(lines[:-1])          # 砍掉最后一条：登记做法的那条
+        self.assertTrue(ledger.verify(lab.data)[0])
+        _, html = lab.get("/check?go=1")
+        self.assertIn("账本上没有", html)
+        self.assertIn("e0099", html)
+        self.assertIn(m["fingerprint"][:16], html)
+
+    def test_first_start_needs_a_fresh_directory(self):
+        lab = self.lab
+        m = lab.method("fea_demo")
+        bone = lab.register("骨", "示例骨", "examples/bone_demo.json")
+        pts = lab.register("点", "示例点", "examples/points_demo.csv")
+        nxt = ledger.read(lab.data)[-1]["n"] + 1          # 下一个实验会用的目录，先放进旧东西
+        os.makedirs(runs.run_dir(lab.data, nxt))
+        with open(os.path.join(runs.run_dir(lab.data, nxt), "old.txt"), "w", encoding="utf-8") as f:
+            f.write("旧的")
+        _, html = lab.post("/new", lab.form(m, {"bone": bone, "points": pts}))
+        self.assertIn("已经有东西了", html)
+        self.assertEqual(runs.status(lab.data, lab.state().exps[nxt])["word"], "没启动")
+
+    def test_previous_result_is_not_taken_for_this_attempt(self):
+        """第一次写了结果但失败；继续以后什么也没算、退出码 0：不能把第一次的结果当成这一次的。"""
+        lab = self.lab
+        folder = os.path.join(lab.data, "twice")
+        os.makedirs(folder)
+        with open(os.path.join(folder, "method.toml"), "w", encoding="utf-8") as f:
+            f.write('name = "两次"\ncategory = "FEA"\ncommand = "{python} {method}/run.py {run}"\n')
+        with open(os.path.join(folder, "run.py"), "w", encoding="utf-8") as f:
+            f.write(textwrap.dedent("""\
+                import json, os, sys
+                run = sys.argv[1]
+                if os.path.exists(os.path.join(run, "result.attempt1.json")):
+                    sys.exit(0)              # 第二次：什么也没算，退出码 0
+                with open(os.path.join(run, "result.json"), "w") as f:
+                    json.dump({"reports": {"a": 1}}, f)
+                sys.exit(3)                  # 第一次：写了结果，但失败了
+                """))
+        m = things.register(lab.data, "做法", "", folder)
+        n = runs.seal(lab.data, "FEA", "两次", m, {}, {}, [])["n"]
+        runs.start(lab.data, n)
+        self.assertEqual(lab.wait(n)["end"]["code"], 3)
+        runs.start(lab.data, n)
+        end = lab.wait(n)["end"]
+        self.assertEqual((end["status"], end["code"]), ("失败", 0))
+        self.assertTrue(os.path.exists(os.path.join(runs.run_dir(lab.data, n), "result.attempt1.json")))
+
+    def test_one_watcher_per_experiment(self):
+        """看护进程活着（收尾时也算）就是在跑，不显示中断；同一个实验不会有第二个看护进程。"""
+        lab = self.lab
+        m = lab.method("fea_demo")
+        bone = lab.register("骨", "示例骨", "examples/bone_demo.json")
+        pts = lab.register("点", "示例点", "examples/points_demo.csv")
+        n = lab.start(lab.form(m, {"bone": bone, "points": pts}, pause=0.5))
+        while not ledger.held(runs.lock_path(lab.data, n)) and runs.status(
+                lab.data, lab.state().exps[n])["word"] == "在跑":
+            pass
+        self.assertTrue(ledger.held(runs.lock_path(lab.data, n)), "看护进程应当握着锁")
+        self.assertRaisesRegex(Problem, "还没结束", runs.start, lab.data, n)
+        self.assertEqual(lab.wait(n)["word"], "完成")
+        self.assertEqual(sum(e["kind"] == "start" for e in lab.state().exps[n]["events"]), 1)
+        # 用测试自己握住锁，装成一个收尾很久、很久没动静的看护进程
+        x = runs.seal(lab.data, "FEA", "装的", m, {"bone": bone, "points": pts}, {}, [])
+        ledger.append(lab.data, {"kind": "start", "exp": x["n"], "attempt": 1})
+        old, runs.STARTING = runs.STARTING, 0
+        self.addCleanup(setattr, runs, "STARTING", old)
+        lock = ledger.grab(runs.lock_path(lab.data, x["n"]), 1)
+        self.assertEqual(runs.status(lab.data, lab.state().exps[x["n"]])["word"], "在跑")
+        self.assertRaisesRegex(Problem, "还没结束", runs.start, lab.data, x["n"])
+        ledger._unlock(lock)
+        lock.close()
+        self.assertEqual(runs.status(lab.data, lab.state().exps[x["n"]])["word"], "中断")
 
     def test_changed_thing_blocks_start_and_names_the_file(self):
         lab = self.lab
@@ -82,7 +165,11 @@ class Traceable(unittest.TestCase):
         self.addCleanup(lab.close)
         m = lab.method("fea_demo")
         bone = lab.register("骨", "示例骨", "examples/bone_demo.json")
-        lab.register("骨", "示例骨", "examples/bone_demo.json")      # 第2版，但这次选第1版
+        with self.assertRaises(Problem):                              # 原样再登记一次：不多出一版
+            lab.register("骨", "示例骨", "examples/bone_demo.json")
+        moved = os.path.join(lab.data, "bone_moved.json")             # 挪了地方：第2版，但这次选第1版
+        shutil.copy(os.path.join(REPO, "examples", "bone_demo.json"), moved)
+        self.assertEqual(things.register(lab.data, "骨", "示例骨", moved)["version"], 2)
         pts = lab.register("点", "示例点", "examples/points_demo.csv")
         n = lab.start(lab.form(m, {"bone": bone, "points": pts}, load=2600))
         self.assertEqual(lab.wait(n)["word"], "完成")

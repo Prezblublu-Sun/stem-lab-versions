@@ -27,14 +27,15 @@ class SixSteps(unittest.TestCase):
         lab = self.lab
         # 1. 新建一个实验，选它是哪一类
         _, html = lab.get("/new")
-        self.assertIn(f">{category}<", html)
+        for c in ("重建", "FEA", "代理", "优化"):
+            self.assertIn(f">{c}<", html)
         _, html = lab.get("/new?cat=" + quote(category))
         self.assertIn(method["name"], html)
         # 2. 选要用的东西：从登记过的里挑；3. 填设置：有名字、单位、默认值、范围
         _, html = lab.get(f"/new?method={method['n']}")
         for t in inputs.values():
             self.assertIn(f'value="{t["n"]}" selected', html)
-        for words in look_for:
+        for words in look_for + ["默认"]:
             self.assertIn(words, html)
         # 4. 点启动，在仪表盘上看它跑
         n = lab.start(lab.form(method, inputs))
@@ -100,6 +101,8 @@ class SixSteps(unittest.TestCase):
         deadline = time.time() + 20
         while runs.progress(lab.data, n)[0] is None and time.time() < deadline:
             time.sleep(0.2)
+        _, html = lab.post("/continue", {"id": n})
+        self.assertIn("不用继续", html)                       # 在跑的时候不会再起一个
         lab.post("/stop", {"id": n})
         self.assertEqual(runs.status(lab.data, lab.state().exps[n])["word"], "停了")
         _, html = lab.get("/live")

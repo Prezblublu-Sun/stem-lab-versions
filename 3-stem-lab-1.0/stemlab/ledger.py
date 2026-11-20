@@ -31,18 +31,18 @@ def _digest(entry):
     return hashlib.sha256(_canon(body).encode("utf-8")).hexdigest()
 
 
-# 文件锁：锁住 ledger.jsonl.lock 的第一个字节。进程死了，系统自己会放开。
+# 文件锁：锁住一个 .lock 文件的第一个字节。握着它的进程死了，系统自己会放开。
+# 账本用它排队往里加；每个实验的看护进程从头到尾握着一把，页面看锁有没有人握着就知道它还活着没有。
 if os.name == "nt":
     import msvcrt
 
-    def _lock(f):
-        while True:
-            try:
-                f.seek(0)
-                msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
-                return
-            except OSError:
-                time.sleep(0.05)
+    def _try(f):
+        try:
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+            return True
+        except OSError:
+            return False
 
     def _unlock(f):
         f.seek(0)
@@ -50,11 +50,39 @@ if os.name == "nt":
 else:
     import fcntl
 
-    def _lock(f):
-        fcntl.flock(f, fcntl.LOCK_EX)
+    def _try(f):
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except OSError:
+            return False
 
     def _unlock(f):
         fcntl.flock(f, fcntl.LOCK_UN)
+
+
+def grab(path, wait):
+    """试着拿住一把文件锁，最多等 wait 秒。拿到返回打开着的锁文件（进程结束就放开），拿不到返回 None。"""
+    f = open(path, "a+b")
+    end = time.time() + wait
+    while not _try(f):
+        if time.time() >= end:
+            f.close()
+            return None
+        time.sleep(0.05)
+    return f
+
+
+def held(path):
+    """这把锁现在有没有人握着。"""
+    if not os.path.isdir(os.path.dirname(path)):
+        return False
+    f = grab(path, 0)
+    if f is None:
+        return True
+    _unlock(f)
+    f.close()
+    return False
 
 
 def read(data):
@@ -87,8 +115,7 @@ def append(data, make):
     """
     os.makedirs(data, exist_ok=True)
     path = os.path.join(data, FILE)
-    with _threads, open(path + ".lock", "a+b") as lk:
-        _lock(lk)
+    with _threads, grab(path + ".lock", float("inf")) as lk:
         try:
             entries = read(data)
             body = make(entries) if callable(make) else make

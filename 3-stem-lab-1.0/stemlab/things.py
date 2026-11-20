@@ -49,9 +49,20 @@ def read_method(folder):
     for key, what in (("name", "名字"), ("category", "哪一类"), ("command", "命令行")):
         if not spec.get(key):
             raise Problem(f"method.toml 里缺 {key}（{what}）")
-    for s in spec.get("settings", []):
-        if s.get("kind") not in KINDS:
-            raise Problem(f"设置项 {s.get('key')} 的 kind 是 {s.get('kind')!r}，只能是 {'、'.join(KINDS)} 之一")
+    # 每一项里跑起来必需的键；缺了就在登记时说清楚，免得到新建页才出错
+    for part, keys in (("inputs", ("key", "type")), ("settings", ("key", "kind")), ("reports", ("key",))):
+        items = spec.get(part, [])
+        if not isinstance(items, list) or not all(isinstance(i, dict) for i in items):
+            raise Problem(f"method.toml 里的 {part} 要写成 [[{part}]] 一项一项的样子")
+        for i, item in enumerate(items, 1):
+            for key in keys:
+                if not item.get(key):
+                    raise Problem(f"method.toml 里 [[{part}]] 的第 {i} 项缺 {key}")
+    for i, s in enumerate(spec.get("settings", []), 1):
+        if s["kind"] not in KINDS:
+            raise Problem(f"[[settings]] 的第 {i} 项（{s['key']}）kind 是 {s['kind']!r}，只能是 {'、'.join(KINDS)} 之一")
+        if s["kind"] == "选项" and not s.get("choices"):
+            raise Problem(f"[[settings]] 的第 {i} 项（{s['key']}）是选项，要写 choices")
     return spec
 
 
@@ -82,12 +93,21 @@ def register(data, type_, name, path, note="", source=None):
     if not name:
         raise Problem("要写名字")
 
+    same = {}
+
     def make(entries):
-        versions = [x["version"] for x in entries
-                    if x.get("kind") == "register" and x["type"] == type_ and x["name"] == name]
-        return {"kind": "register", "type": type_, "name": name, "version": max(versions, default=0) + 1,
-                "path": path, "fingerprint": fp, "files": files, "note": note, "source": source, **extra}
-    return ledger.append(data, make)
+        older = [x for x in entries if x.get("kind") == "register" and x["type"] == type_ and x["name"] == name]
+        # 外来的东西，内容和位置都和最新一版一样，就不再加一版；实验的产出每次都登记
+        if source is None and older and older[-1]["fingerprint"] == fp and older[-1]["path"] == path:
+            same["version"] = older[-1]["version"]
+            return None
+        version = max((x["version"] for x in older), default=0) + 1
+        return {"kind": "register", "type": type_, "name": name, "version": version, "path": path,
+                "fingerprint": fp, "files": files, "note": note, "source": source, **extra}
+    entry = ledger.append(data, make)
+    if entry is None:
+        raise Problem(f"没有新登记：{type_}「{name}」的内容和位置都和第{same['version']}版一样。")
+    return entry
 
 
 def range_text(s):
@@ -132,5 +152,6 @@ def parse_value(s, raw):
         raise Problem(f"「{label}」要填一个{kind}，现在是 {raw!r}")
     lo, hi = s.get("min"), s.get("max")
     if (lo is not None and value < lo) or (hi is not None and value > hi):
-        raise Problem(f"「{label}」= {value}{s.get('unit', '')}，超出了范围（{range_text(s)}）")
+        shown = int(value) if isinstance(value, float) and value.is_integer() else value
+        raise Problem(f"「{label}」= {shown} {s.get('unit', '')}".rstrip() + f"，超出了范围（{range_text(s)}）")
     return value
