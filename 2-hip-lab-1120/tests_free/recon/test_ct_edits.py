@@ -4,8 +4,13 @@
 这里验：定稿时皮质实体会照新的内壁重写，重建记录里写着，量出来的界面间隙是 0。
 
 骨是 tests/real.py 里那根假股骨。只用 gmsh、numpy、scipy，不用 CT 重建那三个库。
+
+5c 起重建的骨架叫重建方法包干活，插件里 CT 这条路不再经核心跑：这里先跳过，5e 把它搬进 CT 方法包时照方法包改写。
+换实体、重写另一个实体那一段本身，plugins/recon/tests/test_ct_parts.py 和 test_finalize.py 直接试着。
 """
 from __future__ import annotations
+
+import pytest
 
 from stemlab.contract.formats.manifest import check_format, make_manifest, read_manifest, write_manifest
 from stemlab.desk.core import start
@@ -13,6 +18,8 @@ from stemlab.experiments import view
 from stemlab.registry import register
 from tests import helpers, real
 from tests_free.recon import shapes
+
+pytestmark = pytest.mark.skip(reason="5c 起重建经重建方法包走，插件里的 CT 这条路不再经核心跑；等 5e 的 CT 方法包")
 
 SEAM = {"name": "seam", "value": "interface_gap_max_mm", "max": 0.01, "what": "两个实体在界面上对得上"}
 

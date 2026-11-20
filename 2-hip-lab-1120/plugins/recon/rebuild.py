@@ -1,11 +1,15 @@
-"""【自由】自动重建：分骨、外表面、内壁，出皮质和松质两个面。
+"""【自由】两半：在操作台进程里把活交给重建方法包；和 5c 以前干活的那一头（自动重建：分骨、外表面、内壁，出皮质和松质两个面）。
 
-两种骨源，各走各的路：
+在操作台进程里的那一半（接口见 plugin.py 开头：check、begin、advance、halt）：
+    begin 把冻结的骨架拼好的 job 写进 <mode>/r<轮号>/ask/job.json，用 hooks.run_recon 起方法包（脱离出去的进程），
+    它的输出文件夹是 <mode>/r<轮号>/out/；advance 看它还在不在跑，跑完读它的 result.json；halt 把它停掉。
+    启动前自由的那部分检查只剩人工修改写得对不对（review.py）：骨源收不收是方法包的事，跑的时候它说。
+
+干活的那一头（5c 起骨架不再叫它；5d、5e 搬进 CAD、CT 的方法包，搬剩下的 5g 移出隔离）。两种骨源，各走各的路：
     CAD   两个面就是 CAD 里两个实体的表面，不用分骨，实体原样用、不换坐标系
     CT    照 CT 值在参考外形以内分出皮质和内部，出外表面和内壁（ct.py），再变成划得了网格的两个实体（solids.py）。
           分骨不自动做：CT 骨源要带一份股骨的外形，为什么见 ct.py 开头
-
-接口见 plugin.py 开头：check、begin、advance、halt。活在脱离出去的进程里干（读 STEP、划表面三角网要几十秒；CT 一根大约一分钟）：
+活在脱离出去的进程里干（读 STEP、划表面三角网要几十秒；CT 一根大约一分钟）：
     python -m plugins.recon.rebuild <活的说明 job.json>
 它把走到哪一步写在 stage.txt 里，干完写 result.json。
 
@@ -46,38 +50,17 @@ def _desk(handle) -> str:
 
 
 def check(handle, mode: str) -> str | None:
-    setting = handle.input("setting")
-    if mode == "draft":
-        folder = Path(handle.input("source"))
-        kind = sources.kind_of(folder)
-        if kind == "ct":
-            found = ct.problems(folder, setting) or solids.problems(setting)
-            return "；".join(found) if found else None
-        if kind != "cad":
-            return "认不出这份骨源：里面没有 STEP 文件，也没有 CT"
-        files = setting.get("source")
-        if not isinstance(files, dict) or set(files) != set(NAMES):
-            return f"重建设定的 source 要说骨源里哪个文件是哪个实体：{list(NAMES)}"
-        missing = [files[name] for name in NAMES if not (folder / str(files[name])).is_file()]
-        return f"骨源里没有重建设定说的文件：{missing}" if missing else None
-    edits = handle.input("edits")
+    edits = handle.input("edits") if mode == "finalize" else None
     found = review.edit_problems(Path(edits)) if edits is not None else []
     return "人工修改写得不对：" + "；".join(found) if found else None
 
 
-def begin(handle, mode: str) -> None:
+def begin(handle, mode: str, job: dict) -> None:
     home = _home(handle, mode)
     shutil.rmtree(home, ignore_errors=True)
-    home.mkdir(parents=True)
-    job = {"mode": mode, "setting": handle.input("setting"), "out": str(home)}
-    if mode == "draft":
-        job["source"] = str(handle.input("source"))
-    else:
-        edits = handle.input("edits")
-        job.update(draft=str(handle.input("draft")), edits=None if edits is None else str(edits))
-    (home / "job.json").write_bytes(json.dumps(job, ensure_ascii=False).encode("utf-8"))
-    process = hooks.spawn([sys.executable, "-m", "plugins.recon.rebuild", str(home / "job.json")], cwd=REPO,
-                          env=dict(os.environ, PYTHONUTF8="1", PYTHONDONTWRITEBYTECODE="1"), log=home / "log.txt")
+    (home / "ask").mkdir(parents=True)
+    (home / "ask" / "job.json").write_bytes(json.dumps(job, ensure_ascii=False).encode("utf-8"))
+    process = hooks.run_recon(handle.input_info("method").id, home / "ask", home / "out", wait=False)
     (home / "process.json").write_bytes(json.dumps(process).encode("utf-8"))
 
 
@@ -87,17 +70,18 @@ def advance(handle, mode: str) -> dict:
     try:
         process = json.loads((home / "process.json").read_bytes())
     except (OSError, ValueError):
-        return dict(view, result={"status": "error", "reason": "重建的进程没有起来"})
+        return dict(view, result={"status": "error", "reason": "方法包的进程没有起来"})
+    out = home / "out"
     if hooks.alive(process):
-        stage = home / "stage.txt"
-        return dict(view, stage=stage.read_text(encoding="utf-8").strip() if stage.exists() else "starting")
+        stage = out / "stage.txt"
+        return dict(view, stage=stage.read_text(encoding="utf-8").strip() if stage.exists() else "rebuilding")
     try:
-        return dict(view, stage="done", result=json.loads((home / "result.json").read_bytes()))
+        return dict(view, stage="done", result=json.loads((out / "result.json").read_bytes()))
     except (OSError, ValueError):
         restarted = psutil.boot_time() > process["created"]
-        said = (home / "log.txt").read_bytes()[-600:].decode("utf-8", "replace") if (home / "log.txt").exists() else ""
+        said = (out / "log.txt").read_bytes()[-600:].decode("utf-8", "replace") if (out / "log.txt").exists() else ""
         return dict(view, stage="done", result={"status": "env" if restarted else "error",
-                                                "reason": "机器重启过，重建的进程没了" if restarted else f"重建的进程没有留下结果：{said}"})
+                                                "reason": "机器重启过，方法包的进程没了" if restarted else f"方法包没有留下结果：{said}"})
 
 
 def halt(handle, mode: str) -> None:
