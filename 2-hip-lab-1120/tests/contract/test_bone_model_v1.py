@@ -221,8 +221,9 @@ def test_upcast_does_not_need_the_shared_manifest_items_to_be_right():
         upcast("bone_model", {**listed(**changed_v1("solids", "cortical", "file", value=7)), "files": None})
 
 
-def test_what_recon_writes_today_still_passes(tmp_path):
-    """冻结的 plugins/recon/model.py 这一小步不动：它写的还是第 1 版（"format": 1 是写死的），写完叫 check_format。"""
+def test_what_recon_wrote_before_5c_still_passes(tmp_path):
+    """5c 以前冻结的 plugins/recon/model.py 写的是第 1 版（"format": 1 是写死的，CT 那条的实体是 STL）：这样的骨模型照样读。
+    5c 起它写第 2 版，见 tests/plugins/test_recon.py。"""
     extra = {**copy.deepcopy(V1), "measures": {"cortical_volume_mm3": 271529.5}}
     extra["solids"] = {name: {"file": f"solids/{name}.stl"} for name in ("cortical", "cancellous")}
     files = {"solids/cortical.stl": b"solid cortical", "solids/cancellous.stl": b"solid cancellous"}

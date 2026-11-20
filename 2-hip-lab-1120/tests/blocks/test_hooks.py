@@ -39,7 +39,9 @@ def test_the_facade_is_exactly_what_plugins_may_use():
         "run_stem", "run_fem", "made_by_split", "check_setting", "check_point", "check_design", "merged", "is_declared",
         "find_declaration", "per_point_items", "check_stem_model", "read_stem_model", "stem_names", "bone_names",
         # 骨模型第 2 版（第 5 步的 5a）加的：读成现在这一版、核用的一方的要求、从标志点算解剖坐标系
-        "read_bone_model", "check_bone_wanted", "bone_lacking", "bone_frame", "bone_anteversion"}
+        "read_bone_model", "check_bone_wanted", "bone_lacking", "bone_frame", "bone_anteversion",
+        # 重建的骨架照方法包走（第 5 步的 5c）加的：跑重建方法包
+        "run_recon"}
     assert all(hasattr(hooks, name) for name in hooks.__all__)
     from stemlab.contract.formats import bone_model
 
@@ -48,6 +50,18 @@ def test_the_facade_is_exactly_what_plugins_may_use():
                                   bone_model.anteversion, bone_model.names), "门面只转出，规矩和算法还是契约里那一份"
     assert hooks.TASK_STATES == ("queued", "running", "done", "failed", "stopped")
     assert hooks.Kind is plugin_api.Kind and hooks.spawn is local.spawn and hooks.kill is local.kill
+
+
+def test_each_thin_wrapper_runs_only_its_own_kind_of_package(monkeypatch):
+    """几个薄封装各认一种包：交给 run 的 kind 就是它那一种（别的种类的包，run 照 kind 拒，见 test_packages.py）。"""
+    from stemlab.hooks import entry
+
+    seen = []
+    monkeypatch.setattr(entry, "run", lambda package_id, source, target, **how: seen.append(how["kind"]))
+    for wrapper in (entry.predict, entry.derive, entry.run_strategy, entry.run_kernel, entry.run_stem, entry.run_fem, entry.run_recon):
+        wrapper("R0001", "in", "out")
+    assert seen == ["predictor", "derive_def", "strategy", "kernel", "stem_space", "fem", "recon_method"]
+    assert hooks.run_recon is entry.run_recon
 
 
 # ---- 1 一个类型报的三张表和它写了哪几个动作，都读得出 ----

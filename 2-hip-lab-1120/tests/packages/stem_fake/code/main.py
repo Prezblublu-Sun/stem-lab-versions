@@ -9,6 +9,8 @@ The design has two items: length (mm) and behave. How a design behaves at the "m
     badmodel    says ok but hands over a stem model that is not well formed
     noname      says ok, the stem model is well formed, but it lacks a name the manifest promised (taper_center)
 Other values of behave (mesh, diverge, loose, crash, env, hang ...) are for the fake FE package: here they are like ok.
+At the "template" step stem_env and stem_crash do the same for the whole call: no design comes back (the smoke in the
+reconstruction gate uses this to see a stem space that cannot template a bone at all).
 
 The placement setting may say cut_drop (mm): how far below the reference the cut is. It moves the cut and adds to the bone removed.
 
@@ -34,6 +36,12 @@ def template(job: dict) -> dict:
     rows = []
     for one in job["designs"]:
         design = one["design"]
+        if design.get("behave") in FAILS:
+            status, reason = FAILS[design["behave"]]
+            return {"status": status, "reason": reason}
+        if design.get("behave") == "stem_crash":
+            print("fake stem space: crashing on purpose", flush=True)
+            sys.exit(3)
         info = {"bone_removed": removed(design, job.get("settings") or {})}
         if not fits(design):
             info["reason"] = "no entry offset lets this stem fit"

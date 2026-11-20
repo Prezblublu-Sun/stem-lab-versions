@@ -193,6 +193,8 @@ def output(made: str, name: str, number: int | None = None) -> Path:
 
 
 # ---------------------------------------------------------------- 重建：一根造出来的 CAD 假股骨
+# 5c 以前重建的验收经插件自己的 CAD 那条路跑它；5c 起验收走假的方法包（见下面“重建：假的方法包”），
+# 这根假股骨留给直接试 CAD 那条路的自由测试（plugins/recon/tests/test_rebuild_cad.py），5d 跟着搬进 CAD 方法包。
 
 NECK = (0.8, 0.0, 0.6)                              # 颈轴的方向：从颈指向头
 HEAD = (45.0, 0.0, 60.0)                            # 头心
@@ -270,31 +272,90 @@ FINAL_GATE = GATE + [
 ]
 
 
-def recon_setting(gate=None, **change) -> dict:
-    """登记一份重建设定。"""
-    value = {"side": "right", "frame": BONE_EXTRA["frame"], "materials": BONE_EXTRA["materials"],
-             "source": {"cortical": "cortical.step", "cancellous": "cancellous.step"}, "tessellation_mm": 4.0,
-             "gate": GATE if gate is None else gate}
-    return setting({**value, **change})
+# ---------------------------------------------------------------- 重建：假的方法包（5c 起）
+# 骨源里放两个假实体、标志点的位置（tests/contract/bone_samples.py 那根造出来的股骨，坐标系和前倾角的真值照构造直接写）、
+# 几个“在骨源上量的”数。假的方法包（tests/packages/recon_fake）照它们交回骨模型的各段，骨架照第 2 版写。
+
+RECON_MEASURES = {"head_fit_rms_mm": 0.3, "neck_wall_min_mm": 4.0}
 
 
-def recon_draft(tmp: Path, source: dict | None = None, value: dict | None = None) -> str:
-    """新建一个 recon.draft 实验并填好。"""
+def recon_marks(side: str = "right", whole: bool = True, anteversion: float = 12.0) -> tuple:
+    """（标志点的位置，解剖坐标系的真值）：bone_samples 那根造出来的股骨，斜着放、挪开了。whole 是完整的股骨，带两个后髁。"""
+    from tests.contract import bone_samples
+
+    return bone_samples.femur(side, anteversion, condyles=whole, pose=bone_samples.TILTED)
+
+
+def recon_source(tmp: Path, bone_id: str = BONE, marks: dict | None = None, measures: dict | None = None,
+                 files: dict | None = None) -> dict:
+    """登记一份给假方法包用的骨源：cortical.step、cancellous.step 两个假实体，marks.json（标志点的位置，默认是 recon_marks()），
+    measures.json（“在骨源上量的”几个数，默认 RECON_MEASURES）。files 给了就用它当文件夹的内容。"""
+    import json
+
+    if files is None:
+        files = {"cortical.step": b"ISO-10303-21; fake cortical shell\n", "cancellous.step": b"ISO-10303-21; fake core\n",
+                 "marks.json": json.dumps(recon_marks()[0] if marks is None else marks).encode(),
+                 "measures.json": json.dumps(RECON_MEASURES if measures is None else measures).encode()}
+    folder = tmp / f"source-{next(_NAMES)}"
+    helpers.make_folder(folder, kind="bone_source", files=files, bone_id=bone_id)
+    seen = any(item["bone_id"] == bone_id for item in lookup.find())
+    return register.register_external("bone_source", f"{bone_id}-fake", source=folder, note="测试用的骨源（给假的方法包）", by="tester",
+                                      bone_id=bone_id, new_bone=not seen)
+
+
+def recon_method(tmp: Path, **change) -> dict:
+    """登记假的重建方法包。change 盖掉它清单里的同名项。"""
+    return package("recon_fake", tmp, **change)
+
+
+def recon_setting(method: dict, **values) -> dict:
+    """登记一份照假方法包的 rebuild 声明写的正式重建设定：测试轮的取值，values 盖掉同名的（写 None 就是不写这一项）。"""
+    return setting(declared(packages.RECON, method["id"], **values))
+
+
+def gate_setting(lines=None, **change) -> dict:
+    """登记一份检查门的设定：{"gate": 各条线}，默认是 GATE；change 另加别的项（比如 smoke）。"""
+    return setting({"gate": GATE if lines is None else lines, **change})
+
+
+def draft_v2(tmp: Path, method: dict, bone_id: str = BONE, **change) -> dict:
+    """登记一份外面来的、盘上就是第 2 版的候选骨模型（bone_samples.good()，检查还没做），记着是 method 出的。
+    change 盖掉清单里的同名项。"""
+    from tests.contract import bone_samples
+
+    listed = {**bone_samples.good(), "bone_id": bone_id, "checks": []}
+    listed["source"] = dict(listed["source"], method={"id": method["id"], "hash": method["hash"]})
+    folder = bone_samples.write(tmp / f"draft-{next(_NAMES)}", {**listed, **change}, kind="bone_draft")
+    seen = any(item["bone_id"] == bone_id for item in lookup.find())
+    return register.register_external("bone_draft", f"{bone_id}-draft", source=folder, note="测试：外面来的候选（盘上是第 2 版）",
+                                      by="tester", bone_id=bone_id, new_bone=not seen)
+
+
+def recon_draft(tmp: Path, source: dict | None = None, value: dict | None = None, method: dict | None = None,
+                gate: dict | None = None) -> str:
+    """新建一个 recon.draft 实验并填好：骨源默认 recon_source()，方法包默认新登记一个假的，重建设定默认照它的声明写，
+    检查门默认 GATE。value 给了，method 要是它照的那个包。"""
+    method = method or recon_method(tmp)
     made = actions.new("recon.draft", note="测试用的重建")
-    actions.fill(made, "source", [(source or cad_source(tmp))["id"]])
-    actions.fill(made, "setting", [(value or recon_setting())["id"]])
+    for name, item in (("source", source or recon_source(tmp)), ("method", method), ("setting", value or recon_setting(method)),
+                       ("gate", gate or gate_setting())):
+        actions.fill(made, name, [item["id"]])
     return made
 
 
-def recon_finalize(draft: str, value: dict | None = None, edits: dict | None = None, kernel: dict | None = None) -> str:
-    """新建一个 recon.finalize 实验：draft 是登记的候选骨模型的编号。"""
+def recon_finalize(draft: str, value: dict | None = None, gate: dict | None = None, edits: dict | None = None,
+                   stem: dict | None = None, placement: dict | None = None, method: dict | None = None) -> str:
+    """新建一个 recon.finalize 实验：draft 是登记的候选骨模型的编号。方法包不给就用候选记着的那一个（第 1 版的候选没记，要给）；
+    重建设定不给就照方法包的声明写一份；检查门不给就是 FINAL_GATE。stem、placement 是冒烟用的柄空间包和放置设定。"""
+    from stemlab.contract.formats import bone_model as formats
+
+    method = method or lookup.get(formats.read(lookup.content(draft))["source"]["method"]["id"])
     made = actions.new("recon.finalize", note="测试用的定稿")
-    actions.fill(made, "draft", [draft])
-    actions.fill(made, "setting", [(value or recon_setting(FINAL_GATE))["id"]])
-    if edits is not None:
-        actions.fill(made, "edits", [edits["id"]])
-    if kernel is not None:
-        actions.fill(made, "kernel", [kernel["id"]])
+    filled = {"draft": {"id": draft}, "method": method, "setting": value or recon_setting(method),
+              "gate": gate or gate_setting(FINAL_GATE), "edits": edits, "stem": stem, "placement": placement}
+    for name, item in filled.items():
+        if item is not None:
+            actions.fill(made, name, [item["id"]])
     return made
 
 

@@ -1,8 +1,9 @@
-"""测试用的带代码的包：假的内核、假的推导量定义、示例策略、假的柄空间、假的有限元等。
+"""测试用的带代码的包：假的内核、假的推导量定义、示例策略、假的柄空间、假的有限元、假的重建方法等。
 
 每个子文件夹是一个包的内容（code/、data/），清单在登记前由 make() 现写。
 它们照 contract/formats/package.py 里写的约定和插件说话，所以真插件可以不用真的求解器走通一遍。
 假的柄空间和假的有限元是拆内核以后 fea.run 那条路用的，它们的声明在下面（STEM_DESIGN 等），测试照它们写设定。
+假的重建方法是 5c 起 recon.draft、recon.finalize 用的（RECON）；假的柄空间也给定稿的冒烟用。
 """
 from __future__ import annotations
 
@@ -48,6 +49,22 @@ DERIVE = {"name": "derive", "groups": ["分区"], "items": [
     item("zones", "分区", "integer", 7, per_point=True, range={"min": 1, "max": 14}),
     item("where", "分区", "ref", {"ref": "stem.faces.interface"}, refers=["stem.faces"])]}
 STEM_NAMES = {"region": ["body"], "faces": ["interface"], "feature": ["taper_center", "tip"], "axis": ["stem_axis"]}
+RECON_BEHAVES = ("ok", "slow", "error", "env", "crash", "garbage", "relative", "badname", "keep_wrong")
+RECON = {"name": "rebuild", "groups": ["骨"], "items": [
+    item("side", "骨", "choice", "right", choices=[{"value": v, "label": v} for v in ("left", "right")]),
+    item("extent", "骨", "choice", "whole", choices=[{"value": v, "label": v} for v in ("whole", "proximal")]),
+    item("anteversion_deg", "骨", "number", 12.0, unit="deg", range={"min": -90, "max": 90, "min_open": True, "max_open": True},
+         when={"extent": ["proximal"]}),
+    item("behave", "骨", "choice", "ok", choices=[{"value": v, "label": v} for v in RECON_BEHAVES])]}
+# 假的重建方法量出的数：检查门的线只能拿这些来比（另有骨架自己记的几个）
+RECON_MEASURES = (("cortical_volume_mm3", "mm3", "volume of the cortical solid"), ("cancellous_volume_mm3", "mm3", "volume of the cancellous solid"),
+                  ("cortical_watertight", "1", "the cortical solid is closed"), ("cancellous_watertight", "1", "the cancellous solid is closed"),
+                  ("cortical_volume_change", "1", "how much the cortical volume changed since the candidate"),
+                  ("cancellous_volume_change", "1", "how much the cancellous volume changed since the candidate"),
+                  ("landmark_shift_max_mm", "mm", "farthest a landmark moved from the candidate's"),
+                  ("head_fit_rms_mm", "mm", "head sphere fit residual, measured on the source"),
+                  ("neck_wall_min_mm", "mm", "thinnest neck cortex, measured on the source"),
+                  ("wall_min_mm", "mm", "thinnest cortex anywhere, measured on the source when it says so"))
 
 
 EXTRAS = {
@@ -87,6 +104,16 @@ EXTRAS = {
                            ("contact", "1", "closed share of the interface", "label"),
                            ("interface_slip", "um", "slip at each interface node", "field")),
         "test_round": {"inputs": {"bone": {"folder": "data/selftest/post/input"}}},
+    },
+    "recon_fake": {
+        "kind": "recon_method",
+        "programs": [],
+        "declarations": [RECON],
+        "modes": ["draft", "finalize"],
+        "inputs": {},
+        "outputs": outputs(*(row + ("label",) for row in RECON_MEASURES)),
+        "kept": ["head_fit_rms_mm", "neck_wall_min_mm"],
+        "test_round": {"inputs": {"source": {"folder": "data/selftest/draft/input/source"}}},
     },
 }
 

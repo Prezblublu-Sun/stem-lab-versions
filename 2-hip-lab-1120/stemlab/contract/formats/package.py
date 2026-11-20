@@ -43,7 +43,9 @@
 包对骨模型的要求写在清单 inputs 的 bone 里。叫它的一方启动前照它核：要求自己写得不对，或者这根骨缺哪一样，就不启动，
 说出是哪个包、缺哪一样。叫的一方自己不挑骨：收不收某种骨，只照包写的要求。要求里写不出的限制
 （比如只认某两个文件），由包在跑的时候自己核，说出原因。
-现在照这样带、照这样核的是 fea.run 交给柄空间包、有限元包、推导量定义的 job（plugins/fea/given.py）。
+现在照这样带、照这样核的是 fea.run 交给柄空间包、有限元包、推导量定义的 job（plugins/fea/given.py）；
+5c 起另有重建定稿交给方法包的 job（带 bone，是候选的清单），和检查门冒烟时交给柄空间包 template 的 job：
+冒烟用的柄空间包写的要求，定稿启动前照候选核（plugins/recon/plugin.py、gate.py）。
 内核（参照包那条）的 job 不带 bone：它是登记后不改的旧代码，自己读文件夹里的清单。
 
     内核（kernel）       清单另加 modes（会哪几种做法：template、build、post）、design 和 conditions
@@ -92,6 +94,24 @@
         post             job：同 build。求解已经结束，结果在 job 文件夹里。result 同内核的 post
     推导量定义在拆内核以后的那条路上，job 另带 bone_model、bone、stem_model（无植入物是 null）、
     settings（这个点的推导量设定，没有推导量设定是 null）、programs，pre 是柄空间包和有限元包两次给的合起来
+
+重建方法（recon_method，2026-11-19，第 5 步的 5c）。叫它的是 recon.draft、recon.finalize 的骨架（plugins/recon/plugin.py）。
+重建设定照它声明的 rebuild 写，不能有每个点给的项（重建没有一批点）；job 里的 settings 是这份设定的取值。
+outputs 是它会量出的数，role 都写 label。检查门的线只能拿这些、和骨架自己记的三个（stem_smoke、stem_smoke_reason、
+anteversion_deg）来比，这三个名字包不能用。清单另加 kept：定稿时重做不了的量（outputs 里的名字），可以不写。
+现在的方法包都不用外部程序，job 里不带 programs。
+
+    draft            job：source（骨源的文件夹）、bone_id、settings
+                     result：status（ok、error、env）、reason。ok 的另带骨模型的几段，照第 2 版的写法（bone_model.py）：
+                     how、side、bone_type、coverage、regions、landmarks、history；frame 只写 file（几何文件自己的坐标是怎么来的），
+                     只有近端一段的另写 anteversion_deg（照重建设定）：原点和三个轴由叫它的一方照标志点算（bone_model.frame）。
+                     regions 的几何文件写绝对路径（骨源里的、候选里的、人工修改里的，或它输出文件夹里的），叫它的一方原样复制进骨模型。
+                     另带 measures（量出来的数）、todo（待检查清单 [{item, doubt, why}]）；可另带 timings、mesh_quality、neck_loop，给图表用
+    finalize         job：draft（候选骨模型的文件夹）、bone（候选的清单，读成现在这一版）、edits（人工修改的文件夹，没有是 null）、
+                     bone_id、settings。人工修改是文件夹里的 edits.json：{"by": 谁改的, "landmarks": {名字: {"xyz", "why"}},
+                     "solids": {区域名: {"file": 这个文件夹里换上的文件, "why"}}}，叫它的一方启动前核过写法（plugins/recon/review.py）
+                     result：同 draft，不带 todo；另带 kept：这一次沿用候选的哪几个数，只许清单 kept 里的，
+                     值由叫它的一方从候选的 measures 里抄，包自己不给。用了人工修改的，改了哪里写进 history
 """
 from __future__ import annotations
 

@@ -26,6 +26,7 @@
     bone_lacking          一份骨模型缺要求里的哪几样
     bone_frame            从标志点算解剖坐标系（算法只有契约里那一份）
     bone_anteversion      照后髁连线量出的前倾角
+重建的骨架照方法包走（第 5 步的 5c）加的：run_recon，跑重建方法包，和 run_stem、run_fem 一样是 entry.run 的薄封装。
 """
 from stemlab.contract.formats.bone_model import anteversion as bone_anteversion
 from stemlab.contract.formats.bone_model import check_wanted as check_bone_wanted
@@ -46,14 +47,14 @@ from stemlab.contract.hashing import fingerprint
 from stemlab.contract.plugin_api import Chart, Input, Kind, Outcome, Output
 from stemlab.contract.states import TASK_STATES
 from stemlab.hooks import remote
-from stemlab.hooks.entry import derive, look, predict, rerun, run_fem, run_kernel, run_stem, run_strategy
+from stemlab.hooks.entry import derive, look, predict, rerun, run_fem, run_kernel, run_recon, run_stem, run_strategy
 from stemlab.hooks.local import alive, kill, spawn
 
 __all__ = [
     "Kind", "Input", "Output", "Outcome", "Chart", "TASK_STATES",
     "read_points", "write_points", "check_format", "fingerprint", "made_by", "made_by_split", "mixed_makers", "maker_clash",
     "common_maker",
-    "predict", "derive", "run_strategy", "run_kernel", "run_stem", "run_fem", "look", "rerun",
+    "predict", "derive", "run_strategy", "run_kernel", "run_stem", "run_fem", "run_recon", "look", "rerun",
     "spawn", "alive", "kill", "remote",
     "check_setting", "check_point", "check_design", "merged", "is_declared", "find_declaration", "per_point_items",
     "check_stem_model", "read_stem_model", "stem_names", "bone_names",
