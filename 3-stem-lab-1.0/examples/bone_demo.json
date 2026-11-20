@@ -1,0 +1,7 @@
+{
+  "name": "示例骨",
+  "note": "示例，不是真的骨：只有 FEA 示例要用的几个数",
+  "length_mm": 420,
+  "cortex_mm": 4.0,
+  "density": 1.2
+}
