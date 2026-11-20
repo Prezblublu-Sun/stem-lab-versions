@@ -25,11 +25,14 @@ def svg_chart(path, title, xlabel, ylabel, series, hlines=()):
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" '
            f'font-family="Microsoft YaHei, sans-serif" font-size="12">', f'<rect width="{W}" height="{H}" fill="white"/>',
            f'<text x="{W / 2}" y="24" text-anchor="middle" font-size="15">{esc(title)}</text>']
-    for i in range(6):   # 刻度和网格
-        gx, gy = x0 + (x1 - x0) * i / 5, y0 + (y1 - y0) * i / 5
+    whole = all(float(x).is_integer() for x in xs) and x1 - x0 <= 30   # 横轴是序号、层号这类整数时，刻度也用整数
+    xticks = (range(int(x0), int(x1) + 1, max(1, round((x1 - x0) / 10))) if whole
+              else [x0 + (x1 - x0) * i / 5 for i in range(6)])
+    for gx in xticks:   # 刻度和网格
         out.append(f'<line x1="{px(gx):.1f}" y1="{T}" x2="{px(gx):.1f}" y2="{H - B}" stroke="#eee"/>'
-                   f'<text x="{px(gx):.1f}" y="{H - B + 16}" text-anchor="middle">{gx:.4g}</text>'
-                   f'<line x1="{L}" y1="{py(gy):.1f}" x2="{W - R}" y2="{py(gy):.1f}" stroke="#eee"/>'
+                   f'<text x="{px(gx):.1f}" y="{H - B + 16}" text-anchor="middle">{gx:.4g}</text>')
+    for gy in [y0 + (y1 - y0) * i / 5 for i in range(6)]:
+        out.append(f'<line x1="{L}" y1="{py(gy):.1f}" x2="{W - R}" y2="{py(gy):.1f}" stroke="#eee"/>'
                    f'<text x="{L - 6}" y="{py(gy) + 4:.1f}" text-anchor="end">{gy:.4g}</text>')
     out += [f'<rect x="{L}" y="{T}" width="{W - L - R}" height="{H - T - B}" fill="none" stroke="#999"/>',
             f'<text x="{(L + W - R) / 2}" y="{H - 14}" text-anchor="middle">{esc(xlabel)}</text>',
@@ -49,6 +52,8 @@ def svg_chart(path, title, xlabel, ylabel, series, hlines=()):
         out.append(f'<line x1="{L}" y1="{py(y):.1f}" x2="{W - R}" y2="{py(y):.1f}" stroke="#b9770e" '
                    f'stroke-width="1.5" stroke-dasharray="6 4"/>')
         legend.append((name, "#b9770e", "虚线"))
+    out.append(f'<rect x="{W - R - 176}" y="{T + 3}" width="174" height="{len(legend) * 16 + 6}" '
+               f'fill="white" fill-opacity="0.85"/>')   # 图例底下垫一块白，免得压在线上看不清
     for i, (name, c, style) in enumerate(legend):   # 图例：右上角，一行一个
         y, x = T + 16 + i * 16, W - R - 170
         dash = ' stroke-dasharray="4 3"' if style == "虚线" else ""
@@ -60,14 +65,18 @@ def svg_chart(path, title, xlabel, ylabel, series, hlines=()):
 
 
 def draw(run):
-    """画一批一批搜下来、到那一批为止最好的预测值。返回交给平台的图的清单。"""
+    """画一批一批搜下来的预测值：每一批自己最好的，和到这一批为止最好的。返回交给平台的图的清单。"""
     with open(os.path.join(run, "task.json"), encoding="utf-8") as f:
-        S = json.load(f)["settings"]
+        task = json.load(f)
+    with open(task["inputs"]["model"], encoding="utf-8") as f:
+        target = json.load(f)["target"]
     with open(os.path.join(run, "out", "batches.csv"), encoding="utf-8", newline="") as f:
-        pts = [(int(r["batch"]), float(r["best_so_far"])) for r in csv.DictReader(f)]
+        rows = list(csv.DictReader(f))
+    S = task["settings"]
     svg_chart(os.path.join(run, "out", "search.svg"),
-              f"搜下来最好的预测值（{S['goal']}，撒 {S['samples']} 个点）", "第几批", "到这一批为止最好的预测值",
-              [("最好的值", pts, "线点")])
+              f"一批一批搜下来的预测值（{S['goal']}，撒 {S['samples']} 个点）", "第几批", f"预测的 {target}",
+              [("这一批最好的", [(int(r["batch"]), float(r["batch_best"])) for r in rows], "线点"),
+               ("到这一批为止最好的", [(int(r["batch"]), float(r["best_so_far"])) for r in rows], "线")])
     return [{"title": "一批一批搜下来最好的值", "path": "out/search.svg"}]
 
 

@@ -22,7 +22,7 @@ class FirstUse(unittest.TestCase):
         self.assertNotIn('class="err"', html)
         _, html = lab.post("/register_all", {})
         self.assertEqual(len(lab.state().things), made)
-        self.assertIn(f"另有 {made} 样早就登记过", html)
+        self.assertIn(f"{made} 样早就登记过", html)
 
 
 class SixSteps(unittest.TestCase):

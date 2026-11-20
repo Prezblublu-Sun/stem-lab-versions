@@ -36,13 +36,15 @@ def predict(x):
 
 rng = random.Random(S["seed"])
 better = max if S["goal"] == "越大越好" else min
-found, batches, best_so_far = [], 10, []
+found, batches, history = [], 10, []
 for b in range(batches):
     progress(b, batches, f"第 {b + 1} 批，已经撒了 {len(found)} 个点")
+    this = []
     for _ in range(S["samples"] // batches + (1 if b < S["samples"] % batches else 0)):
         x = {c: round(rng.uniform(*ranges[c]), 2) for c in features}
-        found.append((predict(x), x))
-    best_so_far.append(better(y for y, _ in found))   # 到这一批为止最好的预测值
+        this.append((predict(x), x))
+    found += this
+    history.append((better(y for y, _ in this), better(y for y, _ in found)))   # 这一批最好的，到这一批为止最好的
     time.sleep(S["pause"])
 progress(batches, batches, "挑出最好的几个")
 
@@ -56,8 +58,8 @@ with open(os.path.join(task["out"], "points.csv"), "w", encoding="utf-8", newlin
         w.writerow([f"opt{i:02d}"] + [x[c] for c in features] + [round(y, 3)])
 with open(os.path.join(task["out"], "batches.csv"), "w", encoding="utf-8", newline="") as f:
     w = csv.writer(f)
-    w.writerow(["batch", "best_so_far"])
-    w.writerows([b, round(y, 4)] for b, y in enumerate(best_so_far, 1))
+    w.writerow(["batch", "batch_best", "best_so_far"])
+    w.writerows([b, round(y, 4), round(z, 4)] for b, (y, z) in enumerate(history, 1))
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import show   # noqa: E402  结果展示在同一个文件夹的 show.py 里

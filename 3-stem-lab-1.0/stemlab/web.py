@@ -307,7 +307,8 @@ def register_catalog(data):
         except Problem as err:
             errors.append(f"自带清单里的 {it.get('path')}：{err}")
     new = [t for t in told if t.startswith("登记好了")]
-    return {"errors": errors, "notes": new + [f"另有 {len(told) - len(new)} 样早就登记过、内容没变，没有多出来。"]}
+    same = len(told) - len(new)
+    return {"errors": errors, "notes": new + ([f"{same} 样早就登记过、内容没变，没有多出来。"] if same else [])}
 
 
 def make_server(data, port):
