@@ -155,7 +155,7 @@ def ver(t, sep=""):
 
 def spec_of(data, t):
     try:
-        return things.read_method(things.method_dir(data, t))
+        return things.read_method(things.where(data, t))
     except things.Problem:
         return None
 
@@ -286,7 +286,7 @@ def new_form(data, v, errors=(), notes=(), changed=()):
                        f'<span class="small">{e(spec.get("about", ""))}</span></p>')
         return page("新建实验", "".join(out), "/new", data)
     try:
-        spec = things.read_method(things.method_dir(data, m))
+        spec = things.read_method(things.where(data, m))
     except things.Problem as err:
         out.append(msgs([f"这个做法读不出来：{err}。换一个版本，或把 method.toml 改好再登记一版。"]))
         return page("新建实验", "".join(out), "/new", data)
@@ -297,10 +297,13 @@ def new_form(data, v, errors=(), notes=(), changed=()):
                f'<span class="small">{e(spec.get("about", ""))}</span></p>')
     f = ['<form method="post" action="/new">', f'<input type="hidden" name="method" value="{m["n"]}">',
          f'<input type="hidden" name="from" value="{e(v.get("from") or "")}">']
-    for key, t, why in changed:
-        button = (f' <button name="action" value="rereg:{e(key)}">把它现在的样子登记成新的一版，并选上它</button>'
-                  if key != "做法" else ' 做法的留底被动过：到<a href="/check?go=1">核对页</a>点“照原来的文件夹恢复”。')
-        f.append(f'<div class="err">{e(t["type"])}{e(things.label(t))}和登记时不一样了：{e(why)}{button}</div>')
+    for key, t, why in changed:   # 对不上只有两种：外来东西的留底被人动过，或实验的产出跑完以后被人改过
+        made_by = (t.get("source") or {}).get("experiment")
+        button = f'<button name="action" value="rereg:{e(key)}">'
+        fix = (f'这是 {eid(made_by)} 的产出，那个实验跑完以后被人改过。{button}把它现在的样子登记成一样外来的东西，'
+               f'并选上它</button>' if made_by else f'它的留底被人动过。{button}照原处的文件恢复留底</button> '
+               f'<span class="small">原处的文件也改过的话，会成为新的一版，并替你选上</span>')
+        f.append(f'<div class="err">{e(t["type"])}{e(things.label(t))}和登记时不一样了：{e(why)}。{fix}</div>')
     rows = []
     for inp in spec.get("inputs", []):
         key, typ, label = inp["key"], inp["type"], inp.get("label") or inp["key"]
@@ -454,12 +457,13 @@ def experiment(data, n, errors=(), notes=()):
     out.append("<h2>它用了什么</h2><table>")
     out.append(f'<tr><th>做法</th><td>{e(s["method"]["name"])} · 第{s["method"]["version"]}版 '
                f'<span class="small">指纹 {e(s["method"]["fingerprint"][:12])} · 留底在 '
-               f'{e(things.method_dir(data, m)) if m else ""}</span></td></tr>')
+               f'{e(things.where(data, m)) if m else ""}</span></td></tr>')
     labels = {inp["key"]: inp.get("label") or inp["key"] for inp in spec.get("inputs", [])}
     for key, ref in s["inputs"].items():
         t = st.things.get(ref["n"]) if ref else None
         used = (f'{e(ref["type"])}「{e(ref["name"])}」{ver(t)} · {origin(st, t)} <span class="small">'
-                f'指纹 {e(ref["fingerprint"][:12])} · {e(t["path"])}</span>' if t else "（没选）")
+                f'指纹 {e(ref["fingerprint"][:12])} · {"原处 " if t.get("kept") else ""}{e(t["path"])}</span>'
+                if t else "（没选）")
         out.append(f'<tr><th>{e(labels.get(key, key))}</th><td>{used}</td></tr>')
     if s.get("from"):
         out.append(f'<tr><th>照哪个开的</th><td><a href="/exp?id={s["from"]}">{eid(s["from"])}</a></td></tr>')
@@ -524,7 +528,7 @@ def rereg_button(t, label="登记成新的一版"):
     return (f'<form class="inline" method="post" action="/register">'
             + "".join(f'<input type="hidden" name="{k}" value="{e(val)}">' for k, val in
                       (("type", t["type"]), ("name", t["name"]), ("path", t["path"]),
-                       ("note", f'重新登记：{things.label(t)}登记以后内容变了')))
+                       ("note", f"从{things.label(t)}重新登记")))
             + f"<button>{label}</button></form>")
 
 
@@ -540,8 +544,9 @@ def things_page(data, form=None, errors=(), notes=()):
            f'<span class="small">同类型同名字再登记一次，就是新的一版。做法可以不写，用 method.toml 里的名字</span></td></tr>',
            f'<tr><td>路径</td><td><input name="path" value="{e(form.get("path", ""))}" size="70"><br>'
            f'<span class="small">一个文件或一个文件夹。可以写全路径，也可以写相对于 {e(os.getcwd())} 的路径，'
-           f'比如 methods/fea_demo、examples/points_demo.csv。做法是带 method.toml 的文件夹，'
-           f'会抄一份留底；别的东西留在原处不抄，用的时候核对指纹。</span></td></tr>',
+           f'比如 methods/fea_demo、examples/points_demo.csv。登记时会抄一份留底，实验用的是留底：'
+           f'大文件要等一会儿、多占一份地方；之后原处的文件随你动，要用改过的就再登记一次。'
+           f'做法是带 method.toml 的文件夹。</span></td></tr>',
            f'<tr><td>说明（来源）</td><td><input name="note" value="{e(form.get("note", ""))}" size="70"></td></tr>',
            '</table><p><button class="go">登记</button></p></form>']
     if not st.things:
@@ -553,14 +558,15 @@ def things_page(data, form=None, errors=(), notes=()):
         out.append(f"<h2>{e(typ)}</h2>")
         for name, vs in names:
             out.append(f"<h3>{e(name)}</h3><table><tr><th>哪一版</th>{'<th>类</th>' if typ == METHOD else ''}"
-                       "<th>登记时间</th><th>来历</th><th>位置</th><th>说明</th></tr>")
+                       "<th>登记时间</th><th>来历</th><th>从哪来</th><th>说明</th></tr>")
             for t in reversed(vs):
                 cat = f'<td>{e(t.get("category"))}</td>' if typ == METHOD else ""
                 made_by = (t.get("source") or {}).get("experiment")
                 out.append(f'<tr id="t{t["n"]}"><td class="nw">{ver(t) or eid(made_by) + " 的产出"} '
                            f'<span class="small">#{t["n"]}</span>'
                            f'</td>{cat}<td class="nw">{e(t["time"])}</td><td>{origin(st, t)}</td><td>{e(t["path"])}<br>'
-                           f'<span class="small">指纹 {e(t["fingerprint"][:12])} · {len(t["files"])} 个文件</span>'
+                           f'<span class="small">指纹 {e(t["fingerprint"][:12])} · {len(t["files"])} 个文件'
+                           f'{" · 留底 " + e(t["kept"]) if t.get("kept") else ""}</span>'
                            f'</td><td>{e(t["note"])}</td></tr>')
             out.append("</table>")
     return page("登记的东西", "".join(out), "/things", data)
@@ -584,21 +590,17 @@ def check_page(data, go=False):
     rows, bad = [], 0
     for t in st.things.values():
         why = things.check(data, t)
-        outside = [x for x in st.names[(t["type"], t["name"])] if not x.get("source")]
-        latest = bool(outside) and outside[-1] is t
         made_by = (t.get("source") or {}).get("experiment")
-        again = rereg_button(t) if latest else '<span class="small">后面已经登记过新的版本</span>'
-        if why and t["type"] == METHOD:   # 原来的文件夹没变，再登记一次就照它恢复留底；变了就成为新的一版
-            again = (rereg_button(t, "照原来的文件夹恢复") + ' <span class="small">原来的文件夹也改过的话，'
-                     '会成为新的一版，这一版的留底照旧是坏的</span>')
-        elif made_by:
-            again = f'<span class="small">这是 {eid(made_by)} 的产出，那个实验跑完以后被改过</span>'
-        if why:
+        if why:   # 外来的：留底被人动过，照原处恢复；实验的产出：跑完以后被人改过
             bad += 1
-            note = f"{word('不一样')} {e(why)} " + again
-        elif t["type"] == METHOD and latest and fingerprint.check(t["path"], t["fingerprint"], t["files"]):
-            note = (f"{word('一样')} <span class='small'>留底没变；原来的文件夹后来改过，"
-                    f"要用改过的就再登记一版</span> " + again)
+            note = f"{word('不一样')} {e(why)} " + (
+                f'<span class="small">这是 {eid(made_by)} 的产出，那个实验跑完以后被人改过</span>' if made_by else
+                rereg_button(t, "照原处的文件恢复留底") + ' <span class="small">原处的文件也改过的话，'
+                '会成为新的一版，这一版的留底照旧是坏的</span>')
+        elif t["type"] == METHOD and st.names[(t["type"], t["name"])][-1] is t and \
+                fingerprint.check(t["path"], t["fingerprint"], t["files"]):   # 只对做法查原处：小，查得起
+            note = (f"{word('一样')} <span class='small'>原来的文件夹后来改过，要用改过的就再登记一版</span> "
+                    + rereg_button(t))
         else:
             note = word("一样")
         rows.append(f'<tr><td>{e(t["type"])}{e(things.label(t))} <span class="small">#{t["n"]}</span>'
@@ -618,12 +620,12 @@ def check_page(data, go=False):
                f"<table>{''.join(rows)}</table>")
     # 账本末尾被砍掉、或被旧的换回去，链本身看不出来；data/ 里有、账本上没有的东西能露出一点
     known = {os.path.basename(runs.run_dir(data, n)) for n in st.exps}
-    known |= {t["fingerprint"][:16] for t in st.things.values() if t["type"] == METHOD}
-    extra = [os.path.join(part, d) for part in ("runs", "methods") if os.path.isdir(os.path.join(data, part))
+    known |= {t["kept"].split("/")[1] for t in st.things.values() if t.get("kept")}
+    extra = [os.path.join(part, d) for part in ("runs", "store") if os.path.isdir(os.path.join(data, part))
              for d in sorted(os.listdir(os.path.join(data, part)))
              if os.path.isdir(os.path.join(data, part, d)) and d not in known and not d.startswith("tmp-")]
     out.append("<h2>data 里有、账本上没有的</h2>" + (
-        msgs([f"data 里有 {len(extra)} 个实验目录或做法留底，账本上没有：{'、'.join(extra)}。"
+        msgs([f"data 里有 {len(extra)} 个实验目录或留底，账本上没有：{'、'.join(extra)}。"
               "账本末尾可能被砍掉过，或被换成了旧的。"]) if extra else f"<p>{word('没有')}</p>"))
     now = fingerprint.of(runs.SYSTEM)[0]
     other = sum(1 for x in st.exps.values() if x["seal"]["system"] != now)

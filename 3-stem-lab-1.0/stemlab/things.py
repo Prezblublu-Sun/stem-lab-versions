@@ -1,11 +1,10 @@
-"""登记：往账本加一条“有这么一样东西”——类型、名字、位置、指纹、说明（来源）。
+"""登记：往账本加一条“有这么一样东西”——类型、名字、从哪来、指纹、说明（来源）。
 
-类型就是一个词（骨、点、CT、结果、模型……），这里不写死清单。
-外来的东西同类型同名字再登记一次，就是新的一版；旧的一版留着。
-实验的产出不排版本：同名的产出各属各的实验，互不相干。
-
-只有“做法”这一种类型特别：做法是一个带 method.toml 的文件夹，登记时按指纹抄一份到
-data/methods/ 里留底，实验跑的是留底的那一份。别的东西（可能很大）留在原处不抄，用的时候核对指纹。
+类型就是一个词（骨、点、CT、结果、模型、做法……），这里不写死清单。
+外来的东西（做法也是）登记时一律抄一份到 data/store/ 里，按指纹留底；实验用的是留底那份，
+原处的文件以后怎么变都不影响已经登记的这一版。要用变了的，再登记一次就是新的一版。
+做法和别的东西只有一点不同：做法是带 method.toml 的文件夹，登记时要读它。
+实验的产出不抄（它们在实验目录里，由跑完时的目录指纹看着），也不排版本：同名的产出各属各的实验。
 """
 import math
 import os
@@ -23,11 +22,6 @@ class Problem(Exception):
     """用户看得懂、能照着改的问题。页面上原样显示这句话。"""
 
 
-def method_dir(data, entry):
-    """做法留底的位置。只用指纹做文件夹名，所以 data/ 里的路径全是 ASCII。"""
-    return os.path.join(data, "methods", entry["fingerprint"][:16])
-
-
 def label(t):
     """一样东西给人看的叫法：外来的东西和做法带“第几版”；实验的产出不排版本，写它是哪个实验的。"""
     made_by = (t.get("source") or {}).get("experiment")
@@ -35,8 +29,8 @@ def label(t):
 
 
 def where(data, entry):
-    """一样登记过的东西现在该在哪：做法看留底，别的看原处。"""
-    return method_dir(data, entry) if entry["type"] == METHOD else entry["path"]
+    """一样登记过的东西，实验要用时在哪：外来的看留底，实验的产出看它在实验目录里的位置。"""
+    return os.path.normpath(os.path.join(data, entry["kept"])) if entry.get("kept") else entry["path"]
 
 
 def check(data, entry):
@@ -74,52 +68,62 @@ def read_method(folder):
     return spec
 
 
+def _keep(data, path):
+    """把原处的文件或文件夹抄一份到 data/store/<指纹>/ 留底。只用指纹做文件夹名。
+    同样内容的留底已经在，就不再抄；在、但被人动过，就用刚抄的换掉。
+    返回 (留底在 data 里的位置, 指纹, 各文件的指纹, 一句提示)。"""
+    tmp = os.path.join(data, "store", "tmp-" + uuid.uuid4().hex[:8])   # 先抄到临时处，按抄下来的算指纹
+    name = "" if os.path.isdir(path) else os.path.basename(path)
+    if name:
+        os.makedirs(tmp)
+        shutil.copy2(path, os.path.join(tmp, name))
+    else:
+        shutil.copytree(path, tmp, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    fp, files = fingerprint.of(os.path.join(tmp, name) if name else tmp)
+    kept = "/".join(["store", fp[:16]] + ([name] if name else []))
+    target, told = os.path.normpath(os.path.join(data, kept)), ""
+    if os.path.exists(target) and fingerprint.of(target)[0] != fp:
+        (os.remove if name else shutil.rmtree)(target)
+        told ="它的留底被人动过，已经照原处的文件恢复。"
+    if not os.path.exists(target):
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        os.replace(os.path.join(tmp, name) if name else tmp, target)
+    shutil.rmtree(tmp, ignore_errors=True)
+    return kept, fp, files, told
+
+
 def register(data, type_, name, path, note="", source=None):
-    """登记一样东西，返回账本里登记的那一条。source 为空就是“外来的”。"""
+    """登记一样东西。返回 (账本里的那一条, 给用户看的一句话)。source 为空就是外来的。"""
     type_, name, note = type_.strip(), name.strip(), note.strip()
     path = os.path.abspath(path.strip().strip('"'))
     if not type_:
         raise Problem("要写类型，比如 骨、点、CT、结果、模型、做法")
     if not os.path.exists(path):
         raise Problem(f"找不到这个路径：{path}")
-    extra, extra_note = {}, ""
-    if type_ == METHOD:
-        spec = read_method(path)
-        name = name or spec["name"]
-        extra["category"] = spec["category"]
-        # 先抄到一个临时文件夹，按抄下来的内容算指纹，再改名成指纹；同样内容已经有留底就不再抄
-        tmp = os.path.join(data, "methods", "tmp-" + uuid.uuid4().hex[:8])
-        shutil.copytree(path, tmp, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
-        fp, files = fingerprint.of(tmp)
-        final = os.path.join(data, "methods", fp[:16])
-        if os.path.exists(final) and fingerprint.of(final)[0] != fp:   # 同样内容的留底被动过：照刚抄的换掉
-            shutil.rmtree(final)
-            extra_note = "这个做法的留底被动过，已经照原来的文件夹恢复。"
-        if os.path.exists(final):
-            shutil.rmtree(tmp)
-        else:
-            os.replace(tmp, final)
-    else:
-        fp, files = fingerprint.of(path)
+    spec = read_method(path) if type_ == METHOD else {}
+    name = name or spec.get("name", "")
     if not name:
         raise Problem("要写名字")
-
+    if source is None:
+        kept, fp, files, told = _keep(data, path)
+    else:
+        (fp, files), kept, told = fingerprint.of(path), None, ""
     same = {}
 
     def make(entries):
         older = [x for x in entries if x.get("kind") == "register" and x["type"] == type_ and x["name"] == name
                  and not x.get("source")]   # 只有外来的东西和做法排版本
-        # 外来的东西，内容和位置都和最新一版一样，就不再加一版；实验的产出每次都登记
-        if source is None and older and older[-1]["fingerprint"] == fp and older[-1]["path"] == path:
-            same["version"] = older[-1]["version"]
+        if source is None and older and older[-1]["fingerprint"] == fp:   # 内容和最新一版一样：不多出一版
+            same["entry"] = older[-1]
             return None
         version = None if source else max((x["version"] for x in older), default=0) + 1
-        return {"kind": "register", "type": type_, "name": name, "version": version, "path": path,
-                "fingerprint": fp, "files": files, "note": note, "source": source, **extra}
+        return {"kind": "register", "type": type_, "name": name, "version": version, "path": path, "kept": kept,
+                "fingerprint": fp, "files": files, "note": note, "source": source,
+                **({"category": spec["category"]} if spec else {})}
     entry = ledger.append(data, make)
     if entry is None:
-        raise Problem(f"没有新登记：{type_}「{name}」的内容和位置都和第{same['version']}版一样。{extra_note}")
-    return entry
+        return same["entry"], f"没有新登记：{type_}{label(same['entry'])}的内容和现在一样。{told}"
+    return entry, f"登记好了：{type_}{label(entry)}。{told}"
 
 
 def range_text(s):

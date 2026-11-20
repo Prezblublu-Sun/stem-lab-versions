@@ -123,7 +123,8 @@ def start(data, n, verify=True):
         if bad:
             raise Problem("这个实验用的东西和封存时不一样了，不能启动：" + "；".join(
                 f"{t['type']}{things.label(t)}：{why}" for _, t, why in bad)
-                + "。可以“照这个再开一个”，选上新登记的一版。")
+                + "。外来东西的留底被人动过的，到“核对”页照原处的文件恢复；实验的产出被人改过的，"
+                "只能“照这个再开一个”，选别的。")
     run = run_dir(data, n)
     attempt = 1 + sum(1 for e in x["events"] if e["kind"] == "start")
     if ledger.held(lock_path(data, n)):
@@ -206,7 +207,7 @@ def watch(data, n):
         return
     st = ledger.state(data)
     s = st.exps[n]["seal"]
-    mdir = things.method_dir(data, st.things[s["method"]["n"]])
+    mdir = things.where(data, st.things[s["method"]["n"]])
     run = run_dir(data, n)
     cmd = things.read_method(mdir)["command"]
     for key, value in (("{python}", sys.executable), ("{method}", mdir), ("{run}", run)):
@@ -242,8 +243,8 @@ def finish(data, n, code, why=""):
                             f"产出要放在这个实验的目录里（比如 out/ 下面），才算它的产出、才进它的指纹。")
             continue
         try:
-            t = things.register(data, o["type"], o["name"], os.path.join(run, o["path"]),
-                                o.get("note", ""), source={"experiment": n})
+            t, _ = things.register(data, o["type"], o["name"], os.path.join(run, o["path"]),
+                                   o.get("note", ""), source={"experiment": n})
             outputs.append(t["n"])
         except (Problem, KeyError, TypeError) as err:
             problems.append(f"产出登记不上：{o!r}：{err}")

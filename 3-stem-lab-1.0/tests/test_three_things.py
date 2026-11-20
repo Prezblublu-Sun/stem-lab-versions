@@ -17,7 +17,7 @@ def tiny_method(lab, folder, script):
         f.write('name = "%s"\ncategory = "FEA"\ncommand = "{python} {method}/run.py {run}"\n' % os.path.basename(folder))
     with open(os.path.join(folder, "run.py"), "w", encoding="utf-8") as f:
         f.write(textwrap.dedent(script))
-    return things.register(lab.data, "做法", "", folder)
+    return things.register(lab.data, "做法", "", folder)[0]
 
 
 class Untouched(unittest.TestCase):
@@ -122,39 +122,47 @@ class Untouched(unittest.TestCase):
         lock.close()
         self.assertEqual(runs.status(lab.data, lab.state().exps[x["n"]])["word"], "中断")
 
-    def test_changed_thing_blocks_start_and_names_the_file(self):
+    def test_kept_copy_is_what_runs_and_can_be_restored(self):
+        """登记时抄一份留底：改原处不影响已登记的这一版；动了留底，启动被拦、核对认得出、能照原处恢复。"""
         lab = self.lab
-        mine = os.path.join(lab.data, "my_points.csv")   # 外来的东西留在原处，不抄
+        mine = os.path.join(lab.data, "my_points.csv")
         shutil.copy(os.path.join(REPO, "examples", "points_demo.csv"), mine)
         m = lab.method("fea_demo")
         bone = lab.register("骨", "示例骨", "examples/bone_demo.json")
-        pts = lab.register("点", "我的点", mine)
+        v1 = lab.register("点", "我的点", mine)
         with open(mine, "a", encoding="utf-8") as f:
-            f.write("p99,150,30\n")
+            f.write("p99,150,30\n")                                    # 改了原处
+        n = lab.start(lab.form(m, {"bone": bone, "points": v1}))
+        self.assertEqual(lab.wait(n)["word"], "完成")
+        with open(os.path.join(runs.run_dir(lab.data, n), "out", "results.csv"), encoding="utf-8") as f:
+            self.assertEqual(len(f.readlines()), 1 + 12)                 # 用的还是登记时的 12 个点
+        v2, _ = things.register(lab.data, "点", "我的点", mine)         # 再登记才是新的一版
+        self.assertEqual(v2["version"], 2)
+        with open(things.where(lab.data, v2), "a", encoding="utf-8") as f:
+            f.write("p98,140,30\n")                                    # 有人动了第2版的留底
         before = len(lab.state().exps)
-        _, html = lab.post("/new", lab.form(m, {"bone": bone, "points": pts}))
+        _, html = lab.post("/new", lab.form(m, {"bone": bone, "points": v2}))
         self.assertIn("my_points.csv 变了", html)
-        self.assertIn("登记成新的一版", html)
+        self.assertIn("留底被人动过", html)
         self.assertEqual(len(lab.state().exps), before, "不该封存")
-        # 一键登记成新的一版，再启动就行了
-        form = lab.form(m, {"bone": bone, "points": pts})
-        form["action"] = "rereg:points"
-        _, html = lab.post("/new", form)
-        self.assertIn("第2版", html)
-        new = max(t["n"] for t in lab.state().things.values() if t["name"] == "我的点")
-        form["action"], form["in_points"] = "start", new
-        self.assertEqual(lab.wait(lab.start(form))["word"], "完成")
+        _, html = lab.get("/check?go=1")
+        self.assertIn("照原处的文件恢复留底", html)
+        form = dict(lab.form(m, {"bone": bone, "points": v2}), action="rereg:points")
+        _, html = lab.post("/new", form)                                 # 原处没再变：照它恢复，不多出一版
+        self.assertIn("已经照原处的文件恢复", html)
+        self.assertIsNone(things.check(lab.data, v2))
+        self.assertEqual(lab.wait(lab.start(lab.form(m, {"bone": bone, "points": v2})))["word"], "完成")
 
     def test_broken_method_copy_can_be_restored(self):
         lab = self.lab
         m = lab.method("fea_demo")
-        with open(os.path.join(things.method_dir(lab.data, m), "run.py"), "a", encoding="utf-8") as f:
+        with open(os.path.join(things.where(lab.data, m), "run.py"), "a", encoding="utf-8") as f:
             f.write("# 有人动了留底\n")
         self.assertIn("run.py 变了", things.check(lab.data, m))
         _, html = lab.get("/check?go=1")
-        self.assertIn("照原来的文件夹恢复", html)
-        with self.assertRaisesRegex(Problem, "已经照原来的文件夹恢复"):
-            lab.method("fea_demo")
+        self.assertIn("照原处的文件恢复留底", html)
+        _, told = things.register(lab.data, "做法", "", os.path.join(REPO, "methods", "fea_demo"))
+        self.assertIn("已经照原处的文件恢复", told)
         self.assertIsNone(things.check(lab.data, m))
 
     def test_changed_output_is_caught(self):
@@ -181,11 +189,13 @@ class Traceable(unittest.TestCase):
         self.addCleanup(lab.close)
         m = lab.method("fea_demo")
         bone = lab.register("骨", "示例骨", "examples/bone_demo.json")
-        with self.assertRaises(Problem):                              # 原样再登记一次：不多出一版
-            lab.register("骨", "示例骨", "examples/bone_demo.json")
-        moved = os.path.join(lab.data, "bone_moved.json")             # 挪了地方：第2版，但这次选第1版
+        moved = os.path.join(lab.data, "bone_moved.json")             # 内容一样、挪了地方：不多出一版
         shutil.copy(os.path.join(REPO, "examples", "bone_demo.json"), moved)
-        self.assertEqual(things.register(lab.data, "骨", "示例骨", moved)["version"], 2)
+        same, told = things.register(lab.data, "骨", "示例骨", moved)
+        self.assertEqual((same["n"], told[:5]), (bone["n"], "没有新登记"))
+        with open(moved, "a", encoding="utf-8") as f:                  # 内容变了：第2版，但这次选第1版
+            f.write("\n")
+        self.assertEqual(things.register(lab.data, "骨", "示例骨", moved)[0]["version"], 2)
         pts = lab.register("点", "示例点", "examples/points_demo.csv")
         n = lab.start(lab.form(m, {"bone": bone, "points": pts}, load=2600))
         self.assertEqual(lab.wait(n)["word"], "完成")

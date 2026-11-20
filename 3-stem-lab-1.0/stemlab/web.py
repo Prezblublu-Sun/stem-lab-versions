@@ -91,9 +91,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/exp_live" and n in ledger.state(d).exps:
             return self.send(pages.experiment_live(d, n))
         if path == "/things":
-            t = ledger.state(d).things.get(_int(q.get("new")))
-            notes = [f'登记好了：{t["type"]}{things.label(t)}。'] if t else []
-            return self.send(pages.things_page(d, notes=notes))
+            return self.send(pages.things_page(d))
         if path == "/check":
             return self.send(pages.check_page(d, q.get("go") == "1"))
         if path == "/file":
@@ -127,11 +125,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.post_new(form)
         if path == "/register":
             try:
-                t = things.register(d, form.get("type", ""), form.get("name", ""), form.get("path", ""),
-                                    form.get("note", ""))
+                _, told = things.register(d, form.get("type", ""), form.get("name", ""), form.get("path", ""),
+                                          form.get("note", ""))
             except Problem as err:
                 return self.send(pages.things_page(d, form, errors=[str(err)]))
-            return self.go(f"/things?new={t['n']}#t{t['n']}")
+            return self.send(pages.things_page(d, notes=[told]))
         n = _int(form.get("id"))
         x = ledger.state(d).exps.get(n)
         if not x:
@@ -163,7 +161,7 @@ class Handler(BaseHTTPRequestHandler):
         if not m or m["type"] != METHOD:
             return self.go("/new")
         try:
-            spec = things.read_method(things.method_dir(d, m))
+            spec = things.read_method(things.where(d, m))
         except Problem:   # 新建页会把读不出来的原因说清楚
             return self.go(f"/new?method={m['n']}")
         v = {"method": m["n"], "from": _int(form.get("from")), "title": form.get("title", "").strip(),
@@ -176,16 +174,18 @@ class Handler(BaseHTTPRequestHandler):
         if action == "fill":
             errors, notes = fill(v, spec)
             return self.send(pages.new_form(d, v, errors, notes))
-        if action.startswith("rereg:"):
-            old = st.things.get(v["inputs"].get(action[len("rereg:"):]))
+        if action.startswith("rereg:"):   # 照原处的文件再登记一次：恢复留底，或成为新的一版，并选上
+            key = action[len("rereg:"):]
+            old = m if key == "做法" else st.things.get(v["inputs"].get(key))
             try:
-                t = things.register(d, old["type"], old["name"], old["path"],
-                                    f'重新登记：{things.label(old)}登记以后内容变了')
+                t, told = things.register(d, old["type"], old["name"], old["path"], f"从{things.label(old)}重新登记")
             except (Problem, TypeError) as err:
                 return self.send(pages.new_form(d, v, [f"没登记上：{err}"]))
-            v["inputs"][action[len("rereg:"):]] = t["n"]
-            return self.send(pages.new_form(d, v, notes=[f'登记好了：{t["type"]}{things.label(t)}，'
-                                                         f'已经替你选上。']))
+            if key == "做法":
+                v["method"] = t["n"]
+            else:
+                v["inputs"][key] = t["n"]
+            return self.send(pages.new_form(d, v, notes=[told + "已经替你选上。"]))
         errors, inputs, settings, gates = [], {}, {}, []
         for i in spec.get("inputs", []):
             t = st.things.get(v["inputs"][i["key"]])

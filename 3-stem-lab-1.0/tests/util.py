@@ -37,14 +37,14 @@ class Lab:
             return r.url, r.read().decode("utf-8")
 
     def register(self, type_, name, rel):
-        return things.register(self.data, type_, name, os.path.join(REPO, rel))
+        return things.register(self.data, type_, name, os.path.join(REPO, rel))[0]
 
     def method(self, folder):
         return self.register("做法", "", "methods/" + folder)
 
     def form(self, m, inputs, gates=None, **settings):
         """照做法的默认值拼一份新建页的表单；停顿设成 0，好跑得快。"""
-        spec = things.read_method(things.method_dir(self.data, m))
+        spec = things.read_method(things.where(self.data, m))
         f = {"method": m["n"], "action": "start", "title": "测试 " + m["name"]}
         for s in spec.get("settings", []):
             if s["kind"] != "开关" or s.get("default"):
