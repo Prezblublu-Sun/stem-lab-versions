@@ -1,5 +1,5 @@
 """python -m stemlab            开页面（加 --open 顺手打开浏览器）
-python -m stemlab --watch N  看护进程：页面服务启动实验时自己起它，不用手敲。"""
+python -m stemlab --watch N  看护进程（--launch N 是起它的中间进程）：页面服务启动实验时自己起，不用手敲。"""
 import argparse
 import os
 import sys
@@ -14,9 +14,12 @@ def main():
                    help="数据放哪：账本、做法的留底、每个实验的目录（默认是仓库里的 data/）")
     p.add_argument("--port", type=int, default=8765, help="端口，默认 8765")
     p.add_argument("--open", action="store_true", help="开好以后打开浏览器")
+    p.add_argument("--launch", type=int, help=argparse.SUPPRESS)
     p.add_argument("--watch", type=int, help=argparse.SUPPRESS)
     a = p.parse_args()
     data = os.path.abspath(a.data)
+    if a.launch:
+        return runs.launch(data, a.launch)
     if a.watch:
         return runs.watch(data, a.watch)
     sys.stdout.reconfigure(errors="replace")

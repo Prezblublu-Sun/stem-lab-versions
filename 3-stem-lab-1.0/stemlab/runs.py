@@ -119,30 +119,32 @@ def start(data, n, verify=True):
     })
     attempt = 1 + sum(1 for e in x["events"] if e["kind"] == "start")
     ledger.append(data, {"kind": "start", "exp": n, "attempt": attempt})
-    args = [sys.executable, "-m", "stemlab", "--data", data, "--watch", str(n)]
-    try:
+    try:   # 先起一个中间进程，它起看护进程后马上退出；这里等它退出
         with open(os.path.join(run, "log.txt"), "ab") as log:
-            _spawn(args, os.path.dirname(SYSTEM), log)
+            _detached("--launch", data, n, log).wait()
     except OSError as err:
         ledger.append(data, {"kind": "end", "exp": n, "status": "失败", "code": None,
                              "why": f"看护进程起不来：{err}"})
 
 
-_watchers = []   # 起过的看护进程；已经结束的，下次起新的时顺手收掉
+def launch(data, n):
+    """中间进程：起看护进程，自己马上退出。这样看护进程不在页面服务的进程树里，
+    页面服务关掉、哪怕连它的整棵进程树一起被杀，实验照跑。"""
+    with open(os.path.join(run_dir(data, n), "log.txt"), "ab") as log:
+        _detached("--watch", data, n, log)
 
 
-def _spawn(args, cwd, log):
-    """起一个和页面服务脱钩的进程：页面服务关掉它照跑；Windows 上不弹窗口。"""
-    _watchers[:] = [p for p in _watchers if p.poll() is None]
-    kw = dict(cwd=cwd, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
+def _detached(mode, data, n, log):
+    """起一个 python -m stemlab 进程，不跟着谁的控制台走；Windows 上不弹窗口。"""
+    args = [sys.executable, "-m", "stemlab", "--data", data, mode, str(n)]
+    kw = dict(cwd=os.path.dirname(SYSTEM), stdin=subprocess.DEVNULL, stdout=log, stderr=log)
     if os.name != "nt":
-        _watchers.append(subprocess.Popen(args, start_new_session=True, **kw))
-        return
+        return subprocess.Popen(args, start_new_session=True, **kw)
     flags = NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
     try:   # 能脱离父进程所在的“作业”就脱离，免得被它一起关掉
-        _watchers.append(subprocess.Popen(args, creationflags=flags | subprocess.CREATE_BREAKAWAY_FROM_JOB, **kw))
+        return subprocess.Popen(args, creationflags=flags | subprocess.CREATE_BREAKAWAY_FROM_JOB, **kw)
     except OSError:
-        _watchers.append(subprocess.Popen(args, creationflags=flags, **kw))
+        return subprocess.Popen(args, creationflags=flags, **kw)
 
 
 def stop(data, n):

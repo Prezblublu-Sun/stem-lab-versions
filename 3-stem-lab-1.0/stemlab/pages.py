@@ -18,7 +18,7 @@ nav a{color:#cfd8e3;margin-right:18px;text-decoration:none}nav a.here{color:#fff
 main{max-width:1150px;margin:0 auto;padding:8px 16px 60px}h1{font-size:22px}
 h2{font-size:17px;margin-top:26px;border-bottom:1px solid #ddd;padding-bottom:2px}h3{font-size:15px;margin:14px 0 4px}
 table{border-collapse:collapse;margin:6px 0;background:#fff}td,th{border:1px solid #ddd;padding:3px 8px;text-align:left;vertical-align:top}
-th{background:#eef0f3;font-weight:normal;color:#555}.small{font-size:12px;color:#888}
+th{background:#eef0f3;font-weight:normal;color:#555;white-space:nowrap}.nw{white-space:nowrap}.small{font-size:12px;color:#888}
 .ok{color:#17803d;font-weight:bold}.bad{color:#c0392b;font-weight:bold}.mid{color:#b9770e;font-weight:bold}.run{color:#2367c7;font-weight:bold}
 .box{background:#fff;border:1px solid #ddd;border-radius:6px;padding:8px 14px;margin:8px 0}
 .err{background:#fdecea;border:1px solid #e6a5a0;padding:8px 12px;border-radius:6px;margin:8px 0}
@@ -193,19 +193,20 @@ def split_gate(text):
 
 
 def setting_input(s, raw):
-    name = f'set_{e(s["key"])}" aria-label="{e(s.get("name") or s["key"])}'
+    """一个设置项的输入框：开关是勾选框，选项是下拉框，数、整数、文字是文本框。"""
+    attrs = f'name="set_{e(s["key"])}" aria-label="{e(s.get("name") or s["key"])}"'
     if s["kind"] == "开关":
         try:
             on = things.parse_value(s, raw)
         except things.Problem:
             on = False
-        return f'<input type="checkbox" name="{name}" value="1"{" checked" if on else ""}>'
+        return f'<input type="checkbox" {attrs} value="1"{" checked" if on else ""}>'
     if s["kind"] == "选项":
-        return f'<select name="{name}">' + "".join(
+        return f'<select {attrs}>' + "".join(
             f'<option{" selected" if str(c) == str(raw) else ""}>{e(c)}</option>'
             for c in s.get("choices", [])) + "</select>"
     size = 10 if s["kind"] in ("数", "整数") else 36
-    return f'<input type="text" name="{name}" value="{e(fmt(raw))}" size="{size}">'
+    return f'<input type="text" {attrs} value="{e(fmt(raw))}" size="{size}">'
 
 
 def new_form(data, v, errors=(), notes=(), changed=()):
@@ -384,8 +385,8 @@ def experiment(data, n, errors=(), notes=()):
                        f'照门槛算出）</span></p>')
         rows = []
         checks = {c["metric"]: c for c in end["verdict"]["checks"]}
-        for key, val in end["reports"].items():
-            r, c = reports.get(key, {}), checks.get(key)
+        for key in [k for k in reports if k in end["reports"]] + [k for k in end["reports"] if k not in reports]:
+            val, r, c = end["reports"][key], reports.get(key, {}), checks.get(key)
             gate = f'{OPS[c["op"]]} {fmt(c["value"])}' if c else "—"
             ok = word("合格" if c["ok"] else "不合格") if c else ""
             rows.append(f'<tr><td>{e(r.get("name") or key)}</td><td>{e(fmt(val))} {e(r.get("unit", ""))}</td>'
@@ -502,8 +503,8 @@ def things_page(data, form=None, errors=(), notes=()):
                        "<th>登记时间</th><th>来历</th><th>位置</th><th>说明</th></tr>")
             for t in reversed(vs):
                 cat = f'<td>{e(t.get("category"))}</td>' if typ == METHOD else ""
-                out.append(f'<tr id="t{t["n"]}"><td>第{t["version"]}版 <span class="small">#{t["n"]}</span></td>{cat}'
-                           f'<td>{e(t["time"])}</td><td>{origin(st, t)}</td><td>{e(t["path"])}<br>'
+                out.append(f'<tr id="t{t["n"]}"><td class="nw">第{t["version"]}版 <span class="small">#{t["n"]}</span>'
+                           f'</td>{cat}<td class="nw">{e(t["time"])}</td><td>{origin(st, t)}</td><td>{e(t["path"])}<br>'
                            f'<span class="small">指纹 {e(t["fingerprint"][:12])} · {len(t["files"])} 个文件</span>'
                            f'</td><td>{e(t["note"])}</td></tr>')
             out.append("</table>")
@@ -523,17 +524,19 @@ def check_page(data, go=False):
     rows, bad = [], 0
     for t in st.things.values():
         why = things.check(data, t)
-        note = ""
-        if t["type"] == METHOD and not why:   # 留底没变；原来的文件夹改过的话也提一句
-            if fingerprint.check(t["path"], t["fingerprint"], t["files"]):
-                note = '<span class="small">留底没变；原来的文件夹后来改过，要用改过的就再登记一版 </span>' + \
-                       rereg_button(t)
+        latest = st.names[(t["type"], t["name"])][-1] is t
+        again = rereg_button(t) if latest else '<span class="small">后面已经登记过新的版本</span>'
         if why:
             bad += 1
-            note = f'<span class="bad">不一样</span> {e(why)} ' + (rereg_button(t) if t["type"] != METHOD else
-                                                                  '<span class="small">做法的留底不该有人动</span>')
+            note = f"{word('不一样')} {e(why)} " + (
+                again if t["type"] != METHOD else '<span class="small">做法的留底不该有人动</span>')
+        elif t["type"] == METHOD and latest and fingerprint.check(t["path"], t["fingerprint"], t["files"]):
+            note = (f"{word('一样')} <span class='small'>留底没变；原来的文件夹后来改过，"
+                    f"要用改过的就再登记一版</span> " + again)
+        else:
+            note = word("一样")
         rows.append(f'<tr><td>{e(t["type"])}「{e(t["name"])}」第{t["version"]}版 <span class="small">#{t["n"]}</span>'
-                    f'</td><td>{note or word("一样")}</td></tr>')
+                    f'</td><td>{note}</td></tr>')
     out.append(f"<h2>登记的东西</h2><p>{len(rows)} 样，{bad} 样不一样。</p><table>{''.join(rows)}</table>")
     rows, bad = [], 0
     for x in st.exps.values():
