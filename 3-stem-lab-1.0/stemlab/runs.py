@@ -142,7 +142,7 @@ def start(data, n, verify=True):
         "experiment": f"e{n:04d}", "run": run, "out": os.path.join(run, "out"),
         "progress": os.path.join(run, "progress.jsonl"), "result": os.path.join(run, "result.json"),
         "inputs": {k: (things.where(data, t) if t else None) for k, t in inputs.items()},
-        "settings": s["settings"],
+        "settings": s["settings"], "gates": s["gates"],
     })
     ledger.append(data, {"kind": "start", "exp": n, "attempt": attempt, "system": fingerprint.of(SYSTEM)[0]})
     try:   # 先起一个中间进程，它起看护进程后马上退出；这里等它退出
@@ -248,10 +248,17 @@ def finish(data, n, code, why=""):
             outputs.append(t["n"])
         except (Problem, KeyError, TypeError) as err:
             problems.append(f"产出登记不上：{o!r}：{err}")
+    figures = []   # 做法自己画的图（SVG、PNG……）：平台只记下位置，摆在实验页上
+    for g in result.get("figures") or []:
+        if inside(run, str(g.get("path", ""))):
+            figures.append({"title": str(g.get("title", "")),
+                            "path": os.path.relpath(os.path.join(run, g["path"]), run).replace(os.sep, "/")})
+        else:
+            problems.append(f"图「{g.get('title')}」的位置 {g.get('path')} 不在实验目录里，没有摆出来。")
     fp, files = fingerprint.of(run)
     return ledger.append(data, {
         "kind": "end", "exp": n, "status": "完成", "code": 0, "reports": reports,
-        "verdict": judge(gates, reports), "outputs": outputs, "table": result.get("table"),
+        "verdict": judge(gates, reports), "outputs": outputs, "table": result.get("table"), "figures": figures,
         "problems": problems, "fingerprint": fp, "files": files})
 
 

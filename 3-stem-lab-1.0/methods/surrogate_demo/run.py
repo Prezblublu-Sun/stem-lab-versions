@@ -1,4 +1,6 @@
-"""代理示例：读结果表，最小二乘拟合多项式，报留出点上的误差，产出一个“模型”。示例，不是科学。"""
+"""代理示例的计算：读结果表，最小二乘拟合多项式，报留出点上的误差，产出一个“模型”，再调 show.py 画图。
+示例，不是科学。一个包三样：method.toml（说明）、run.py（计算，就是这个）、show.py（结果展示）。
+"""
 import csv
 import json
 import math
@@ -87,8 +89,11 @@ with open(os.path.join(task["out"], "check.csv"), "w", encoding="utf-8", newline
     w.writerow(features + [S["target"], "预测", "差"])
     for i in test:
         w.writerow(X[i] + [y[i], round(pred[i], 3), round(pred[i] - y[i], 3)])
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import show   # noqa: E402  结果展示在同一个文件夹的 show.py 里
+figures = show.draw(run)
 with open(task["result"], "w", encoding="utf-8") as f:
     json.dump({"reports": {"rel_error": round(rel, 3), "rmse": round(rmse, 4)},
                "outputs": [{"type": "模型", "name": S["model_name"], "path": "out/model.json"}],
-               "table": "out/check.csv"}, f, ensure_ascii=False, indent=2)
+               "table": "out/check.csv", "figures": figures}, f, ensure_ascii=False, indent=2)
 print(f"拟合完了：留出 {len(test)} 个点，相对误差 {rel:.2f}%", flush=True)

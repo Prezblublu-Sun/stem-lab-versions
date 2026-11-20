@@ -12,6 +12,8 @@ from . import ledger, pages, runs, things
 from .things import METHOD, Problem
 
 TEXT = "text/plain; charset=utf-8"
+CATALOG = os.path.join(os.path.dirname(runs.SYSTEM), "examples", "catalog.toml")   # 自带模板和示例材料的清单
+IMAGES = {".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif"}
 
 
 def _int(x):
@@ -109,6 +111,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(f"这个文件有 {size // 2 ** 20} MB，太大，不在页面上打开。它在：{full}", 200, TEXT)
         with open(full, "rb") as f:
             raw = f.read()
+        image = IMAGES.get(os.path.splitext(full)[1].lower())
+        if image:   # 做法画的图：给对的类型；SVG 是别人写的，不许它跑脚本
+            return self.send(raw, 200, image, [("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox"),
+                                               ("X-Content-Type-Options", "nosniff")])
         for enc in ("utf-8", "gbk"):
             try:
                 return self.send(raw.decode(enc), 200, TEXT)
@@ -130,6 +136,8 @@ class Handler(BaseHTTPRequestHandler):
             except Problem as err:
                 return self.send(pages.things_page(d, form, errors=[str(err)]))
             return self.send(pages.things_page(d, notes=[told]))
+        if path == "/register_all":
+            return self.send(pages.things_page(d, **register_catalog(d)))
         n = _int(form.get("id"))
         x = ledger.state(d).exps.get(n)
         if not x:
@@ -282,6 +290,24 @@ def fill(v, spec):
         errors.insert(0, f"这 {len(unknown)} 项认不得（这个做法没有这些设置），没有填：{'、'.join(unknown)}")
     return errors, [f"照这份设置填了 {len(filled)} 项：{'、'.join(filled)}。" if filled
                     else "这份设置里没有一项是这个做法认得的。"]
+
+
+def register_catalog(data):
+    """把自带清单（examples/catalog.toml）里还没登记的全部登记进来；登记过、内容没变的不会多出来。"""
+    try:
+        with open(CATALOG, "rb") as f:
+            items = tomllib.load(f).get("item", [])
+    except (OSError, ValueError) as err:
+        return {"errors": [f"自带清单 {CATALOG} 读不出来：{err}"]}
+    told, errors = [], []
+    for it in items:
+        try:
+            told.append(things.register(data, it.get("type", ""), it.get("name", ""),
+                                        os.path.join(os.path.dirname(CATALOG), it.get("path", "")), it.get("note", ""))[1])
+        except Problem as err:
+            errors.append(f"自带清单里的 {it.get('path')}：{err}")
+    new = [t for t in told if t.startswith("登记好了")]
+    return {"errors": errors, "notes": new + [f"另有 {len(told) - len(new)} 样早就登记过、内容没变，没有多出来。"]}
 
 
 def make_server(data, port):

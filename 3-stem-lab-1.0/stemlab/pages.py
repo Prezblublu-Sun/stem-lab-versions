@@ -26,6 +26,8 @@ th{background:#eef0f3;font-weight:normal;color:#555;white-space:nowrap}.nw{white
 pre{background:#23272e;color:#e8e8e8;padding:8px;overflow:auto;max-height:320px;font-size:12px;white-space:pre-wrap}
 .bar{display:inline-block;width:180px;height:10px;background:#dde;border-radius:5px;vertical-align:middle}
 .bar i{display:block;height:100%;background:#2367c7;border-radius:5px}
+figure{display:inline-block;margin:6px 12px 6px 0;background:#fff;border:1px solid #ddd;padding:6px}
+figure img{max-width:100%}figcaption{font-size:13px;color:#555}
 fieldset{border:1px solid #ccc;border-radius:6px;margin:10px 0;background:#fff}legend{font-weight:bold;padding:0 4px}
 input,select,textarea,button{font:inherit}button{padding:3px 12px;cursor:pointer}button.go{font-size:16px;padding:6px 22px}
 a.pick{display:inline-block;padding:5px 14px;margin:3px 6px 3px 0;border:1px solid #2367c7;border-radius:6px;text-decoration:none;background:#fff}
@@ -44,6 +46,8 @@ setInterval(pull,3000);document.addEventListener('visibilitychange',pull)})();
 """
 
 CATEGORIES = ("重建", "FEA", "代理", "优化")   # 一页纸里的四类；做法写了别的类，也照样列出来
+EMPTY = ('<div class="note">库里还是空的：到<a href="/things">登记的东西</a>点“把自带的模板和示例材料登记进来”，'
+         '就有几个模板和示例材料可以试；也可以登记你自己的。</div>')
 NAV = [("/", "仪表盘"), ("/new", "新建实验"), ("/exps", "实验和结果"), ("/things", "登记的东西"), ("/check", "核对")]
 OPS = {"<=": "≤", ">=": "≥", "<": "<", ">": ">"}
 WORD_CLASS = {"在跑": "run", "完成": "ok", "失败": "bad", "中断": "mid", "停了": "small", "没启动": "small",
@@ -186,7 +190,7 @@ def dashboard_live(data):
     rows = [(x, runs.status(data, x)) for x in reversed(list(st.exps.values()))]
     out = [trouble_html(data),
            f'<p class="small">每 3 秒自动更新，页面不在前台时不更新 · 更新于 {time.strftime("%H:%M:%S")}</p>',
-           "<h2>在跑</h2>"]
+           EMPTY if not st.things else "", "<h2>在跑</h2>"]
     running = [(x, i) for x, i in rows if i["word"] == "在跑"]
     if not running:
         out.append('<p>现在没有在跑的实验。<a href="/new">新建一个</a></p>')
@@ -268,7 +272,7 @@ def new_form(data, v, errors=(), notes=(), changed=()):
     m = st.things.get(v.get("method"))
     m = m if m and m["type"] == METHOD else None
     cat = m["category"] if m else v.get("cat")
-    out = [msgs(errors, notes), "<h2>第 1 步：选哪一类</h2>"]
+    out = [msgs(errors, notes), EMPTY if not methods else "", "<h2>第 1 步：选哪一类</h2>"]
     out.append("<p>" + "".join(
         f'<a class="pick{" on" if c == cat else ""}" href="/new?cat={quote(c)}">{e(c)}</a>'
         for c in dict.fromkeys(list(CATEGORIES) + [t["category"] for t in methods])) + "</p>")
@@ -459,6 +463,12 @@ def experiment(data, n, errors=(), notes=()):
             f'<tr><td>{e(reports.get(g["metric"], {}).get("name") or g["metric"])}</td>'
             f'<td>{e(OPS[g["op"]])} {e(fmt(g["value"]))} {e(reports.get(g["metric"], {}).get("unit", ""))}</td></tr>'
             for g in s["gates"]) + "</table><p>还没跑完，还没有判定。</p>")
+    if end and end.get("figures"):
+        out.append("<h2>图</h2>" + "".join(
+            f'<figure><img src="/file?id={n}&path={quote(g["path"])}" alt="{e(g["title"])}">'
+            f'<figcaption>{e(g["title"])}</figcaption></figure>' for g in end["figures"]))
+    if end and end.get("table"):
+        out.append("<h2>结果表</h2>" + csv_table(os.path.join(run, end["table"])))
 
     out.append("<h2>它用了什么</h2><table>")
     out.append(f'<tr><th>做法</th><td>{e(s["method"]["name"])} · 第{s["method"]["version"]}版 '
@@ -494,8 +504,6 @@ def experiment(data, n, errors=(), notes=()):
         out.append("<p>还没有产出。</p>")
     for problem in (end or {}).get("problems", []):
         out.append(msgs([problem]))
-    if end and end.get("table"):
-        out.append("<h3>结果表</h3>" + csv_table(os.path.join(run, end["table"])))
     out.append("<h2>实验目录里的文件</h2>" + file_list(run, n))
     return page(s["title"], "".join(out), "/exps", data)
 
@@ -542,7 +550,9 @@ def things_page(data, form=None, errors=(), notes=()):
     st = ledger.state(data)
     form = form or {}
     types = sorted({t["type"] for t in st.things.values()} - {METHOD})
-    out = [msgs(errors, notes), '<h2>登记一样东西</h2><form method="post" action="/register"><table>',
+    out = [msgs(errors, notes), '<form method="post" action="/register_all"><p><button>把自带的模板和示例材料登记进来'
+           '</button> <span class="small">清单在 examples/catalog.toml，可以随手改；登记过、内容没变的不会多出来</span>'
+           '</p></form><h2>登记一样东西</h2><form method="post" action="/register"><table>',
            f'<tr><td>类型</td><td><input name="type" list="types" value="{e(form.get("type", ""))}" size="12"> '
            f'<datalist id="types">{"".join(f"<option>{e(t)}</option>" for t in [METHOD] + types)}</datalist>'
            f'<span class="small">一个词：骨、点、CT、结果、模型……；做法就写“做法”</span></td></tr>',

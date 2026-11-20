@@ -1,0 +1,32 @@
+*HEADING
+stem-lab connectivity check: one C3D8 element in uniaxial tension
+*NODE
+1, 0., 0., 0.
+2, 1., 0., 0.
+3, 1., 1., 0.
+4, 0., 1., 0.
+5, 0., 0., 1.
+6, 1., 0., 1.
+7, 1., 1., 1.
+8, 0., 1., 1.
+*ELEMENT, TYPE=C3D8, ELSET=EALL
+1, 1, 2, 3, 4, 5, 6, 7, 8
+*NSET, NSET=BOTTOM
+1, 2, 3, 4
+*NSET, NSET=TOP
+5, 6, 7, 8
+*SOLID SECTION, ELSET=EALL, MATERIAL=STEEL
+*MATERIAL, NAME=STEEL
+*ELASTIC
+210000., 0.3
+*BOUNDARY
+BOTTOM, 3, 3
+1, 1, 2
+2, 2, 2
+*STEP, NAME=PULL
+*STATIC
+*BOUNDARY
+TOP, 3, 3, __DISPLACEMENT__
+*EL PRINT, ELSET=EALL
+S33
+*END STEP

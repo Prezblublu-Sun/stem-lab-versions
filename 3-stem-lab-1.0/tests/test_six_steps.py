@@ -2,10 +2,27 @@
 import re
 import time
 import unittest
+import urllib.request
 from urllib.parse import quote
 
 from util import Lab
 from stemlab import ledger, runs
+
+
+class FirstUse(unittest.TestCase):
+
+    def test_register_everything_shipped_with_one_click(self):
+        """第一次用：一键把自带的模板和示例材料登记进来；再点一次不会多出东西。"""
+        lab = Lab()
+        self.addCleanup(lab.close)
+        self.assertIn("库里还是空的", lab.get("/live")[1])
+        _, html = lab.post("/register_all", {})
+        made = len(lab.state().things)
+        self.assertGreaterEqual(made, 10)
+        self.assertNotIn('class="err"', html)
+        _, html = lab.post("/register_all", {})
+        self.assertEqual(len(lab.state().things), made)
+        self.assertIn(f"另有 {made} 样早就登记过", html)
 
 
 class SixSteps(unittest.TestCase):
@@ -49,6 +66,11 @@ class SixSteps(unittest.TestCase):
         _, html = lab.get(f"/exp?id={n}")
         self.assertIn("它用了什么", html)
         self.assertIn(f'{method["name"]} · 第{method["version"]}版', html)
+        figure = re.search(r'<figure><img src="([^"]+)"', html)               # 包画的图摆在结果页上
+        self.assertTrue(figure, "结果页上没有图")
+        with urllib.request.urlopen(lab.base + figure.group(1).replace("&amp;", "&")) as r:
+            self.assertEqual(r.headers["Content-Type"], "image/svg+xml")
+            self.assertIn("sandbox", r.headers["Content-Security-Policy"])
         for t in inputs.values():
             self.assertIn(f'「{t["name"]}」第{t["version"]}版', html)
         # 6. 换个设置再算：再开一个，前一个原样留着

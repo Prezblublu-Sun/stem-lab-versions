@@ -1,4 +1,7 @@
-"""FEA 示例：读 task.json，每个点用一个公式顶替有限元，报进度，写结果。示例，不是科学。"""
+"""FEA 示例的计算：读 task.json，每个点用一个公式顶替有限元，报进度，写结果，再调 show.py 画图。示例，不是科学。
+
+一个包三样：method.toml（说明）、run.py（计算，就是这个）、show.py（结果展示）。
+"""
 import csv
 import json
 import math
@@ -42,11 +45,17 @@ with open(os.path.join(task["out"], "results.csv"), "w", encoding="utf-8", newli
     w.writeheader()
     w.writerows(rows)
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import show   # noqa: E402  结果展示在同一个文件夹的 show.py 里
+progress(len(points), len(points), "画图")
+figures = show.draw(run)
+
 with open(task["result"], "w", encoding="utf-8") as f:
     json.dump({
         "reports": {"max_stress": max(r["max_stress"] for r in rows),
                     "mean_micromotion": round(sum(r["micromotion"] for r in rows) / len(rows), 3)},
         "outputs": [{"type": "结果", "name": f"{bone.get('name', '骨')}的 FEA 示例结果", "path": "out/results.csv"}],
         "table": "out/results.csv",
+        "figures": figures,
     }, f, ensure_ascii=False, indent=2)
 print("算完了", flush=True)
