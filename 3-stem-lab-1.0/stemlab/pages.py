@@ -47,7 +47,7 @@ CATEGORIES = ("重建", "FEA", "代理", "优化")   # 一页纸里的四类；�
 NAV = [("/", "仪表盘"), ("/new", "新建实验"), ("/exps", "实验和结果"), ("/things", "登记的东西"), ("/check", "核对")]
 OPS = {"<=": "≤", ">=": "≥", "<": "<", ">": ">"}
 WORD_CLASS = {"在跑": "run", "完成": "ok", "失败": "bad", "中断": "mid", "停了": "small", "没启动": "small",
-              "合格": "ok", "不合格": "bad", "未设门槛": "mid", "一样": "ok", "不一样": "bad", "没有": "ok"}
+              "合格": "ok", "不合格": "bad", "未设门槛": "mid", "一样": "ok", "不一样": "bad", "没有": "ok", "记着": "mid"}
 
 
 def e(x):
@@ -58,14 +58,19 @@ def e(x):
 def page(title, body, here="", data=None):
     """拼一整页。给了 data，账本有对不上的地方就在顶上用红字说出来。"""
     nav = "".join(f'<a href="{u}"{" class=here" if u == here else ""}>{t}</a>' for u, t in NAV)
-    bad = ledger.trouble(data) if data else []
-    warn = (f'<div class="err">账本有 {len(bad)} 处对不上：{e(bad[0][2])}。下面显示的记录不一定可信，'
-            f'<a href="/check?go=1">去核对页看是哪几条</a>。</div>' if bad else "")
+    warn = trouble_html(data) if data else ""
     return (f'<!doctype html><html lang="zh"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>{e(title)} - stem-lab</title><style>{CSS}</style></head><body>'
             f'<nav><b>stem-lab</b>{nav}</nav><main>{warn}<h1>{e(title)}</h1>{body}</main>'
             f'<script>{JS}</script></body></html>')
+
+
+def trouble_html(data):
+    """账本现在有对不上的地方，就用红字说出来，带去核对页的链接。"""
+    bad = ledger.trouble(data)
+    return (f'<div class="err">账本有 {len(bad)} 处对不上：{e(bad[0][2])}。下面显示的记录不一定可信，'
+            f'<a href="/check?go=1">去核对页看是哪几条</a>。</div>' if bad else "")
 
 
 def what(entry):
@@ -75,7 +80,7 @@ def what(entry):
         made_by = (entry.get("source") or {}).get("experiment")
         return f'{entry.get("type")}「{entry.get("name")}」的登记' + (f"（{eid(made_by)} 的产出）" if made_by else "")
     return {"seal": f'{eid(n)}「{entry.get("title")}」的封存记录', "start": f'{eid(n)} 的第 {entry.get("attempt")} 次启动',
-            "end": f"{eid(n)} 的结束记录"}.get(kind, f"一条“{kind}”记录")
+            "end": f"{eid(n)} 的结束记录", "gap": "一条“账本出过问题”的记录"}.get(kind, f"一条“{kind}”记录")
 
 
 def msgs(errors=(), notes=()):
@@ -172,14 +177,15 @@ def bar(p):
 # ---------- 仪表盘 ----------
 
 def dashboard(data):
-    return page("仪表盘", f'<div data-live="/live">{dashboard_live(data)}</div>', "/", data)
+    return page("仪表盘", f'<div data-live="/live">{dashboard_live(data)}</div>', "/")   # 红字在刷新的那一块里
 
 
 def dashboard_live(data):
     """只读账本和每个实验的几个小文件，不起任何进程。"""
     st = ledger.state(data)
     rows = [(x, runs.status(data, x)) for x in reversed(list(st.exps.values()))]
-    out = [f'<p class="small">每 3 秒自动更新，页面不在前台时不更新 · 更新于 {time.strftime("%H:%M:%S")}</p>',
+    out = [trouble_html(data),
+           f'<p class="small">每 3 秒自动更新，页面不在前台时不更新 · 更新于 {time.strftime("%H:%M:%S")}</p>',
            "<h2>在跑</h2>"]
     running = [(x, i) for x, i in rows if i["word"] == "在跑"]
     if not running:
@@ -462,8 +468,8 @@ def experiment(data, n, errors=(), notes=()):
     for key, ref in s["inputs"].items():
         t = st.things.get(ref["n"]) if ref else None
         used = (f'{e(ref["type"])}「{e(ref["name"])}」{ver(t)} · {origin(st, t)} <span class="small">'
-                f'指纹 {e(ref["fingerprint"][:12])} · {"原处 " if t.get("kept") else ""}{e(t["path"])}</span>'
-                if t else "（没选）")
+                f'指纹 {e(ref["fingerprint"][:12])} · {"留底" if t["path"] else "在"} {e(things.where(data, t))}'
+                f'{" · 从 " + e(t["path"]) + " 抄来" if t["path"] else ""}</span>' if t else "（没选）")
         out.append(f'<tr><th>{e(labels.get(key, key))}</th><td>{used}</td></tr>')
     if s.get("from"):
         out.append(f'<tr><th>照哪个开的</th><td><a href="/exp?id={s["from"]}">{eid(s["from"])}</a></td></tr>')
@@ -482,7 +488,7 @@ def experiment(data, n, errors=(), notes=()):
     out.append("<h2>产出</h2>")
     if x["outputs"]:
         out.append("<ul>" + "".join(f'<li>{e(t["type"])}「<a href="/things#t{t["n"]}">{e(t["name"])}</a>」'
-                                     f' <span class="small">{e(t["path"])}</span></li>'
+                                     f' <span class="small">{e(things.where(data, t))}</span></li>'
                                      for t in x["outputs"]) + "</ul>")
     else:
         out.append("<p>还没有产出。</p>")
@@ -564,9 +570,9 @@ def things_page(data, form=None, errors=(), notes=()):
                 made_by = (t.get("source") or {}).get("experiment")
                 out.append(f'<tr id="t{t["n"]}"><td class="nw">{ver(t) or eid(made_by) + " 的产出"} '
                            f'<span class="small">#{t["n"]}</span>'
-                           f'</td>{cat}<td class="nw">{e(t["time"])}</td><td>{origin(st, t)}</td><td>{e(t["path"])}<br>'
+                           f'</td>{cat}<td class="nw">{e(t["time"])}</td><td>{origin(st, t)}</td><td>{e(t["path"] or things.where(data, t))}<br>'
                            f'<span class="small">指纹 {e(t["fingerprint"][:12])} · {len(t["files"])} 个文件'
-                           f'{" · 留底 " + e(t["kept"]) if t.get("kept") else ""}</span>'
+                           f'{" · 留底 " + e(t["kept"]) if t["path"] else ""}</span>'
                            f'</td><td>{e(t["note"])}</td></tr>')
             out.append("</table>")
     return page("登记的东西", "".join(out), "/things", data)
@@ -583,6 +589,8 @@ def check_page(data, go=False):
     count, bad = ledger.verify(data)
     out.append(f"<h2>账本</h2><p>{word('一样') if not bad else word('不一样')} 一共 {count} 行，"
                f"{'链是完整的' if not bad else f'{len(bad)} 处对不上'}。</p>")
+    gaps = [x for x in ledger.read(data) if x.get("kind") == "gap"]   # 以前出过、已经记进账本的事
+    out.append("".join(f'<p>{word("记着")} 第 {x["n"]} 条记着：在它之前，{e(x["why"])}。</p>' for x in gaps))
     if bad:
         out.append("<table>" + "".join(
             f"<tr><td>{f'第 {i} 行' if i else '末尾'}</td><td>{e(what(x)) if x else ''}</td><td>{e(why)}</td></tr>"
@@ -620,7 +628,7 @@ def check_page(data, go=False):
                f"<table>{''.join(rows)}</table>")
     # 账本末尾被砍掉、或被旧的换回去，链本身看不出来；data/ 里有、账本上没有的东西能露出一点
     known = {os.path.basename(runs.run_dir(data, n)) for n in st.exps}
-    known |= {t["kept"].split("/")[1] for t in st.things.values() if t.get("kept")}
+    known |= {t["kept"].split("/")[1] for t in st.things.values() if t["kept"].startswith("store/")}
     extra = [os.path.join(part, d) for part in ("runs", "store") if os.path.isdir(os.path.join(data, part))
              for d in sorted(os.listdir(os.path.join(data, part)))
              if os.path.isdir(os.path.join(data, part, d)) and d not in known and not d.startswith("tmp-")]

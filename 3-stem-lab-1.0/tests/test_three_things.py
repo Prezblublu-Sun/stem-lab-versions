@@ -62,6 +62,15 @@ class Untouched(unittest.TestCase):
         self.assertIn("账本上没有", html)
         self.assertIn("e0099", html)
         self.assertIn(m["fingerprint"][:16], html)
+        # 接着照常往里加（这里是登记一样东西）：痕迹记进账本，一直在；红字只管现在对不上的
+        lab.post("/register", {"type": "骨", "name": "示例骨", "path": os.path.join(REPO, "examples", "bone_demo.json")})
+        self.assertEqual(ledger.verify(lab.data)[1], [])
+        _, html = lab.get("/check?go=1")
+        self.assertIn("在它之前，账本末尾少了 1 条", html)
+        self.assertNotIn("处对不上", lab.get("/live")[1])
+        os.remove(os.path.join(lab.data, ledger.HEAD))           # 把头删掉再加：也记下来
+        lab.register("点", "示例点", "examples/points_demo.csv")
+        self.assertIn("在它之前，账本旁边的头不见了", lab.get("/check?go=1")[1])
 
     def test_first_start_needs_a_fresh_directory(self):
         lab = self.lab
@@ -214,6 +223,25 @@ class Traceable(unittest.TestCase):
         for words in ("它用了什么", "示例骨」第1版", "示例点」第1版", "FEA 示例 · 第1版", "载荷", "2600", "摩擦系数"):
             self.assertIn(words, html)
 
+
+    def test_data_folder_can_move(self):
+        """整个数据文件夹挪到别处再开：核对全是“一样”，旧的产出还能被选来开新实验。"""
+        lab = Lab()
+        rm, fm = lab.method("recon_demo"), lab.method("fea_demo")
+        ct = lab.register("CT", "示例CT", "examples/ct_demo.txt")
+        pts = lab.register("点", "示例点", "examples/points_demo.csv")
+        n = lab.start(lab.form(rm, {"ct": ct}))
+        lab.wait(n)
+        [bone] = lab.state().exps[n]["outputs"]
+        lab.close(keep=True)
+        moved = lab.data + "-moved"
+        shutil.move(lab.data, moved)
+        lab = Lab(moved)
+        self.addCleanup(lab.close)
+        _, html = lab.get("/check?go=1")
+        self.assertNotIn('class="bad">不一样', html)
+        self.assertNotIn("找不到了", html)
+        self.assertEqual(lab.wait(lab.start(lab.form(fm, {"bone": bone, "points": pts})))["word"], "完成")
 
     def test_output_must_be_inside_the_experiment(self):
         """做法把目录外面一个早就有的文件报成产出，不能算这个实验的产出。"""

@@ -177,15 +177,25 @@ class Handler(BaseHTTPRequestHandler):
         if action.startswith("rereg:"):   # 照原处的文件再登记一次：恢复留底，或成为新的一版，并选上
             key = action[len("rereg:"):]
             old = m if key == "做法" else st.things.get(v["inputs"].get(key))
+            if old is None:
+                return self.send(pages.new_form(d, v, ["没登记上：这一项现在没选东西。"]))
+            made_by = (old.get("source") or {}).get("experiment")
+            note = (f"这是 e{made_by:04d} 的产出跑完以后被人改过的样子，不是它原来的产出" if made_by
+                    else f"照{things.label(old)}的原处重新登记")
             try:
-                t, told = things.register(d, old["type"], old["name"], old["path"], f"从{things.label(old)}重新登记")
-            except (Problem, TypeError) as err:
+                t, told = things.register(d, old["type"], old["name"], old["path"] or things.where(d, old), note)
+            except Problem as err:
                 return self.send(pages.new_form(d, v, [f"没登记上：{err}"]))
+            if t["n"] == old["n"]:
+                told += "选的还是它。"
+            else:
+                told += ("" if made_by else f"原处的文件已经改过，{things.label(old)}的留底恢复不了。") + \
+                        f"选择已经换成{things.label(t)}。"
             if key == "做法":
                 v["method"] = t["n"]
             else:
                 v["inputs"][key] = t["n"]
-            return self.send(pages.new_form(d, v, notes=[told + "已经替你选上。"]))
+            return self.send(pages.new_form(d, v, notes=[told]))
         errors, inputs, settings, gates = [], {}, {}, []
         for i in spec.get("inputs", []):
             t = st.things.get(v["inputs"][i["key"]])

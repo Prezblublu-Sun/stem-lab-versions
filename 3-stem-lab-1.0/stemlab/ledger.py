@@ -5,6 +5,7 @@
   hash  这一条自己的指纹（除 hash 以外的全部内容，连同 prev，一起算 SHA-256）。
 哪一行被改过，它自己的 hash 就对不上；哪一行被删掉、换掉或插进来，下一行的 prev 就对不上。
 账本旁边还有一个 ledger.head，记着最后一条的编号和指纹：末尾被砍掉、或整个换成旧的，和它一比就知道。
+往里加之前先和头比；对不上，就先在账本里加一条 gap 记下这件事，再照常加。这样痕迹一直留在账本里。
 
 页面服务和各个实验的看护进程都会往里加，所以加之前先拿文件锁。
 """
@@ -110,37 +111,74 @@ def read(data):
     return entries
 
 
+def _head(data):
+    """账本旁边的头：最后一条的编号和指纹。没有返回 None，读不懂返回 {}。"""
+    try:
+        with open(os.path.join(data, HEAD), encoding="utf-8") as f:
+            head = json.load(f)
+    except FileNotFoundError:
+        return None
+    except ValueError:
+        return {}
+    return head if isinstance(head, dict) else {}
+
+
+def _gap(head, last):
+    """账本最后一条（没有就是 None）和头对不上的地方，用一句话说；对得上返回空。"""
+    n, h = (last or {}).get("n", 0), (last or {}).get("hash")
+    if head is None:
+        return "账本旁边的头不见了" if last else ""
+    if not isinstance(head.get("n"), int):
+        return "账本旁边的头读不懂：被改过"
+    if n < head["n"]:
+        return f"账本末尾少了 {head['n'] - n} 条：被砍掉过，或被换成了旧的"
+    if n == head["n"] and h != head.get("hash"):
+        return "账本最后一条和头里记的指纹不一样：被换过"
+    return ""
+
+
+def _add(data, last, body):
+    """真正写一条：接在 last 后面，写进账本，再把头改成这一条。"""
+    last = last or {"n": 0, "hash": ""}
+    entry = {"n": last["n"] + 1, "time": now(), **body, "prev": last["hash"]}
+    entry["hash"] = _digest(entry)
+    with open(os.path.join(data, FILE), "a", encoding="utf-8", newline="\n") as f:
+        f.write(_canon(entry) + "\n")
+        f.flush()
+        os.fsync(f.fileno())
+    with open(os.path.join(data, HEAD), "w", encoding="utf-8") as f:
+        json.dump({"n": entry["n"], "hash": entry["hash"]}, f)
+    return entry
+
+
 def append(data, make):
     """往账本后面加一条，返回加上去的那一条。
 
     make 可以直接是一条（dict），也可以是一个函数：拿到现有的全部条目，返回要加的那一条，
     返回 None 就不加。“第几版”这种要看着前面才定得下来的数，就这样在锁里算，不会撞号。
+    账本和头对不上时不挡（挡了看护进程就收不了尾），先加一条 gap 把这件事记下来。
     """
     os.makedirs(data, exist_ok=True)
-    path = os.path.join(data, FILE)
-    with _threads, grab(path + ".lock", float("inf")) as lk:
+    with _threads, grab(os.path.join(data, FILE) + ".lock", float("inf")) as lk:
         try:
             entries = read(data)
             body = make(entries) if callable(make) else make
             if body is None:
                 return None
-            last = entries[-1] if entries else {"n": 0, "hash": ""}
-            entry = {"n": last["n"] + 1, "time": now(), **body, "prev": last["hash"]}
-            entry["hash"] = _digest(entry)
-            with open(path, "a", encoding="utf-8", newline="\n") as f:
-                f.write(_canon(entry) + "\n")
-                f.flush()
-                os.fsync(f.fileno())
-            with open(os.path.join(data, HEAD), "w", encoding="utf-8") as f:
-                json.dump({"n": entry["n"], "hash": entry["hash"]}, f)
-            return entry
+            last, head = (entries[-1] if entries else None), _head(data)
+            why = _gap(head, last)
+            if why:
+                last = _add(data, last, {"kind": "gap", "why": why, "head": head,
+                                         "last": {"n": last["n"], "hash": last["hash"]} if last else None})
+            return _add(data, last, body)
         finally:
             _unlock(lk)
 
 
 def verify(data):
-    """从头核对账本。返回 (一共几行, [(第几行, 那一条, 哪里不对)])；列表是空的就是都对得上。
-    除了逐行核对链，还和旁边的头比：账本比头短，就是末尾被砍掉过，或被换成了旧的。"""
+    """从头核对账本。返回 (一共几行, [(第几行, 那一条, 哪里不对)])；列表是空的就是现在都对得上。
+    除了逐行核对链，还和旁边的头比：末尾被砍掉、整个换成旧的、头不见了，都算现在对不上。
+    已经记进账本的 gap（以前出过的事）不算在这里，核对页另外列。"""
     path = os.path.join(data, FILE)
     if not os.path.exists(path):
         return 0, []
@@ -148,16 +186,10 @@ def verify(data):
         try:
             with open(path, encoding="utf-8") as f:
                 lines = f.read().splitlines()
-            try:
-                with open(os.path.join(data, HEAD), encoding="utf-8") as f:
-                    head = json.load(f)
-            except FileNotFoundError:
-                head = None                     # 早先的数据没有头，就不比
-            except ValueError:
-                head = {}
+            head = _head(data)
         finally:
             _unlock(lk)
-    bad, prev, last_n = [], "", 0
+    bad, prev, last = [], "", None
     for i, line in enumerate(lines, 1):
         try:
             entry = json.loads(line)
@@ -169,11 +201,10 @@ def verify(data):
             bad.append((i, entry, "内容和它自己的指纹对不上：这一行被改过"))
         elif prev is not None and entry.get("prev") != prev:
             bad.append((i, entry, "接不上上一行：它前面有一行被删掉、换掉或插进来过"))
-        prev, last_n = entry.get("hash"), entry.get("n", last_n)
-    if head is not None and not isinstance(head, dict) or head == {}:
-        bad.append((None, None, "账本旁边的头读不懂：被改过"))
-    elif head and isinstance(head.get("n"), int) and last_n < head["n"]:
-        bad.append((None, None, f"账本末尾少了 {head['n'] - last_n} 条：被砍掉过，或被换成了旧的"))
+        prev, last = entry.get("hash"), entry
+    why = _gap(head, last)
+    if why:
+        bad.append((None, None, why))
     return len(lines), bad
 
 

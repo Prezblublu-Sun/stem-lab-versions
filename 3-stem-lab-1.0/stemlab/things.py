@@ -29,8 +29,9 @@ def label(t):
 
 
 def where(data, entry):
-    """一样登记过的东西，实验要用时在哪：外来的看留底，实验的产出看它在实验目录里的位置。"""
-    return os.path.normpath(os.path.join(data, entry["kept"])) if entry.get("kept") else entry["path"]
+    """一样登记过的东西，实验要用时在哪：外来的是留底，实验的产出是它在实验目录里的位置。
+    两种都按相对 data 的位置记，整个数据文件夹挪到别处也找得到。"""
+    return os.path.normpath(os.path.join(data, entry["kept"]))
 
 
 def check(data, entry):
@@ -106,8 +107,9 @@ def register(data, type_, name, path, note="", source=None):
         raise Problem("要写名字")
     if source is None:
         kept, fp, files, told = _keep(data, path)
-    else:
-        (fp, files), kept, told = fingerprint.of(path), None, ""
+    else:   # 实验的产出：不抄，记它在 data 里的位置
+        (fp, files), told = fingerprint.of(path), ""
+        kept, path = os.path.relpath(path, data).replace(os.sep, "/"), None
     same = {}
 
     def make(entries):

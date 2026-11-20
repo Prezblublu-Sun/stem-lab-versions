@@ -15,16 +15,17 @@ from stemlab import ledger, runs, things, web  # noqa: E402
 
 
 class Lab:
-    def __init__(self):
-        self.data = tempfile.mkdtemp(prefix="stemlab-test-")
+    def __init__(self, data=None):
+        self.data = data or tempfile.mkdtemp(prefix="stemlab-test-")
         self.srv = web.make_server(self.data, 0)
         self.base = f"http://127.0.0.1:{self.srv.server_address[1]}"
         threading.Thread(target=self.srv.serve_forever, daemon=True).start()
 
-    def close(self):
+    def close(self, keep=False):
         self.srv.shutdown()
         self.srv.server_close()
-        shutil.rmtree(self.data, ignore_errors=True)
+        if not keep:
+            shutil.rmtree(self.data, ignore_errors=True)
 
     def get(self, path):
         with urllib.request.urlopen(self.base + path) as r:
