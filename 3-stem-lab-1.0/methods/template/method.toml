@@ -1,0 +1,50 @@
+# 空模板：照着它写一个自己的做法。
+# 一个做法 = 一个文件夹，里面有这个 method.toml，和它要跑的东西（脚本、输入文件模板……）。
+# 写好以后，在页面“登记的东西”里登记：类型写“做法”，路径指向这个文件夹。
+# 登记时系统会把整个文件夹按指纹抄一份留底，实验跑的是留底那一份；
+# 以后改了这个文件夹，要再登记一次，才是新的一版。
+
+name = "空模板"            # 页面上显示的名字
+category = "FEA"           # 哪一类：新建实验时按它筛。一个词，比如 重建 / FEA / 代理 / 优化
+about = "空模板，什么也不算，只演示约定。"   # 一句说明，新建页上显示
+
+# 命令行。可以用三个占位：
+#   {python}  跑 stem-lab 的那个 Python
+#   {method}  这个做法留底的文件夹
+#   {run}     这次实验的目录（task.json 在里面，进度、结果也写在里面）
+# 要跑 .bat（比如 abaqus），写成  cmd /c abaqus cae noGUI={method}/build.py -- {run}
+command = "{python} {method}/run.py {run}"
+
+# ---- 要选的东西：每一项在新建页上是一个下拉框，从登记过的同类型东西里挑 ----
+[[inputs]]
+key = "bone"          # 脚本里用 task["inputs"]["bone"] 拿到它的路径
+type = "骨"           # 登记时写的类型
+label = "哪根骨"      # 页面上的叫法
+optional = true       # 可以不选；不写就是必须选
+
+# ---- 设置项：kind 只有五种：数、整数、选项、开关、文字 ----
+[[settings]]
+key = "load"          # 脚本里用 task["settings"]["load"]
+name = "载荷"         # 页面上的名字
+group = "条件"        # 分组：设计量、条件、网格和求解、接触……随你写
+kind = "数"
+unit = "N"
+default = 2300
+min = 0               # 范围由做法自己写；min、max 不写就是不限
+max = 10000
+about = "一句说明"
+
+[[settings]]
+key = "mode"
+name = "模式"
+group = "条件"
+kind = "选项"
+choices = ["甲", "乙"]
+default = "甲"
+
+# ---- 它会报哪些数：页面上可以对这些数写门槛；suggest 是建议的门槛（可以不写） ----
+[[reports]]
+key = "answer"
+name = "答案"
+unit = "无"
+suggest = ">= 0"

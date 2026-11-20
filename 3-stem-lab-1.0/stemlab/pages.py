@@ -193,7 +193,7 @@ def split_gate(text):
 
 
 def setting_input(s, raw):
-    name = f'set_{e(s["key"])}'
+    name = f'set_{e(s["key"])}" aria-label="{e(s.get("name") or s["key"])}'
     if s["kind"] == "开关":
         try:
             on = things.parse_value(s, raw)
@@ -268,7 +268,7 @@ def new_form(data, v, errors=(), notes=(), changed=()):
         o += [f'<option value="{t["n"]}"{" selected" if t["n"] == chosen else ""}>{e(t["name"])} · '
               f'第{t["version"]}版 · {e(origin(st, t, html=False))}</option>' for t in opts]
         rows.append(f'<tr><td>{e(label)}<div class="small">{e(typ)}{"，可以不选" if inp.get("optional") else ""}'
-                    f'</div></td><td><select name="in_{e(key)}">{"".join(o)}</select></td></tr>')
+                    f'</div></td><td><select name="in_{e(key)}" aria-label="{e(label)}">{"".join(o)}</select></td></tr>')
     f.append("<table>" + "".join(rows) + "</table>" if rows else "<p>这个做法不用选东西。</p>")
 
     f.append("<h2>第 3 步：填设置</h2>")

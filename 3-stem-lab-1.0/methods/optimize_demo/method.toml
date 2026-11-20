@@ -1,0 +1,69 @@
+# 优化示例 —— 只是示例，不是科学。
+# 在模型给的范围里随机撒点，用模型预测，留下最好的几个，产出一批“点”（可以再拿去跑 FEA）。
+
+name = "优化示例"
+category = "优化"
+command = "{python} {method}/run.py {run}"
+about = "示例，不是科学：在模型的范围里随机撒点、用模型预测，留下最好的几个，产出一批“点”。"
+
+[[inputs]]
+key = "model"
+type = "模型"
+label = "用哪个模型"
+
+[[settings]]
+key = "samples"
+name = "撒多少个点"
+group = "搜索"
+kind = "整数"
+default = 500
+min = 10
+max = 100000
+
+[[settings]]
+key = "keep"
+name = "留几个"
+group = "搜索"
+kind = "整数"
+default = 5
+min = 1
+max = 100
+
+[[settings]]
+key = "goal"
+name = "方向"
+group = "目标"
+kind = "选项"
+choices = ["越小越好", "越大越好"]
+default = "越小越好"
+
+[[settings]]
+key = "seed"
+name = "随机种子"
+group = "搜索"
+kind = "整数"
+default = 1
+min = 0
+
+[[settings]]
+key = "points_name"
+name = "点的名字"
+group = "产出"
+kind = "文字"
+default = "优化出的点"
+
+[[settings]]
+key = "pause"
+name = "每批停顿"
+group = "演示"
+kind = "数"
+unit = "秒"
+default = 0.3
+min = 0
+max = 10
+about = "分 10 批撒点，每批停这么久"
+
+[[reports]]
+key = "best"
+name = "最好的预测值"
+unit = "和模型的目标同单位"

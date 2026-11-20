@@ -128,16 +128,21 @@ def start(data, n, verify=True):
                              "why": f"看护进程起不来：{err}"})
 
 
+_watchers = []   # 起过的看护进程；已经结束的，下次起新的时顺手收掉
+
+
 def _spawn(args, cwd, log):
     """起一个和页面服务脱钩的进程：页面服务关掉它照跑；Windows 上不弹窗口。"""
+    _watchers[:] = [p for p in _watchers if p.poll() is None]
     kw = dict(cwd=cwd, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
     if os.name != "nt":
-        return subprocess.Popen(args, start_new_session=True, **kw)
+        _watchers.append(subprocess.Popen(args, start_new_session=True, **kw))
+        return
     flags = NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
     try:   # 能脱离父进程所在的“作业”就脱离，免得被它一起关掉
-        return subprocess.Popen(args, creationflags=flags | subprocess.CREATE_BREAKAWAY_FROM_JOB, **kw)
+        _watchers.append(subprocess.Popen(args, creationflags=flags | subprocess.CREATE_BREAKAWAY_FROM_JOB, **kw))
     except OSError:
-        return subprocess.Popen(args, creationflags=flags, **kw)
+        _watchers.append(subprocess.Popen(args, creationflags=flags, **kw))
 
 
 def stop(data, n):
