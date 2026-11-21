@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>stem-lab 仪表盘</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --line: #dfe2e8; --text: #1c2330; --dim: #667085;
+    --track: #e6e9ef; --fill: #3b6fd4; --warn: #c9821a; --bad: #c8453b; --good: #2e8b57;
+    --queue: #8a93a5; --run: #3b6fd4; --stop: #a37c2c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --panel: #1c2027; --line: #2c323c; --text: #e4e7ec; --dim: #98a2b3;
+      --track: #2a303a; --fill: #6b9bf0; --warn: #e0a84a; --bad: #ef6b60; --good: #58c08a;
+      --queue: #7a8496; --run: #6b9bf0; --stop: #c9a45a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", sans-serif; }
+  main { max-width: 1240px; margin: 0 auto; padding: 16px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; margin-bottom: 14px; }
+  h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  h2 { font-size: 14px; margin: 22px 0 8px; font-weight: 600; }
+  h2 small { font-weight: 400; color: var(--dim); margin-left: 8px; }
+  .dim { color: var(--dim); }
+  .num { font-variant-numeric: tabular-nums; }
+  #home { min-width: 0; overflow-wrap: anywhere; }
+  #live { margin-left: auto; }
+  #live.off { color: var(--bad); font-weight: 600; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 12px; }
+  .card { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+  .card h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--good); flex: none; }
+  .dot.off { background: var(--bad); }
+  .meter { display: grid; grid-template-columns: 4.2em 1fr 9.5em; align-items: center; gap: 8px; margin: 5px 0; }
+  .bar { height: 8px; background: var(--track); border-radius: 4px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--fill); border-radius: 4px; }
+  .bar i.warn { background: var(--warn); } .bar i.bad { background: var(--bad); }
+  .meter .val { text-align: right; white-space: nowrap; }
+  .sub { margin: 9px 0 2px; color: var(--dim); font-size: 12.5px; overflow-wrap: anywhere; }
+  .err { color: var(--bad); overflow-wrap: anywhere; }
+  .badge { display: inline-block; padding: 0 8px; border-radius: 10px; font-size: 12px; line-height: 20px;
+    border: 1px solid var(--line); white-space: nowrap; }
+  .b-运行中 { color: var(--run); border-color: var(--run); }
+  .b-已暂停, .b-已停止 { color: var(--stop); border-color: var(--stop); }
+  .b-已结束 { color: var(--good); border-color: var(--good); }
+  .exp-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+  .exp-head .id { font-weight: 600; font-size: 15px; }
+  .note { margin: 4px 0 8px; overflow-wrap: anywhere; }
+  .seg { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--track); margin: 6px 0; }
+  .seg i { display: block; height: 100%; }
+  .s-排队 { background: var(--queue); } .s-运行 { background: var(--run); } .s-完成 { background: var(--good); }
+  .s-失败 { background: var(--bad); } .s-停止 { background: var(--stop); }
+  .counts { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .counts span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px;
+    margin-right: 5px; background: var(--c); }
+  details { margin-top: 8px; }
+  summary { cursor: pointer; color: var(--dim); }
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 5px 10px 5px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--dim); font-weight: 400; font-size: 12.5px; white-space: nowrap; }
+  td.nowrap { white-space: nowrap; }
+  td.wrap { overflow-wrap: anywhere; min-width: 14em; }
+  td.name { overflow-wrap: anywhere; }
+  tr:last-child td { border-bottom: 0; }
+  .t-失败 { color: var(--bad); } .t-完成 { color: var(--good); } .t-运行 { color: var(--run); }
+  .empty { color: var(--dim); padding: 4px 0; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>stem-lab 仪表盘</h1>
+    <span class="dim" id="home"></span>
+    <span class="dim num" id="live">正在读…</span>
+  </header>
+
+  <h2>机器</h2>
+  <div class="grid" id="machines"></div>
+
+  <h2>进行中的实验<small id="n-running"></small></h2>
+  <div class="grid" id="running"></div>
+
+  <h2>刚结束的<small id="n-recent"></small></h2>
+  <div class="card scroll" id="recent"></div>
+
+  <h2>问题<small id="n-problems"></small></h2>
+  <div class="card scroll" id="problems"></div>
+
+  <h2>还没启动的<small id="n-idle"></small></h2>
+  <div class="card scroll" id="idle"></div>
+</main>
+
+<script>
+const EVERY = 5000;
+const STATES = ["排队", "运行", "完成", "失败", "停止"];
+const openIds = new Set();
+
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") el.className = v; else if (k === "style") el.style.cssText = v; else el.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) {
+    if (kid === null || kid === undefined || kid === false) continue;
+    el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  }
+  return el;
+}
+const clock = iso => iso ? iso.slice(5, 16).replace("T", " ") + ":" + iso.slice(17, 19) : "";
+const fill = (id, ...kids) => { const el = document.getElementById(id); el.replaceChildren(...kids.flat()); };
+const n1 = x => (x === null || x === undefined) ? "…" : Number(x).toFixed(Number(x) >= 100 ? 0 : 1);
+
+function meter(label, percent, text) {
+  const p = Math.max(0, Math.min(100, percent || 0));
+  const cls = p >= 95 ? "bad" : p >= 85 ? "warn" : "";
+  return h("div", {class: "meter"}, h("span", {class: "dim"}, label),
+    h("div", {class: "bar"}, h("i", {class: cls, style: `width:${p}%`})),
+    h("span", {class: "val num"}, text));
+}
+
+function machineCard(m) {
+  const kids = [h("h3", {}, h("span", {class: "dot" + (m.ok ? "" : " off")}), m.name, h("span", {class: "dim"}, m.kind))];
+  if (!m.ok) kids.push(h("div", {class: "err"}, m.error || "连不上"));
+  if (m.mem) {
+    kids.push(meter("CPU", m.cpu, `${n1(m.cpu)}%　${m.cores || "?"} 核`));
+    kids.push(meter("内存", m.mem.percent, `${n1(m.mem.used_gb)} / ${n1(m.mem.total_gb)} GB`));
+    for (const g of m.gpus || []) {
+      kids.push(h("div", {class: "sub"}, `GPU ${g.index}　${g.name}`));
+      kids.push(meter("占用", g.util, `${n1(g.util)}%`));
+      kids.push(meter("显存", 100 * g.mem_used_mb / g.mem_total_mb, `${n1(g.mem_used_mb / 1024)} / ${n1(g.mem_total_mb / 1024)} GB`));
+    }
+    if (!(m.gpus || []).length) kids.push(h("div", {class: "sub"}, "没有读到 GPU"));
+    if ((m.disks || []).length) kids.push(h("div", {class: "sub"}, "磁盘"));
+    for (const d of m.disks || []) {
+      kids.push(d.error ? h("div", {class: "err"}, `${d.path}　${d.error}`)
+        : meter(d.path, d.percent, `${n1(d.used_gb)} / ${n1(d.total_gb)} GB`));
+    }
+    kids.push(h("div", {class: "sub num"}, `采于 ${clock(m.time)}`));
+  }
+  return h("div", {class: "card"}, kids);
+}
+
+function counts(c) {
+  return h("div", {class: "counts num"}, STATES.filter(s => c[s]).map(s =>
+    h("span", {style: `--c: var(--${{排队: "queue", 运行: "run", 完成: "good", 失败: "bad", 停止: "stop"}[s]})`}, `${s} ${c[s]}`)));
+}
+
+function expCard(e) {
+  const total = e.tasks.length || 1;
+  const d = h("details", {}, h("summary", {}, `每个任务走到哪（${e.tasks.length} 个）`),
+    h("div", {class: "scroll"}, h("table", {},
+      h("tr", {}, ["任务", "状态", "阶段", "机器", "从"].map(t => h("th", {}, t))),
+      e.tasks.map(t => h("tr", {}, h("td", {class: "name"}, t.name), h("td", {class: "nowrap t-" + t.state}, t.state),
+        h("td", {}, t.stage), h("td", {class: "nowrap"}, t.machine), h("td", {class: "nowrap num"}, clock(t.since)))))));
+  if (openIds.has(e.id)) d.setAttribute("open", "");
+  d.addEventListener("toggle", () => d.open ? openIds.add(e.id) : openIds.delete(e.id));
+  return h("div", {class: "card"},
+    h("div", {class: "exp-head"}, h("span", {class: "id"}, e.id), h("span", {class: "badge b-" + e.status}, e.status),
+      h("span", {class: "dim"}, `${e.plugin}（${e.category}）`), e.tags.map(t => h("span", {class: "badge"}, t))),
+    h("div", {class: "note"}, e.note || h("span", {class: "dim"}, "（没写说明）")),
+    h("div", {class: "seg"}, STATES.filter(s => e.counts[s]).map(s =>
+      h("i", {class: "s-" + s, style: `width:${100 * e.counts[s] / total}%`, title: `${s} ${e.counts[s]}`}))),
+    e.tasks.length ? counts(e.counts) : h("div", {class: "dim"}, "还没有任务"),
+    h("div", {class: "sub num"}, `启动于 ${clock(e.started)}　最后有变化 ${clock(e.updated)}　问题 ${e.problems.length}`),
+    e.tasks.length ? d : null);
+}
+
+function table(heads, rows, empty) {
+  if (!rows.length) return h("div", {class: "empty"}, empty);
+  return h("table", {}, h("tr", {}, heads.map(t => h("th", {}, t))), rows);
+}
+
+function render(s) {
+  document.getElementById("home").textContent = s.home;
+  fill("machines", s.machines.length ? s.machines.map(machineCard) : h("div", {class: "empty"}, "没有配置机器"));
+
+  document.getElementById("n-running").textContent = `${s.running.length} 个`;
+  fill("running", s.running.length ? s.running.map(expCard) : h("div", {class: "empty"}, "现在没有在跑的实验"));
+
+  document.getElementById("n-recent").textContent = `最近 ${s.recent.length} 个，共 ${s.ended_total} 个`;
+  fill("recent", table(["编号", "状态", "插件", "说明", "任务", "问题", "最后有变化"], s.recent.map(e =>
+    h("tr", {}, h("td", {class: "nowrap"}, e.id), h("td", {}, h("span", {class: "badge b-" + e.status}, e.status)),
+      h("td", {class: "nowrap"}, `${e.plugin}（${e.category}）`), h("td", {class: "wrap"}, e.note), h("td", {}, counts(e.counts)),
+      h("td", {class: "num" + (e.problems.length ? " t-失败" : "")}, e.problems.length), h("td", {class: "nowrap num"}, clock(e.updated)))),
+    "还没有结束的实验"));
+
+  document.getElementById("n-problems").textContent = `最近 ${s.problems.length} 条，共 ${s.problems_total} 条`;
+  fill("problems", table(["时间", "实验", "任务", "出了什么问题"], s.problems.map(p =>
+    h("tr", {}, h("td", {class: "nowrap num"}, clock(p.time)), h("td", {class: "nowrap"}, p.id),
+      h("td", {}, p.task), h("td", {class: "wrap"}, p.error))), "没有问题"));
+
+  document.getElementById("n-idle").textContent = `${s.not_started.length} 个`;
+  fill("idle", table(["编号", "插件", "说明", "新建于"], s.not_started.map(e =>
+    h("tr", {}, h("td", {class: "nowrap"}, e.id), h("td", {class: "nowrap"}, `${e.plugin}（${e.category}）`),
+      h("td", {class: "wrap"}, e.note), h("td", {class: "nowrap num"}, clock(e.created)))), "没有"));
+
+  if (s.unreadable.length) document.getElementById("idle").append(
+    h("div", {class: "err"}, `记录读不出来的实验：${s.unreadable.join("、")}`));
+}
+
+async function tick() {
+  const live = document.getElementById("live");
+  try {
+    const r = await fetch("/api/state", {cache: "no-store"});
+    if (!r.ok) throw new Error(r.status);
+    const s = await r.json();
+    render(s);
+    live.className = "dim num";
+    live.textContent = `更新于 ${clock(s.time)}，每 ${EVERY / 1000} 秒一次`;
+  } catch (err) {
+    live.className = "off";
+    live.textContent = "仪表盘服务连不上，显示的是旧的";
+  }
+}
+tick();
+setInterval(() => { if (!document.hidden) tick(); }, EVERY);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); });
+</script>
+</body>
+</html>

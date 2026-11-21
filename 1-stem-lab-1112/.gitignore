@@ -1,0 +1,6 @@
+__pycache__/
+.pytest_cache/
+# 实验记录和产出是数据，先不进 git。要不要进，等定。
+experiments/
+# 机器清单里有本地的地址和用户名，不进 git。样子见 machines.example.json
+machines.json
