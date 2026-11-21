@@ -1,0 +1,37 @@
+# Abaqus 检查 —— 检查用的，不是研究用的做法。
+# 从 stem-lab 里（看护进程下面、没有控制台窗口）起真的 Abaqus：一个 C3D8 单元单轴拉伸，
+# 照设置里的几个应变各跑一次，把算出来的应力和理论值（210000 MPa × 应变）比。
+# 要这台机器装了 Abaqus；每跑一次占几秒钟许可证。
+# 一个包三样：method.toml（说明，就是这个）、run.py（计算）、show.py（结果展示）；one_elem.inp 是算例模板。
+
+name = "Abaqus 检查"
+category = "FEA"
+command = "{python} {method}/run.py {run}"
+about = "检查用的，不是研究用的：一个单元拉伸，照几个应变各跑一次真的 Abaqus，应力和理论值比。要这台机器装了 Abaqus，每次占几秒钟许可证。"
+
+[[settings]]
+key = "strains"
+name = "拉伸应变"
+group = "算例"
+kind = "文字"
+default = "0.001, 0.002, 0.003"
+about = "用逗号隔开，每个值跑一次 Abaqus；单位立方体，顶面位移就是应变"
+
+[[settings]]
+key = "launcher"
+name = "Abaqus 启动器"
+group = "环境"
+kind = "文字"
+default = 'D:\SIMULIA\Commands\abq2025.bat'
+about = "这台机器上 Abaqus 的启动器（.bat）的完整路径"
+
+[[reports]]
+key = "max_error"
+name = "应力和理论值最多差多少"
+unit = "%"
+suggest = "<= 0.1"
+
+[[reports]]
+key = "modulus"
+name = "算出来的弹性模量"
+unit = "MPa"

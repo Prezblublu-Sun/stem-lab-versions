@@ -1,0 +1,59 @@
+# 自带的模板和示例材料。
+# “登记的东西”页上的“把自带的模板和示例材料登记进来”会把这里列的、还没登记的全部登记进去；
+# 已经登记过、内容没变的，不会多出来。这份清单可以随手改：加、删、改名字和说明都行。
+# 路径相对这个文件所在的文件夹（examples/）。做法的名字可以不写，用它 method.toml 里的名字。
+
+[[item]]
+type = "做法"
+path = "../methods/recon_demo"
+note = "自带的示例模板，不是科学"
+
+[[item]]
+type = "做法"
+path = "../methods/fea_demo"
+note = "自带的示例模板，不是科学"
+
+[[item]]
+type = "做法"
+path = "../methods/surrogate_demo"
+note = "自带的示例模板，不是科学"
+
+[[item]]
+type = "做法"
+path = "../methods/optimize_demo"
+note = "自带的示例模板，不是科学"
+
+[[item]]
+type = "做法"
+path = "../methods/abaqus_demo"
+note = "自带的检查模板：要这台机器装了 Abaqus"
+
+[[item]]
+type = "CT"
+name = "示例CT"
+path = "ct_demo.txt"
+note = "假的 CT，只为走通重建示例"
+
+[[item]]
+type = "骨"
+name = "示例骨"
+path = "bone_demo.json"
+note = "示例，不是真的骨"
+
+[[item]]
+type = "点"
+name = "示例点"
+path = "points_demo.csv"
+note = "12 个示例点"
+
+[[item]]
+type = "结果"
+name = "示例结果"
+path = "results_demo.csv"
+note = "用 FEA 示例算好的 30 个点，给代理示例单独启动用"
+
+[[item]]
+type = "模型"
+name = "示例模型"
+path = "model_demo.json"
+note = "用代理示例拟合好的模型，给优化示例单独启动用"

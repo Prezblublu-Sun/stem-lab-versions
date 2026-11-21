@@ -1,0 +1,82 @@
+# 代理示例 —— 只是示例，不是科学。
+# 读一份结果表，用最小二乘拟合一个一次或二次多项式，留出一部分点算误差。
+
+name = "代理示例"
+category = "代理"
+command = "{python} {method}/run.py {run}"
+about = "示例，不是科学：读一份结果表，最小二乘拟合一个多项式当代理，报留出的那部分点上的误差。"
+
+[[inputs]]
+key = "result"
+type = "结果"
+label = "用哪份结果训练"
+
+[[settings]]
+key = "target"
+name = "要预测的列"
+group = "数据"
+kind = "文字"
+default = "max_stress"
+
+[[settings]]
+key = "features"
+name = "输入的列"
+group = "数据"
+kind = "文字"
+default = "length,offset"
+about = "用逗号隔开"
+
+[[settings]]
+key = "degree"
+name = "多项式次数"
+group = "训练"
+kind = "选项"
+choices = ["一次", "二次"]
+default = "二次"
+
+[[settings]]
+key = "holdout"
+name = "留出比例"
+group = "训练"
+kind = "数"
+default = 0.25
+min = 0
+max = 0.5
+about = "这么多点不参与拟合，用来算误差；0 就在训练的点上算"
+
+[[settings]]
+key = "seed"
+name = "随机种子"
+group = "训练"
+kind = "整数"
+default = 1
+min = 0
+about = "决定哪些点被留出"
+
+[[settings]]
+key = "model_name"
+name = "模型的名字"
+group = "产出"
+kind = "文字"
+default = "代理示例模型"
+
+[[settings]]
+key = "pause"
+name = "每步停顿"
+group = "演示"
+kind = "数"
+unit = "秒"
+default = 0.3
+min = 0
+max = 10
+
+[[reports]]
+key = "rel_error"
+name = "相对误差"
+unit = "%"
+suggest = "<= 10"
+
+[[reports]]
+key = "rmse"
+name = "均方根误差"
+unit = "和要预测的列同单位"

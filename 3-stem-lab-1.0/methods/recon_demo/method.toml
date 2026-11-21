@@ -1,0 +1,79 @@
+# 重建示例 —— 只是示例，不是科学。
+# 它不做 CT 重建：把选来的任何一个文件当作“CT”，按文件内容和设置算出一根“骨”的几个数。
+
+name = "重建示例"
+category = "重建"
+command = "{python} {method}/run.py {run}"
+about = "示例，不是科学：把任何一个文件当作 CT，按内容算出一根“骨”（皮质厚度、密度、长度），报一个“表面误差”。"
+
+[[inputs]]
+key = "ct"
+type = "CT"
+label = "哪份 CT"
+
+[[settings]]
+key = "threshold"
+name = "阈值"
+group = "分割"
+kind = "数"
+unit = "HU"
+default = 300
+min = 100
+max = 1500
+about = "示例里阈值越高，皮质越厚"
+
+[[settings]]
+key = "smooth"
+name = "平滑次数"
+group = "分割"
+kind = "整数"
+default = 3
+min = 0
+max = 20
+
+[[settings]]
+key = "fill_holes"
+name = "填洞"
+group = "分割"
+kind = "开关"
+default = true
+
+[[settings]]
+key = "voxel"
+name = "体素尺寸"
+group = "网格"
+kind = "数"
+unit = "mm"
+default = 0.5
+min = 0.1
+max = 2
+about = "示例里体素越大，表面误差越大"
+
+[[settings]]
+key = "bone_name"
+name = "骨的名字"
+group = "产出"
+kind = "文字"
+default = "重建出的骨"
+about = "产出登记成“骨”时用的名字；页面上会写明它是哪个实验产出的"
+
+[[settings]]
+key = "pause"
+name = "每层停顿"
+group = "演示"
+kind = "数"
+unit = "秒"
+default = 0.3
+min = 0
+max = 10
+
+[[reports]]
+key = "surface_error"
+name = "表面误差"
+unit = "mm"
+suggest = "<= 0.8"
+
+[[reports]]
+key = "cortex"
+name = "皮质厚度"
+unit = "mm"

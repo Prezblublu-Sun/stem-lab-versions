@@ -1,0 +1,103 @@
+# FEA 示例 —— 只是示例，不是科学。
+# 它不做有限元：每个点用一个随手写的公式顶替，几秒就跑完。
+# 用来走通“选骨、选点、填设置、写门槛、看结果”这几步，也给写真做法的人当个样子。
+
+name = "FEA 示例"
+category = "FEA"                              # 重建 / FEA / 代理 / 优化，新建实验时按它筛
+command = "{python} {method}/run.py {run}"    # {python} 跑核心的解释器，{method} 做法留底，{run} 实验目录
+about = "示例，不是科学：每个点用一个公式顶替有限元，算出“最大应力”和“微动”。"
+
+# ---- 要选的东西 ----
+[[inputs]]
+key = "bone"
+type = "骨"
+label = "哪根骨"
+
+[[inputs]]
+key = "points"
+type = "点"
+label = "哪批点"
+
+# ---- 设置项：kind 只有 数、整数、选项、开关、文字 五种；范围不写就是不限 ----
+[[settings]]
+key = "load"
+name = "载荷"
+group = "条件"
+kind = "数"
+unit = "N"
+default = 2300
+min = 500
+max = 5000
+about = "加在柄头上的力"
+
+[[settings]]
+key = "angle"
+name = "载荷角度"
+group = "条件"
+kind = "数"
+unit = "度"
+default = 15
+min = 0
+max = 45
+about = "力和柄轴线的夹角"
+
+[[settings]]
+key = "mesh"
+name = "网格尺寸"
+group = "网格和求解"
+kind = "数"
+unit = "mm"
+default = 2.0
+min = 0.5
+max = 5
+about = "示例里只让结果有一点点变化"
+
+[[settings]]
+key = "solver"
+name = "求解器"
+group = "网格和求解"
+kind = "选项"
+choices = ["标准", "显式"]
+default = "标准"
+about = "示例里选哪个都一样"
+
+[[settings]]
+key = "friction"
+name = "摩擦系数"
+group = "接触"
+kind = "数"
+default = 0.3
+min = 0
+max = 1
+
+[[settings]]
+key = "bonded"
+name = "绑定接触"
+group = "接触"
+kind = "开关"
+default = false
+about = "开了就当柄和骨长在一起，微动为 0"
+
+[[settings]]
+key = "pause"
+name = "每个点停顿"
+group = "演示"
+kind = "数"
+unit = "秒"
+default = 0.5
+min = 0
+max = 10
+about = "只为了在仪表盘上看得到它在跑"
+
+# ---- 它会报哪些数；suggest 是建议的门槛，新建时会先填上，可以改或清掉 ----
+[[reports]]
+key = "max_stress"
+name = "最大应力"
+unit = "MPa"
+suggest = "<= 120"
+
+[[reports]]
+key = "mean_micromotion"
+name = "平均微动"
+unit = "μm"
+suggest = "<= 50"
