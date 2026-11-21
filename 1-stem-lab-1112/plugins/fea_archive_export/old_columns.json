@@ -1,0 +1,1808 @@
+{
+ "old_table": "db3406 scalars.csv",
+ "old_schema_by": "db_export 0.2.5 (2026-11-08, foam_refine column; F5 rows get fidelity h<h_int>+f5h<h> and foam_refine in cond_key)",
+ "n_old_columns": 300,
+ "n_exported": 148,
+ "columns": [
+  {
+   "name": "row_id",
+   "exported": true,
+   "why_not": "",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "job_id",
+   "exported": true,
+   "why_not": "",
+   "old_source": "queue dir name"
+  },
+  {
+   "name": "stage",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json"
+  },
+  {
+   "name": "tag",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json"
+  },
+  {
+   "name": "kind",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json"
+  },
+  {
+   "name": "status",
+   "exported": true,
+   "why_not": "",
+   "old_source": "jobs.state"
+  },
+  {
+   "name": "design_key",
+   "exported": true,
+   "why_not": "",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "realization_key",
+   "exported": false,
+   "why_not": "要股骨模型的配置和几何（旧管线的股骨模块），归档里没有",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "spec_hash",
+   "exported": true,
+   "why_not": "",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "cond_key",
+   "exported": false,
+   "why_not": "要股骨模型的配置和几何（旧管线的股骨模块），归档里没有",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "fidelity",
+   "exported": true,
+   "why_not": "",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "code_hash",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json code_hash, else recomputed job id"
+  },
+  {
+   "name": "code_hash_source",
+   "exported": false,
+   "why_not": "要旧管线的代码文件在场才能算（代码哈希、由代码重算作业号）",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "code_hash_now",
+   "exported": false,
+   "why_not": "要旧管线的代码文件在场才能算（代码哈希、由代码重算作业号）",
+   "old_source": "jobs.code_hash() at export"
+  },
+  {
+   "name": "job_id_matches_code",
+   "exported": false,
+   "why_not": "要旧管线的代码文件在场才能算（代码哈希、由代码重算作业号）",
+   "old_source": "jobs.job_id(spec) == dir name under code_hash_now"
+  },
+  {
+   "name": "aux_code_md5",
+   "exported": false,
+   "why_not": "要旧管线的代码文件在场才能算（代码哈希、由代码重算作业号）",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "exporter_version",
+   "exported": false,
+   "why_not": "旧导出器自己的记录（哪一批、什么时候导出、存在哪个分片、重算误差），不是作业的数据",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "export_batch",
+   "exported": false,
+   "why_not": "旧导出器自己的记录（哪一批、什么时候导出、存在哪个分片、重算误差），不是作业的数据",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "export_time_utc",
+   "exported": false,
+   "why_not": "旧导出器自己的记录（哪一批、什么时候导出、存在哪个分片、重算误差），不是作业的数据",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "export_host",
+   "exported": false,
+   "why_not": "旧导出器自己的记录（哪一批、什么时候导出、存在哪个分片、重算误差），不是作业的数据",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "femur_id",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json"
+  },
+  {
+   "name": "femur_geom_key",
+   "exported": false,
+   "why_not": "要股骨模型的配置和几何（旧管线的股骨模块），归档里没有",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "femur_geom_verified",
+   "exported": false,
+   "why_not": "要股骨模型的配置和几何（旧管线的股骨模块），归档里没有",
+   "old_source": "export (computed) / finalize"
+  },
+  {
+   "name": "femur_geom_basis",
+   "exported": false,
+   "why_not": "要股骨模型的配置和几何（旧管线的股骨模块），归档里没有",
+   "old_source": "export (computed) / finalize"
+  },
+  {
+   "name": "femur_model_version",
+   "exported": false,
+   "why_not": "要股骨模型的配置和几何（旧管线的股骨模块），归档里没有",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "hollow_core",
+   "exported": false,
+   "why_not": "要股骨模型的配置和几何（旧管线的股骨模块），归档里没有",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "neck_axis",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json"
+  },
+  {
+   "name": "femur_pose_match",
+   "exported": false,
+   "why_not": "要股骨模型的配置和几何（旧管线的股骨模块），归档里没有",
+   "old_source": "prep.json femur_hook vs femur used by this export"
+  },
+  {
+   "name": "femur_pose_dev_mm",
+   "exported": false,
+   "why_not": "要股骨模型的配置和几何（旧管线的股骨模块），归档里没有",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "solver",
+   "exported": true,
+   "why_not": "",
+   "old_source": "solve.json"
+  },
+  {
+   "name": "solver_basis",
+   "exported": false,
+   "why_not": "要归档以外的记录（选点记录、批次清单、另补的来源说明）",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "steps",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json steps (else the step names in solve.json odb_meta)"
+  },
+  {
+   "name": "collar_rule",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json"
+  },
+  {
+   "name": "margin_check",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json"
+  },
+  {
+   "name": "a_bounds_max",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json"
+  },
+  {
+   "name": "ref_cut_mm",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json"
+  },
+  {
+   "name": "min_A0_mm2",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json"
+  },
+  {
+   "name": "L",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json design"
+  },
+  {
+   "name": "alpha",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json design"
+  },
+  {
+   "name": "h_cut",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json h_cut"
+  },
+  {
+   "name": "m",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json design"
+  },
+  {
+   "name": "rho_tip",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json design"
+  },
+  {
+   "name": "q",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json design"
+  },
+  {
+   "name": "lam",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json design"
+  },
+  {
+   "name": "g_ml",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json design"
+  },
+  {
+   "name": "g_ap",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json design"
+  },
+  {
+   "name": "n_a",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json design"
+  },
+  {
+   "name": "n_p",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json design"
+  },
+  {
+   "name": "tau_a",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json design"
+  },
+  {
+   "name": "tau_p",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json design"
+  },
+  {
+   "name": "u_L",
+   "exported": false,
+   "why_not": "要设计空间的上下界。那是选点时的设定，不在归档里",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "u_alpha",
+   "exported": false,
+   "why_not": "要设计空间的上下界。那是选点时的设定，不在归档里",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "u_h_cut",
+   "exported": false,
+   "why_not": "要设计空间的上下界。那是选点时的设定，不在归档里",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "u_m",
+   "exported": false,
+   "why_not": "要设计空间的上下界。那是选点时的设定，不在归档里",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "u_rho_tip",
+   "exported": false,
+   "why_not": "要设计空间的上下界。那是选点时的设定，不在归档里",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "u_q",
+   "exported": false,
+   "why_not": "要设计空间的上下界。那是选点时的设定，不在归档里",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "u_lam",
+   "exported": false,
+   "why_not": "要设计空间的上下界。那是选点时的设定，不在归档里",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "u_g_ml",
+   "exported": false,
+   "why_not": "要设计空间的上下界。那是选点时的设定，不在归档里",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "u_g_ap",
+   "exported": false,
+   "why_not": "要设计空间的上下界。那是选点时的设定，不在归档里",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "u_n_a",
+   "exported": false,
+   "why_not": "要设计空间的上下界。那是选点时的设定，不在归档里",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "u_n_p",
+   "exported": false,
+   "why_not": "要设计空间的上下界。那是选点时的设定，不在归档里",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "u_tau_a",
+   "exported": false,
+   "why_not": "要设计空间的上下界。那是选点时的设定，不在归档里",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "u_tau_p",
+   "exported": false,
+   "why_not": "要设计空间的上下界。那是选点时的设定，不在归档里",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "bounds_version",
+   "exported": false,
+   "why_not": "要设计空间的上下界。那是选点时的设定，不在归档里",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "in_bounds_v1",
+   "exported": false,
+   "why_not": "要设计空间的上下界。那是选点时的设定，不在归档里",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "cap_h_mm",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json"
+  },
+  {
+   "name": "collar_w_mm",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json"
+  },
+  {
+   "name": "delta_spec_mm",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json delta (empty = model default)"
+  },
+  {
+   "name": "delta_mm",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json delta (effective)"
+  },
+  {
+   "name": "mu",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json"
+  },
+  {
+   "name": "E_canc_MPa",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json E_canc (effective)"
+  },
+  {
+   "name": "load_R_N",
+   "exported": false,
+   "why_not": "要股骨模型的配置和几何（旧管线的股骨模块），归档里没有",
+   "old_source": "jobs.femur_for(spec).cfg['load'] (effective)"
+  },
+  {
+   "name": "alpha_front_deg",
+   "exported": false,
+   "why_not": "要股骨模型的配置和几何（旧管线的股骨模块），归档里没有",
+   "old_source": "effective cfg load"
+  },
+  {
+   "name": "alpha_sagit_deg",
+   "exported": false,
+   "why_not": "要股骨模型的配置和几何（旧管线的股骨模块），归档里没有",
+   "old_source": "effective cfg load"
+  },
+  {
+   "name": "head_coupling_radius_mm",
+   "exported": false,
+   "why_not": "要股骨模型的配置和几何（旧管线的股骨模块），归档里没有",
+   "old_source": "effective cfg load"
+  },
+  {
+   "name": "load_vec_N",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json load_N (model frame: +x medial, +y posterior, +z proximal)"
+  },
+  {
+   "name": "load_vec_norm_N",
+   "exported": true,
+   "why_not": "",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "h_int_mm",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json"
+  },
+  {
+   "name": "h_int_prep_mm",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json h_int (design / variant) or h_roi (intact)"
+  },
+  {
+   "name": "h_far_mm",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json"
+  },
+  {
+   "name": "slip_tol",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json"
+  },
+  {
+   "name": "cycles",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json"
+  },
+  {
+   "name": "interference",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json"
+  },
+  {
+   "name": "torque",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json"
+  },
+  {
+   "name": "entry_offset_forced_mm",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json entry_offset"
+  },
+  {
+   "name": "torsion",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json torsion (v2/torsion_load.py)"
+  },
+  {
+   "name": "pose",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json pose_fixed (v2/pose_fixed.py)"
+  },
+  {
+   "name": "foam_refine",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json foam_refine (v2/foam_refine.py)"
+  },
+  {
+   "name": "cfg_override",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json cfg"
+  },
+  {
+   "name": "bond_only",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json"
+  },
+  {
+   "name": "fric_only",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json"
+  },
+  {
+   "name": "has_prep",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json exists"
+  },
+  {
+   "name": "has_fric_model",
+   "exported": true,
+   "why_not": "",
+   "old_source": "m_fric_csv/ exists (DONE rows)"
+  },
+  {
+   "name": "has_bond_model",
+   "exported": true,
+   "why_not": "",
+   "old_source": "m_bond_csv/ exists (DONE rows)"
+  },
+  {
+   "name": "torque_stem_axis_Nmm",
+   "exported": false,
+   "why_not": "要股骨模型的配置和几何（旧管线的股骨模块），归档里没有",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "moment_shoulder_bend_Nmm",
+   "exported": false,
+   "why_not": "要股骨模型的配置和几何（旧管线的股骨模块），归档里没有",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "cons_delta",
+   "exported": true,
+   "why_not": "",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "cons_load",
+   "exported": false,
+   "why_not": "要股骨模型的配置和几何（旧管线的股骨模块），归档里没有",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "cons_h_int",
+   "exported": true,
+   "why_not": "",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "spec_in_result_match",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json spec copy == spec.json (empty for intact rows)"
+  },
+  {
+   "name": "tpl_alpha",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json templating.alpha"
+  },
+  {
+   "name": "tpl_e",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json templating.e"
+  },
+  {
+   "name": "tpl_A0",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json templating.A0"
+  },
+  {
+   "name": "tpl_contact",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json templating.contact"
+  },
+  {
+   "name": "tpl_s_bind",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json templating.s_bind"
+  },
+  {
+   "name": "tpl_volume",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json templating.volume"
+  },
+  {
+   "name": "tpl_margin",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json templating.margin"
+  },
+  {
+   "name": "e_star_mm",
+   "exported": false,
+   "why_not": "旧表里定义了但一直是空的",
+   "old_source": "D3 tpl_record.py (not in v0.1)"
+  },
+  {
+   "name": "A0_star_mm2",
+   "exported": false,
+   "why_not": "旧表里定义了但一直是空的",
+   "old_source": "D3 tpl_record.py"
+  },
+  {
+   "name": "e_margin",
+   "exported": false,
+   "why_not": "旧表里定义了但一直是空的",
+   "old_source": "D3 tpl_record.py"
+  },
+  {
+   "name": "foam_thk_p05_mm",
+   "exported": false,
+   "why_not": "要界面节点到髓腔壁的距离，这要股骨几何，归档里没有",
+   "old_source": "fields shard (this exporter)"
+  },
+  {
+   "name": "foam_thk_p50_mm",
+   "exported": false,
+   "why_not": "要界面节点到髓腔壁的距离，这要股骨几何，归档里没有",
+   "old_source": "fields shard (this exporter)"
+  },
+  {
+   "name": "area_foam_lt1_mm2",
+   "exported": false,
+   "why_not": "要界面节点到髓腔壁的距离，这要股骨几何，归档里没有",
+   "old_source": "fields shard (this exporter)"
+  },
+  {
+   "name": "bone_resected_mm3",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json bone_loss.resected_mm3"
+  },
+  {
+   "name": "bone_reamed_mm3",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json bone_loss.reamed_mm3"
+  },
+  {
+   "name": "bone_total_mm3",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json bone_loss.total_mm3"
+  },
+  {
+   "name": "stem_volume_mm3",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json"
+  },
+  {
+   "name": "fail_level",
+   "exported": true,
+   "why_not": "",
+   "old_source": "FAILED.json level (L1..L5)"
+  },
+  {
+   "name": "fail_stage",
+   "exported": true,
+   "why_not": "",
+   "old_source": "FAILED.json stage"
+  },
+  {
+   "name": "fail_reason",
+   "exported": true,
+   "why_not": "",
+   "old_source": "FAILED.json reason (first 500 chars)"
+  },
+  {
+   "name": "n_tet_cortex",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json"
+  },
+  {
+   "name": "n_tet_cancellous",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json"
+  },
+  {
+   "name": "n_tet_stem",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json"
+  },
+  {
+   "name": "n_tet_total",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json"
+  },
+  {
+   "name": "n_nodes",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json"
+  },
+  {
+   "name": "n_pairs",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json (all interface node pairs)"
+  },
+  {
+   "name": "n_pairs_cortex",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json"
+  },
+  {
+   "name": "interface_area_mm2",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json"
+  },
+  {
+   "name": "mesh_algo",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json mesh_attempt.algorithm3d"
+  },
+  {
+   "name": "mesh_h_used_mm",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json mesh_attempt.h_int"
+  },
+  {
+   "name": "mesh_section_points",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json mesh_attempt.section_points"
+  },
+  {
+   "name": "mesh_retries",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json len(mesh_attempt.previous_errors)"
+  },
+  {
+   "name": "mesh_min_vol_mm3",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json min over mesh_quality.min_vol"
+  },
+  {
+   "name": "solve_wall_s_fric",
+   "exported": true,
+   "why_not": "",
+   "old_source": "solve.json m_fric.wall_s"
+  },
+  {
+   "name": "solve_wall_s_bond",
+   "exported": true,
+   "why_not": "",
+   "old_source": "solve.json m_bond.wall_s"
+  },
+  {
+   "name": "solve_tries_fric",
+   "exported": true,
+   "why_not": "",
+   "old_source": "solve.json"
+  },
+  {
+   "name": "solve_tries_bond",
+   "exported": true,
+   "why_not": "",
+   "old_source": "solve.json"
+  },
+  {
+   "name": "export_status",
+   "exported": false,
+   "why_not": "旧导出器自己的记录（哪一批、什么时候导出、存在哪个分片、重算误差），不是作业的数据",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "export_errors",
+   "exported": false,
+   "why_not": "旧导出器自己的记录（哪一批、什么时候导出、存在哪个分片、重算误差），不是作业的数据",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "export_warnings",
+   "exported": false,
+   "why_not": "旧导出器自己的记录（哪一批、什么时候导出、存在哪个分片、重算误差），不是作业的数据",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "extra_result_keys",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "rot_first_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "rot_axial_first_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "rot_tilt_first_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "rot_tilt_ap_first_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "rot_tilt_ml_first_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "subsid_first_um",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "lateral_first_um",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "rigid_fit_rms_first_um",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "rot_rev_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "rot_axial_rev_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "rot_tilt_rev_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "rot_tilt_ap_rev_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "rot_tilt_ml_rev_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "subsid_rev_um",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "lateral_rev_um",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "rigid_fit_rms_rev_um",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "rot_perm_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "rot_axial_perm_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "rot_tilt_perm_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "rot_tilt_ap_perm_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "rot_tilt_ml_perm_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "subsid_perm_um",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "lateral_perm_um",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "rigid_fit_rms_perm_um",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "diag_rot_first_prox_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) rot_first_prox_deg"
+  },
+  {
+   "name": "diag_rot_axial_first_prox_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) rot_axial_first_prox_deg"
+  },
+  {
+   "name": "diag_rot_tilt_first_prox_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) rot_tilt_first_prox_deg"
+  },
+  {
+   "name": "slip_axial_p95_um",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "slip_circ_p95_um",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "contact_area_load_mm2",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "contact_frac_load",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "contact_area_load2_mm2",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "contact_frac_load2",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "body_interface_mm2",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability)"
+  },
+  {
+   "name": "diag_bench_cx_h_stem_mm",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) virtual bench bench_cx_h_stem_mm"
+  },
+  {
+   "name": "diag_bench_cx_h_bone_mm",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) virtual bench bench_cx_h_bone_mm"
+  },
+  {
+   "name": "diag_bench_cx_n_stem",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) bench_cx_n_stem"
+  },
+  {
+   "name": "diag_bench_cx_n_bone",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) bench_cx_n_bone"
+  },
+  {
+   "name": "diag_bench_cx_rot_first_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) virtual bench (reference) bench_cx_rot_first_deg"
+  },
+  {
+   "name": "diag_bench_cx_rot_axial_first_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) virtual bench (reference) bench_cx_rot_axial_first_deg"
+  },
+  {
+   "name": "diag_bench_cx_rot_tilt_first_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) virtual bench (reference) bench_cx_rot_tilt_first_deg"
+  },
+  {
+   "name": "diag_bench_cx_subsid_first_um",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) virtual bench (reference) bench_cx_subsid_first_um"
+  },
+  {
+   "name": "diag_bench_cx_lateral_first_um",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) virtual bench (reference) bench_cx_lateral_first_um"
+  },
+  {
+   "name": "diag_bench_cx_rot_rev_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) virtual bench (reference) bench_cx_rot_rev_deg"
+  },
+  {
+   "name": "diag_bench_cx_rot_axial_rev_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) virtual bench (reference) bench_cx_rot_axial_rev_deg"
+  },
+  {
+   "name": "diag_bench_cx_rot_tilt_rev_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) virtual bench (reference) bench_cx_rot_tilt_rev_deg"
+  },
+  {
+   "name": "diag_bench_cx_subsid_rev_um",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) virtual bench (reference) bench_cx_subsid_rev_um"
+  },
+  {
+   "name": "diag_bench_cx_lateral_rev_um",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) virtual bench (reference) bench_cx_lateral_rev_um"
+  },
+  {
+   "name": "diag_bench_cx_rot_perm_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) virtual bench (reference) bench_cx_rot_perm_deg"
+  },
+  {
+   "name": "diag_bench_cx_rot_axial_perm_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) virtual bench (reference) bench_cx_rot_axial_perm_deg"
+  },
+  {
+   "name": "diag_bench_cx_rot_tilt_perm_deg",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) virtual bench (reference) bench_cx_rot_tilt_perm_deg"
+  },
+  {
+   "name": "diag_bench_cx_subsid_perm_um",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) virtual bench (reference) bench_cx_subsid_perm_um"
+  },
+  {
+   "name": "diag_bench_cx_lateral_perm_um",
+   "exported": false,
+   "why_not": "要旧管线的 stability.py 由位移场算。位移在界面场和整体场里，以后可以另算",
+   "old_source": "stability.py (stability.stability) virtual bench (reference) bench_cx_lateral_perm_um"
+  },
+  {
+   "name": "rot_record_deg",
+   "exported": false,
+   "why_not": "要归档以外的记录（选点记录、批次清单、另补的来源说明）",
+   "old_source": "results/neckopt_p<phase>.json record rot_first_deg"
+  },
+  {
+   "name": "rot_record_match",
+   "exported": false,
+   "why_not": "要归档以外的记录（选点记录、批次清单、另补的来源说明）",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "f1_p95_um",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "f1_rev_p50_um",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "f1_rev_max_um",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "f1_first_p95_um",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "f1_first_p50_um",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "normal_rev_p95_um",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "area_frac_gt40",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "area_frac_gt150",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "open_frac_release",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "open_frac_load",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "open_frac_load2",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "gap_p95_release_um",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "gap_p95_load2_um",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "n_pairs_body",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json n_pairs"
+  },
+  {
+   "name": "interface_area_body_mm2",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json interface_area"
+  },
+  {
+   "name": "cortex_area_frac",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "f1_closed_p95_um",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "f1_canc_p95_um",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "cpress_release_p50",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "cpress_release_p95",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "cpress_release_max",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "cpress_release_mean_all",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "status_frac_stick",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "status_frac_slip",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "status_frac_open",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "stick_cslip_p95_um",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "stick_cslip_max_um",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "slide_cslip_p95_um",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "f1_cslip_p95_um",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "frac_open",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "vm_p99_MPa",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json vm_p99"
+  },
+  {
+   "name": "vm_max_MPa",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json vm_max"
+  },
+  {
+   "name": "n_stem_elems_in_bone",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "sed_gruen7",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json (bonded: zone SED; intact: gruen7)"
+  },
+  {
+   "name": "sed_gruen1",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "f2_g7_loss_pct",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "f2_g1_loss_pct",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "sed_chg_pct",
+   "exported": false,
+   "why_not": "要旧管线的 resorption，加完整股骨参照作业的应变能",
+   "old_source": "resorption.design_rows (= stage_neckopt._calcar)"
+  },
+  {
+   "name": "ssi_pct",
+   "exported": false,
+   "why_not": "要旧管线的 resorption，加完整股骨参照作业的应变能",
+   "old_source": "resorption.design_rows (= stage_neckopt._calcar)"
+  },
+  {
+   "name": "calcar_error",
+   "exported": false,
+   "why_not": "要旧管线的 resorption，加完整股骨参照作业的应变能",
+   "old_source": "resorption.design_rows (= stage_neckopt._calcar)"
+  },
+  {
+   "name": "intact_job_spec",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json intact_job"
+  },
+  {
+   "name": "intact_job",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json intact_job"
+  },
+  {
+   "name": "intact_substituted_h",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json"
+  },
+  {
+   "name": "ref_match",
+   "exported": false,
+   "why_not": "要对照另一个作业（完整股骨参照）和股骨几何",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "ref_mismatch",
+   "exported": false,
+   "why_not": "要对照另一个作业（完整股骨参照）和股骨几何",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "intact_gruen7_vol_mm3",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json (intact rows)"
+  },
+  {
+   "name": "intact_gruen1_vol_mm3",
+   "exported": true,
+   "why_not": "",
+   "old_source": "result.json (intact rows)"
+  },
+  {
+   "name": "field_shard",
+   "exported": false,
+   "why_not": "旧导出器自己的记录（哪一批、什么时候导出、存在哪个分片、重算误差），不是作业的数据",
+   "old_source": "fields shard (this exporter)"
+  },
+  {
+   "name": "field_index",
+   "exported": false,
+   "why_not": "旧导出器自己的记录（哪一批、什么时候导出、存在哪个分片、重算误差），不是作业的数据",
+   "old_source": "fields shard (this exporter)"
+  },
+  {
+   "name": "field_n_nodes",
+   "exported": true,
+   "why_not": "",
+   "old_source": "fields shard (this exporter)"
+  },
+  {
+   "name": "field_n_tri",
+   "exported": true,
+   "why_not": "",
+   "old_source": "fields shard (this exporter)"
+  },
+  {
+   "name": "tri_area_ratio",
+   "exported": true,
+   "why_not": "",
+   "old_source": "fields shard (this exporter)"
+  },
+  {
+   "name": "iface_force_load_N",
+   "exported": true,
+   "why_not": "",
+   "old_source": "fields shard (this exporter) sum of bone-side CNORMF+CSHEARF at LOAD"
+  },
+  {
+   "name": "iface_force_err_load",
+   "exported": true,
+   "why_not": "",
+   "old_source": "fields shard (this exporter)"
+  },
+  {
+   "name": "iface_force_err_load2",
+   "exported": true,
+   "why_not": "",
+   "old_source": "fields shard (this exporter)"
+  },
+  {
+   "name": "fld_err_rot_first",
+   "exported": false,
+   "why_not": "旧导出器自己的记录（哪一批、什么时候导出、存在哪个分片、重算误差），不是作业的数据",
+   "old_source": "fields shard (this exporter)"
+  },
+  {
+   "name": "fld_err_contact_load",
+   "exported": false,
+   "why_not": "旧导出器自己的记录（哪一批、什么时候导出、存在哪个分片、重算误差），不是作业的数据",
+   "old_source": "fields shard (this exporter)"
+  },
+  {
+   "name": "fld_err_contact_load2",
+   "exported": false,
+   "why_not": "旧导出器自己的记录（哪一批、什么时候导出、存在哪个分片、重算误差），不是作业的数据",
+   "old_source": "fields shard (this exporter)"
+  },
+  {
+   "name": "fld_err_f1",
+   "exported": false,
+   "why_not": "旧导出器自己的记录（哪一批、什么时候导出、存在哪个分片、重算误差），不是作业的数据",
+   "old_source": "fields shard (this exporter)"
+  },
+  {
+   "name": "fld_err_foam_p05",
+   "exported": false,
+   "why_not": "旧导出器自己的记录（哪一批、什么时候导出、存在哪个分片、重算误差），不是作业的数据",
+   "old_source": "fields shard (this exporter)"
+  },
+  {
+   "name": "fld_err_foam_p50",
+   "exported": false,
+   "why_not": "旧导出器自己的记录（哪一批、什么时候导出、存在哪个分片、重算误差），不是作业的数据",
+   "old_source": "fields shard (this exporter)"
+  },
+  {
+   "name": "fld_err_foam_lt1",
+   "exported": false,
+   "why_not": "旧导出器自己的记录（哪一批、什么时候导出、存在哪个分片、重算误差），不是作业的数据",
+   "old_source": "fields shard (this exporter)"
+  },
+  {
+   "name": "source",
+   "exported": false,
+   "why_not": "要归档以外的记录（选点记录、批次清单、另补的来源说明）",
+   "old_source": "export (computed) / provenance"
+  },
+  {
+   "name": "source_detail",
+   "exported": false,
+   "why_not": "要归档以外的记录（选点记录、批次清单、另补的来源说明）",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "selection",
+   "exported": false,
+   "why_not": "要归档以外的记录（选点记录、批次清单、另补的来源说明）",
+   "old_source": "export (computed) / provenance"
+  },
+  {
+   "name": "layer",
+   "exported": false,
+   "why_not": "要归档以外的记录（选点记录、批次清单、另补的来源说明）",
+   "old_source": "D1 manifest / CD-0 seed layer; S0 for the existing (non-db_*) jobs"
+  },
+  {
+   "name": "manifest_refs",
+   "exported": false,
+   "why_not": "要归档以外的记录（选点记录、批次清单、另补的来源说明）",
+   "old_source": "results/db_manifest_<batch>.json rows / results/db_seed_*.json jobs"
+  },
+  {
+   "name": "provenance",
+   "exported": false,
+   "why_not": "要归档以外的记录（选点记录、批次清单、另补的来源说明）",
+   "old_source": "export (computed) / finalize"
+  },
+  {
+   "name": "acq_name",
+   "exported": false,
+   "why_not": "要归档以外的记录（选点记录、批次清单、另补的来源说明）",
+   "old_source": "neckopt records / provenance"
+  },
+  {
+   "name": "acq_round",
+   "exported": false,
+   "why_not": "要归档以外的记录（选点记录、批次清单、另补的来源说明）",
+   "old_source": "neckopt records round"
+  },
+  {
+   "name": "acq_model_version",
+   "exported": false,
+   "why_not": "旧表里定义了但一直是空的",
+   "old_source": "provenance"
+  },
+  {
+   "name": "acq_pred_mean",
+   "exported": false,
+   "why_not": "旧表里定义了但一直是空的",
+   "old_source": "provenance"
+  },
+  {
+   "name": "acq_pred_sd",
+   "exported": false,
+   "why_not": "旧表里定义了但一直是空的",
+   "old_source": "provenance"
+  },
+  {
+   "name": "pool_idx",
+   "exported": false,
+   "why_not": "要归档以外的记录（选点记录、批次清单、另补的来源说明）",
+   "old_source": "neckopt records pool_idx"
+  },
+  {
+   "name": "record_phase",
+   "exported": false,
+   "why_not": "要归档以外的记录（选点记录、批次清单、另补的来源说明）",
+   "old_source": "neckopt_p<phase>.json holding a record of this job"
+  },
+  {
+   "name": "w_iid",
+   "exported": false,
+   "why_not": "旧表里定义了但一直是空的",
+   "old_source": "density-ratio weight (later)"
+  },
+  {
+   "name": "source_job",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json source_job"
+  },
+  {
+   "name": "source_job_n_tet_total",
+   "exported": false,
+   "why_not": "要归档以外的记录（选点记录、批次清单、另补的来源说明）",
+   "old_source": "prep.json of source_job"
+  },
+  {
+   "name": "source_job_design_key",
+   "exported": false,
+   "why_not": "要归档以外的记录（选点记录、批次清单、另补的来源说明）",
+   "old_source": "export (computed)"
+  },
+  {
+   "name": "in_family_phases",
+   "exported": false,
+   "why_not": "要归档以外的记录（选点记录、批次清单、另补的来源说明）",
+   "old_source": "stage_neckopt.Phase(p).in_family(spec), p = 11..14"
+  },
+  {
+   "name": "in_E",
+   "exported": false,
+   "why_not": "数据库层面的列：要看整个数据版本的所有行才能定（划分、重复组、排除集）",
+   "old_source": "finalize"
+  },
+  {
+   "name": "sf_bo_overlap",
+   "exported": false,
+   "why_not": "数据库层面的列：要看整个数据版本的所有行才能定（划分、重复组、排除集）",
+   "old_source": "finalize"
+  },
+  {
+   "name": "unbiased",
+   "exported": false,
+   "why_not": "数据库层面的列：要看整个数据版本的所有行才能定（划分、重复组、排除集）",
+   "old_source": "finalize"
+  },
+  {
+   "name": "replicate_group",
+   "exported": false,
+   "why_not": "数据库层面的列：要看整个数据版本的所有行才能定（划分、重复组、排除集）",
+   "old_source": "finalize"
+  },
+  {
+   "name": "replicate_of",
+   "exported": false,
+   "why_not": "数据库层面的列：要看整个数据版本的所有行才能定（划分、重复组、排除集）",
+   "old_source": "finalize"
+  },
+  {
+   "name": "replicate_group_bond",
+   "exported": false,
+   "why_not": "数据库层面的列：要看整个数据版本的所有行才能定（划分、重复组、排除集）",
+   "old_source": "finalize"
+  },
+  {
+   "name": "replicate_of_bond",
+   "exported": false,
+   "why_not": "数据库层面的列：要看整个数据版本的所有行才能定（划分、重复组、排除集）",
+   "old_source": "finalize"
+  },
+  {
+   "name": "split_bucket",
+   "exported": false,
+   "why_not": "数据库层面的列：要看整个数据版本的所有行才能定（划分、重复组、排除集）",
+   "old_source": "finalize"
+  },
+  {
+   "name": "split",
+   "exported": false,
+   "why_not": "数据库层面的列：要看整个数据版本的所有行才能定（划分、重复组、排除集）",
+   "old_source": "finalize"
+  },
+  {
+   "name": "test_iid",
+   "exported": false,
+   "why_not": "数据库层面的列：要看整个数据版本的所有行才能定（划分、重复组、排除集）",
+   "old_source": "finalize"
+  },
+  {
+   "name": "test_corner",
+   "exported": false,
+   "why_not": "数据库层面的列：要看整个数据版本的所有行才能定（划分、重复组、排除集）",
+   "old_source": "finalize"
+  },
+  {
+   "name": "a3_test_only",
+   "exported": false,
+   "why_not": "数据库层面的列：要看整个数据版本的所有行才能定（划分、重复组、排除集）",
+   "old_source": "finalize"
+  },
+  {
+   "name": "ood_alpha_gap",
+   "exported": false,
+   "why_not": "数据库层面的列：要看整个数据版本的所有行才能定（划分、重复组、排除集）",
+   "old_source": "finalize"
+  },
+  {
+   "name": "ood_bo_region",
+   "exported": false,
+   "why_not": "数据库层面的列：要看整个数据版本的所有行才能定（划分、重复组、排除集）",
+   "old_source": "finalize"
+  },
+  {
+   "name": "ood_cond_extreme",
+   "exported": false,
+   "why_not": "数据库层面的列：要看整个数据版本的所有行才能定（划分、重复组、排除集）",
+   "old_source": "finalize"
+  },
+  {
+   "name": "ood_widened",
+   "exported": false,
+   "why_not": "数据库层面的列：要看整个数据版本的所有行才能定（划分、重复组、排除集）",
+   "old_source": "finalize"
+  },
+  {
+   "name": "ood_femur",
+   "exported": false,
+   "why_not": "数据库层面的列：要看整个数据版本的所有行才能定（划分、重复组、排除集）",
+   "old_source": "finalize"
+  },
+  {
+   "name": "t_spec_utc",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json mtime"
+  },
+  {
+   "name": "t_prep_utc",
+   "exported": true,
+   "why_not": "",
+   "old_source": "prep.json mtime"
+  },
+  {
+   "name": "t_ready_utc",
+   "exported": true,
+   "why_not": "",
+   "old_source": "READY / CLAIMED mtime (rename keeps READY's mtime)"
+  },
+  {
+   "name": "t_solved_utc",
+   "exported": true,
+   "why_not": "",
+   "old_source": "SOLVED mtime"
+  },
+  {
+   "name": "t_done_utc",
+   "exported": true,
+   "why_not": "",
+   "old_source": "DONE mtime"
+  },
+  {
+   "name": "t_failed_utc",
+   "exported": true,
+   "why_not": "",
+   "old_source": "FAILED.json mtime"
+  },
+  {
+   "name": "created_local",
+   "exported": true,
+   "why_not": "",
+   "old_source": "spec.json created (reference only; ambiguous at the DST change)"
+  }
+ ]
+}
