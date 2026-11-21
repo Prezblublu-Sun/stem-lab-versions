@@ -1,0 +1,20 @@
+# 源码的换行固定成 LF。两台机器上文件的字节相同，FROZEN 里的哈希才一致。
+* text=auto eol=lf
+
+*.py    text eol=lf
+*.md    text eol=lf
+*.json  text eol=lf
+*.jsonl text eol=lf
+*.toml  text eol=lf
+*.html  text eol=lf
+*.lock  text eol=lf
+FROZEN  text eol=lf
+.importlinter text eol=lf
+
+*.png binary
+*.jpg binary
+*.npz binary
+*.npy binary
+*.pt  binary
+*.stl binary
+*.zip binary

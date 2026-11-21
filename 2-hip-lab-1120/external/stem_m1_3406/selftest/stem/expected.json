@@ -1,0 +1,19 @@
+{
+ "legacy": {
+  "config.yaml": "5bee68dc0f18c709",
+  "femur2d.py": "4083e7f2d7fe77d0",
+  "plotstyle.py": "9447fdd11313d9e3",
+  "v2/collar_rule.py": "290a198ae47224e8",
+  "v2/config_v2a.yaml": "64d5c22e1f50ea79",
+  "v2/fe3d_geom.py": "3e6677617c943611",
+  "v2/femur_3406.py": "89f94074b92e2da1",
+  "v2/femur_real.py": "16d242ab05e14ea0",
+  "v2/geom3d.py": "efa238e7c1bdbbf8"
+ },
+ "volume_mm3": 5344.909093084745,
+ "cap_length_mm": 1.5,
+ "area_ratio_mid": 0.3103263313039442,
+ "area_ratio_tip": 0.2117,
+ "lofted_faces": 31,
+ "lofted_area_mm2": 4014.001749067763
+}

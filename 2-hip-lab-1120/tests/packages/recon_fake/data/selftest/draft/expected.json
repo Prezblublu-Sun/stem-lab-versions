@@ -1,0 +1,209 @@
+{
+ "how": "cad",
+ "side": "right",
+ "bone_type": "synthetic",
+ "coverage": {
+  "extent": "whole",
+  "proximal_mm": 80.0,
+  "distal_mm": 400.0
+ },
+ "frame": {
+  "file": "the fake source's own coordinates"
+ },
+ "regions": [
+  {
+   "name": "cortical",
+   "role": "cortical",
+   "geometry": {
+    "kind": "solid",
+    "format": "step",
+    "file": "data/selftest/draft/input/source/cortical.step"
+   },
+   "volume_mm3": 34000.0,
+   "material": {
+    "model": "elastic",
+    "E": 16800.0,
+    "nu": 0.3
+   }
+  },
+  {
+   "name": "cancellous",
+   "role": "cancellous",
+   "geometry": {
+    "kind": "solid",
+    "format": "step",
+    "file": "data/selftest/draft/input/source/cancellous.step"
+   },
+   "volume_mm3": 24000.0,
+   "material": {
+    "model": "elastic",
+    "E": 155.0,
+    "nu": 0.3
+   }
+  }
+ ],
+ "landmarks": {
+  "head_center": {
+   "xyz": [
+    44.016642033021256,
+    -9.35602608679917,
+    50.0
+   ],
+   "definition": {
+    "method": "fake_marks",
+    "version": "1",
+    "params": {}
+   },
+   "fit": {
+    "rms_mm": 0.1
+   }
+  },
+  "neck_center": {
+   "xyz": [
+    26.01872617951923,
+    -5.530450975752398,
+    36.2
+   ],
+   "definition": {
+    "method": "fake_marks",
+    "version": "1",
+    "params": {}
+   },
+   "fit": {
+    "rms_mm": 0.1
+   }
+  },
+  "shaft_proximal": {
+   "xyz": [
+    0.0,
+    0.0,
+    -20.0
+   ],
+   "definition": {
+    "method": "fake_marks",
+    "version": "1",
+    "params": {}
+   },
+   "fit": {
+    "rms_mm": 0.1
+   }
+  },
+  "shaft_distal": {
+   "xyz": [
+    0.0,
+    0.0,
+    -150.0
+   ],
+   "definition": {
+    "method": "fake_marks",
+    "version": "1",
+    "params": {}
+   },
+   "fit": {
+    "rms_mm": 0.1
+   }
+  },
+  "lesser_trochanter": {
+   "xyz": [
+    15.0,
+    15.0,
+    0.0
+   ],
+   "definition": {
+    "method": "fake_marks",
+    "version": "1",
+    "params": {}
+   },
+   "fit": {
+    "rms_mm": 0.1
+   }
+  },
+  "condyle_medial": {
+   "xyz": [
+    32.0,
+    27.0,
+    -415.0
+   ],
+   "definition": {
+    "method": "fake_marks",
+    "version": "1",
+    "params": {}
+   },
+   "fit": {
+    "rms_mm": 0.1
+   }
+  },
+  "condyle_lateral": {
+   "xyz": [
+    -30.0,
+    27.0,
+    -418.0
+   ],
+   "definition": {
+    "method": "fake_marks",
+    "version": "1",
+    "params": {}
+   },
+   "fit": {
+    "rms_mm": 0.1
+   }
+  }
+ },
+ "history": [
+  {
+   "step": "import",
+   "what": "two fake solids taken from the source as they are"
+  },
+  {
+   "step": "landmarks",
+   "what": "landmarks read from marks.json"
+  }
+ ],
+ "status": "ok",
+ "reason": "",
+ "measures": {
+  "head_fit_rms_mm": 0.3,
+  "neck_wall_min_mm": 4.0,
+  "cortical_volume_mm3": 34000.0,
+  "cortical_watertight": true,
+  "cancellous_volume_mm3": 24000.0,
+  "cancellous_watertight": true
+ },
+ "todo": [
+  {
+   "item": "condyle_lateral",
+   "doubt": false,
+   "why": "read from marks.json: have a look"
+  },
+  {
+   "item": "condyle_medial",
+   "doubt": false,
+   "why": "read from marks.json: have a look"
+  },
+  {
+   "item": "head_center",
+   "doubt": false,
+   "why": "read from marks.json: have a look"
+  },
+  {
+   "item": "lesser_trochanter",
+   "doubt": false,
+   "why": "read from marks.json: have a look"
+  },
+  {
+   "item": "neck_center",
+   "doubt": false,
+   "why": "read from marks.json: have a look"
+  },
+  {
+   "item": "shaft_distal",
+   "doubt": false,
+   "why": "read from marks.json: have a look"
+  },
+  {
+   "item": "shaft_proximal",
+   "doubt": false,
+   "why": "read from marks.json: have a look"
+  }
+ ]
+}

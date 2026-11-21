@@ -1,0 +1,40 @@
+{
+ "legacy": {
+  "abaqus/odb_export.py": "a46c06111e07585b",
+  "config.yaml": "5bee68dc0f18c709",
+  "femur2d.py": "4083e7f2d7fe77d0",
+  "inp_writer.py": "3c8f92ea54316744",
+  "plotstyle.py": "9447fdd11313d9e3",
+  "qoi.py": "105a72dc898b2fd8",
+  "run_abaqus.py": "7954ee1997a616f8",
+  "spot3d/model3d.py": "aad615de96afd446",
+  "spot3d/qoi3d.py": "b10ef811726d46e5",
+  "stem2d.py": "e7277d2c3a0c95c4",
+  "v2/fe3d_geom.py": "3e6677617c943611",
+  "v2/femur_real.py": "16d242ab05e14ea0",
+  "v2/geom3d.py": "efa238e7c1bdbbf8",
+  "v2/jobs.py": "00655e91a2c63385",
+  "v2/model3d_m1.py": "cdc158f2fc949f7d",
+  "v2/model3d_v2.py": "04c118fab68ed2cc",
+  "v2/post.py": "0a509608efd21846",
+  "v2/post_m1.py": "f71d939c8f4587ee",
+  "v2/stability.py": "64cbd078cf151848"
+ },
+ "load_N": [
+  -782.1262347740976,
+  698.2115423007943,
+  -2148.874169204898
+ ],
+ "contact_block": "82e5d7d5241a9bbb",
+ "cylinder": {
+  "tets": {
+   "cancellous": 8011,
+   "stem": 601
+  },
+  "faces": 328,
+  "pairs": 658,
+  "interfered": 658,
+  "area_mm2": 774.4551888396327,
+  "area_exact_mm2": 785.3981633974482
+ }
+}

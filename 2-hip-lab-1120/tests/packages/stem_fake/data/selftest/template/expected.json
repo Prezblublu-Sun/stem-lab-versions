@@ -1,0 +1,1 @@
+{"designs": [{"name": "a", "feasible": true, "info": {"bone_removed": 3010.0}}, {"name": "b", "feasible": false, "info": {"bone_removed": 7010.0, "reason": "no entry offset lets this stem fit"}}]}

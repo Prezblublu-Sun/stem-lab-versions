@@ -1,0 +1,1 @@
+{"mode": "template", "bone_id": "femur042", "bone_model": "", "settings": {"cut_drop": 1.0}, "designs": [{"name": "a", "design": {"length": 30, "behave": "ok"}}, {"name": "b", "design": {"length": 70, "behave": "ok"}}]}
