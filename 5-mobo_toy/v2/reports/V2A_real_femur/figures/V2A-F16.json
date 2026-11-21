@@ -1,0 +1,23 @@
+{
+  "id": "V2A-F16",
+  "report": "V2A",
+  "kind": "figure",
+  "title": "Micromotion vs length: median nan µm below 40 mm against 8.3 µm at 50–65 mm; front designs lie at 55–64 mm",
+  "caption": "全部已解设计（2.0 mm 网格）的两个目标对柄长度，按来源着色：参考集与 BO 种子（L 40–90）、20–40 mm 探针、热启动 BO（L 20–90）。黑圈为已知最佳前沿上的点。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "v2/reports/V2A_real_femur/figures/V2A-F16.csv",
+  "csv_sha256": "1772780df981ab88a1a2a18ebaa5376261ea9c911985d91aeab9c90b0ce03fa5",
+  "png": "v2/reports/V2A_real_femur/figures/V2A-F16.png",
+  "svg": "v2/reports/V2A_real_femur/figures/V2A-F16.svg",
+  "plot_fn": "v2/report_v2a_bo.py:plot_f16",
+  "plot_module_sha256": "4d2a4006f1489086edddc97b869ccaed1b409e7dd7d8ccddb4ee7e7bfd994d63",
+  "producer": "v2/report_v2a_bo.py",
+  "producer_sha256": "4d2a4006f1489086edddc97b869ccaed1b409e7dd7d8ccddb4ee7e7bfd994d63",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "spec_sha256": "b3a70189dac6b1fd3357774f5a887e48b8a13b4ec79e628feef0d7568f6fe896",
+  "created": "2026-09-28T12:45:34",
+  "python": "3.12.3",
+  "matplotlib": "3.11.2"
+}

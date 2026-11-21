@@ -1,0 +1,23 @@
+{
+  "id": "V2A-F10",
+  "report": "V2A",
+  "kind": "figure",
+  "title": "Reference set: 3 non-dominated designs among 64 solved (0 violate the stress limit)",
+  "caption": "S4′ 参考集：参考池（种子 999）前 64 个可行设计全部 FE。横轴 log10(P95 微动 µm)，纵轴 Gruen 7 区 SED 相对完整股骨的偏离 |ΔSED|（2026-09-28 起的 f2）。实心为非支配前沿；叉号为违反柄应力约束者。超体积参考点 = 可行点各目标最大值 + 10% 范围 = (1.641, 49.86)。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "v2/reports/V2A_real_femur/figures/V2A-F10.csv",
+  "csv_sha256": "5dd8bee443d936ef798510316e1fc6bf573662029db4dd3fe1c57805431c2934",
+  "png": "v2/reports/V2A_real_femur/figures/V2A-F10.png",
+  "svg": "v2/reports/V2A_real_femur/figures/V2A-F10.svg",
+  "plot_fn": "v2/report_v2a_fe.py:plot_f10",
+  "plot_module_sha256": "57fcf63454473a6827da0e39fc8322c345a6defdb11b5d2a2d42952813829f62",
+  "producer": "v2/report_v2a_fe.py",
+  "producer_sha256": "57fcf63454473a6827da0e39fc8322c345a6defdb11b5d2a2d42952813829f62",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "spec_sha256": "ec89f24c9f5c45fad848ce34d68f531a4f6e92187411dc885984bd9551462bf6",
+  "created": "2026-09-28T12:08:44",
+  "python": "3.12.3",
+  "matplotlib": "3.11.2"
+}

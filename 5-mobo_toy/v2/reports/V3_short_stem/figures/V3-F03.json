@@ -1,0 +1,27 @@
+{
+  "id": "V3-F03",
+  "report": "V3",
+  "kind": "figure",
+  "title": "Halving cancellous modulus or interference raises micromotion ×2.3 / ×2.4 (median) with Spearman 0.79 / 0.76 over 8 designs",
+  "caption": "左：变体下的微动 P95 对基线（400 MPa、0.10 mm），虚线为 y = x 与 y = 2x；右：Gruen 7 |ΔSED| 对基线，虚线为 30% 约束。设计 = 前沿 4 个（黑圈）+ V3 内部前沿 4 个。圆 = E_canc 200 MPa，三角 = δ 0.05 mm。",
+  "synthetic": false,
+  "units": {
+    "f1_um": "um",
+    "abs_dsed_pct": "%",
+    "vm_p99": "MPa"
+  },
+  "sources": {},
+  "csv": "v2/reports/V3_short_stem/figures/V3-F03.csv",
+  "csv_sha256": "79d1efed3472419634bf6cd81f5a3b6b59a14a9d6a6d8131156a5f12e8a06b64",
+  "png": "v2/reports/V3_short_stem/figures/V3-F03.png",
+  "svg": "v2/reports/V3_short_stem/figures/V3-F03.svg",
+  "plot_fn": "v2/report_v3.py:plot_f03",
+  "plot_module_sha256": "fc4fb42d4596e2ac7aa8cb448d8c90dedbce0b5f1db1b39b7915224faf22881b",
+  "producer": "v2/report_v3.py",
+  "producer_sha256": "fc4fb42d4596e2ac7aa8cb448d8c90dedbce0b5f1db1b39b7915224faf22881b",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "spec_sha256": "4c34330d44056917c7ef775f0de8af270a489483f0c4b1c27bbbc5a77af6150b",
+  "created": "2026-09-28T21:50:40",
+  "python": "3.12.3",
+  "matplotlib": "3.11.2"
+}

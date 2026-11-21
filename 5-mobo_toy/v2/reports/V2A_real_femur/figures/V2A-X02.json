@@ -1,0 +1,23 @@
+{
+  "id": "V2A-X02",
+  "report": "V2A",
+  "kind": "figure",
+  "title": "Interim (paused run): BO fronts so far against the best-known front",
+  "caption": "中期快照：各种子目前的非支配前沿与目前已知最佳前沿（灰）。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "v2/reports/V2A_real_femur/figures/V2A-X02.csv",
+  "csv_sha256": "9b28cf5c876fedf2b980501738002a550e35065abede2c198dfc926d7e1471e8",
+  "png": "v2/reports/V2A_real_femur/figures/V2A-X02.png",
+  "svg": "v2/reports/V2A_real_femur/figures/V2A-X02.svg",
+  "plot_fn": "v2/report_v2a_fe.py:plot_f13",
+  "plot_module_sha256": "57fcf63454473a6827da0e39fc8322c345a6defdb11b5d2a2d42952813829f62",
+  "producer": "v2/report_v2a_fe.py",
+  "producer_sha256": "57fcf63454473a6827da0e39fc8322c345a6defdb11b5d2a2d42952813829f62",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "spec_sha256": "ec89f24c9f5c45fad848ce34d68f531a4f6e92187411dc885984bd9551462bf6",
+  "created": "2026-09-28T12:08:51",
+  "python": "3.12.3",
+  "matplotlib": "3.11.2"
+}

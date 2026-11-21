@@ -1,0 +1,25 @@
+{
+  "id": "V2A-F07",
+  "report": "V2A",
+  "kind": "figure",
+  "title": "Sign checks: 3 of 3 micromotion responses go the expected way; rerun identical",
+  "caption": "同一设计（calcar-heavy 示例，α 20°）的四个变体：基准；去掉前后向载荷分量（无扭转）；压配量 δ = 0；摩擦系数 μ = 0.8；以及重建网格重跑。每个变体都是完整的建模 + 求解 + 后处理。",
+  "synthetic": false,
+  "units": {
+    "value": "see quantity"
+  },
+  "sources": {},
+  "csv": "v2/reports/V2A_real_femur/figures/V2A-F07.csv",
+  "csv_sha256": "dbac8655be691d6bf8af6aaa4715ec9d7d57cf9f517243f001a5189300cbf7c8",
+  "png": "v2/reports/V2A_real_femur/figures/V2A-F07.png",
+  "svg": "v2/reports/V2A_real_femur/figures/V2A-F07.svg",
+  "plot_fn": "v2/report_v2a_fe.py:plot_f07",
+  "plot_module_sha256": "8631a9824e262a6ba34c5ab66200101369f27e49a17e9983294761476d6ce1ec",
+  "producer": "v2/report_v2a_fe.py",
+  "producer_sha256": "8631a9824e262a6ba34c5ab66200101369f27e49a17e9983294761476d6ce1ec",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "spec_sha256": "b3a70189dac6b1fd3357774f5a887e48b8a13b4ec79e628feef0d7568f6fe896",
+  "created": "2026-09-28T12:45:28",
+  "python": "3.12.3",
+  "matplotlib": "3.11.2"
+}

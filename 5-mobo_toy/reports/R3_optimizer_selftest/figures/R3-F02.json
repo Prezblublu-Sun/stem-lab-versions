@@ -1,0 +1,33 @@
+{
+  "id": "R3-F02",
+  "report": "R3",
+  "kind": "figure",
+  "title": "BO reaches the true front on BraninCurrin; on ZDT1 the discrete candidate pool keeps both methods above it",
+  "caption": "各方法取最终超体积为中位数的那个种子的非支配点；黑线为真前沿（BraninCurrin 为 2^18 个 Sobol 点的非支配集，ZDT1 为解析解）。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "results": "results/S3_selftest.json",
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "pool": "scrambled Sobol n = 20000"
+  },
+  "csv": "reports/R3_optimizer_selftest/figures/R3-F02.csv",
+  "csv_sha256": "80c0f7e4c938f50b38449b2224d9fd485dcedc0c59b48f3df19ae56142ff1330",
+  "png": "reports/R3_optimizer_selftest/figures/R3-F02.png",
+  "svg": "reports/R3_optimizer_selftest/figures/R3-F02.svg",
+  "plot_fn": "stage_s3.py:plot_r3_f02",
+  "plot_module_sha256": "0cf2576e717a934665968972577a09e5bf34e8ff6f9427807057d71d704637e9",
+  "producer": "stage_s3.py",
+  "producer_sha256": "0cf2576e717a934665968972577a09e5bf34e8ff6f9427807057d71d704637e9",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T16:07:32",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

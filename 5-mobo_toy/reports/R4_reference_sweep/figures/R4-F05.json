@@ -1,0 +1,26 @@
+{
+  "id": "R4-F05",
+  "report": "R4",
+  "kind": "figure",
+  "title": "74% of attempts fail the geometry gate; 0.9% of gate-passing designs fail in meshing or solving",
+  "caption": "全部尝试设计按失败等级着色（L1/L2 几何门，L3 网格，L4 求解，L5 导出/QoI）。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "runs_csv": "campaign S4_ref / S4_control",
+    "sweep_seed": 4242
+  },
+  "csv": "reports/R4_reference_sweep/figures/R4-F05.csv",
+  "csv_sha256": "9fea2d01d9ea0e6d99b631a2c04e3ea7c3ab1aee9ef5b4ea2a4ae94bc9263121",
+  "png": "reports/R4_reference_sweep/figures/R4-F05.png",
+  "svg": "reports/R4_reference_sweep/figures/R4-F05.svg",
+  "plot_fn": "stage_s4.py:plot_r4_f05",
+  "plot_module_sha256": "6d25b6499e0b61ee86804ce4bbf2e709fe35ca8feb256e9d20ebcf8f53eedb6d",
+  "producer": "stage_s4.py",
+  "producer_sha256": "6d25b6499e0b61ee86804ce4bbf2e709fe35ca8feb256e9d20ebcf8f53eedb6d",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T16:05:36",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

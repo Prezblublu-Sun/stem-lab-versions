@@ -1,0 +1,36 @@
+{
+  "id": "R2-F03",
+  "report": "R2",
+  "kind": "figure",
+  "title": "Halving the interface element size from 0.75 to 0.375 mm changes f1 and f2 by at most 47.3 %",
+  "caption": "三套网格（界面 1.5、0.75、0.375 mm，远场同比例缩放，细化比 r = 2）。最细网格上的误差棒为 Celik 2008 的 GCI_fine × |φ|。生产网格为 0.75 mm。",
+  "synthetic": false,
+  "units": {
+    "h_mm": "mm",
+    "f1": "µm",
+    "f2": "%"
+  },
+  "sources": {
+    "runs_csv": "results/runs.csv campaign S2_*",
+    "baseline_u": [
+      0.291,
+      0.395,
+      0.342,
+      0.403,
+      0.429
+    ]
+  },
+  "csv": "reports/R2_fe_verification/figures/R2-F03.csv",
+  "csv_sha256": "d6c9a3d83819d2eeb71c09107a2eb5e20dcabd219b445e15e0f8d30c5cf3027b",
+  "png": "reports/R2_fe_verification/figures/R2-F03.png",
+  "svg": "reports/R2_fe_verification/figures/R2-F03.svg",
+  "plot_fn": "stage_s2.py:plot_r2_f03",
+  "plot_module_sha256": "ff5007a0ae64d7f310bb82c8c89e9a90f88835c901714be974d7c9607e7f47ad",
+  "producer": "stage_s2.py",
+  "producer_sha256": "ff5007a0ae64d7f310bb82c8c89e9a90f88835c901714be974d7c9607e7f47ad",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T16:09:13",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

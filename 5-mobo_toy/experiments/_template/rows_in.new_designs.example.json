@@ -1,0 +1,18 @@
+{
+ "format": "stage_db rows_in 1",
+ "batch": "bNN",
+ "form": "new_designs",
+ "note": "复制成 rows_in.json 再改，由选点脚本写出。每行 = 一个新设计：13 个单位坐标、入口偏移、0 FE 模板化得到的号和去骨量。stage_db.py 会重新做 0 FE 模板化并和这里的数比对。",
+ "layer": "XX-1",
+ "layers": {"XX-1": {"source": "al_adaptive", "selection": "adaptive"}},
+ "stage": "db_al",
+ "tag_prefix": "xx1",
+ "mode": "fric",
+ "al_group": "xx1",
+ "al_problem": "一句话说明这一批在优化什么",
+ "requires_done": ["db_ws_p13_a105_91e458e3_m1_2a79b613"],
+ "rows": [
+  {"label": "01", "e": 1.5, "A0": 305.228, "bone_mm3": 5378.68,
+   "u13": [0.901301582867005, 0.9822830595759832, 0.0009294791597059672, 0.3475536001839518, 0.25521231844892045, 0.9472890928543826, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]}
+ ]
+}

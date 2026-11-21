@@ -1,0 +1,26 @@
+{
+  "id": "V3-F01",
+  "report": "V3",
+  "kind": "figure",
+  "title": "Stability vs bone loss: least bone loss with micromotion ≤ 40 µm: 4.4 cm³ (L 53, cut 25); ≤ 150 µm: 4.4 cm³ (L 53, cut 25) (4 front points, 78 V3 evaluations so far)",
+  "caption": "横轴骨量损失 = 截骨面以上（到头颈交界）的颈部骨 + 锉掉的髓腔骨；纵轴微动 P95（对数）。灰点为旧数据（截骨在头颈交界，h_cut = 25 mm），彩色为 V3 的定向评估（按轮次），叉号为不满足约束（|ΔSED| > 30% 或柄应力 > 440 MPa）者。黑圈为可行点的非支配前沿；虚线为 40 与 150 µm 读数线。",
+  "synthetic": false,
+  "units": {
+    "bone_loss_mm3": "mm3",
+    "f1_um": "um"
+  },
+  "sources": {},
+  "csv": "v2/reports/V3_short_stem/figures/V3-F01.csv",
+  "csv_sha256": "6342afe023a2c2b2b9046b32f173ade90203c8cf02a3c7dd94b31c37802e1273",
+  "png": "v2/reports/V3_short_stem/figures/V3-F01.png",
+  "svg": "v2/reports/V3_short_stem/figures/V3-F01.svg",
+  "plot_fn": "v2/report_v3.py:plot_f01",
+  "plot_module_sha256": "fc4fb42d4596e2ac7aa8cb448d8c90dedbce0b5f1db1b39b7915224faf22881b",
+  "producer": "v2/report_v3.py",
+  "producer_sha256": "fc4fb42d4596e2ac7aa8cb448d8c90dedbce0b5f1db1b39b7915224faf22881b",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "spec_sha256": "4c34330d44056917c7ef775f0de8af270a489483f0c4b1c27bbbc5a77af6150b",
+  "created": "2026-09-28T21:50:39",
+  "python": "3.12.3",
+  "matplotlib": "3.11.2"
+}

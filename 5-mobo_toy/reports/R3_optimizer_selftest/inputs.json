@@ -1,0 +1,17 @@
+{
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "candidate_pool": 20000,
+  "q": 4,
+  "n_init": 12,
+  "n_rounds": 12,
+  "acquisition": "qLogNoisyExpectedHypervolumeImprovement（BoTorch 0.18.1），128 个 Sobol QMC 样本",
+  "gp": "SingleTaskGP，ARD Matérn 5/2，Gamma(3, 6) 长度尺度先验，输入归一化、输出标准化",
+  "acq_time_median_s": 29.2,
+  "updated": "2026-09-27T16:07:34"
+}

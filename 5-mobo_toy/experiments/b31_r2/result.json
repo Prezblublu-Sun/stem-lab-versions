@@ -1,0 +1,49 @@
+{
+ "batch": "b31_r2",
+ "db": "v0.13",
+ "db_rows": 1423,
+ "gates_sha256": "8a946ba0b51d24b22a2956220fd5df722e70bc3edf8d4f13f30ff205afd1be61",
+ "judged_utc": "2026-11-08T21:18:46Z",
+ "replay": false,
+ "gates": {
+  "G49": {
+   "desc": "15 行里至少一行比 3b 好。过：3b 附近还能改进，前沿往这个方向推。不过：这 15 个代理选的点里没有明显比 3b 好的，不证明 3b 是局部最好。没有一行过、而且有行没提交或没算完，或不可判的行 ≥ 3：不适用",
+   "status": "PASS",
+   "value": 7,
+   "threshold": 1,
+   "rows": [
+    "db_al_r2_01_e+1.5_93255a63",
+    "db_al_r2_03_e+1.5_557886c3",
+    "db_al_r2_05_e+1.5_07e94cd0",
+    "db_al_r2_06_e+1_71c6ee2d",
+    "db_al_r2_08_e+1.5_4a1a76ac",
+    "db_al_r2_12_e+1.5_48b9f584",
+    "db_al_r2_14_e+1_c143792e"
+   ],
+   "note": "比 3b 好的 ['r2_01', 'r2_03', 'r2_05', 'r2_06', 'r2_08', 'r2_12', 'r2_14']；3b 复核 (+9.68 mm, -0.0738 dex)；逐行 {'r2_01': {'bone': 5.379, 'dF_mm': 14.35, 'dlog_f1': -0.1375, 'better_than_3b': True, 'half_of_3b': True, 'beats_A': True}, 'r2_02': {'bone': 5.597, 'dF_mm': 11.79, 'dlog_f1': -0.1177, 'better_than_3b': False, 'half_of_3b': True, 'beats_A': True}, 'r2_03': {'bone': 5.467, 'dF_mm': 14.32, 'dlog_f1': -0.1776, 'better_than_3b': True, 'half_of_3b': True, 'beats_A': True}, 'r2_04': {'bone': 6.057, 'dF_mm': 11.33, 'dlog_f1': -0.0949, 'better_than_3b': False, 'half_of_3b': True, 'beats_A': True}, 'r2_05': {'bone': 5.327, 'dF_mm': 13.29, 'dlog_f1': -0.0897, 'better_than_3b': True, 'half_of_3b': True, 'beats_A': True}, 'r2_06': {'bone': 5.818, 'dF_mm': 11.03, 'dlog_f1': -0.1383, 'better_than_3b': True, 'half_of_3b': True, 'beats_A': True}, 'r2_07': {'bone': 5.918, 'dF_mm': 12.32, 'dlog_f1': -0.0905, 'better_than_3b': False, 'half_of_3b': True, 'beats_A': True}, 'r2_08': {'bone': 5.153, 'dF_mm': 12.81, 'dlog_f1': -0.0825, 'better_than_3b': True, 'half_of_3b': True, 'beats_A': True}, 'r2_09': {'bone': 5.472, 'dF_mm': 12.3, 'dlog_f1': -0.0988, 'better_than_3b': False, 'half_of_3b': True, 'beats_A': True}, 'r2_10': {'bone': 5.929, 'dF_mm': 10.67, 'dlog_f1': -0.1041, 'better_than_3b': False, 'half_of_3b': True, 'beats_A': True}, 'r2_11': {'bone': 5.978, 'dF_mm': 11.35, 'dlog_f1': -0.075, 'better_than_3b': False, 'half_of_3b': True, 'beats_A': True}, 'r2_12': {'bone': 5.595, 'dF_mm': 13.26, 'dlog_f1': -0.1545, 'better_than_3b': True, 'half_of_3b': True, 'beats_A': True}, 'r2_13': {'bone': 4.854, 'dF_mm': 8.17, 'dlog_f1': 0.0616, 'better_than_3b': False, 'half_of_3b': False, 'beats_A': False}, 'r2_14': {'bone': 6.055, 'dF_mm': 12.29, 'dlog_f1': -0.1355, 'better_than_3b': True, 'half_of_3b': True, 'beats_A': True}, 'r2_15': {'bone': 6.194, 'dF_mm': 12.46, 'dlog_f1': -0.0441, 'better_than_3b': False, 'half_of_3b': True, 'beats_A': True}}；不可判 无；按 b28 路线超过 A 的 14 行（描述）；代理 FE 减预测 平均 -0.028，RMSE 0.037 dex（描述）"
+  },
+  "G50": {
+   "desc": "15 行里至少 8 行保留 3b 一半以上的优势（ΔF ≥ 4.84 mm 且 Δlog 微动 ≤ −0.0369 dex，相对同去骨量的 A 族）。过：3b 附近单位距离 0.15 以内，代理挑的点多数保住了 3b 一半以上的优势，3b 不是孤立的一个点；不过：3b 的优势在邻域里多数保不住一半，3b 接近孤立点，用它当候选要小心。不到 8 行、但加上不可判的行能到 8 行：不适用",
+   "status": "PASS",
+   "value": 14,
+   "threshold": 8,
+   "rows": [
+    "db_al_r2_01_e+1.5_93255a63",
+    "db_al_r2_02_e+1.5_72bbb99d",
+    "db_al_r2_03_e+1.5_557886c3",
+    "db_al_r2_04_e+1_6253f166",
+    "db_al_r2_05_e+1.5_07e94cd0",
+    "db_al_r2_06_e+1_71c6ee2d",
+    "db_al_r2_07_e+1_38e088d0",
+    "db_al_r2_08_e+1.5_4a1a76ac",
+    "db_al_r2_09_e+1.5_f5586dd9",
+    "db_al_r2_10_e+1_0d760c6d",
+    "db_al_r2_11_e+1_dfff891e",
+    "db_al_r2_12_e+1.5_48b9f584",
+    "db_al_r2_14_e+1_c143792e",
+    "db_al_r2_15_e+1_d09da785"
+   ],
+   "note": "保留一半以上优势的 ['r2_01', 'r2_02', 'r2_03', 'r2_04', 'r2_05', 'r2_06', 'r2_07', 'r2_08', 'r2_09', 'r2_10', 'r2_11', 'r2_12', 'r2_14', 'r2_15']"
+  }
+ }
+}

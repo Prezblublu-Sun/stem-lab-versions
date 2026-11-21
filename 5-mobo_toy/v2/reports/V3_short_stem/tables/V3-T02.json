@@ -1,0 +1,16 @@
+{
+  "id": "V3-T02",
+  "report": "V3",
+  "kind": "table",
+  "title": "Sensitivity of the eight re-run designs to cancellous modulus (200 MPa) and interference (0.05 mm)",
+  "caption": "f1 = 微动 P95（µm），dsed = Gruen 7 |ΔSED|（%），vm = 柄 von Mises P99（MPa），ok = 满足两条约束。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "v2/reports/V3_short_stem/tables/V3-T02.csv",
+  "csv_sha256": "daa63a24238f7064b92518dfd8dd0a64aa20d374a5e107720158ef2324dd695d",
+  "producer": "v2/report_v3.py",
+  "producer_sha256": "fc4fb42d4596e2ac7aa8cb448d8c90dedbce0b5f1db1b39b7915224faf22881b",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "created": "2026-09-28T21:50:40"
+}

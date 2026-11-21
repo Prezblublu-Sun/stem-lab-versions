@@ -1,0 +1,87 @@
+{
+ "name": "M1-3406-v1",
+ "written": "2026-11-04",
+ "code_hash": "6d7af243d0",
+ "hashed_files": {
+  "v2/femur_real.py": {
+   "sha256": "16d242ab05e14ea0bf35887263b5ce0beb20cc983593692558b6b58dd3f60ad6",
+   "bytes": 23837,
+   "crlf": false,
+   "sha256_lf": "16d242ab05e14ea0bf35887263b5ce0beb20cc983593692558b6b58dd3f60ad6"
+  },
+  "v2/geom3d.py": {
+   "sha256": "efa238e7c1bdbbf85f1fb455b1556e9f1d0c2c36b61717e43d4502b9fa95e348",
+   "bytes": 25808,
+   "crlf": true,
+   "sha256_lf": "0c393a83396387f757a09c3826d239392160624b1de0072e016e02b392701f2f"
+  },
+  "v2/fe3d_geom.py": {
+   "sha256": "3e6677617c943611653a404d89db3596d302894db924ba5aca5b22ffd896ef54",
+   "bytes": 13052,
+   "crlf": true,
+   "sha256_lf": "9b6f15da746eaf8b0faeb3f4eca83a01ef7bf887ec525104770faeb54e5c87b5"
+  },
+  "v2/model3d_v2.py": {
+   "sha256": "04c118fab68ed2cc12528744fda89c6fa640508aed6d6242ff5316e059fd9ca0",
+   "bytes": 20964,
+   "crlf": true,
+   "sha256_lf": "9ff0246cc05635b0875eac69449293d57a2c7e102995a09992b7b713d6604ebf"
+  },
+  "v2/post.py": {
+   "sha256": "0a509608efd2184664a2cad8ce287c701f3e46529c696b38136810c11900e782",
+   "bytes": 3729,
+   "crlf": false,
+   "sha256_lf": "0a509608efd2184664a2cad8ce287c701f3e46529c696b38136810c11900e782"
+  },
+  "v2/config_v2a.yaml": {
+   "sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+   "bytes": 2742,
+   "crlf": false,
+   "sha256_lf": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e"
+  },
+  "v2/model3d_m1.py": {
+   "sha256": "cdc158f2fc949f7dc4de07f5900c113b6603c60a412119d3cd34a586b9342a96",
+   "bytes": 25035,
+   "crlf": true,
+   "sha256_lf": "8655fb55f2cbf0d0a2e00c16d73b76615c9f68ce3bd3aa0a9705a64ec76c9c49"
+  },
+  "v2/post_m1.py": {
+   "sha256": "f71d939c8f4587ee6113ff35aacd684caaea9f92d753170a5b1a4fae4bf4b55e",
+   "bytes": 11194,
+   "crlf": true,
+   "sha256_lf": "475c59f477d8609d2cb28775eff2f7f7671e9be2c2f46565d402d09f918955f5"
+  }
+ },
+ "femur": {
+  "femur_id": "sawbone3406",
+  "femur_model_version": "3406R_v1_hollowcore",
+  "femur_geom_key": "9281cd8eac10eace",
+  "files_sha256": {
+   "femur_3406.py": "89f94074b92e2da16d86517175475b6596d300a99cd7d7f2e2fd10f1af5d48f8",
+   "step_cancellous": "3455b8c9c21bb9f1eae62da357744b4ee1235939c8bc058fb29d0d109c0c7940",
+   "step_cortical": "9b1bf9494728c3533c9cd04db8669008c97dd88701ffea56cd7e12e6bd8cab1f"
+  },
+  "hollow_core": true
+ },
+ "aux_files_not_hashed": [
+  "inp_writer.py",
+  "v2/jobs.py",
+  "v2/femur_3406.py",
+  "v2/collar_rule.py",
+  "v2/stability.py",
+  "v2/bond_collar.py",
+  "v2/import_stem.py",
+  "v2/resorption.py",
+  "v2/shielding.py",
+  "abaqus/odb_export.py",
+  "v2/torsion_load.py",
+  "v2/pose_fixed.py"
+ ],
+ "rule": "any byte change in hashed_files = new model version (ADR first); femur file change = new femur_id; aux file change = CHANGELOG + aux_code_md5 group",
+ "files_tar": {
+  "path": "docs/freeze/M1-3406-v1_files.tar",
+  "sha256": "df3008fd70e3713938a9386a127fcd1c2f6bebd19548a152177cc5e3ce51569a",
+  "bytes": 133120,
+  "note": "exact working-tree bytes of the 8 hashed files (5 CRLF, 3 LF). git stores them LF; a fresh checkout does NOT reproduce code_hash 6d7af243d0 (all-LF gives ebefa65488). ops/check_freeze.py --restore extracts this tar."
+ }
+}

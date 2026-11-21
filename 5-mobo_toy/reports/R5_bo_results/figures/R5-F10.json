@@ -1,0 +1,26 @@
+{
+  "id": "R5-F10",
+  "report": "R5",
+  "kind": "figure",
+  "title": "Knee-point designs: f1 6.9 / 5.6 / 3.6 µm, f2 -17 / -17 / -21 % (A / B / C)",
+  "caption": "各型参考前沿的膝点（归一化后离理想点最近）设计：摩擦模型加载步 von Mises 应力（对数色标）。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "results": "results/S5_runs.json",
+    "runs_csv": "campaign S5_* and S4_*"
+  },
+  "csv": "reports/R5_bo_results/figures/R5-F10.csv",
+  "csv_sha256": "260904760b60de1984687e34df1e073bb5f8c58b5dc089c8ea8a6b857eb02729",
+  "png": "reports/R5_bo_results/figures/R5-F10.png",
+  "svg": "reports/R5_bo_results/figures/R5-F10.svg",
+  "plot_fn": "stage_s5.py:plot_r5_f10",
+  "plot_module_sha256": "3358aa7d657b1a9e755719856d34fc6379363d376a80613b6a2fba74d033bf59",
+  "producer": "stage_s5.py",
+  "producer_sha256": "3358aa7d657b1a9e755719856d34fc6379363d376a80613b6a2fba74d033bf59",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T18:32:40",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

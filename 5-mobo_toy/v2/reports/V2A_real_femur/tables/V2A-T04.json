@@ -1,0 +1,16 @@
+{
+  "id": "V2A-T04",
+  "report": "V2A",
+  "kind": "table",
+  "title": "Sign checks and rerun determinism",
+  "caption": "方向检查只看 f1（P95 微动）；f2、柄应力照录。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "v2/reports/V2A_real_femur/tables/V2A-T04.csv",
+  "csv_sha256": "1f6afd676445d8c8221c2e11f7ea1075fb9e89a0463798597bd0dc3330fc50cc",
+  "producer": "v2/report_v2a_fe.py",
+  "producer_sha256": "8631a9824e262a6ba34c5ab66200101369f27e49a17e9983294761476d6ce1ec",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "created": "2026-09-28T12:45:28"
+}

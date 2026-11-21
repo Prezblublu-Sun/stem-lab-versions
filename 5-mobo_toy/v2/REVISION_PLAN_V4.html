@@ -1,0 +1,523 @@
+<!doctype html><html><head><meta charset='utf-8'><title>REVISION_PLAN_V4</title><style>
+@page { size: A4; margin: 16mm 15mm; }
+* { box-sizing: border-box; }
+body { font-family: "Segoe UI","Microsoft YaHei",Arial,sans-serif; font-size: 10pt; line-height: 1.5; color:#111; }
+h1 { font-size: 18pt; border-bottom: 3px solid #333; padding-bottom:5px; margin-bottom:4px; }
+h2 { font-size: 13pt; margin-top: 1.2em; border-bottom:1px solid #bbb; padding-bottom:2px; page-break-after: avoid; }
+h3 { font-size: 11pt; margin-top: 0.9em; page-break-after: avoid; }
+table { border-collapse: collapse; width: 100%; font-size: 8.5pt; margin: 0.5em 0; page-break-inside: auto; }
+tr { page-break-inside: avoid; }
+th,td { border: 1px solid #999; padding: 4px 6px; text-align: left; vertical-align: top; }
+th { background:#f0f0f0; }
+td:first-child { white-space: nowrap; }
+code,pre { font-family: Consolas,monospace; font-size: 8.5pt; background:#f6f6f6; }
+.meta { color:#444; font-size:9pt; margin: 2px 0 10px 0; }
+.banner { padding:6px 10px; margin:6px 0; border-radius:4px; font-weight:600; }
+.banner.syn { background:#FDE8DC; border:1px solid #D55E00; color:#8a3200; }
+.banner.draft { background:#FFF4CC; border:1px solid #E69F00; color:#6b4a00; }
+figure { margin: 0.8em 0; page-break-inside: avoid; border:1px solid #ccc; background:#fafafa; padding:8px; border-radius:4px; }
+figure img { max-width: 100%; display:block; margin: 0 auto; background:#fff; }
+figcaption { font-size: 8.8pt; color:#222; margin-top:6px; }
+figcaption .cap { font-weight:600; }
+figcaption .src { color:#666; font-size: 7.8pt; }
+td.PASS { background:#DDF2EA; color:#00553d; font-weight:600; }
+td.FAIL { background:#FBE0D3; color:#8a3200; font-weight:600; }
+td.PENDING { background:#EEEEEE; color:#555; font-weight:600; }
+td.NA { background:#E8F1F8; color:#0b4a78; font-weight:600; }
+.verdict { font-weight:700; padding:1px 6px; border-radius:3px; }
+.verdict.PASS { background:#DDF2EA; color:#00553d; } .verdict.FAIL { background:#FBE0D3; color:#8a3200; }
+.verdict.INCOMPLETE { background:#FFF4CC; color:#6b4a00; }
+.verdict.FAIL-APPROVED { background:#E8F1F8; color:#0b4a78; }
+</style></head><body><h1>修改方案 V4：先把界面模型控制住，再谈优化</h1>
+<p>2026-09-28 22:50。依据：两份外部评估（结果层面、方法层面）+ 我对其中关键论断的独立复核。结论先行：<strong>评估意见基本成立；V2A/V3 的前沿、读数设计和"最优区 L 48–62 mm"这几条结论撤回</strong>，保留的只有粗粒度趋势。下面是复核结果、修改内容、顺序、门槛和机时。</p>
+<h2>1 我复核了什么（全部用队列原始数据与场 CSV 重算）</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>评估论断</th>
+<th>复核结果</th>
+<th>结论</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>V3 固定 ρ_tip、q 后，柄体积系数 ρ_tip + (1−ρ_tip)/(q+1) 被锁在 0.58；旧设计 0.35–0.80；前沿最省骨两点系数 0.41、0.44</td>
+<td>重算一致；旧可行设计中有 9 个比 V3 最好的 5.39 cm³ 更省骨</td>
+<td><strong>成立</strong>。"两个种子推不动前沿"是 V3 空间够不到，不是股骨的性质</td>
+</tr>
+<tr>
+<td>2</td>
+<td>参考集在假体颈修正前求解</td>
+<td>64 个参考设计里 61 个是修正前的代码（哈希 af2719…/3edd98…，柄应力中位 78–83 MPa）；修正后的作业 131–170 MPa</td>
+<td><strong>成立，且范围比我日报写的大</strong>（我只提了 3 个）</td>
+</tr>
+<tr>
+<td>3</td>
+<td>压配后约一半界面张开</td>
+<td>4 个设计的场数据：压配结束时 27–50% 节点 COPEN &gt; 1 µm，间隙 P95 62–234 µm；全部 276 个设计加载步张开比例中位 0.54</td>
+<td><strong>成立</strong></td>
+</tr>
+<tr>
+<td>4</td>
+<td>"粘着"节点有 6–10 µm 数值滑移</td>
+<td>粘着状态节点滑移 P95 5.6–6.0 µm、最大 9–10 µm；与摩擦罚函数的弹性滑移上限 = slip tolerance 0.005 × 单元尺寸 2 mm = 10 µm 完全吻合</td>
+<td><strong>成立</strong>。276 个设计里 93 个 f1 &lt; 10 µm，它们之间的排序是数值量</td>
+</tr>
+<tr>
+<td>5</td>
+<td>名义过盈 0.10 mm 实为比例缩放</td>
+<td><code>fe3d_geom.py:91</code> 是 <code>kk = k_ − delta</code>：从"缩放系数"里减 δ，单位面积截面的半径约 0.35–0.8，所以径向只缩了 0.035–0.08 mm</td>
+<td><strong>成立</strong>；Methods 初稿 "shrunk radially by 0.10 mm" 与代码不符</td>
+</tr>
+<tr>
+<td>6</td>
+<td>线弹性压配压力过高</td>
+<td>压配后接触压力中位 3–4 MPa，P95 12–27 MPa，最大 370–2900 MPa</td>
+<td><strong>成立</strong></td>
+</tr>
+<tr>
+<td>7</td>
+<td>SED 违反全是过载</td>
+<td>95 个 |ΔSED| &gt; 30% 的设计 95 个为过载</td>
+<td><strong>成立</strong></td>
+</tr>
+<tr>
+<td>8</td>
+<td>前沿 4 点中 2 点最紧处在尖端</td>
+<td>s_bind 54.2 / L 53.2、63.8 / L 62.3（落在尖端帽上）；全体 276 个里 101 个卡在入口、87 个卡在尖端，贴壁比例中位 1.8%</td>
+<td><strong>成立</strong></td>
+</tr>
+<tr>
+<td>9</td>
+<td>去扭转检查的 ΔSED +64% 不可解读</td>
+<td>参照只按网格匹配，去扭转设计对的是带扭转的完整股骨</td>
+<td><strong>成立</strong>；日报里那句解读删除</td>
+</tr>
+<tr>
+<td>10</td>
+<td>验收记录不一致</td>
+<td>A4 实为 FAIL（1.62% &gt; 0.5%，无处置）；35% 是 L 40–90 空间、51.9% 是 L 20–90 空间；A10 只有 1 个完整种子却记 PASS；A12 未做</td>
+<td><strong>成立</strong>，是我日报的错</td>
+</tr>
+</tbody>
+</table>
+<p>我没能独立复核的两条：弦高误差中位 0.21 mm（算法上合理：2 mm 弦、3 mm 曲率半径时弦高 0.17 mm）；候选池最近邻距离 0.33–0.47（量级合理）。</p>
+<h2>2 哪些结论还能用</h2>
+<p>能用：基础设施与几何处理；微动对过盈/摩擦/扭转的<strong>方向</strong>；20–25 mm 超短柄微动高一个量级（60–140 µm，远高于 10 µm 数值地板）；截骨每下移 5 mm 多切 4–5 cm³；留 1 mm 松质层后可行率 37%。</p>
+<p>撤回：前沿 4 点及其排序；40/150 µm 读数设计；"贴皮质优于留松质层"；"头颈交界截骨最优"作为设计结论（它只是去骨体积定义的直接后果）；敏感性里 "α 主导" 的定量指数（GP 未验证）；×2.3 / ×2.4 作为物理敏感度（它们正好是弹性滑移 ∝ 1/(μ·p) 的数值规律）。</p>
+<h2>3 修改内容</h2>
+<h3>M1 界面模型（最先做，其余都依赖它）</h3>
+<ol>
+<li><strong>共用界面网格</strong>。锉腔不再是"缩小的柄"，而是与柄面完全相同的曲面（CAD 过盈 = 0）。柄、皮质、松质一起碎片化，界面只划一次网格，然后把界面节点复制一份给柄侧。这样每个骨侧节点都有一个初始重合的柄侧孪生节点，弦高误差在两侧完全相同、相互抵消。</li>
+<li><strong>过盈用数值指定</strong>。小滑移接触对上用 <code>*CLEARANCE</code> 给每个从面节点指定 −δ，再用 <code>*CONTACT INTERFERENCE, SHRINK</code> 逐步消除。δ 成为真正均匀的法向量。只在松质骨面上施加；皮质面过盈为 0。</li>
+<li><strong>摩擦弹性滑移压到 0.5 µm 以下</strong>。slip tolerance 0.005 → 0.00025（2 mm 单元时 0.5 µm），并与 Lagrange 摩擦对照 2 个设计；若收敛代价过高再折中。</li>
+<li><strong>微动改用节点对相对位移</strong>。导出界面节点的 U，孪生节点对的位移差分解为切向与法向；加载 → 卸载 → 再加载，取第二循环的可恢复切向量，面积加权 P95；同时报张开面积比、&gt; 40 µm 与 &gt; 150 µm 的面积占比。张开节点不再被当成"零滑移"。</li>
+<li><strong>松质骨界面层的压溃上限</strong>（可选，见 §5 决定 3）：界面附近松质骨用理想弹塑性（屈服 5–10 MPa 量级）封顶，避免数百 MPa 的夹持力。</li>
+</ol>
+<h3>M2 验证补齐（M1 的验收）</h3>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>做法</th>
+<th>门槛</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>V1 Lamé 压配</td>
+<td>钛圆柱压入松质骨套筒，同一建模代码路径，对解析接触压力</td>
+<td>误差 &lt; 5%</td>
+</tr>
+<tr>
+<td>V2 噪声底</td>
+<td>同一设计 5 次不同网格（尺寸 ±3%、算法种子），3 个设计</td>
+<td>f1 的 CV &lt; 好设计组内差异的 1/3；否则该目标无法排序，需要再加密或换度量</td>
+</tr>
+<tr>
+<td>V3 摩擦容差收敛</td>
+<td>slip tolerance 0.005 / 0.001 / 0.00025 / Lagrange</td>
+<td>最后两档 f1 相差 &lt; 5%</td>
+</tr>
+<tr>
+<td>V4 网格收敛</td>
+<td>3 个设计 × 3 档，单调性检查后才算 GCI</td>
+<td>单调；2.0 对 1.0 &lt; 10%，或 Spearman ≥ 0.9 且组内（f1 最低的 1/3）也 ≥ 0.8</td>
+</tr>
+<tr>
+<td>V5 文献对标</td>
+<td>复现 1–2 个已发表案例的量级（Abdul-Kadir 2008 过盈–微动；Reimeringer 2013 长度–微动）</td>
+<td>同量级（0.5–2×）</td>
+</tr>
+<tr>
+<td>V6 参照匹配</td>
+<td>完整股骨参照按网格 + 材料 + <strong>载荷工况</strong>匹配</td>
+<td>每个变体都有自己的参照</td>
+</tr>
+</tbody>
+</table>
+<h3>M3 生理与材料</h3>
+<ul>
+<li><strong>SED 口径</strong>：改为股骨距区<strong>皮质</strong>单元的 SED，带符号；遮挡（下降）与过载（上升）分开报，约束只对遮挡设阈值，阈值给出处（候选：Huiskes 1992 的死区）。现有 276 个设计可以零 FE 重算（LOAD_ENER.csv 里有逐单元量）。</li>
+<li><strong>载荷</strong>：大小与方向取自 Bergmann 2016 同一档（AVER75 或 HIGH100）；步行 + 上楼两个工况；加外展肌等肌力（Heller 2005 简化肌群），SED 以步行为主、微动以上楼为主。</li>
+<li><strong>松质骨</strong>：全域均质 400 MPa 改为分区或密度映射（取决于有没有 CT，见 §5 决定 1）。</li>
+</ul>
+<h3>M4 设计空间</h3>
+<ul>
+<li>恢复 ρ_tip、q 为变量（它们直接决定去骨体积）。</li>
+<li>位姿加两个自由度：入口前后偏移、绕柄轴旋转；内外偏移范围放宽到不落在边界上。</li>
+<li>尺寸规则从"能放进去的最大号"改为<strong>填充比例 φ</strong>（相对最大可放尺寸的比例，0.6–1.0），与"去骨体积最小"不再打架；皮质余量 m 从设计变量改为<strong>硬约束</strong>（柄面离内膜面 ≥ m_min），对应"只接触松质骨"的柄型。</li>
+<li>截骨高度：当前目标下最优值恒在下界，没有可优化的内容 → 从设计变量降为情景参数（25 / 30 / 35 mm 各做一组），除非目标里加入随保颈而改善的项。</li>
+<li>前后两半的 n、τ 恢复独立（V3 取平均给 GP 引入了隐变量噪声）。</li>
+</ul>
+<h3>M5 代理与优化</h3>
+<ul>
+<li>去骨体积是纯几何量：对候选池直接算，用 <code>mobo.fit_models</code> 已有的确定性目标接口，GP 只建微动与约束。</li>
+<li>两个约束各建一个 GP，不再合成不光滑的最大违反量。</li>
+<li>任何敏感性结论或固定变量的决定之前，先做 GP 留一交叉验证与 90% 区间覆盖率（补上 A12）。</li>
+<li>候选池：每轮 = 全局 Sobol + 当前前沿点周围的局部扰动点，都过模板化门（模板化是纯几何，加密成本低）。</li>
+<li>指标：参考点收紧到前沿附近；超体积之外加 IGD+ 与达成面；BO 对 Sobol 的比较只在同一模型版本的数据上做。</li>
+<li>至少 3 个独立种子，各自独立的初始设计，不共享热启动集。</li>
+</ul>
+<h3>M6 冻结与重跑</h3>
+<p>M1–M3 通过后冻结模型版本（代码哈希写进每条记录，报告只收同一哈希的数据），重跑参考集，再开优化。</p>
+<h2>4 顺序、门槛与机时</h2>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>内容</th>
+<th>开发</th>
+<th>FE 机时</th>
+<th>通过门槛</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P0</td>
+<td>更正日报；V2A/V3 报告加"结论暂不采信"标注；验收记录订正</td>
+<td>0.5 h</td>
+<td>0</td>
+<td>—</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>M1 界面模型 + 导出 U</td>
+<td>5–7 h</td>
+<td>约 10 次试算</td>
+<td>压配后张开比例 &lt; 5%；粘着节点滑移 &lt; 0.5 µm</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>M2 验证 V1–V6</td>
+<td>3–4 h</td>
+<td>约 35 次（摩擦容差收紧后单次可能慢 1.5–2 倍）≈ 4–5 h</td>
+<td>表中各门槛</td>
+</tr>
+<tr>
+<td>—</td>
+<td><strong>决策点 A</strong>：噪声底是否足以区分好设计；不够则停下讨论度量</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>P3</td>
+<td>M3 SED 口径（零 FE 重算先行）、载荷工况与肌力、松质骨分区</td>
+<td>5–8 h</td>
+<td>约 15 次</td>
+<td>完整股骨应变分布与文献量级一致</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>M4 设计空间 + 模板化重写 + 可行性扫描</td>
+<td>4–6 h</td>
+<td>0</td>
+<td>可行率 ≥ 30%；偏移不落在边界</td>
+</tr>
+<tr>
+<td>—</td>
+<td><strong>决策点 B</strong>：冻结模型与设计空间</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>P5</td>
+<td>参考集 64 + GP 交叉验证</td>
+<td>1 h</td>
+<td>约 6 h</td>
+<td>覆盖率 0.80–0.97</td>
+</tr>
+<tr>
+<td>P6</td>
+<td>优化：3 个独立种子 + 同预算 Sobol</td>
+<td>2 h</td>
+<td>约 12–15 h</td>
+<td>按新指标判定</td>
+</tr>
+</tbody>
+</table>
+<p>P0–P2 约 1.5 天；全部约 5 天。<strong>P2 通过之前不做任何优化。</strong></p>
+<h2>5 需要你决定的事</h2>
+<ol>
+<li><strong>这根股骨有没有 CT 或密度数据？</strong> 有 → 松质骨按密度映射；没有 → 按颈部 / 干骺端 / 骨干髓腔分区赋值（需要你给一组认可的模量）。</li>
+<li><strong>"只接触松质骨"是不是硬要求？</strong> 是 → m 作硬约束（建议 m_min 0.5–1 mm），贴皮质设计全部排除；这会让长柄大多不可行，设计空间集中到颈部与干骺端。</li>
+<li><strong>松质骨界面是否引入压溃上限（弹塑性）？</strong> 引入更接近真实压配，但每次求解更慢、收敛风险更高。</li>
+<li><strong>肌力与步行工况现在加，还是先只修界面？</strong> 我建议 P1–P2 只修界面（变量最少，便于定位问题），P3 再加。</li>
+<li><strong>SED 约束的阈值与方向</strong>：只约束遮挡，还是过载也约束；阈值取值。</li>
+<li><strong>V3-A1 判据</strong>：同意评估意见，暂不放宽；等 P5 之后按新数据重判。</li>
+</ol>
+<h2>6 对评估意见的三点补充</h2>
+<ul>
+<li>噪声底应当作为<strong>目标能否使用的判据</strong>，而不只是一个报告项：如果 M1 之后同一设计换网格的 f1 波动仍然和好设计之间的差距同量级，那么在"好设计"之间做稳定性排序本身就不成立，目标应改成"微动超过阈值的面积占比"这类对小量不敏感的度量。</li>
+<li>共用界面网格之后，"重跑逐位相同"要改成"换网格重跑的离散度"，否则验收项仍然只在检验网格生成器的确定性。</li>
+<li>超短柄（20–25 mm）的 60–140 µm 虽然远高于数值地板，但这些设计压配后张开比例也最高（约 50%），所以它们的绝对值同样要等 M1 之后重算；现在能说的只是"差一个量级"这个方向。</li>
+</ul>
+<h2>7 决定记录（用户 2026-09-28 23:30）</h2>
+<table>
+<thead>
+<tr>
+<th>事项</th>
+<th>决定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>松质骨材料</td>
+<td><strong>分区赋值</strong>（不做 CT 密度映射）。分区方式与各区模量待定：先从本地文献库核对取值，给出带出处的建议表再确认</td>
+</tr>
+<tr>
+<td>只接触松质骨</td>
+<td><strong>不是硬要求</strong>。皮质余量 m 保留为设计变量，贴皮质设计不排除</td>
+</tr>
+<tr>
+<td>松质骨压溃上限</td>
+<td><strong>暂不加</strong>，界面附近松质骨保持线弹性；压配压力是否超过松质骨强度只作检查项报告</td>
+</tr>
+<tr>
+<td>肌力与步行工况</td>
+<td><strong>先只修界面</strong>（P1–P2），P3 再加</td>
+</tr>
+<tr>
+<td>SED 约束</td>
+<td><strong>待定</strong>。用户要先了解它是什么：说明、应力分布对比图与应力屏蔽统计见 <code>v2/STRESS_SHIELDING_2026-09-28.pdf</code>；现有数据显示现行约束量与皮质口径符号相反（210 个设计里 182 个）</td>
+</tr>
+<tr>
+<td>V3-A1 判据</td>
+<td>暂不放宽，参考集重跑后再判</td>
+</tr>
+</tbody>
+</table>
+<p>由此对 §3 的改动：M1 第 5 条（压溃上限）取消；M4 中"m 改为硬约束"取消，m 仍是设计变量，尺寸规则是否改用填充比例另议。</p>
+<h2>8 M1 验证结果与新的待定事项（2026-09-29 06:32，详见 <code>v2/M1_VERIFICATION.pdf</code>）</h2>
+<p>用户 2026-09-29 00:00 的决定：应力屏蔽选 C（只报告，不进优化）；做七小时实验。实验只做了 P1–P2。</p>
+<table>
+<thead>
+<tr>
+<th>验证项</th>
+<th>结果</th>
+<th>判定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>压配解析对照（Lamé）</td>
+<td>无摩擦 −0.2% / −0.1%；摩擦 0.3 时 −4.5%</td>
+<td>通过</td>
+</tr>
+<tr>
+<td>压配后界面张开</td>
+<td>间隙 &gt; 1 µm 的面积中位 6.2%；&gt; 5 µm 的中位 1.4%、最大 3.9%</td>
+<td>按 1 µm 不通过，按 5 µm 通过</td>
+</tr>
+<tr>
+<td>粘着节点数值滑移</td>
+<td>P95 最大 0.46 µm</td>
+<td>通过</td>
+</tr>
+<tr>
+<td>摩擦容差收敛</td>
+<td>无平台；Lagrange 不收敛</td>
+<td>不通过；处置：数值地板 1 µm</td>
+</tr>
+<tr>
+<td>噪声底（3 设计 × 5 网格）</td>
+<td>可恢复微动变异系数 2.8–5.6%，首次加载 1.7–2.0%</td>
+<td>通过</td>
+</tr>
+<tr>
+<td>新旧界面对比（12 设计，过盈 0.05）</td>
+<td>秩相关 0.98（首次加载）、0.96（可恢复）</td>
+<td>已报告</td>
+</tr>
+<tr>
+<td>方向性</td>
+<td>过盈、摩擦、扭转三个方向都对；过盈 0 不可判定</td>
+<td>通过</td>
+</tr>
+<tr>
+<td>网格 2.0 对 1.4 mm</td>
+<td>首次加载微动相差 0%、−10%、−13%</td>
+<td>不通过（短柄 13%）</td>
+</tr>
+<tr>
+<td>文献对标、参照按载荷工况匹配</td>
+<td>没做</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>生产设置：过盈逐节点给定（<code>*CLEARANCE, TABULAR</code>），皮质相邻节点不施过盈；罚函数摩擦 slip tolerance 2.5e-4；五步（压配、释放、加载、卸载、再加载）；本机三槽并行。摩擦模型每个设计 9–26 分钟。</p>
+<p>新的待定事项（参考集重跑之前必须先定）：
+1. 过盈量取值。0.10 mm 下界面几乎全粘着、微动低于地板；0.05 → 0.025 mm 之间开始滑动。
+2. 卸载水平：卸到零，还是保留约 10% 峰值载荷。
+3. 优化用的微动定义：第二循环可恢复量，还是首次加载量，还是"微动不超过 40 µm 所需的最小过盈"。
+4. 短柄的网格收敛没过 10% 门槛：生产网格是否改为 1.4 mm（求解时间约 2–3 倍），或只对短柄加密。</p>
+<h2>9 第三份评估的复核（2026-09-29 10:30，详见 <code>v2/REVIEW3_AUDIT.pdf</code>）</h2>
+<p>零新解复核的结果：存档微动可重算；无重复施加力矩；坐标变换与原文一致；去骨体积旧定义与体素独立计算相差 ±5% 以内（90% 的设计 ±3%）；超体积参考点 35.7 µm。</p>
+<p>三处更正：应力屏蔽与插入角的相关只在随柄移动的分区里成立，固定解剖区里主导因素是柄长；绕柄轴扭矩是 2–8 N·m 而不是 28 N·m；V2A 的验证是在假体颈修正前的模型上做的。</p>
+<p>验证阶段（P2）追加的作业，共 23 个，三槽并行约 3–4 小时，做之前需要你同意：</p>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>做法</th>
+<th>作业数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>循环是否稳定</td>
+<td>加第三次卸载–加载；三个代表设计 × 过盈 0.10 与 0.025 mm</td>
+<td>6</td>
+</tr>
+<tr>
+<td>网格加密时保持绝对弹性滑移</td>
+<td>1.4 mm 网格，容差 0.000357；三个代表设计</td>
+<td>3</td>
+</tr>
+<tr>
+<td>短柄阈值工况的噪声底</td>
+<td>短柄过盈 0.05 与 0.025 mm，各 5 个网格</td>
+<td>8</td>
+</tr>
+<tr>
+<td>短柄阈值工况的网格</td>
+<td>同上两档过盈，1.4 mm</td>
+<td>2</td>
+</tr>
+<tr>
+<td>反力、接触合力、骨应变</td>
+<td>改导出脚本后重解四个代表工况</td>
+<td>4</td>
+</tr>
+</tbody>
+</table>
+<p>以后每个设计的输出固定包含：首次加载、可恢复量、残余迁移三种微动的中位 / P95 / P99 与超阈值面积；各步的张开面积；载荷表；去骨体积分项（截骨、锉腔、皮质、松质）。</p>
+<h2>10 验证作业的结果与新的计划（2026-09-29 15:00）</h2>
+<p>第 9 节的 23 个作业已全部解完，无失败，结果见 <code>v2/REVIEW3_RUNS.pdf</code>。要点：过盈 0.025 mm 下第二循环与第三循环相差 1.3% 以内；
+短柄在 2.0 mm 网格下被低估约 8%；短柄阈值工况的噪声 1–2%；反力与接触合力闭合；过盈 0.10 mm 下柄周松质骨几乎全部超过 0.7% 压缩应变。</p>
+<p><strong>对第 8 节待定事项的更新建议</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>事项</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>过盈量</td>
+<td>0.025 mm 作生产值，0.05 mm 作对照（原建议 0.05 mm）</td>
+</tr>
+<tr>
+<td>卸载水平</td>
+<td>保留 10% 峰值，先用 6 个作业看影响</td>
+</tr>
+<tr>
+<td>微动定义</td>
+<td>第二循环可恢复量为主，同时报首次加载量、中位、P99、超阈值面积</td>
+</tr>
+<tr>
+<td>生产网格</td>
+<td>优化用 2.0 mm，前沿设计用 1.4 mm 复核</td>
+</tr>
+</tbody>
+</table>
+<p>后续试验分四个阶段，详见 <code>v2/PROJECT_ASSESSMENT_2026-09-29.pdf</code> 第 6 节：A 定标（约 45 个作业）→ B 冻结与参考集（约 70 个）→ C 优化（约 165 个）→ D 推广。
+本文件第 4 节的 P3–P6 由这四个阶段取代。</p>
+<h2>11 对照 Naghavi 博士论文之后（2026-09-29 17:10）</h2>
+<p>用户要求参考 Ata（Naghavi）的博士论文检查本项目。对照、零求解的四项和三组求解对照都已完成，文档是
+<code>v2/ATA_THESIS_COMPARISON_2026-09-29.pdf</code>、<code>v2/ATA_FOLLOWUP_2026-09-29.pdf</code>、<code>v2/ATA_RUNS_2026-09-29.pdf</code>、<code>v2/ATA_FE_FIGURES_2026-09-29.pdf</code>。</p>
+<p><strong>已经落实的改动</strong></p>
+<table>
+<thead>
+<tr>
+<th>事项</th>
+<th>做法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>名称</td>
+<td>本文件和项目总结里“骨量损失”改为“去骨体积”；“骨吸收”只指按死区规则算出的量</td>
+</tr>
+<tr>
+<td>骨吸收质量分数</td>
+<td><code>v2/resorption.py</code>，死区 0.4、0.6、0.75 三档，主值取 0.6</td>
+</tr>
+<tr>
+<td>分区</td>
+<td>加“股骨坐标系、随柄定位”与固定分区，补按体积加权的总值</td>
+</tr>
+<tr>
+<td>柄应力</td>
+<td>分柄体、交界、假体颈三段统计</td>
+</tr>
+<tr>
+<td>变体作业</td>
+<td>配置覆盖、只解粘接模型、指定参照；不进常规数据集</td>
+</tr>
+</tbody>
+</table>
+<p><strong>对第 10 节四个阶段的调整</strong></p>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>调整</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A 定标</td>
+<td>A4 肌力与步行工况建议提到参考集之前。A5 文献对标的第一个案例定为 Reimeringer 2013，需要 Sawbones 几何</td>
+</tr>
+<tr>
+<td>A 定标</td>
+<td>新增：假体颈与柄肩交界改成带圆角的形状，之后才能评价交界处的应力。这会改变建模代码的版本</td>
+</tr>
+<tr>
+<td>B 冻结</td>
+<td>每个设计的固定输出里加上骨吸收质量分数、三套分区的应力屏蔽、分段的柄应力</td>
+</tr>
+<tr>
+<td>C 优化</td>
+<td>柄强度约束改为交界以外的最大应力，柄体与假体颈都算。许用值等用户定制造方式</td>
+</tr>
+<tr>
+<td>C 优化</td>
+<td>应力屏蔽仍然只报告。报告时写明载荷工况，与文献比较用 2300 N 一组</td>
+</tr>
+</tbody>
+</table>
+<p><strong>新增的待定事项</strong></p>
+<ol>
+<li>柄强度的许用值，取决于制造方式。</li>
+<li>是否把柄的刚度加进设计变量。三组对照显示，降低柄刚度能减轻屏蔽，代价是稳定设计的微动成倍增加。</li>
+<li>是否允许下载 Sawbones 几何。</li>
+<li>是否安排实物试验。论文的实验方案可以借用，但它只能验证绑定状态下的骨应力，验证不了微动。</li>
+</ol></body></html>

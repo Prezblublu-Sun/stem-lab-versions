@@ -1,0 +1,25 @@
+{
+  "id": "R6-F02",
+  "report": "R6",
+  "kind": "figure",
+  "title": "2D vs 3D ranking of front designs: ρ = 0.35 for f1 and 0.76 for f2",
+  "caption": "抽检设计（来源：各型参考前沿按 f1 等距）的 2D 与 3D 目标值；ρ 为三型合并的 Spearman 秩相关；各型内的 ρ 见 R6-T01 与摘要。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "runs3d": "results/runs3d.jsonl (tag S7)"
+  },
+  "csv": "reports/R6_spot3d/figures/R6-F02.csv",
+  "csv_sha256": "48b97a03ececa6cd9380808c948a2b67a51675dcab49faaf5c71f32bb57f5705",
+  "png": "reports/R6_spot3d/figures/R6-F02.png",
+  "svg": "reports/R6_spot3d/figures/R6-F02.svg",
+  "plot_fn": "stage_s7.py:plot_r6_f02",
+  "plot_module_sha256": "738aaa49160621be282984a419e742d62cd2c185e9fe26a51c6ea5e047f4f3d5",
+  "producer": "stage_s7.py",
+  "producer_sha256": "738aaa49160621be282984a419e742d62cd2c185e9fe26a51c6ea5e047f4f3d5",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T20:11:03",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

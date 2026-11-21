@@ -1,0 +1,24 @@
+#!/bin/sh
+# pre-push：慢的检查。启用：git config core.hooksPath ops/githooks
+# 1 冻结再查一遍（工作区字节）
+# 2 统一测试入口 ops/test_all.py（批次回归、工具、模板化）；改了哪些模块就跑对应测试，改了 stage_db 或 jobs 就跑全部
+# 跳过（只在用户明确要求时）：SKIP_TESTS=1 git push ...
+set -e
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+PY="$ROOT/.venv-mobo/Scripts/python.exe"
+[ -x "$PY" ] || PY=python
+export PYTHONUTF8=1
+
+"$PY" ops/check_freeze.py --quiet || { echo "pre-push: 冻结文件被改，拒绝推送"; exit 1; }
+
+if [ "${SKIP_TESTS:-0}" = "1" ]; then echo "pre-push: SKIP_TESTS=1，跳过测试（要在记录里写明）"; exit 0; fi
+
+remote_sha="$(git rev-parse --verify --quiet "$1/master" || true)"
+if [ -n "$remote_sha" ]; then
+  changed="$(git diff --name-only "$remote_sha" HEAD)"
+else
+  changed="$(git ls-files)"
+fi
+"$PY" ops/test_all.py --changed-files "$changed" || { echo "pre-push: 测试未通过，拒绝推送"; exit 1; }
+exit 0

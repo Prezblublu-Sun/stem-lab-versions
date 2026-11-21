@@ -1,0 +1,26 @@
+{
+  "id": "R5-F12",
+  "report": "R5",
+  "kind": "figure",
+  "title": "GP relevance and R4 total Sobol indices agree with Spearman ρ = 0.64",
+  "caption": "种子 0 最终 GP 的 ARD 长度尺度倒数（归一化到最大值）对 R4 的总效应 Sobol 指数。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "results": "results/S5_runs.json",
+    "runs_csv": "campaign S5_* and S4_*"
+  },
+  "csv": "reports/R5_bo_results/figures/R5-F12.csv",
+  "csv_sha256": "e7f04a8ec1e903b232b8bdbc4b88f63ad8c35e20fdf1c4b564e2da3d8d30f921",
+  "png": "reports/R5_bo_results/figures/R5-F12.png",
+  "svg": "reports/R5_bo_results/figures/R5-F12.svg",
+  "plot_fn": "stage_s5.py:plot_r5_f12",
+  "plot_module_sha256": "3358aa7d657b1a9e755719856d34fc6379363d376a80613b6a2fba74d033bf59",
+  "producer": "stage_s5.py",
+  "producer_sha256": "3358aa7d657b1a9e755719856d34fc6379363d376a80613b6a2fba74d033bf59",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T18:32:41",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

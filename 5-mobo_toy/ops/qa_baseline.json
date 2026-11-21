@@ -1,0 +1,40 @@
+{
+ "from_db": "H:\\projects\\Femoral implant generation\\db3406\\v0.9",
+ "version": "v0.10",
+ "written": "2026-11-04",
+ "note": "QA 已知例外基线：这些检查在这些行上 FAIL 是已知的（见 db3406 CHANGELOG v0.2–v0.9、DATA_CARD 第 4 节第 4、16、22 条）。ops/qa_compare.py 只把新增的失败算失败。",
+ "known": {
+  "1": {
+   "name": "column types, units, ranges, required / empty labels",
+   "status": "FAIL",
+   "failures": [
+    "db_al_al2_12_eaaf6723: cpress_release_max=109541.1640625 outside [0, 100000.0] MPa",
+    "db_al_al2_16_44bfba2d: cpress_release_max=344776.53125 outside [0, 100000.0] MPa",
+    "db_cd_cd1r_424_53264a51: cpress_release_max=795995.6875 outside [0, 100000.0] MPa",
+    "db_crt_c1649_8748b543: export errors [\"intact reference mismatch: ['prep h_roi (ref) vs h_int (row): ref 2.0 vs row 1.94']\"]",
+    "db_crt_c723_2790d7db: export errors [\"intact reference mismatch: ['prep h_roi (ref) vs h_int (row): ref 2.0 vs row 1.94']\"]",
+    "db_fd_p14_a70_fdb6e1e1_h2.4_bd59f200: cpress_release_max=120483.6875 outside [0, 100000.0] MPa"
+   ]
+  },
+  "7": {
+   "name": "spec delta / load agree with prep / result",
+   "status": "FAIL",
+   "failures": [
+    "db_cd_p13_a105_91e458e3_m1_TA10_e31bfa78: cons_load is false",
+    "db_crt_c1649_8748b543: cons_h_int is false",
+    "db_crt_c723_2790d7db: cons_h_int is false",
+    "db_ref_intact_val_b500_far2.5_578ac48d: cons_load is false"
+   ]
+  },
+  "13": {
+   "name": "bonded rows: intact reference matches (femur, geometry, neck axis, h_int / h_roi, E_canc, h_far, load_N)",
+   "status": "FAIL",
+   "failures": [
+    "db_crt_c1649_8748b543: h_int_prep_mm ref 2.0 vs row 1.94",
+    "db_crt_c1649_8748b543: ref_match False ['prep h_roi (ref) vs h_int (row): ref 2.0 vs row 1.94']",
+    "db_crt_c723_2790d7db: h_int_prep_mm ref 2.0 vs row 1.94",
+    "db_crt_c723_2790d7db: ref_match False ['prep h_roi (ref) vs h_int (row): ref 2.0 vs row 1.94']"
+   ]
+  }
+ }
+}

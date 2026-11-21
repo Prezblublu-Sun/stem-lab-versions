@@ -1,0 +1,34 @@
+{
+  "id": "R2-F04",
+  "report": "R2",
+  "kind": "figure",
+  "title": "5 of 7 sign checks go the expected way",
+  "caption": "Dorr B 基线设计的单因素改动。绿色 = 方向符合预期，红色 = 不符合，灰色 = 只做敏感性、无预设方向。侧板厚度与载荷方向两组是模型假设的敏感性。",
+  "synthetic": false,
+  "units": {
+    "value": "µm or %"
+  },
+  "sources": {
+    "runs_csv": "results/runs.csv campaign S2_*",
+    "baseline_u": [
+      0.291,
+      0.395,
+      0.342,
+      0.403,
+      0.429
+    ]
+  },
+  "csv": "reports/R2_fe_verification/figures/R2-F04.csv",
+  "csv_sha256": "10982b0b41bb96fd417b3b6537efb1717d29d2087e0c1c320bcef99034dd964c",
+  "png": "reports/R2_fe_verification/figures/R2-F04.png",
+  "svg": "reports/R2_fe_verification/figures/R2-F04.svg",
+  "plot_fn": "stage_s2.py:plot_r2_f04",
+  "plot_module_sha256": "ff5007a0ae64d7f310bb82c8c89e9a90f88835c901714be974d7c9607e7f47ad",
+  "producer": "stage_s2.py",
+  "producer_sha256": "ff5007a0ae64d7f310bb82c8c89e9a90f88835c901714be974d7c9607e7f47ad",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T16:09:14",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

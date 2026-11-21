@@ -1,0 +1,44 @@
+{
+ "batch": "b25_opt1",
+ "db": "v0.10",
+ "db_rows": 1301,
+ "gates_sha256": "82a9732f83dc50ce08c20e5d81a19e2ed37c2c35fd2de64c4d71a27af0526c72",
+ "judged_utc": "2026-11-04T20:34:38Z",
+ "replay": false,
+ "gates": {
+  "G36": {
+   "desc": "8 行里至少 2 行在相同去骨量下 F 比 A 族高 ≥ 3 mm 且微动 ≤ 0.96 倍。过：围绕这些行做第二轮；不过：停止，A 的 m 1.0 这一族就是这组目标下的前沿",
+   "status": "FAIL",
+   "value": 1,
+   "threshold": 2,
+   "rows": [
+    "db_al_opt1_01_e+1.75_a6fa466c",
+    "db_al_opt1_02_e+0.75_a328bd81",
+    "db_al_opt1_03_e+1_2e459de0",
+    "db_al_opt1_04_e+0.75_88c338c6",
+    "db_al_opt1_05_e+0.25_f0bd9ab8",
+    "db_al_opt1_06_e+0.5_43fd38ab",
+    "db_al_opt1_07_e+0.25_303b2572",
+    "db_al_opt1_08_e+0_68d23c0c"
+   ],
+   "note": "改进的行 ['db_al_opt1_08_e+0_68d23c0c']；逐行 {'opt1_01': {'bone_cm3': 5.52, 'F_mm': 111.1, 'F_pred_mm': 112.1, 'f1_um': 23.35, 'f1_pred_um': 22.49, 'rot_stair_deg': 0.08751948545768312, 'dF_vs_A_mm': 1.9, 'f1_vs_A': 0.987, 'improved': False}, 'opt1_02': {'bone_cm3': 5.707, 'F_mm': 119.1, 'F_pred_mm': 117.3, 'f1_um': 25.97, 'f1_pred_um': 25.2, 'rot_stair_deg': 0.09196912469021451, 'dF_vs_A_mm': 7.8, 'f1_vs_A': 1.213, 'improved': False}, 'opt1_03': {'bone_cm3': 6.607, 'F_mm': 124.4, 'F_pred_mm': 126.2, 'f1_um': 16.32, 'f1_pred_um': 15.29, 'rot_stair_deg': 0.07642427338838255, 'dF_vs_A_mm': 4.8, 'f1_vs_A': 1.144, 'improved': False}, 'opt1_04': {'bone_cm3': 7.234, 'F_mm': 126.2, 'F_pred_mm': 126.7, 'f1_um': 9.79, 'f1_pred_um': 9.29, 'rot_stair_deg': 0.06015375369691035, 'dF_vs_A_mm': 0.6, 'f1_vs_A': 0.942, 'improved': False}, 'opt1_05': {'bone_cm3': 7.355, 'F_mm': 132.8, 'F_pred_mm': 133.1, 'f1_um': 11.59, 'f1_pred_um': 11.21, 'rot_stair_deg': 0.06838911978402204, 'dF_vs_A_mm': 6.0, 'f1_vs_A': 1.19, 'improved': False}, 'opt1_06': {'bone_cm3': 7.695, 'F_mm': 131.9, 'F_pred_mm': 134.0, 'f1_um': 8.01, 'f1_pred_um': 7.93, 'rot_stair_deg': 0.06034564147889751, 'dF_vs_A_mm': 1.7, 'f1_vs_A': 0.953, 'improved': False}, 'opt1_07': {'bone_cm3': 7.966, 'F_mm': 132.7, 'F_pred_mm': 135.9, 'f1_um': 6.84, 'f1_pred_um': 6.41, 'rot_stair_deg': 0.05415702824573957, 'dF_vs_A_mm': -0.4, 'f1_vs_A': 0.899, 'improved': False}, 'opt1_08': {'bone_cm3': 8.411, 'F_mm': 140.6, 'F_pred_mm': 141.2, 'f1_um': 5.78, 'f1_pred_um': 5.83, 'rot_stair_deg': 0.05358060960143935, 'dF_vs_A_mm': 3.2, 'f1_vs_A': 0.862, 'improved': True}}"
+  },
+  "G37": {
+   "desc": "8 行的 log10 微动预测 RMSE ≤ 0.06 dex。不过：第二轮之前先改模型",
+   "status": "PASS",
+   "value": 0.0187,
+   "threshold": 0.06,
+   "rows": [
+    "db_al_opt1_01_e+1.75_a6fa466c",
+    "db_al_opt1_02_e+0.75_a328bd81",
+    "db_al_opt1_03_e+1_2e459de0",
+    "db_al_opt1_04_e+0.75_88c338c6",
+    "db_al_opt1_05_e+0.25_f0bd9ab8",
+    "db_al_opt1_06_e+0.5_43fd38ab",
+    "db_al_opt1_07_e+0.25_303b2572",
+    "db_al_opt1_08_e+0_68d23c0c"
+   ],
+   "note": "预测减 FE 的偏差 -0.015 dex，最大 0.028 dex"
+  }
+ }
+}

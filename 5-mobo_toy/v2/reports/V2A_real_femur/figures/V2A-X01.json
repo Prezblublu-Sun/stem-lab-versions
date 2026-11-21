@@ -1,0 +1,23 @@
+{
+  "id": "V2A-X01",
+  "report": "V2A",
+  "kind": "figure",
+  "title": "Interim (paused run): hypervolume ratio of each BO seed so far against the same-budget Sobol baseline",
+  "caption": "中期快照：BO 尚未完成，分母为目前已知最佳前沿（参考集 + 目前全部 BO 可行点），最终报告会随新点变化。BO 的前 24 次为初始 Sobol 点（与基线同类），第 25 次起才是 qLogNEHVI 选点。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "v2/reports/V2A_real_femur/figures/V2A-X01.csv",
+  "csv_sha256": "ddc95f237e99614d45510e221b38e82247d1edd676e3cc79c616586849463cc9",
+  "png": "v2/reports/V2A_real_femur/figures/V2A-X01.png",
+  "svg": "v2/reports/V2A_real_femur/figures/V2A-X01.svg",
+  "plot_fn": "v2/report_v2a_fe.py:plot_f12",
+  "plot_module_sha256": "57fcf63454473a6827da0e39fc8322c345a6defdb11b5d2a2d42952813829f62",
+  "producer": "v2/report_v2a_fe.py",
+  "producer_sha256": "57fcf63454473a6827da0e39fc8322c345a6defdb11b5d2a2d42952813829f62",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "spec_sha256": "ec89f24c9f5c45fad848ce34d68f531a4f6e92187411dc885984bd9551462bf6",
+  "created": "2026-09-28T12:08:51",
+  "python": "3.12.3",
+  "matplotlib": "3.11.2"
+}

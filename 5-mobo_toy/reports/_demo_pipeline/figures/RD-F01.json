@@ -1,0 +1,28 @@
+{
+  "id": "RD-F01",
+  "report": "RD",
+  "kind": "figure",
+  "title": "[Synthetic] qNEHVI crosses 0.9 HV ratio before Sobol in every Dorr type",
+  "caption": "细线为单个种子，粗线为中位；虚线为同预算 Sobol 中位；点线为 0.9 门槛。数据为合成。",
+  "synthetic": true,
+  "units": {
+    "n_fe": "count",
+    "hv_ratio": "–"
+  },
+  "sources": {
+    "generator": "demo_report.make, seed 20260926"
+  },
+  "csv": "reports/_demo_pipeline/figures/RD-F01.csv",
+  "csv_sha256": "08b5be73238d7fa2073f419f6326d3eafbd24d7abb4295210c5e38cdb93e7ffd",
+  "png": "reports/_demo_pipeline/figures/RD-F01.png",
+  "svg": "reports/_demo_pipeline/figures/RD-F01.svg",
+  "plot_fn": "demo_report.py:plot_hv_curve",
+  "plot_module_sha256": "f25d677584f45d28c22ac4f8ee7ffa9d697d69ce5cbea5fcf40251f5a7f541d4",
+  "producer": "demo_report.py",
+  "producer_sha256": "f25d677584f45d28c22ac4f8ee7ffa9d697d69ce5cbea5fcf40251f5a7f541d4",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-11-12T09:54:20",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

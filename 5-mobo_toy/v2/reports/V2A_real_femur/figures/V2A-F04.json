@@ -1,0 +1,25 @@
+{
+  "id": "V2A-F04",
+  "report": "V2A",
+  "kind": "figure",
+  "title": "Area-reduction curve A(s)/A0 = ρ_tip + (1 − ρ_tip)(1 − s/L)^q: q sets where the area is lost, ρ_tip how much",
+  "caption": "左：固定 ρ_tip = 0.3 改变 q；右：固定 q = 1 改变 ρ_tip。s 从肩部（0）到尖端（L）。",
+  "synthetic": false,
+  "units": {
+    "t": "s/L"
+  },
+  "sources": {},
+  "csv": "v2/reports/V2A_real_femur/figures/V2A-F04.csv",
+  "csv_sha256": "e829e52bf4425248dbb6ffbcd52bbe9c1ec7feecd76296d47cd4237d77e5959b",
+  "png": "v2/reports/V2A_real_femur/figures/V2A-F04.png",
+  "svg": "v2/reports/V2A_real_femur/figures/V2A-F04.svg",
+  "plot_fn": "v2/report_v2a.py:plot_f04",
+  "plot_module_sha256": "9d4e3345ac28187eeb23f9139668dd66935018027237be1928449f1b2d2d0fe5",
+  "producer": "v2/report_v2a.py",
+  "producer_sha256": "9d4e3345ac28187eeb23f9139668dd66935018027237be1928449f1b2d2d0fe5",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "spec_sha256": "b3a70189dac6b1fd3357774f5a887e48b8a13b4ec79e628feef0d7568f6fe896",
+  "created": "2026-09-28T12:39:49",
+  "python": "3.12.3",
+  "matplotlib": "3.11.2"
+}

@@ -1,0 +1,23 @@
+{
+  "id": "V2A-F13",
+  "report": "V2A",
+  "kind": "figure",
+  "title": "Best-known front has 7 points, 0 of them from the extended-length campaign (hypervolume 1.000× the original-space best)",
+  "caption": "灰实线：全部已解设计的非支配前沿；灰细线：只用原空间（L 40–90）设计的前沿；方块：种子 0 的 64 次评估自身的前沿；三角/菱形：热启动 BO 两个种子各自 32 次评估的前沿。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "v2/reports/V2A_real_femur/figures/V2A-F13.csv",
+  "csv_sha256": "f95dedaa72abfcba220a958ad2f3fd149c79af6b1979dc061eee151a2b42bcda",
+  "png": "v2/reports/V2A_real_femur/figures/V2A-F13.png",
+  "svg": "v2/reports/V2A_real_femur/figures/V2A-F13.svg",
+  "plot_fn": "v2/report_v2a_bo.py:plot_f13",
+  "plot_module_sha256": "4d2a4006f1489086edddc97b869ccaed1b409e7dd7d8ccddb4ee7e7bfd994d63",
+  "producer": "v2/report_v2a_bo.py",
+  "producer_sha256": "4d2a4006f1489086edddc97b869ccaed1b409e7dd7d8ccddb4ee7e7bfd994d63",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "spec_sha256": "b3a70189dac6b1fd3357774f5a887e48b8a13b4ec79e628feef0d7568f6fe896",
+  "created": "2026-09-28T12:45:32",
+  "python": "3.12.3",
+  "matplotlib": "3.11.2"
+}

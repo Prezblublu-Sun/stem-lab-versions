@@ -1,0 +1,19 @@
+{
+  "id": "R1-T01",
+  "report": "R1",
+  "kind": "table",
+  "title": "三型 CFI 与皮质指数：预设、实测、所属 Dorr 区间，及关键尺寸",
+  "caption": "实测值由最终多边形在指定高度的水平截线计算；band 为实测值按 Dorr 判据所属型别。",
+  "synthetic": false,
+  "units": {
+    "canal_LT20_mm": "mm",
+    "E_cancellous_MPa": "MPa"
+  },
+  "sources": {},
+  "csv": "reports/R1_geometry/tables/R1-T01.csv",
+  "csv_sha256": "e6579b601332942efeed812d5ac331dbbf141707b9cc83272f2f630728bd372c",
+  "producer": "stage_s1.py",
+  "producer_sha256": "8dc7a5a5a20e18a980a893e6fdc5c2300feefbef29b8c25b352db9a3cf59344d",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "created": "2026-09-27T16:07:53"
+}

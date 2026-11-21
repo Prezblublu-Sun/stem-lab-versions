@@ -1,0 +1,16 @@
+{
+  "id": "V2A-T02",
+  "report": "V2A",
+  "kind": "table",
+  "title": "Eleven design variables in four groups",
+  "caption": "尺寸 A0 与入口偏移 e 不是设计变量，由模板化给出（最大号，皮质穿透 ≤ 0.25 mm）。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "v2/reports/V2A_real_femur/tables/V2A-T02.csv",
+  "csv_sha256": "9c048c4a7a9e341c0601e9c88d4a6bebeb4caa3d87b8efd9510fe08d33614bdb",
+  "producer": "v2/report_v2a.py",
+  "producer_sha256": "9d4e3345ac28187eeb23f9139668dd66935018027237be1928449f1b2d2d0fe5",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "created": "2026-09-28T12:41:30"
+}

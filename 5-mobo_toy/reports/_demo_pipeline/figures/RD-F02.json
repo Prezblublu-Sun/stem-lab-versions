@@ -1,0 +1,28 @@
+{
+  "id": "RD-F02",
+  "report": "RD",
+  "kind": "figure",
+  "title": "[Synthetic] GP predictions track FE values with 90% intervals",
+  "caption": "点为测试设计，灰色竖线为 GP 90% 预测区间，黑线为 y = x。数据为合成。",
+  "synthetic": true,
+  "units": {
+    "y_true": "µm or %",
+    "y_pred": "µm or %"
+  },
+  "sources": {
+    "generator": "demo_report.make"
+  },
+  "csv": "reports/_demo_pipeline/figures/RD-F02.csv",
+  "csv_sha256": "534aaafc962044138cfe35689566823a1ea864de6c28d00de2193a2d2600198f",
+  "png": "reports/_demo_pipeline/figures/RD-F02.png",
+  "svg": "reports/_demo_pipeline/figures/RD-F02.svg",
+  "plot_fn": "demo_report.py:plot_parity",
+  "plot_module_sha256": "f25d677584f45d28c22ac4f8ee7ffa9d697d69ce5cbea5fcf40251f5a7f541d4",
+  "producer": "demo_report.py",
+  "producer_sha256": "f25d677584f45d28c22ac4f8ee7ffa9d697d69ce5cbea5fcf40251f5a7f541d4",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-11-12T09:54:20",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

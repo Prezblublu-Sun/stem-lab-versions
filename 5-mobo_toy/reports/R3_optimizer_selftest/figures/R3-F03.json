@@ -1,0 +1,33 @@
+{
+  "id": "R3-F03",
+  "report": "R3",
+  "kind": "figure",
+  "title": "qLogNEHVI's 50 % attainment surface is at or below Sobol's on 100% of the BraninCurrin grid and 100% of the ZDT1 grid",
+  "caption": "经验达成函数的 50 % 等值线（Zitzler 2003）：5 个种子中至少 3 个达到的目标区域边界。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "results": "results/S3_selftest.json",
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "pool": "scrambled Sobol n = 20000"
+  },
+  "csv": "reports/R3_optimizer_selftest/figures/R3-F03.csv",
+  "csv_sha256": "8eb48b7d7012af144663b67251e36150498b16846b9c0e25d9a00a33e8a30531",
+  "png": "reports/R3_optimizer_selftest/figures/R3-F03.png",
+  "svg": "reports/R3_optimizer_selftest/figures/R3-F03.svg",
+  "plot_fn": "stage_s3.py:plot_r3_f03",
+  "plot_module_sha256": "0cf2576e717a934665968972577a09e5bf34e8ff6f9427807057d71d704637e9",
+  "producer": "stage_s3.py",
+  "producer_sha256": "0cf2576e717a934665968972577a09e5bf34e8ff6f9427807057d71d704637e9",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T16:07:34",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

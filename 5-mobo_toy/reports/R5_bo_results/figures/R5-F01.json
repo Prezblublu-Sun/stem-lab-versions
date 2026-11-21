@@ -1,0 +1,26 @@
+{
+  "id": "R5-F01",
+  "report": "R5",
+  "kind": "figure",
+  "title": "BO reaches a median HV ratio of 0.89 / 0.96 / 0.90 (A / B / C) within 60 FE runs",
+  "caption": "HV 比 = 已评估可行设计的超体积 / 参考前沿超体积（参考前沿 = R4 扫描 + R5 全部评估的可行非支配集），目标空间 (log10 f1, f2)，参考点每型固定。细线为单个 BO 种子，粗实线为 BO 中位，虚线为同预算 Sobol 中位。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "results": "results/S5_runs.json",
+    "runs_csv": "campaign S5_* and S4_*"
+  },
+  "csv": "reports/R5_bo_results/figures/R5-F01.csv",
+  "csv_sha256": "744e8b2c2e46337eb546b63022174ebe11ccd6c0988746373ffe03dc33c8fa1f",
+  "png": "reports/R5_bo_results/figures/R5-F01.png",
+  "svg": "reports/R5_bo_results/figures/R5-F01.svg",
+  "plot_fn": "stage_s5.py:plot_r5_f01",
+  "plot_module_sha256": "3358aa7d657b1a9e755719856d34fc6379363d376a80613b6a2fba74d033bf59",
+  "producer": "stage_s5.py",
+  "producer_sha256": "3358aa7d657b1a9e755719856d34fc6379363d376a80613b6a2fba74d033bf59",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T18:32:36",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

@@ -1,0 +1,26 @@
+{
+  "id": "R5-F05",
+  "report": "R5",
+  "kind": "figure",
+  "title": "Mean distance from BO designs to the nearest reference-front design: 0.66 in the initial design, 0.34 in the last three rounds (unit cube, seed 0)",
+  "caption": "种子 0 的全部评估点在 (尖端深度, 近端半宽) 平面上的位置，颜色为轮次；黑星为参考前沿设计。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "results": "results/S5_runs.json",
+    "runs_csv": "campaign S5_* and S4_*"
+  },
+  "csv": "reports/R5_bo_results/figures/R5-F05.csv",
+  "csv_sha256": "bd6ff76216ee2454784b28ba0b7ba94e2363b0386f075af0944b0e196d2f5369",
+  "png": "reports/R5_bo_results/figures/R5-F05.png",
+  "svg": "reports/R5_bo_results/figures/R5-F05.svg",
+  "plot_fn": "stage_s5.py:plot_r5_f05",
+  "plot_module_sha256": "3358aa7d657b1a9e755719856d34fc6379363d376a80613b6a2fba74d033bf59",
+  "producer": "stage_s5.py",
+  "producer_sha256": "3358aa7d657b1a9e755719856d34fc6379363d376a80613b6a2fba74d033bf59",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T18:32:38",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

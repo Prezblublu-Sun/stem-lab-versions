@@ -1,0 +1,5 @@
+series,n_eval,n_ok,hv_ratio_vs_original_best,sobol_median_same_n,note
+"bo_s0 (original box, L 40–90)",58,54,0.987,0.984,stopped 12:30 (user decision)
+"bo_s1 (original box, L 40–90)",16,16,0.927,0.928,stopped 12:30 (user decision)
+"bo_s2 (original box, L 40–90)",2,0,0.0,0.586,stopped 12:30 (user decision)
+sobol (median of 200 orders of the 64-point reference set),64,64,0.984,,

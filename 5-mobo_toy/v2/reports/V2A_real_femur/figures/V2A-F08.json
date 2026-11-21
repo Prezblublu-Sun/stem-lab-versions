@@ -1,0 +1,25 @@
+{
+  "id": "V2A-F08",
+  "report": "V2A",
+  "kind": "figure",
+  "title": "Mesh convergence: f1 changes by up to 5% between 2.0 and 1.0 mm interface elements",
+  "caption": "两个设计（calcar-heavy 示例与参考池第 1 个可行设计）在界面单元 2.0、1.4、1.0 mm 下的三个关注量；完整股骨参照按同一网格档。GCI 按 Celik 2008（细化比 1.4、1.43），见 V2A-T05。",
+  "synthetic": false,
+  "units": {
+    "h": "mm"
+  },
+  "sources": {},
+  "csv": "v2/reports/V2A_real_femur/figures/V2A-F08.csv",
+  "csv_sha256": "3f0b8f2887388c504c46aaf1231904f8c9d06f979135e9c083d5e9e11856b62c",
+  "png": "v2/reports/V2A_real_femur/figures/V2A-F08.png",
+  "svg": "v2/reports/V2A_real_femur/figures/V2A-F08.svg",
+  "plot_fn": "v2/report_v2a_fe.py:plot_f08",
+  "plot_module_sha256": "8631a9824e262a6ba34c5ab66200101369f27e49a17e9983294761476d6ce1ec",
+  "producer": "v2/report_v2a_fe.py",
+  "producer_sha256": "8631a9824e262a6ba34c5ab66200101369f27e49a17e9983294761476d6ce1ec",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "spec_sha256": "b3a70189dac6b1fd3357774f5a887e48b8a13b4ec79e628feef0d7568f6fe896",
+  "created": "2026-09-28T12:45:29",
+  "python": "3.12.3",
+  "matplotlib": "3.11.2"
+}

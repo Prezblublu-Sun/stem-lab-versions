@@ -1,0 +1,26 @@
+{
+  "id": "R5-F11",
+  "report": "R5",
+  "kind": "figure",
+  "title": "Front designs differ most between Dorr types in proximal width (normalised medians 0.07 / 0.83 / 0.60, A / B / C)",
+  "caption": "各型参考前沿设计的五个设计变量取值（抖动散点），黑线为中位；纵轴为各变量的完整范围。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "results": "results/S5_runs.json",
+    "runs_csv": "campaign S5_* and S4_*"
+  },
+  "csv": "reports/R5_bo_results/figures/R5-F11.csv",
+  "csv_sha256": "4c8c86883fdf720ae0f2a850ceaa100b1b6159331d94414bcea89b49e48b1670",
+  "png": "reports/R5_bo_results/figures/R5-F11.png",
+  "svg": "reports/R5_bo_results/figures/R5-F11.svg",
+  "plot_fn": "stage_s5.py:plot_r5_f11",
+  "plot_module_sha256": "3358aa7d657b1a9e755719856d34fc6379363d376a80613b6a2fba74d033bf59",
+  "producer": "stage_s5.py",
+  "producer_sha256": "3358aa7d657b1a9e755719856d34fc6379363d376a80613b6a2fba74d033bf59",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T18:32:41",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

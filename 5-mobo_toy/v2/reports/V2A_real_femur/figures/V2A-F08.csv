@@ -1,0 +1,16 @@
+design,h,quantity,value
+base,2.0,f1_p95_um,7.34
+base,2.0,f2_g7_loss_pct,-5.325
+base,2.0,vm_p99,66.507
+base,1.4,f1_p95_um,7.699
+base,1.4,f2_g7_loss_pct,-3.822
+base,1.4,vm_p99,67.023
+base,1.0,f1_p95_um,7.005
+base,1.0,f2_g7_loss_pct,-4.178
+base,1.0,vm_p99,68.624
+ref0,2.0,f1_p95_um,12.827
+ref0,2.0,f2_g7_loss_pct,-3.773
+ref0,2.0,vm_p99,81.09
+ref0,1.4,f1_p95_um,11.409
+ref0,1.4,f2_g7_loss_pct,-2.754
+ref0,1.4,vm_p99,82.409

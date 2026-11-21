@@ -1,0 +1,20 @@
+{
+  "report": "RD",
+  "synthetic": true,
+  "created": "2026-11-12T09:54:21",
+  "producer": "demo_report.py",
+  "items": [
+    {
+      "id": "RD-A1",
+      "measured": "0.96",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "id": "RD-A2",
+      "measured": "0.85",
+      "status": "FAIL",
+      "note": "演示不通过的写法：写明原因（区间过窄）与处置（调高噪声先验后重跑）。"
+    }
+  ]
+}

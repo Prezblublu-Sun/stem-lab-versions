@@ -1,0 +1,28 @@
+{
+  "id": "R1-F05",
+  "report": "R1",
+  "kind": "figure",
+  "title": "No design fails on wall thickness alone: all 280 designs with a wall below 1 mm also cut cortex; passing designs keep at least 2.3 mm",
+  "caption": "进入 L2 判定的设计（L1 被拒的不算）的剩余皮质壁厚：骨内柄体到外轮廓（截骨面以下 0.5 mm 起算）的最小距离。点线为 1.0 mm 门槛。",
+  "synthetic": false,
+  "units": {
+    "wall": "mm"
+  },
+  "sources": {
+    "generator": "femur2d.build / stem2d.gate",
+    "sobol": "scrambled Sobol, seed 1, n = 1024 per type"
+  },
+  "csv": "reports/R1_geometry/figures/R1-F05.csv",
+  "csv_sha256": "343b1cbd27936e2fecddbe618e362f1ce5e11cb83b199d6451ec4484bca00761",
+  "png": "reports/R1_geometry/figures/R1-F05.png",
+  "svg": "reports/R1_geometry/figures/R1-F05.svg",
+  "plot_fn": "stage_s1.py:plot_r1_f05",
+  "plot_module_sha256": "8dc7a5a5a20e18a980a893e6fdc5c2300feefbef29b8c25b352db9a3cf59344d",
+  "producer": "stage_s1.py",
+  "producer_sha256": "8dc7a5a5a20e18a980a893e6fdc5c2300feefbef29b8c25b352db9a3cf59344d",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T16:07:49",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

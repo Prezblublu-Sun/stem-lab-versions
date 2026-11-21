@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "H:\\projects\\Femoral implant generation\\sandbox\\mobo_toy\\.venv-mobo\\Scripts\\python.exe",
+            "args": ["H:\\projects\\Femoral implant generation\\sandbox\\mobo_toy\\ops\\guard_pretooluse.py"],
+            "timeout": 10,
+            "statusMessage": "核对冻结文件"
+          }
+        ]
+      }
+    ]
+  }
+}

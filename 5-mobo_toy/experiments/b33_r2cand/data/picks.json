@@ -1,0 +1,67 @@
+{
+ "rule": "among the R2 rows that are better than 3b (b31's G49 definition, against the A family curve, 3b at +9.68 mm / -0.0738 dex), the margin of a\nroute = min(F margin / 0.6 mm, micromotion margin / 0.029 dex) (F re-mesh sd; largest micromotion re-mesh difference); a row's margin = the larger of\nits two routes. Sort by margin, keep rows whose design (u13) is not already kept, take the first 3.",
+ "db": "v0.13",
+ "candidates": [
+  {
+   "label": "r2_01",
+   "margin": 2.78,
+   "dF_mm": 14.35,
+   "dlog_f1": -0.1375,
+   "bone_cm3": 5.379,
+   "twin_of_a_pick": false
+  },
+  {
+   "label": "r2_03",
+   "margin": 2.73,
+   "dF_mm": 14.32,
+   "dlog_f1": -0.1776,
+   "bone_cm3": 5.467,
+   "twin_of_a_pick": false
+  },
+  {
+   "label": "r2_12",
+   "margin": 1.06,
+   "dF_mm": 13.26,
+   "dlog_f1": -0.1545,
+   "bone_cm3": 5.595,
+   "twin_of_a_pick": false
+  },
+  {
+   "label": "r2_05",
+   "margin": 1.02,
+   "dF_mm": 13.29,
+   "dlog_f1": -0.0897,
+   "bone_cm3": 5.327,
+   "twin_of_a_pick": false
+  },
+  {
+   "label": "r2_06",
+   "margin": 0.5,
+   "dF_mm": 11.03,
+   "dlog_f1": -0.1383,
+   "bone_cm3": 5.818,
+   "twin_of_a_pick": false
+  },
+  {
+   "label": "r2_14",
+   "margin": 0.4,
+   "dF_mm": 12.29,
+   "dlog_f1": -0.1355,
+   "bone_cm3": 6.055,
+   "twin_of_a_pick": true
+  },
+  {
+   "label": "r2_08",
+   "margin": 0.22,
+   "dF_mm": 12.81,
+   "dlog_f1": -0.0825,
+   "bone_cm3": 5.153,
+   "twin_of_a_pick": false
+  }
+ ],
+ "picks": [
+  "r2_01",
+  "r2_03",
+  "r2_12"
+ ]
+}

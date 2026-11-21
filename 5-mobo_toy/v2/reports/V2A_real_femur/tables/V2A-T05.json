@@ -1,0 +1,16 @@
+{
+  "id": "V2A-T05",
+  "report": "V2A",
+  "kind": "table",
+  "title": "Mesh convergence and GCI (Celik 2008)",
+  "caption": "h1.0/h1.4/h2.0 为三档网格下的值；p 为表观阶数；gci_fine 为细网格的 GCI；最后一列为 2.0 对 1.0 的相对变化。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "v2/reports/V2A_real_femur/tables/V2A-T05.csv",
+  "csv_sha256": "ef9741570d4df1a12fc9e15e968bd5bd93a6fd22113fe3b79deecaeeffdab0bd",
+  "producer": "v2/report_v2a_fe.py",
+  "producer_sha256": "8631a9824e262a6ba34c5ab66200101369f27e49a17e9983294761476d6ce1ec",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "created": "2026-09-28T12:45:29"
+}

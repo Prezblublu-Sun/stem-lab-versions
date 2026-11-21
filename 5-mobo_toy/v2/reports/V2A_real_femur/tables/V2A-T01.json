@@ -1,0 +1,16 @@
+{
+  "id": "V2A-T01",
+  "report": "V2A",
+  "kind": "table",
+  "title": "Real femur model: sources, volume checks, landmarks and Dorr indices",
+  "caption": "距离场体积与 OCC 体积都限于距离场盒子（模型坐标 x −45…75、y −45…45、z −160…110 mm）。straight3d 的对照值来自同一根股骨的 Job-1 四面体体素化（线性单元会略缩小曲面）。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "v2/reports/V2A_real_femur/tables/V2A-T01.csv",
+  "csv_sha256": "5817fa4717f0bf1129f151d579500e635c750ae6c457966325b788347704c60a",
+  "producer": "v2/report_v2a.py",
+  "producer_sha256": "9d4e3345ac28187eeb23f9139668dd66935018027237be1928449f1b2d2d0fe5",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "created": "2026-09-28T12:41:30"
+}

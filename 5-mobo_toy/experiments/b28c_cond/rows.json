@@ -1,0 +1,41 @@
+{
+ "stage_db_batch": "b28c",
+ "rows": [
+  {
+   "label": "FAM1R_3b",
+   "job_id": "db_nz_fam1_3b_e+1.5_h1.94_88da6ea6"
+  },
+  {
+   "label": "FAM1H_3b",
+   "job_id": "db_fd_fam1_3b_e+1.5_h1.4_d536e2ad"
+  },
+  {
+   "label": "FAM1S_3b",
+   "job_id": "db_cd_fam1_3b_e+1.5_F1714_40294d2d"
+  },
+  {
+   "label": "FAM1R_1b",
+   "job_id": "db_nz_fam1_1b_e+2_h1.94_1e5110a7"
+  },
+  {
+   "label": "FAM1H_1b",
+   "job_id": "db_fd_fam1_1b_e+2_h1.4_db79b8c1"
+  },
+  {
+   "label": "FAM1S_1b",
+   "job_id": "db_cd_fam1_1b_e+2_F1714_a5a6fc8f"
+  },
+  {
+   "label": "FAM1R_0b",
+   "job_id": "db_nz_fam1_0b_e+1.5_h1.94_63a88163"
+  },
+  {
+   "label": "FAM1H_0b",
+   "job_id": "db_fd_fam1_0b_e+1.5_h1.4_0db5a4d8"
+  },
+  {
+   "label": "FAM1S_0b",
+   "job_id": "db_cd_fam1_0b_e+1.5_F1714_49511e66"
+  }
+ ]
+}

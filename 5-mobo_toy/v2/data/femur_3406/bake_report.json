@@ -1,0 +1,195 @@
+{
+ "date": "2026-10-23 17:05:22",
+ "gmsh": "4.15.2",
+ "source_dir": "H:\\projects\\application\\research-log\\sawbone_3406_2026-10-23\\churun_uncut_export",
+ "transform": "diag(1, 1, -1) (z -> -z only)",
+ "bodies": {
+  "cortical": {
+   "source": "H:\\projects\\application\\research-log\\sawbone_3406_2026-10-23\\churun_uncut_export\\Cortical_AP214.STEP",
+   "source_sha256": "63bac3ce9cf8a8cbda031420df6d34ba72b15f907a2b980b6d3c755748597752",
+   "native": {
+    "mm3": 271529.3998714689,
+    "faces": 869,
+    "bbox": [
+     -31.493696124191903,
+     -25.97115394081695,
+     -135.12137362327678,
+     77.04483010937969,
+     42.35603952998866,
+     351.901929194833
+    ]
+   },
+   "mirrored": {
+    "mm3": 271529.408598137,
+    "faces": 869,
+    "bbox": [
+     -31.493696124191903,
+     -25.97115394081695,
+     -351.901929194833,
+     77.04483010937969,
+     42.35603952998866,
+     135.12137362327678
+    ],
+    "write_s": 4.5
+   },
+   "output": "H:\\projects\\Femoral implant generation\\sandbox\\mobo_toy\\v2\\data\\femur_3406\\3406R_cortical.STEP"
+  },
+  "cancellous": {
+   "source": "H:\\projects\\application\\research-log\\sawbone_3406_2026-10-23\\churun_uncut_export\\Cancellou_AP214.STEP",
+   "source_sha256": "416aba5430afabd5e13ecee189e912cf7ffa6994926eb9b4870824af801094f2",
+   "native": {
+    "mm3": 127956.17792728645,
+    "faces": 155,
+    "bbox": [
+     -21.455822043529437,
+     -22.037052508259787,
+     -132.80324970036233,
+     73.62006574525583,
+     25.391170951513935,
+     -13.926679089929962
+    ]
+   },
+   "mirrored": {
+    "mm3": 127951.85396863865,
+    "faces": 155,
+    "bbox": [
+     -21.454885371359502,
+     -22.036115836089852,
+     13.9276157620999,
+     73.61912907308589,
+     25.390234279344,
+     132.80231302819237
+    ],
+    "bore_filled": {
+     "bore_faces": [
+      1,
+      153,
+      154,
+      155
+     ],
+     "n_faces": 4,
+     "area_mm2": 845.6948420546222,
+     "bbox_min": [
+      -14.4552905098346,
+      -0.1949986496609603,
+      70.99898880896657
+     ],
+     "bbox_max": [
+      71.4408790443746,
+      4.18439274211936,
+      122.22918692103181
+     ],
+     "rim_loops": [
+      {
+       "edges": [
+        112,
+        119,
+        124,
+        127,
+        130,
+        165,
+        167
+       ],
+       "length_mm": 12.395365230142461
+      },
+      {
+       "edges": [
+        367,
+        370,
+        373,
+        377,
+        380,
+        384,
+        387,
+        388,
+        389,
+        390,
+        391,
+        392
+       ],
+       "length_mm": 11.951412274848604
+      }
+     ],
+     "axis_point_mm": [
+      -13.740594683127245,
+      1.4170584618807336,
+      72.61436582601706
+     ],
+     "axis_dir": [
+      0.8688980786911226,
+      0.007280912630186435,
+      0.49493748813173094
+     ],
+     "bore_length_mm": 96.91487817006835,
+     "bore_radius_mm": 2.2893364679758603,
+     "cylinder": {
+      "start": [
+       -11.173144543617223,
+       1.4385723547141618,
+       74.07682425942359
+      ],
+      "length_mm": 91.34319253379682,
+      "radius_mm": 2.4893364679758605,
+      "inset_mm": 2.5
+     },
+     "volume_before_mm3": 127951.85396863865,
+     "volume_after_mm3": 128493.77743493744,
+     "bore_volume_mm3": 541.9234662987874,
+     "residual_pockets": "two blind dimples (bore radius, <= rim obliquity + inset deep) under the cortex at the two openings"
+    },
+    "mm3_filled": 128493.77743493744,
+    "faces_filled": 159,
+    "bbox_filled": [
+     -21.454890271359503,
+     -22.036120736089853,
+     13.9276108620999,
+     73.6191339730859,
+     25.390239179344,
+     132.80231792819237
+    ],
+    "write_s": 1.1
+   },
+   "output": "H:\\projects\\Femoral implant generation\\sandbox\\mobo_toy\\v2\\data\\femur_3406\\3406R_cancellous.STEP"
+  }
+ },
+ "verify": {
+  "cortical": {
+   "mm3": 271529.5065275805,
+   "faces": 869,
+   "bbox": [
+    -31.493696124190002,
+    -25.97115394081,
+    -351.9019291948,
+    77.04483010937999,
+    42.356039529989005,
+    135.12137362327
+   ]
+  },
+  "cancellous": {
+   "mm3": 128493.81706909853,
+   "faces": 159,
+   "bbox": [
+    -21.454885596022496,
+    -22.036116060752498,
+    13.927615537437502,
+    73.6191292977485,
+    25.390234504006497,
+    132.80231325285249
+   ]
+  },
+  "fragment": {
+   "cortex_vols": 1,
+   "core_vols": 1,
+   "shared_faces": 147,
+   "core_faces": 159,
+   "cortex_mm3_after": 271529.85013529373,
+   "core_mm3_after": 128493.79804665013,
+   "fragment_s": 41.7
+  }
+ },
+ "accept_errors": [],
+ "output_sha256": {
+  "cortical": "9b1bf9494728c3533c9cd04db8669008c97dd88701ffea56cd7e12e6bd8cab1f",
+  "cancellous": "f478e1b4b5e79c2b52046ae578d377210a9f4e23efa0a1da0444d7c531969318"
+ }
+}

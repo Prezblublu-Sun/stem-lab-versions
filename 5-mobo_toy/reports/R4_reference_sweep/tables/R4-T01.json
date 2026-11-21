@@ -1,0 +1,20 @@
+{
+  "id": "R4-T01",
+  "report": "R4",
+  "kind": "table",
+  "title": "参考前沿设计清单",
+  "caption": "每型可行设计的非支配集，按 f1 升序。",
+  "synthetic": false,
+  "units": {
+    "f1_um": "µm",
+    "f2_pct": "%",
+    "vm_p99": "MPa"
+  },
+  "sources": {},
+  "csv": "reports/R4_reference_sweep/tables/R4-T01.csv",
+  "csv_sha256": "86d86fa4107120550cb3dae626f065b3997d5bb0200f899282a71f8d898eae5b",
+  "producer": "stage_s4.py",
+  "producer_sha256": "6d25b6499e0b61ee86804ce4bbf2e709fe35ca8feb256e9d20ebcf8f53eedb6d",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "created": "2026-09-27T16:05:42"
+}

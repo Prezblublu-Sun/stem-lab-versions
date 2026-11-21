@@ -1,0 +1,26 @@
+{
+  "id": "V2A-F02",
+  "report": "V2A",
+  "kind": "figure",
+  "title": "Dorr A by cortical index (0.68); canal flare index 5.40 by full width vs 2.93 by the chord through the shaft axis",
+  "caption": "内外侧（x）方向宽度沿干轴高度 z（z = 0 为小转子）。实线：该高度截面在内外侧方向的全宽（对应正位片投影，Dorr 判据的量法）；虚线：过干轴的冠状弦（y = 0）。CFI = LT+20 髓腔宽 / 峡部髓腔宽；CI = (外径 − 髓腔)/外径 @ LT−100。",
+  "synthetic": false,
+  "units": {
+    "z": "mm",
+    "width": "mm"
+  },
+  "sources": {},
+  "csv": "v2/reports/V2A_real_femur/figures/V2A-F02.csv",
+  "csv_sha256": "0c572f4c447007f47734d8ee0b954db1f0a82d917d0b87333258855a3da5c40b",
+  "png": "v2/reports/V2A_real_femur/figures/V2A-F02.png",
+  "svg": "v2/reports/V2A_real_femur/figures/V2A-F02.svg",
+  "plot_fn": "v2/report_v2a.py:plot_f02",
+  "plot_module_sha256": "9d4e3345ac28187eeb23f9139668dd66935018027237be1928449f1b2d2d0fe5",
+  "producer": "v2/report_v2a.py",
+  "producer_sha256": "9d4e3345ac28187eeb23f9139668dd66935018027237be1928449f1b2d2d0fe5",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "spec_sha256": "b3a70189dac6b1fd3357774f5a887e48b8a13b4ec79e628feef0d7568f6fe896",
+  "created": "2026-09-28T12:39:48",
+  "python": "3.12.3",
+  "matplotlib": "3.11.2"
+}

@@ -1,0 +1,23 @@
+{
+  "id": "V2A-F12",
+  "report": "V2A",
+  "kind": "figure",
+  "title": "BO seed 0 reaches 0.99 of the best-known hypervolume of the original design space in 58 FE runs; same-budget Sobol median 0.98",
+  "caption": "超体积比 = 前 n 次评估中可行点的超体积 / 原设计空间（L 40–90 mm；参考集 + 全部 BO 种子的可行点）的已知最佳。Sobol 基线：64 点参考集随机排序 200 次，中位与 10–90% 区间。种子 0 跑满 64 次；种子 1、2 按用户 2026-09-28 12:30 的决定分别停在 16 与 2 次，只画到停止处。BO 的前 24 次是初始 Sobol 点。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "v2/reports/V2A_real_femur/figures/V2A-F12.csv",
+  "csv_sha256": "cd222fa93ecddf73a49585b44a2e4b974fd525cc12d42fc7e7daefcb4499a4df",
+  "png": "v2/reports/V2A_real_femur/figures/V2A-F12.png",
+  "svg": "v2/reports/V2A_real_femur/figures/V2A-F12.svg",
+  "plot_fn": "v2/report_v2a_fe.py:plot_f12",
+  "plot_module_sha256": "8631a9824e262a6ba34c5ab66200101369f27e49a17e9983294761476d6ce1ec",
+  "producer": "v2/report_v2a_bo.py",
+  "producer_sha256": "4d2a4006f1489086edddc97b869ccaed1b409e7dd7d8ccddb4ee7e7bfd994d63",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "spec_sha256": "b3a70189dac6b1fd3357774f5a887e48b8a13b4ec79e628feef0d7568f6fe896",
+  "created": "2026-09-28T12:45:32",
+  "python": "3.12.3",
+  "matplotlib": "3.11.2"
+}

@@ -1,0 +1,700 @@
+<!doctype html><html><head><meta charset='utf-8'><title>ATA_RUNS_2026-09-29</title><style>
+@page { size: A4; margin: 16mm 15mm; }
+* { box-sizing: border-box; }
+body { font-family: "Segoe UI","Microsoft YaHei",Arial,sans-serif; font-size: 10pt; line-height: 1.5; color:#111; }
+h1 { font-size: 18pt; border-bottom: 3px solid #333; padding-bottom:5px; margin-bottom:4px; }
+h2 { font-size: 13pt; margin-top: 1.2em; border-bottom:1px solid #bbb; padding-bottom:2px; page-break-after: avoid; }
+h3 { font-size: 11pt; margin-top: 0.9em; page-break-after: avoid; }
+table { border-collapse: collapse; width: 100%; font-size: 8.5pt; margin: 0.5em 0; page-break-inside: auto; }
+tr { page-break-inside: avoid; }
+th,td { border: 1px solid #999; padding: 4px 6px; text-align: left; vertical-align: top; }
+th { background:#f0f0f0; }
+td:first-child { white-space: nowrap; }
+code,pre { font-family: Consolas,monospace; font-size: 8.5pt; background:#f6f6f6; }
+.meta { color:#444; font-size:9pt; margin: 2px 0 10px 0; }
+.banner { padding:6px 10px; margin:6px 0; border-radius:4px; font-weight:600; }
+.banner.syn { background:#FDE8DC; border:1px solid #D55E00; color:#8a3200; }
+.banner.draft { background:#FFF4CC; border:1px solid #E69F00; color:#6b4a00; }
+figure { margin: 0.8em 0; page-break-inside: avoid; border:1px solid #ccc; background:#fafafa; padding:8px; border-radius:4px; }
+figure img { max-width: 100%; display:block; margin: 0 auto; background:#fff; }
+figcaption { font-size: 8.8pt; color:#222; margin-top:6px; }
+figcaption .cap { font-weight:600; }
+figcaption .src { color:#666; font-size: 7.8pt; }
+td.PASS { background:#DDF2EA; color:#00553d; font-weight:600; }
+td.FAIL { background:#FBE0D3; color:#8a3200; font-weight:600; }
+td.PENDING { background:#EEEEEE; color:#555; font-weight:600; }
+td.NA { background:#E8F1F8; color:#0b4a78; font-weight:600; }
+.verdict { font-weight:700; padding:1px 6px; border-radius:3px; }
+.verdict.PASS { background:#DDF2EA; color:#00553d; } .verdict.FAIL { background:#FBE0D3; color:#8a3200; }
+.verdict.INCOMPLETE { background:#FFF4CC; color:#6b4a00; }
+.verdict.FAIL-APPROVED { background:#E8F1F8; color:#0b4a78; }
+</style></head><body><h1>对照论文之后的三组求解对照：结果</h1>
+<p>生成时间：2026-09-29 17:03。共 27 个作业，其中 0 个没有结果。论文指 Naghavi 2023 博士论文。零求解的四项见 <code>v2/ATA_FOLLOWUP_2026-09-29.pdf</code>。</p>
+<p>三个代表设计与此前界面模型验证用的相同：基准（长 60 mm，插入角 20°）；原读数（长 53 mm，插入角 39°）；短柄（长 25 mm，插入角 37°）。</p>
+<h2>1 结论</h2>
+<ol>
+<li><strong>网格。</strong> 加密界面和远场网格后，7 区应力屏蔽最多变化 0.9 个百分点，骨吸收总值最多变化 0.7 个百分点。逐区看，应力屏蔽变化最大的是短柄的 1 区，1.4 / 4 网格下 +3.5 个百分点；骨吸收变化最大的是短柄的 7 区，1.0 / 6 网格下 +5.1 个百分点。
+   这次检查里植入模型的皮质单元数最多增加到生产网格的 2.2 倍。在这个范围内，生产网格用于分区统计是够的。</li>
+<li><strong>载荷。</strong> 换成 2300 N、方向角 10° 和 9° 之后，7 区应力屏蔽从 31–54% 变为 29–59%。</li>
+<li><strong>柄模量。</strong> 从 110 GPa 降到 20 GPa，7 区应力屏蔽变化 -16 到 -11 个百分点，可恢复微动从 7.4、18.7、89.5 µm 变为 32.6、56.9、91.7 µm（基准、原读数、短柄）。
+   模量减半到 55 GPa 时，7 区应力屏蔽变化 -7 到 -4 个百分点，可恢复微动变为 13.8、28.4、88.4 µm。</li>
+<li><strong>求解。</strong> 27 个作业全部有结果。其中 2 个第一次因为申请不到内存而失败，重跑后通过，见第 6 节。</li>
+</ol>
+<h2>2 做了什么</h2>
+<table>
+<thead>
+<tr>
+<th>组</th>
+<th>内容</th>
+<th>作业数</th>
+<th>模型</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>参照</td>
+<td>完整股骨：1.4 mm 两档远场尺寸各一个；2300 N 工况一个</td>
+<td>3</td>
+<td>完整股骨，带应力导出</td>
+</tr>
+<tr>
+<td>网格</td>
+<td>3 个设计 × 4 档网格</td>
+<td>12</td>
+<td>只解粘接模型</td>
+</tr>
+<tr>
+<td>载荷</td>
+<td>3 个设计，2300 N，方向角 10° 与 9°</td>
+<td>3</td>
+<td>只解粘接模型</td>
+</tr>
+<tr>
+<td>柄模量</td>
+<td>3 个设计 × 95、55、20 GPa，过盈 0.025 mm</td>
+<td>9</td>
+<td>摩擦模型加粘接模型</td>
+</tr>
+</tbody>
+</table>
+<p>这些作业都标记为“变体”，不会进入任何常规数据集，也不会被选作标准参照。建模代码没有改动，作业代码版本与上一批相同。</p>
+<h2>3 皮质分区应力的网格检查</h2>
+<p>网格写成“界面尺寸 / 远场尺寸”，单位 mm。生产网格是 2.0 / 6。1.0 mm 一档的完整股骨解不了，用 1.4 mm 的完整股骨作参照。</p>
+<p><strong>基准</strong></p>
+<table>
+<thead>
+<tr>
+<th>网格</th>
+<th>皮质单元数</th>
+<th>总单元数</th>
+<th>7 区屏蔽</th>
+<th>6 区屏蔽</th>
+<th>1 区屏蔽</th>
+<th>屏蔽总值</th>
+<th>7 区吸收</th>
+<th>吸收总值</th>
+<th>固定 7 区屏蔽</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2.0 / 6</td>
+<td>8390</td>
+<td>26997</td>
+<td>54.3</td>
+<td>11.2</td>
+<td>22.8</td>
+<td>10.9</td>
+<td>77.6</td>
+<td>11.7</td>
+<td>15.3</td>
+</tr>
+<tr>
+<td>1.4 / 6</td>
+<td>10386</td>
+<td>45710</td>
+<td>54.3</td>
+<td>11.3</td>
+<td>25.0</td>
+<td>11.7</td>
+<td>77.9</td>
+<td>11.9</td>
+<td>16.0</td>
+</tr>
+<tr>
+<td>1.4 / 4</td>
+<td>18809</td>
+<td>64475</td>
+<td>54.6</td>
+<td>11.0</td>
+<td>24.0</td>
+<td>11.0</td>
+<td>77.3</td>
+<td>11.6</td>
+<td>15.3</td>
+</tr>
+<tr>
+<td>1.0 / 6</td>
+<td>13292</td>
+<td>83830</td>
+<td>54.3</td>
+<td>11.3</td>
+<td>24.6</td>
+<td>11.4</td>
+<td>77.5</td>
+<td>11.7</td>
+<td>15.7</td>
+</tr>
+</tbody>
+</table>
+<p><strong>原读数</strong></p>
+<table>
+<thead>
+<tr>
+<th>网格</th>
+<th>皮质单元数</th>
+<th>总单元数</th>
+<th>7 区屏蔽</th>
+<th>6 区屏蔽</th>
+<th>1 区屏蔽</th>
+<th>屏蔽总值</th>
+<th>7 区吸收</th>
+<th>吸收总值</th>
+<th>固定 7 区屏蔽</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2.0 / 6</td>
+<td>7262</td>
+<td>23981</td>
+<td>31.2</td>
+<td>4.5</td>
+<td>19.9</td>
+<td>5.9</td>
+<td>52.3</td>
+<td>10.1</td>
+<td>9.4</td>
+</tr>
+<tr>
+<td>1.4 / 6</td>
+<td>8227</td>
+<td>39481</td>
+<td>31.6</td>
+<td>5.2</td>
+<td>21.4</td>
+<td>6.8</td>
+<td>51.0</td>
+<td>10.2</td>
+<td>9.9</td>
+</tr>
+<tr>
+<td>1.4 / 4</td>
+<td>15882</td>
+<td>57171</td>
+<td>32.0</td>
+<td>4.8</td>
+<td>20.6</td>
+<td>6.1</td>
+<td>52.3</td>
+<td>10.1</td>
+<td>9.3</td>
+</tr>
+<tr>
+<td>1.0 / 6</td>
+<td>9340</td>
+<td>72754</td>
+<td>31.2</td>
+<td>5.4</td>
+<td>21.2</td>
+<td>6.7</td>
+<td>52.3</td>
+<td>10.5</td>
+<td>9.8</td>
+</tr>
+</tbody>
+</table>
+<p><strong>短柄</strong></p>
+<table>
+<thead>
+<tr>
+<th>网格</th>
+<th>皮质单元数</th>
+<th>总单元数</th>
+<th>7 区屏蔽</th>
+<th>6 区屏蔽</th>
+<th>1 区屏蔽</th>
+<th>屏蔽总值</th>
+<th>7 区吸收</th>
+<th>吸收总值</th>
+<th>固定 7 区屏蔽</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2.0 / 6</td>
+<td>7269</td>
+<td>26312</td>
+<td>48.2</td>
+<td>15.8</td>
+<td>-38.8</td>
+<td>-13.7</td>
+<td>57.0</td>
+<td>9.7</td>
+<td>1.7</td>
+</tr>
+<tr>
+<td>1.4 / 6</td>
+<td>8171</td>
+<td>39967</td>
+<td>48.2</td>
+<td>14.9</td>
+<td>-35.3</td>
+<td>-12.1</td>
+<td>58.2</td>
+<td>10.1</td>
+<td>2.3</td>
+</tr>
+<tr>
+<td>1.4 / 4</td>
+<td>15426</td>
+<td>57389</td>
+<td>47.4</td>
+<td>14.7</td>
+<td>-35.3</td>
+<td>-12.3</td>
+<td>55.7</td>
+<td>10.4</td>
+<td>1.9</td>
+</tr>
+<tr>
+<td>1.0 / 6</td>
+<td>9358</td>
+<td>67785</td>
+<td>47.5</td>
+<td>14.9</td>
+<td>-35.8</td>
+<td>-12.7</td>
+<td>62.0</td>
+<td>10.0</td>
+<td>1.9</td>
+</tr>
+</tbody>
+</table>
+<p>屏蔽与吸收的单位都是 %，吸收取死区 0.6，分区取股骨坐标系、随柄定位，最后一列是固定分区。</p>
+<p>完整股骨参照的皮质单元数：1.4 / 6 为 98039；1.4 / 4 为 101691；2.0 / 6，2300 N 工况 为 43027。完整股骨在整个关注区内都按界面尺寸划分，所以皮质单元比植入模型多得多。</p>
+<p>与数据集里同一设计的旧结果核对（7 区屏蔽，旧结果对这次重解）：原读数 30.6% 对 31.2%。</p>
+<h2>4 2300 N 对照工况</h2>
+<p>文献里应力屏蔽的数字大多在 ISO 7206-4 的 2300 N 下给出。这里把载荷改成 2300 N，力与股骨干轴线的夹角在冠状面取 10°、矢状面取 9°，方向符号沿用上楼工况。完整股骨参照用同样的载荷重算。</p>
+<table>
+<thead>
+<tr>
+<th>分区</th>
+<th>基准，上楼</th>
+<th>基准，2300 N</th>
+<th>原读数，上楼</th>
+<th>原读数，2300 N</th>
+<th>短柄，上楼</th>
+<th>短柄，2300 N</th>
+<th>论文实心钛柄</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 区</td>
+<td>23</td>
+<td>28</td>
+<td>20</td>
+<td>24</td>
+<td>-39</td>
+<td>-13</td>
+<td>69</td>
+</tr>
+<tr>
+<td>2 区</td>
+<td>7</td>
+<td>4</td>
+<td>-9</td>
+<td>-3</td>
+<td>-24</td>
+<td>-7</td>
+<td>—</td>
+</tr>
+<tr>
+<td>3 区</td>
+<td>1</td>
+<td>-4</td>
+<td>-28</td>
+<td>-10</td>
+<td>-22</td>
+<td>-3</td>
+<td>—</td>
+</tr>
+<tr>
+<td>4 区</td>
+<td>-0</td>
+<td>-1</td>
+<td>1</td>
+<td>-1</td>
+<td>-1</td>
+<td>-2</td>
+<td>—</td>
+</tr>
+<tr>
+<td>5 区</td>
+<td>2</td>
+<td>1</td>
+<td>3</td>
+<td>0</td>
+<td>1</td>
+<td>-3</td>
+<td>—</td>
+</tr>
+<tr>
+<td>6 区</td>
+<td>11</td>
+<td>16</td>
+<td>5</td>
+<td>8</td>
+<td>16</td>
+<td>11</td>
+<td>45</td>
+</tr>
+<tr>
+<td>7 区</td>
+<td>54</td>
+<td>58</td>
+<td>31</td>
+<td>29</td>
+<td>48</td>
+<td>59</td>
+<td>68</td>
+</tr>
+<tr>
+<td>总值</td>
+<td>11</td>
+<td>12</td>
+<td>6</td>
+<td>8</td>
+<td>-14</td>
+<td>-4</td>
+<td>32</td>
+</tr>
+</tbody>
+</table>
+<p>皮质应力屏蔽，%，正值表示被屏蔽。</p>
+<table>
+<thead>
+<tr>
+<th>分区</th>
+<th>基准，上楼</th>
+<th>基准，2300 N</th>
+<th>原读数，上楼</th>
+<th>原读数，2300 N</th>
+<th>短柄，上楼</th>
+<th>短柄，2300 N</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 区</td>
+<td>21</td>
+<td>27</td>
+<td>19</td>
+<td>26</td>
+<td>3</td>
+<td>7</td>
+</tr>
+<tr>
+<td>6 区</td>
+<td>13</td>
+<td>15</td>
+<td>10</td>
+<td>5</td>
+<td>35</td>
+<td>35</td>
+</tr>
+<tr>
+<td>7 区</td>
+<td>78</td>
+<td>83</td>
+<td>52</td>
+<td>43</td>
+<td>57</td>
+<td>73</td>
+</tr>
+<tr>
+<td>总值</td>
+<td>12</td>
+<td>13</td>
+<td>10</td>
+<td>11</td>
+<td>10</td>
+<td>10</td>
+</tr>
+</tbody>
+</table>
+<p>被判为吸收的皮质骨比例，%，死区 0.6。</p>
+<h2>5 柄模量</h2>
+<p>界面模型与验证时相同：过盈 0.025 mm，摩擦系数 0.3，两个加载循环。110 GPa 一行取自此前已解的作业。95 GPa 是论文给多孔柄的材料取的模量（第 219 页）；论文的多孔柄按晶格几何建模，这个值不是整根柄的等效模量。55 GPa 是实心钛的一半，20 GPa 接近皮质骨。</p>
+<p><strong>基准</strong></p>
+<table>
+<thead>
+<tr>
+<th>柄模量 (GPa)</th>
+<th>可恢复微动 P95 (µm)</th>
+<th>首次加载微动 P95 (µm)</th>
+<th>超过 40 µm 的界面面积 (%)</th>
+<th>7 区屏蔽 (%)</th>
+<th>1 区屏蔽 (%)</th>
+<th>屏蔽总值 (%)</th>
+<th>7 区吸收 (%)</th>
+<th>吸收总值 (%)</th>
+<th>柄体最大应力 (MPa)</th>
+<th>颈部最大应力 (MPa)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>110</td>
+<td>7.4</td>
+<td>19.1</td>
+<td>0</td>
+<td>54</td>
+<td>25</td>
+<td>11</td>
+<td>77</td>
+<td>12</td>
+<td>141</td>
+<td>160</td>
+</tr>
+<tr>
+<td>95</td>
+<td>8.5</td>
+<td>20.9</td>
+<td>0</td>
+<td>53</td>
+<td>23</td>
+<td>11</td>
+<td>75</td>
+<td>11</td>
+<td>140</td>
+<td>160</td>
+</tr>
+<tr>
+<td>55</td>
+<td>13.8</td>
+<td>30.1</td>
+<td>0</td>
+<td>47</td>
+<td>18</td>
+<td>9</td>
+<td>68</td>
+<td>9</td>
+<td>137</td>
+<td>160</td>
+</tr>
+<tr>
+<td>20</td>
+<td>32.6</td>
+<td>56.0</td>
+<td>3</td>
+<td>38</td>
+<td>10</td>
+<td>6</td>
+<td>57</td>
+<td>6</td>
+<td>130</td>
+<td>159</td>
+</tr>
+</tbody>
+</table>
+<p><strong>原读数</strong></p>
+<table>
+<thead>
+<tr>
+<th>柄模量 (GPa)</th>
+<th>可恢复微动 P95 (µm)</th>
+<th>首次加载微动 P95 (µm)</th>
+<th>超过 40 µm 的界面面积 (%)</th>
+<th>7 区屏蔽 (%)</th>
+<th>1 区屏蔽 (%)</th>
+<th>屏蔽总值 (%)</th>
+<th>7 区吸收 (%)</th>
+<th>吸收总值 (%)</th>
+<th>柄体最大应力 (MPa)</th>
+<th>颈部最大应力 (MPa)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>110</td>
+<td>18.7</td>
+<td>29.1</td>
+<td>0</td>
+<td>31</td>
+<td>20</td>
+<td>6</td>
+<td>52</td>
+<td>10</td>
+<td>134</td>
+<td>158</td>
+</tr>
+<tr>
+<td>95</td>
+<td>20.6</td>
+<td>31.4</td>
+<td>0</td>
+<td>30</td>
+<td>19</td>
+<td>5</td>
+<td>50</td>
+<td>10</td>
+<td>133</td>
+<td>158</td>
+</tr>
+<tr>
+<td>55</td>
+<td>28.4</td>
+<td>42.3</td>
+<td>2</td>
+<td>26</td>
+<td>16</td>
+<td>4</td>
+<td>44</td>
+<td>9</td>
+<td>131</td>
+<td>158</td>
+</tr>
+<tr>
+<td>20</td>
+<td>56.9</td>
+<td>74.2</td>
+<td>15</td>
+<td>20</td>
+<td>11</td>
+<td>3</td>
+<td>36</td>
+<td>7</td>
+<td>124</td>
+<td>157</td>
+</tr>
+</tbody>
+</table>
+<p><strong>短柄</strong></p>
+<table>
+<thead>
+<tr>
+<th>柄模量 (GPa)</th>
+<th>可恢复微动 P95 (µm)</th>
+<th>首次加载微动 P95 (µm)</th>
+<th>超过 40 µm 的界面面积 (%)</th>
+<th>7 区屏蔽 (%)</th>
+<th>1 区屏蔽 (%)</th>
+<th>屏蔽总值 (%)</th>
+<th>7 区吸收 (%)</th>
+<th>吸收总值 (%)</th>
+<th>柄体最大应力 (MPa)</th>
+<th>颈部最大应力 (MPa)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>110</td>
+<td>89.5</td>
+<td>99.8</td>
+<td>53</td>
+<td>49</td>
+<td>-38</td>
+<td>-14</td>
+<td>59</td>
+<td>10</td>
+<td>172</td>
+<td>144</td>
+</tr>
+<tr>
+<td>95</td>
+<td>89.4</td>
+<td>99.9</td>
+<td>53</td>
+<td>48</td>
+<td>-38</td>
+<td>-14</td>
+<td>59</td>
+<td>10</td>
+<td>169</td>
+<td>144</td>
+</tr>
+<tr>
+<td>55</td>
+<td>88.4</td>
+<td>100.8</td>
+<td>54</td>
+<td>45</td>
+<td>-35</td>
+<td>-13</td>
+<td>57</td>
+<td>9</td>
+<td>156</td>
+<td>144</td>
+</tr>
+<tr>
+<td>20</td>
+<td>91.7</td>
+<td>105.3</td>
+<td>56</td>
+<td>33</td>
+<td>-29</td>
+<td>-11</td>
+<td>49</td>
+<td>8</td>
+<td>123</td>
+<td>144</td>
+</tr>
+</tbody>
+</table>
+<p>应力屏蔽和骨吸收来自粘接模型，微动来自摩擦模型。最大应力取交界 3 mm 以外的单元质心值。</p>
+<p>读这三张表：</p>
+<ul>
+<li>基准和原读数两个设计原本是稳定的，柄越软微动越大，应力屏蔽越轻。这与论文引用的 Kuiper 与 Huiskes 1997 的说法一致。</li>
+<li>短柄的微动几乎不随柄模量变化。它在这个过盈量下已经整体滑动，微动由界面决定，不由柄的刚度决定。</li>
+<li>颈部最大应力不随柄模量变化，因为颈是静定的传力件。柄体最大应力随模量降低而下降。</li>
+<li>110 GPa 一行来自共节点的粘接模型，第 3 节的 2.0 / 6 一行来自绑定约束的粘接模型。两者的 7 区屏蔽相差不到 1 个百分点。</li>
+</ul>
+<h2>6 求解中的失败与处置</h2>
+<table>
+<thead>
+<tr>
+<th>时间</th>
+<th>作业</th>
+<th>现象</th>
+<th>原因</th>
+<th>处置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>16:22</td>
+<td>完整股骨 1.4 / 6 参照</td>
+<td>63 秒后退出</td>
+<td>求解器申请约 24 GB 内存失败</td>
+<td>限制内存 12 GB 后重跑，181 秒解完</td>
+</tr>
+<tr>
+<td>16:22</td>
+<td>短柄 55 GPa 摩擦模型</td>
+<td>37 秒后退出</td>
+<td>同一时刻内存被另一个大模型占用</td>
+<td>原样重跑，20 分钟解完</td>
+</tr>
+</tbody>
+</table>
+<p>两次失败发生在同一分钟，当时远场加密的完整股骨正在求解。本机同时开着很多别的程序，可分配的内存余量只有 14 到 25 GB。夜里跑同样规模的作业没有出过这个问题。</p>
+<p>限内存的做法是在作业目录里放一个只对该作业生效的 Abaqus 设置文件，求解程序 <code>v2/solve_worker.py</code> 会把它一起取回本机。没有改系统设置，也没有改 Abaqus 的全局配置。失败记录存在 Linux 的 <code>logs/failed_attempts/</code> 里。</p>
+<h2>7 对后续计划的影响</h2>
+<ul>
+<li><strong>网格。</strong> 应力屏蔽和骨吸收的分区统计可以继续用生产网格，不需要为它加密。</li>
+<li><strong>载荷。</strong> 分区数值随载荷工况变化，短柄最明显。今后报告应力屏蔽时要写明工况，与文献比较时用 2300 N 这一组。肌力仍然没有加。</li>
+<li><strong>柄模量。</strong> 降低柄刚度能减轻屏蔽，代价是稳定设计的微动成倍增加。是否把柄刚度加进设计变量，需要你决定。此前 210 个设计里，单靠几何就能让 7 区屏蔽在 5% 到 69% 之间变化，范围比模量减半的效果大。</li>
+<li><strong>大模型的内存。</strong> 白天本机有其他程序时，完整股骨 1.4 mm 一档要限内存才能解。</li>
+</ul></body></html>

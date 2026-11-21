@@ -1,0 +1,12 @@
+group,variable,label,low,high
+length,L,length L (mm),20.0,90.0
+area curve,rho_tip,tip/shoulder area ρ_tip,0.1,0.5
+area curve,q,area-curve exponent q,0.5,3.0
+section shape,lam,aspect ML/AP λ,1.0,2.2
+section shape,g_ml,medial share γ_ml,0.35,0.65
+section shape,g_ap,anterior share γ_ap,0.35,0.65
+section shape,n_a,anterior squareness n_a,2.0,6.0
+section shape,n_p,posterior squareness n_p,2.0,6.0
+section shape,tau_a,anterior keystone τ_a,-0.3,0.3
+section shape,tau_p,posterior keystone τ_p,-0.3,0.3
+insertion angle,alpha,insertion angle α (°),5.0,40.0

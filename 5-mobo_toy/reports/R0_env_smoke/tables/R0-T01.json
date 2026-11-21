@@ -1,0 +1,16 @@
+{
+  "id": "R0-T01",
+  "report": "R0",
+  "kind": "table",
+  "title": "软件、版本、许可与单位制",
+  "caption": "包版本取自 .venv-mobo；完整锁定清单见 requirements-lock.txt。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "reports/R0_env_smoke/tables/R0-T01.csv",
+  "csv_sha256": "b8272a55efce8331d1896b8bae24b24d2bf9dca09cb6623a9964813da7694542",
+  "producer": "stage_s0.py",
+  "producer_sha256": "30271c5216dcb2b248366e0dcd443e6d3812c969f6f9d2733bb4c3145bb53e5b",
+  "config_sha256": "48035220877dee9dbaf929f331355a82468e04818b64a402d289222f69d692b8",
+  "created": "2026-09-26T23:41:16"
+}

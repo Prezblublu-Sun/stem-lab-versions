@@ -1,0 +1,41 @@
+{
+ "stage_db_batch": "b33",
+ "rows": [
+  {
+   "label": "R2R_r2_01",
+   "job_id": "db_nz_r2_01_e+1.5_h1.94_046366c8"
+  },
+  {
+   "label": "R2H_r2_01",
+   "job_id": "db_fd_r2_01_e+1.5_h1.4_3026d2e5"
+  },
+  {
+   "label": "R2S_r2_01",
+   "job_id": "db_cd_r2_01_e+1.5_F1714_6f9666ef"
+  },
+  {
+   "label": "R2R_r2_03",
+   "job_id": "db_nz_r2_03_e+1.5_h1.94_919cdfe6"
+  },
+  {
+   "label": "R2H_r2_03",
+   "job_id": "db_fd_r2_03_e+1.5_h1.4_e568f7bf"
+  },
+  {
+   "label": "R2S_r2_03",
+   "job_id": "db_cd_r2_03_e+1.5_F1714_245012be"
+  },
+  {
+   "label": "R2R_r2_12",
+   "job_id": "db_nz_r2_12_e+1.5_h1.94_04e1d422"
+  },
+  {
+   "label": "R2H_r2_12",
+   "job_id": "db_fd_r2_12_e+1.5_h1.4_807977bb"
+  },
+  {
+   "label": "R2S_r2_12",
+   "job_id": "db_cd_r2_12_e+1.5_F1714_cda7d975"
+  }
+ ]
+}

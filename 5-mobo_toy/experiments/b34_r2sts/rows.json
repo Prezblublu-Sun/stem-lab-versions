@@ -1,0 +1,21 @@
+{
+ "stage_db_batch": "b34",
+ "rows": [
+  {
+   "label": "R2S_r2_05",
+   "job_id": "db_cd_r2_05_e+1.5_F1714_6b7ca294"
+  },
+  {
+   "label": "R2S_r2_06",
+   "job_id": "db_cd_r2_06_e+1_F1714_973ffd2a"
+  },
+  {
+   "label": "R2S_r2_08",
+   "job_id": "db_cd_r2_08_e+1.5_F1714_90652780"
+  },
+  {
+   "label": "R2S_r2_14",
+   "job_id": "db_cd_r2_14_e+1_F1714_be2df7d4"
+  }
+ ]
+}

@@ -1,0 +1,16 @@
+{
+  "id": "R3-T01",
+  "report": "R3",
+  "kind": "table",
+  "title": "60 次评估时的超体积比与 IGD（5 个种子）",
+  "caption": "HV 比 = 最终超体积 / 已知最大超体积；IGD 以真前沿范围归一化。pool_oracle 为整个 20,000 点候选池非支配集的超体积比，即离散候选池能达到的上限。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "reports/R3_optimizer_selftest/tables/R3-T01.csv",
+  "csv_sha256": "743bed286f38525cf37818b9687e13d5e318f900dd460da70964e63ff053d924",
+  "producer": "stage_s3.py",
+  "producer_sha256": "0cf2576e717a934665968972577a09e5bf34e8ff6f9427807057d71d704637e9",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "created": "2026-09-27T16:07:34"
+}

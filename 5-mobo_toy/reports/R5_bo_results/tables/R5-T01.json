@@ -1,0 +1,16 @@
+{
+  "id": "R5-T01",
+  "report": "R5",
+  "kind": "table",
+  "title": "代理指标（每型、每种子、每个输出）与泄漏检查",
+  "caption": "训练集 = 该种子 BO 的 60 个设计；测试集 = R4 参考扫描的 FE 成功设计。锐度 = 平均 90 % 区间宽度 / 测试集标准差。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "reports/R5_bo_results/tables/R5-T01.csv",
+  "csv_sha256": "4630ff6ebdaa2772ecb856de37df7ef8519b2041f39cb2228e2fea980b5e2dc0",
+  "producer": "stage_s5.py",
+  "producer_sha256": "3358aa7d657b1a9e755719856d34fc6379363d376a80613b6a2fba74d033bf59",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "created": "2026-09-27T18:32:41"
+}

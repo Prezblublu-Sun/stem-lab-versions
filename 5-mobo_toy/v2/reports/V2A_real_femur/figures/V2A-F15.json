@@ -1,0 +1,23 @@
+{
+  "id": "V2A-F15",
+  "report": "V2A",
+  "kind": "figure",
+  "title": "6 designs along the best-known front; front lengths span 55–64 mm",
+  "caption": "沿前沿按 f1 从小到大等距取点（最多 6 个）。上：肩部截面（按模板化尺寸，内侧向右、前方向上，橙虚线为前后镜像）；下：截面积沿长度。面板标题给插入角与肩部面积。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "v2/reports/V2A_real_femur/figures/V2A-F15.csv",
+  "csv_sha256": "f127bc6214a03f79aafaa8efd2ab2341e723bae5e816d76d26df6ddaf3dce84d",
+  "png": "v2/reports/V2A_real_femur/figures/V2A-F15.png",
+  "svg": "v2/reports/V2A_real_femur/figures/V2A-F15.svg",
+  "plot_fn": "v2/report_v2a_fe.py:plot_f15",
+  "plot_module_sha256": "8631a9824e262a6ba34c5ab66200101369f27e49a17e9983294761476d6ce1ec",
+  "producer": "v2/report_v2a_bo.py",
+  "producer_sha256": "4d2a4006f1489086edddc97b869ccaed1b409e7dd7d8ccddb4ee7e7bfd994d63",
+  "config_sha256": "64d5c22e1f50ea79e7fb0b01567cc8ae91b55af158e5a2029303042bcf3d611e",
+  "spec_sha256": "b3a70189dac6b1fd3357774f5a887e48b8a13b4ec79e628feef0d7568f6fe896",
+  "created": "2026-09-28T12:45:33",
+  "python": "3.12.3",
+  "matplotlib": "3.11.2"
+}

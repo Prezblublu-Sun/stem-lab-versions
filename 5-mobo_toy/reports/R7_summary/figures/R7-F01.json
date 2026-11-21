@@ -1,0 +1,23 @@
+{
+  "id": "R7-F01",
+  "report": "R7",
+  "kind": "figure",
+  "title": "One-page summary of the FE → GP → multi-objective BO test",
+  "caption": "(a) 各型 BO 与 Sobol 的 HV 比中位曲线；(b) 三型参考前沿；(c) GP 校准（log f1）；(d) 2D 对 3D 微动。数据取自 R5、R6。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "reports/R7_summary/figures/R7-F01.csv",
+  "csv_sha256": "def9445edd9a79861f147f0b10dd289ce6ca57a0875d2ef0f86ae9f94d9a76ca",
+  "png": "reports/R7_summary/figures/R7-F01.png",
+  "svg": "reports/R7_summary/figures/R7-F01.svg",
+  "plot_fn": "stage_r7.py:plot_r7_f01",
+  "plot_module_sha256": "de2cf626768de20eee83e38047eda77539693b2823bd537cad0b05d79e5bdbf3",
+  "producer": "stage_r7.py",
+  "producer_sha256": "de2cf626768de20eee83e38047eda77539693b2823bd537cad0b05d79e5bdbf3",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T20:11:07",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

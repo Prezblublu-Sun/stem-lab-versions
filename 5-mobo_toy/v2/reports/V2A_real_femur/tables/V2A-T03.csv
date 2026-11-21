@@ -1,0 +1,11 @@
+item,value
+geometry,"real femur STEP (cortex hollow solid + cancellous solid), truncated at LT−150 mm, mid-neck cut 25 mm from head centre"
+elements,"C3D10 (straight-sided), gmsh; interface 2.0 mm, far field 6.0 mm; median 26594 elements"
+materials,"cortex 16800 MPa, cancellous 400 MPa, Ti6Al4V 110000 MPa, ν 0.3, linear elastic"
+interface (friction model),"surface-to-surface small sliding, μ 0.3, hard contact; press-fit δ 0.1 mm by *CONTACT INTERFERENCE, SHRINK"
+interface (bonded model),"*TIE, ADJUST=NO, position tolerance 0.3 mm"
+steps (friction),PRESSFIT (head fixed) → RELEASE → LOAD
+load,"F = (-782, 698, -2149) N in model axes (+x medial, +y posterior, +z proximal), |F| = 2391 N, on all prosthetic-head nodes"
+boundary,all nodes on the truncation plane (z = −150 mm) fixed
+QoIs,f1 = area-weighted P95 of tangential slip increment LOAD−RELEASE (µm); f2 = Gruen 7 SED loss vs intact (%); c = stem vM P99 (below cut) − 440 MPa
+solver / wall time,"Abaqus/Standard 2025, 4 cores per job; friction median 278 s, bonded median 37 s (n = 141)"

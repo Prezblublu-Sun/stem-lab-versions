@@ -1,0 +1,18 @@
+{
+  "id": "R4-T03",
+  "report": "R4",
+  "kind": "table",
+  "title": "单设计耗时（网格 + 两个 Abaqus 作业 + QoI）",
+  "caption": "墙钟时间；4 个设计并行，总机时 ≈ 总和，墙钟约为其 1/4。",
+  "synthetic": false,
+  "units": {
+    "median_s": "s"
+  },
+  "sources": {},
+  "csv": "reports/R4_reference_sweep/tables/R4-T03.csv",
+  "csv_sha256": "894a6da002d914a3e879e13204590ba755c33bb095195f226f66caefbe2e5f87",
+  "producer": "stage_s4.py",
+  "producer_sha256": "6d25b6499e0b61ee86804ce4bbf2e709fe35ca8feb256e9d20ebcf8f53eedb6d",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "created": "2026-09-27T16:05:42"
+}

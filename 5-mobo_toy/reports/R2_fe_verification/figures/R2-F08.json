@@ -1,0 +1,34 @@
+{
+  "id": "R2-F08",
+  "report": "R2",
+  "kind": "figure",
+  "title": "Relative to the intact femur, Gruen 7 SED changes by -31 % / -21 % / -3 % and Gruen 1 SED by +19 % / +26 % / -11 % (A / B / C)",
+  "caption": "粘接模型与完整股骨在同一 ROI 内的平均应变能密度（kPa = kJ/m³）。f2 = 1 − 植入/完整（Gruen 7）。",
+  "synthetic": false,
+  "units": {
+    "sed_kPa": "kPa"
+  },
+  "sources": {
+    "runs_csv": "results/runs.csv campaign S2_*",
+    "baseline_u": [
+      0.291,
+      0.395,
+      0.342,
+      0.403,
+      0.429
+    ]
+  },
+  "csv": "reports/R2_fe_verification/figures/R2-F08.csv",
+  "csv_sha256": "d0259f0227e8de90a2e9d65c710e9bb5629ee0bce05cf42d02acf22856f06b14",
+  "png": "reports/R2_fe_verification/figures/R2-F08.png",
+  "svg": "reports/R2_fe_verification/figures/R2-F08.svg",
+  "plot_fn": "stage_s2.py:plot_r2_f08",
+  "plot_module_sha256": "ff5007a0ae64d7f310bb82c8c89e9a90f88835c901714be974d7c9607e7f47ad",
+  "producer": "stage_s2.py",
+  "producer_sha256": "ff5007a0ae64d7f310bb82c8c89e9a90f88835c901714be974d7c9607e7f47ad",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T16:09:16",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

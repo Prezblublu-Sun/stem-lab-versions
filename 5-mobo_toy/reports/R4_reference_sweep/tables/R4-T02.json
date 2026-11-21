@@ -1,0 +1,16 @@
+{
+  "id": "R4-T02",
+  "report": "R4",
+  "kind": "table",
+  "title": "失败分级计数",
+  "caption": "gate_passed = 通过几何门进入 FE 的设计数；fe_fail_rate 为其中 L3–L5 的比例。",
+  "synthetic": false,
+  "units": {},
+  "sources": {},
+  "csv": "reports/R4_reference_sweep/tables/R4-T02.csv",
+  "csv_sha256": "39e85de1aa8dbf59fa9a65d6247e53fa49e98da7b6e74ba8c2a2f2d1997670f0",
+  "producer": "stage_s4.py",
+  "producer_sha256": "6d25b6499e0b61ee86804ce4bbf2e709fe35ca8feb256e9d20ebcf8f53eedb6d",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "created": "2026-09-27T16:05:42"
+}

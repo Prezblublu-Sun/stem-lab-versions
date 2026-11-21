@@ -1,0 +1,581 @@
+<!doctype html><html><head><meta charset='utf-8'><title>ATA_THESIS_COMPARISON_2026-09-29</title><style>
+@page { size: A4; margin: 16mm 15mm; }
+* { box-sizing: border-box; }
+body { font-family: "Segoe UI","Microsoft YaHei",Arial,sans-serif; font-size: 10pt; line-height: 1.5; color:#111; }
+h1 { font-size: 18pt; border-bottom: 3px solid #333; padding-bottom:5px; margin-bottom:4px; }
+h2 { font-size: 13pt; margin-top: 1.2em; border-bottom:1px solid #bbb; padding-bottom:2px; page-break-after: avoid; }
+h3 { font-size: 11pt; margin-top: 0.9em; page-break-after: avoid; }
+table { border-collapse: collapse; width: 100%; font-size: 8.5pt; margin: 0.5em 0; page-break-inside: auto; }
+tr { page-break-inside: avoid; }
+th,td { border: 1px solid #999; padding: 4px 6px; text-align: left; vertical-align: top; }
+th { background:#f0f0f0; }
+td:first-child { white-space: nowrap; }
+code,pre { font-family: Consolas,monospace; font-size: 8.5pt; background:#f6f6f6; }
+.meta { color:#444; font-size:9pt; margin: 2px 0 10px 0; }
+.banner { padding:6px 10px; margin:6px 0; border-radius:4px; font-weight:600; }
+.banner.syn { background:#FDE8DC; border:1px solid #D55E00; color:#8a3200; }
+.banner.draft { background:#FFF4CC; border:1px solid #E69F00; color:#6b4a00; }
+figure { margin: 0.8em 0; page-break-inside: avoid; border:1px solid #ccc; background:#fafafa; padding:8px; border-radius:4px; }
+figure img { max-width: 100%; display:block; margin: 0 auto; background:#fff; }
+figcaption { font-size: 8.8pt; color:#222; margin-top:6px; }
+figcaption .cap { font-weight:600; }
+figcaption .src { color:#666; font-size: 7.8pt; }
+td.PASS { background:#DDF2EA; color:#00553d; font-weight:600; }
+td.FAIL { background:#FBE0D3; color:#8a3200; font-weight:600; }
+td.PENDING { background:#EEEEEE; color:#555; font-weight:600; }
+td.NA { background:#E8F1F8; color:#0b4a78; font-weight:600; }
+.verdict { font-weight:700; padding:1px 6px; border-radius:3px; }
+.verdict.PASS { background:#DDF2EA; color:#00553d; } .verdict.FAIL { background:#FBE0D3; color:#8a3200; }
+.verdict.INCOMPLETE { background:#FFF4CC; color:#6b4a00; }
+.verdict.FAIL-APPROVED { background:#E8F1F8; color:#0b4a78; }
+</style></head><body><h1>对照 Naghavi 博士论文检查本项目</h1>
+<p>生成时间：2026-09-29 15:14。没有新的求解，全部用已有结果。</p>
+<p>论文：Seyed Ataollah Naghavi，<em>Modelling and in vitro evaluation of customised Ti6Al4V and PEEK hip implants for improving osseointegration and reducing stress shielding</em>，UCL 博士论文，2023 年 4 月提交。本地文件在 <code>D:\Weikang\01_Literature\UCL_theses\pdf\10178\</code>。下文页码都是论文页码。</p>
+<p>论文的第一导师是 Chaozong Liu 教授，第二导师里有 Jia Hua 教授（第 vi 页）。</p>
+<h2>1 结论</h2>
+<ol>
+<li>本项目有 3 处需要改正，6 处可以提高。它们都不推翻已经做过的界面模型验证。</li>
+<li>最大的差距是实验验证。论文用应变片、刚度试验和疲劳试验对照了模型，本项目的验证全部是数值的。</li>
+<li>论文没有做压配、摩擦和界面微动，也没有做设计搜索，并把它们列为后续工作。本项目正好做了这两块。</li>
+<li>论文的载荷和界面比本项目简单。值得借用的是它的评价指标和实验方案，不是它的载荷与界面设置。</li>
+</ol>
+<h2>2 论文第 5 章做了什么</h2>
+<ul>
+<li><strong>股骨</strong>：第四代 Sawbones 人工股骨，型号 3406，CT 重建后建模（第 197 页）。</li>
+<li><strong>柄</strong>：一个贴合皮质骨的定制柄，总长 106 mm。同一几何做了三种：实心钛合金、梯度多孔钛合金、PEEK（第 209–212 页）。</li>
+<li><strong>实验</strong>：股骨表面贴 10 个应变花，按 ISO 7206-4 的姿态加竖直力到 1200 N。先测完整股骨，再依次植入三种柄（第 200–216 页）。</li>
+<li><strong>模型</strong>：Abaqus，二次四面体单元，材料全部线弹性、均质、各向同性。除加载头以外所有界面都绑定（第 219–220 页）。</li>
+<li><strong>评价</strong>：2300 N 下按 Gruen 7 区统计皮质骨的应力屏蔽和骨吸收（第 221–224 页）。</li>
+<li><strong>强度</strong>：算屈服与疲劳安全系数，做了以 500 万次为目标的疲劳试验（第 224、251 页）。</li>
+</ul>
+<p>主要结果：</p>
+<table>
+<thead>
+<tr>
+<th>量</th>
+<th>实心钛</th>
+<th>多孔钛</th>
+<th>PEEK</th>
+<th>页码</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>应力屏蔽，Gruen 1 区（%）</td>
+<td>69</td>
+<td>34</td>
+<td>17</td>
+<td>237</td>
+</tr>
+<tr>
+<td>应力屏蔽，Gruen 6 区（%）</td>
+<td>45</td>
+<td>12</td>
+<td>0.2</td>
+<td>237</td>
+</tr>
+<tr>
+<td>应力屏蔽，Gruen 7 区（%）</td>
+<td>68</td>
+<td>40</td>
+<td>22</td>
+<td>237</td>
+</tr>
+<tr>
+<td>应力屏蔽，按区体积加权的总值（%）</td>
+<td>32</td>
+<td>10</td>
+<td>-1.2</td>
+<td>237</td>
+</tr>
+<tr>
+<td>骨吸收质量分数，总值（%）</td>
+<td>41</td>
+<td>16</td>
+<td>12</td>
+<td>239</td>
+</tr>
+<tr>
+<td>柄轴向刚度，实验（kN/mm）</td>
+<td>2.76</td>
+<td>2.15</td>
+<td>0.28</td>
+<td>242</td>
+</tr>
+<tr>
+<td>柄轴向刚度，模型（kN/mm）</td>
+<td>2.84</td>
+<td>1.93</td>
+<td>0.23</td>
+<td>242</td>
+</tr>
+<tr>
+<td>疲劳试验寿命（次）</td>
+<td>未做</td>
+<td>457,349</td>
+<td>5,102</td>
+<td>251</td>
+</tr>
+</tbody>
+</table>
+<p>模型与应变片的差：完整股骨平均差 4 MPa；多孔柄平均差 4 MPa，一致性界限 −10 到 +2 MPa；PEEK 柄平均差 5 MPa，界限 −21 到 +10 MPa（第 228、234 页）。</p>
+<p>多孔柄在模型里的 Soderberg 安全系数是 4.7（植入股骨）和 1.8（水泥包埋），试验中却只撑了目标寿命的约 10%（第 245、254 页）。</p>
+<h2>3 两边设置对照</h2>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>论文</th>
+<th>本项目</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>股骨</td>
+<td>Sawbones 3406 人工股骨，工作长度 328 mm</td>
+<td>真实股骨 CT 的两个实体，Dorr A，小转子下 150 mm 截断固支</td>
+</tr>
+<tr>
+<td>骨模量</td>
+<td>皮质 16.7 GPa，松质 0.155 GPa</td>
+<td>皮质 16.8 GPa，松质 0.4 GPa；分区赋值已决定，未实施</td>
+</tr>
+<tr>
+<td>载荷</td>
+<td>ISO 7206-4 姿态，竖直力 1200 N 与 2300 N，无肌力</td>
+<td>上楼方向的三分量，合力 2391 N，无肌力</td>
+</tr>
+<tr>
+<td>柄与骨的界面</td>
+<td>绑定；实验中用环氧树脂填满间隙</td>
+<td>微动用压配加摩擦；应力屏蔽用绑定</td>
+</tr>
+<tr>
+<td>网格</td>
+<td>平均 0.65 mm，皮质 352 万单元</td>
+<td>界面 2.0 mm，全模型约 2.6 万单元；1.4 mm 复核</td>
+</tr>
+<tr>
+<td>应力屏蔽</td>
+<td>皮质 von Mises 的体积加权均值，分 Gruen 7 区，另给总值</td>
+<td>同样的均值；分区在柄坐标系里，另有一个固定的股骨距区；没有总值</td>
+</tr>
+<tr>
+<td>骨吸收</td>
+<td>逐点比较应变能密度，死区 0.6，给出吸收的骨质量分数</td>
+<td>只有分区平均的应变能密度变化</td>
+</tr>
+<tr>
+<td>界面微动</td>
+<td>没有做</td>
+<td>主目标</td>
+</tr>
+<tr>
+<td>柄强度</td>
+<td>最大应力对屈服与疲劳极限，9 种活动，另算水泥包埋工况</td>
+<td>von Mises 的 P99 不超过 440 MPa，单一工况</td>
+</tr>
+<tr>
+<td>实验</td>
+<td>应变片、刚度、疲劳</td>
+<td>没有</td>
+</tr>
+<tr>
+<td>设计变量</td>
+<td>同一几何，改材料与孔隙结构</td>
+<td>改几何：长度、截面、插入角、截骨高度；材料固定为实心钛合金</td>
+</tr>
+</tbody>
+</table>
+<h2>4 需要改正的 3 处</h2>
+<h3>4.1 “骨量损失”这个名称</h3>
+<p>本项目把截骨与锉骨去掉的骨体积叫“骨量损失”。论文和它引用的文献里，bone loss 指的是应力屏蔽引起的骨吸收（第 222–223、239 页）。两个量的含义完全不同。读过论文的人会把本项目的目标理解成骨吸收。</p>
+<p>改法：本项目的量统一叫“去骨体积”，英文用 bone removal volume。“骨吸收”只用于按死区规则算出的量。</p>
+<h3>4.2 柄强度约束偏松</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>论文</th>
+<th>本项目</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>许用值</td>
+<td>疲劳极限 375 MPa，屈服 788 MPa，安全系数不低于 2（第 224 页）</td>
+<td>440 MPa；配置文件里标注为“2D 名义值”，没有出处</td>
+</tr>
+<tr>
+<td>取哪个应力</td>
+<td>最大值</td>
+<td>P99</td>
+</tr>
+<tr>
+<td>载荷</td>
+<td>九种活动，上楼 3606 N，慢跑 4839 N（第 224、247 页）</td>
+<td>2391 N 一种</td>
+</tr>
+<tr>
+<td>支承条件</td>
+<td>植入股骨，另加 ISO 7206-4 水泥包埋</td>
+<td>只有植入股骨</td>
+</tr>
+</tbody>
+</table>
+<p>本项目 210 个现行版本设计的柄应力 P99：最小 88，中位 145，P95 233，最大 305 MPa。</p>
+<table>
+<thead>
+<tr>
+<th>判据</th>
+<th>超限的设计比例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>本项目现行：P99 超过 440 MPa</td>
+<td>0%</td>
+</tr>
+<tr>
+<td>论文口径：超过 188 MPa（疲劳极限除以安全系数 2），载荷 2391 N</td>
+<td>19%</td>
+</tr>
+<tr>
+<td>同上，载荷按比例放大到上楼 3606 N</td>
+<td>72%</td>
+</tr>
+</tbody>
+</table>
+<p>所以“柄应力约束从不起作用”只在现行的宽松许用值下成立。第三行用的是线性放大，绑定模型是线弹性的，这样放大是成立的。</p>
+<p>论文里水泥包埋工况的最大应力是植入股骨工况的 2.6 倍（290 对 112 MPa，第 245 页）。本项目没有算过这个工况。</p>
+<p>需要注意两点。论文的 375 MPa 针对的是增材制造的钛合金，锻造钛合金的疲劳极限更高，许用值要跟制造方式对应。本项目的假体颈是简化的圆柱，颈部应力不能直接当真，而论文的最大应力正好出现在颈部内侧。</p>
+<h3>4.3 骨吸收的算法与死区取值</h3>
+<p>本项目只给出了分区平均的应变能密度变化，没有算骨吸收质量分数。文献里互相比较的是后者。</p>
+<p>死区取值，按论文的转述：</p>
+<table>
+<thead>
+<tr>
+<th>来源</th>
+<th>死区</th>
+<th>论文页码</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>论文自己采用，引 Turner 2005 的两年骨密度随访</td>
+<td>0.6</td>
+<td>222</td>
+</tr>
+<tr>
+<td>Sun 2018</td>
+<td>0.4</td>
+<td>190</td>
+</tr>
+<tr>
+<td>Wang 2020</td>
+<td>0.6</td>
+<td>193</td>
+</tr>
+<tr>
+<td>Arabnejad 2017：应变下降超过 50% 判为吸收，相当于应变能密度比低于 0.25</td>
+<td>0.75</td>
+<td>190</td>
+</tr>
+<tr>
+<td>Huiskes 1992，本项目此前引用的值</td>
+<td>0.75 与 0.35</td>
+<td>本地原文</td>
+</tr>
+</tbody>
+</table>
+<p>本项目此前建议过用 0.75 作阈值，这是文献里最宽松的一端。按不同死区，本项目分区平均值落在吸收一侧的设计比例：</p>
+<table>
+<thead>
+<tr>
+<th>Gruen 区，皮质骨</th>
+<th>死区 0.4</th>
+<th>死区 0.6</th>
+<th>死区 0.75</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>7 区，股骨距</td>
+<td>90%</td>
+<td>72%</td>
+<td>33%</td>
+</tr>
+<tr>
+<td>1 区，大转子侧</td>
+<td>62%</td>
+<td>40%</td>
+<td>12%</td>
+</tr>
+<tr>
+<td>6 区</td>
+<td>20%</td>
+<td>7%</td>
+<td>3%</td>
+</tr>
+<tr>
+<td>2 区</td>
+<td>14%</td>
+<td>0%</td>
+<td>0%</td>
+</tr>
+</tbody>
+</table>
+<p>改法：用已有的 210 个绑定模型结果，逐单元算骨吸收质量分数，主值取死区 0.6，同时给 0.4 和 0.75。不需要新的求解。</p>
+<h2>5 可以提高的 6 处</h2>
+<h3>5.1 实验验证</h3>
+<p>这是与论文差距最大的一项。论文的做法可以分两步借用。</p>
+<ol>
+<li><strong>先做零成本的对照</strong>：按论文的设置建一个 Sawbones 模型，算完整股骨和实心柄两种情况，与论文第 229、233 页的应变片结果比较。这一步需要 Sawbones 的几何。</li>
+<li><strong>再考虑实物试验</strong>：选定设计之后，按论文第 197–216 页的方案做。文献库里的 <code>ata 2020.pdf</code> 不是论文，是这项实验的 UCL 风险评估表，说明实验室已有现成的流程。</li>
+</ol>
+<p>论文的验证有两个局限，借用时要知道。它验证的是树脂填充后的绑定状态，不是压配状态。它只比较了 10 个点的表面应力，论文自己建议改用数字图像相关（第 255 页）。所以照搬这套实验只能验证本项目的应力屏蔽部分，验证不了微动。</p>
+<h3>5.2 载荷工况</h3>
+<ul>
+<li>两边都没有肌力。论文认为 1 区和 7 区残留的骨吸收主要来自没有肌力，并建议下一步加入（第 270 页）。本项目 1 区在大转子外侧，正是外展肌的附着区，这一区的结果在加肌力之前只能当作暂定。</li>
+<li>本项目的合力 2391 N 是沿用的旧值，介于 Bergmann 2016 的平均体重档 2232 N 与高载荷档 3606 N 之间，不是一个标准档位。</li>
+<li>文献里应力屏蔽的数字大多在 2300 N 下给出（第 190–192 页）。本项目要与它们比较，需要补一个同样量级的工况。</li>
+</ul>
+<p>建议：把计划里的肌力与步行工况提到参考集之前；应力屏蔽统计加一个 2300 N 工况；强度校核用高载荷档。</p>
+<h3>5.3 应力屏蔽统计的网格</h3>
+<p>论文的皮质骨网格收敛到平均 0.65 mm，判据是单元数翻倍后结果变化不超过 5%（第 207 页）。本项目的网格检查针对的是微动和旧的混合组织指标，现在用的“皮质骨分区 von Mises”还没有做过网格检查。近端皮质厚度只有 1–3 mm，2 mm 的单元在厚度方向只有一层左右。</p>
+<p>建议：取 3 个设计，绑定模型在 1.4 mm 与 1.0 mm 下各算一次，连同完整股骨参照。绑定模型单次求解不到 1 分钟。</p>
+<h3>5.4 Gruen 分区的定义与总值</h3>
+<p>论文的分区是股骨坐标系里的水平带，位置由柄决定（第 207 页）。本项目的分区建在柄坐标系里，而柄相对股骨干倾斜 6–40°。此前的复核已经发现，结论会随分区定义改变。</p>
+<p>建议：主口径改为股骨坐标系的水平带；另保留一套不随设计变化的固定分区，用来比较不同设计；补上按区体积加权的总值。</p>
+<p>两边实心钛合金柄的皮质应力屏蔽对照，正值表示被屏蔽：</p>
+<table>
+<thead>
+<tr>
+<th>Gruen 区</th>
+<th>论文，1 个柄</th>
+<th>本项目，210 个设计的中位</th>
+<th>本项目，四分位范围</th>
+<th>本项目，最小到最大</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>69</td>
+<td>22</td>
+<td>6 到 35</td>
+<td>-76 到 49</td>
+</tr>
+<tr>
+<td>6</td>
+<td>45</td>
+<td>10</td>
+<td>6 到 15</td>
+<td>-6 到 54</td>
+</tr>
+<tr>
+<td>7</td>
+<td>68</td>
+<td>45</td>
+<td>37 到 52</td>
+<td>5 到 69</td>
+</tr>
+</tbody>
+</table>
+<p>两边的股骨、载荷、柄长和贴合方式都不同，这张表只说明量级相近，不能当作验证。</p>
+<h3>5.5 柄的刚度</h3>
+<p>论文的主要结论是：几何不变，把柄的轴向刚度降低 22%，应力屏蔽总值从 32% 降到 10%，骨吸收从 41% 降到 16%（第 237、239、242 页）。本项目只改几何，材料固定。上表显示几何也能把 7 区的屏蔽从个位数改变到近 70%，两个手段的作用范围相当。</p>
+<p>论文同时提醒，刚度越低界面微动越大（第 255 页，引 Kuiper 与 Huiskes 1997），但它没有算微动。本项目的界面模型可以直接回答这个问题。</p>
+<p>建议：取 3 个代表设计，把柄的模量降一到两档各算一次，看应力屏蔽的收益与微动的代价。这要新的求解，需要你同意。</p>
+<h3>5.6 界面设置与微动对标</h3>
+<p>论文引用了 Reimeringer 2013 的柄长与微动关系（第 66 页）。这篇原文在本项目的 <code>v2/refs_pdf/</code> 里，我对照了原文：</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>Reimeringer 2013</th>
+<th>本项目</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>股骨</td>
+<td>第四代 Sawbones，整根，髁部固定</td>
+<td>真实股骨，小转子下 150 mm 固定</td>
+</tr>
+<tr>
+<td>骨模量</td>
+<td>皮质 12 GPa，松质 345 MPa</td>
+<td>皮质 16.8 GPa，松质 400 MPa</td>
+</tr>
+<tr>
+<td>过盈</td>
+<td>0.05 mm，只加在喷涂区的一部分</td>
+<td>全界面均匀</td>
+</tr>
+<tr>
+<td>摩擦系数</td>
+<td>喷涂区 0.63，远端抛光区无摩擦</td>
+<td>全界面 0.3</td>
+</tr>
+<tr>
+<td>载荷</td>
+<td>快走 1948 N 加外展肌 871 N；上楼 2107 N 加 951 N</td>
+<td>上楼 2391 N，无肌力</td>
+</tr>
+<tr>
+<td>网格</td>
+<td>近端 2 mm，远端 5 mm</td>
+<td>界面 2.0 mm</td>
+</tr>
+<tr>
+<td>微动定义</td>
+<td>24 个点上柄与骨的最终位移之差</td>
+<td>全界面节点对的切向相对位移，面积加权 P95</td>
+</tr>
+<tr>
+<td>结果，µm</td>
+<td>直柄 146 mm：平均 17，峰值 42；截短到 54 mm：平均 52，峰值 104</td>
+<td>过盈 0.05 mm，长 60 mm：首次加载 9，可恢复 0.7；长 53 mm：首次加载 13，可恢复 2.5；长 25 mm：首次加载 55，可恢复 30.0</td>
+</tr>
+</tbody>
+</table>
+<p>同样是 0.05 mm 过盈、50 到 60 mm 的柄，本项目的首次加载微动是 9–13 µm，文献 54 mm 柄的平均值是 52 µm，相差 4 到 6 倍。差别可能来自界面分区、摩擦系数、肌力、微动定义和柄型，目前没有解释。这应该作为文献对标的第一个案例。</p>
+<p>另外，摩擦系数应当与打算采用的表面处理对应。Reimeringer 对喷涂表面取 0.63，本项目取 0.3。</p>
+<p>论文实验里还有一条教训：加工误差使柄与骨只在局部接触，模型与实验在该处偏差很大（第 231–232 页）。本项目假设柄与腔完全贴合。对最终设计，建议加一次局部不贴合的稳健性检查。</p>
+<h2>6 本项目与论文的衔接</h2>
+<p>论文第 270–271 页列的后续工作，与本项目的现状对照：</p>
+<table>
+<thead>
+<tr>
+<th>论文建议的后续工作</th>
+<th>本项目现状</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>分析界面剪应力与微动</td>
+<td>已做：压配加摩擦的界面模型，并做了解析解、平衡、噪声、网格、循环数的验证</td>
+</tr>
+<tr>
+<td>用验证过的模型比较不同的设计构型</td>
+<td>框架已有：参数化、模板化、代理模型与多目标优化；优化暂停，等定标</td>
+</tr>
+<tr>
+<td>加入肌力与步态载荷</td>
+<td>已用三分量关节力；肌力在计划里，未做</td>
+</tr>
+<tr>
+<td>用真实骨的结构与材料</td>
+<td>已用真实股骨几何；材料仍是两种均质模量</td>
+</tr>
+<tr>
+<td>用数字图像相关做全场验证</td>
+<td>没有</td>
+</tr>
+<tr>
+<td>测试多个试件</td>
+<td>本项目只有一根股骨，第二根在计划的最后阶段</td>
+</tr>
+</tbody>
+</table>
+<p>这张表可以直接用来向导师说明本项目在课题组已有工作上的位置。</p>
+<h2>7 没有核实的内容</h2>
+<ul>
+<li>论文转述的文献数字，我只核对了 Reimeringer 2013 和 Huiskes 1992 的原文。Turner 2005、Arabnejad 2017、Benedetti 2016 的原文没有查。</li>
+<li>ISO 7206-4 对短柄的包埋深度规定，我没有查标准原文。</li>
+<li>本项目微动比 Reimeringer 2013 低的原因没有分析。</li>
+<li>论文的应变片数据只在图里，没有表格。要做第 5.1 节的对照，需要从图上读数，或者向课题组要原始数据。</li>
+</ul>
+<h2>8 建议的动作</h2>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>动作</th>
+<th>对应章节</th>
+<th>新的求解</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>报告与图里统一改称“去骨体积”</td>
+<td>4.1</td>
+<td>不需要</td>
+<td></td>
+</tr>
+<tr>
+<td>2</td>
+<td>逐单元算骨吸收质量分数，死区 0.4、0.6、0.75</td>
+<td>4.3</td>
+<td>不需要</td>
+<td>用已有的 210 个绑定结果</td>
+</tr>
+<tr>
+<td>3</td>
+<td>分区改为股骨坐标系水平带，补总值</td>
+<td>5.4</td>
+<td>不需要</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>4</td>
+<td>强度判据改为最大应力对疲劳极限，许用值定出处</td>
+<td>4.2</td>
+<td>不需要</td>
+<td>需要你定制造方式</td>
+</tr>
+<tr>
+<td>5</td>
+<td>皮质分区应力的网格检查</td>
+<td>5.3</td>
+<td>约 8 个绑定作业</td>
+<td>每个不到 1 分钟求解</td>
+</tr>
+<tr>
+<td>6</td>
+<td>2300 N 对照工况</td>
+<td>5.2</td>
+<td>约 4 个绑定作业</td>
+<td></td>
+</tr>
+<tr>
+<td>7</td>
+<td>肌力与步行工况</td>
+<td>5.2</td>
+<td>8 个</td>
+<td>已在计划的 A4 里，建议提前</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Reimeringer 2013 对标</td>
+<td>5.6</td>
+<td>2–4 个</td>
+<td>已在计划的 A5 里；需要 Sawbones 几何</td>
+</tr>
+<tr>
+<td>9</td>
+<td>柄模量敏感性</td>
+<td>5.5</td>
+<td>约 6 个摩擦作业加 6 个绑定作业</td>
+<td></td>
+</tr>
+<tr>
+<td>10</td>
+<td>水泥包埋工况的强度校核</td>
+<td>4.2</td>
+<td>3 个</td>
+<td>需要新的建模</td>
+</tr>
+<tr>
+<td>11</td>
+<td>Sawbones 对照与实物试验</td>
+<td>5.1</td>
+<td>待定</td>
+<td>需要与导师商量</td>
+</tr>
+</tbody>
+</table>
+<p>第 1–4 项不需要求解，可以马上做。第 5–10 项需要你同意后再跑。</p></body></html>

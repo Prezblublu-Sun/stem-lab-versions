@@ -1,0 +1,18 @@
+item,value
+Abaqus,Abaqus 2025
+Abaqus launcher,D:\SIMULIA\Commands\abq2025.bat
+Abaqus embedded Python,3.10.5
+Venv Python,3.12.10
+torch,2.14.0+cpu
+botorch,0.18.1
+gpytorch,1.15.2
+gmsh,4.15.2
+shapely,2.1.2
+numpy,2.5.3
+scipy,1.18.1
+matplotlib,3.11.2
+scikit-learn,1.9.1
+pymoo,0.6.2
+License,FlexNet 27800@DESKTOP-LQNAMNB (from abaqus information=environment)
+Concurrency test,"4 jobs submitted together: 4/4 OK, license retries = 0"
+Units,"mm, N, MPa, t, s (CLAUDE.md §7)"

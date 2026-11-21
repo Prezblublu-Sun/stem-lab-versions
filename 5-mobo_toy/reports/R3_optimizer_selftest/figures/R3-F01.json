@@ -1,0 +1,33 @@
+{
+  "id": "R3-F01",
+  "report": "R3",
+  "kind": "figure",
+  "title": "qLogNEHVI closes the hypervolume gap faster than Sobol on both benchmarks (median final HV ratio 0.964–0.969)",
+  "caption": "纵轴为已知最大超体积与当前超体积之差的常用对数（Daulton 2020 作图惯例），5 个种子的均值 ± 2 标准误；点线处为 12 个初始点结束。参考点用 BoTorch 标准值：BraninCurrin [18, 6]，ZDT1 [11, 11]。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "results": "results/S3_selftest.json",
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "pool": "scrambled Sobol n = 20000"
+  },
+  "csv": "reports/R3_optimizer_selftest/figures/R3-F01.csv",
+  "csv_sha256": "0e1c42979e76167d27d4d23604df5eec8c0d3307f8fef55acfe570507a3e7078",
+  "png": "reports/R3_optimizer_selftest/figures/R3-F01.png",
+  "svg": "reports/R3_optimizer_selftest/figures/R3-F01.svg",
+  "plot_fn": "stage_s3.py:plot_r3_f01",
+  "plot_module_sha256": "0cf2576e717a934665968972577a09e5bf34e8ff6f9427807057d71d704637e9",
+  "producer": "stage_s3.py",
+  "producer_sha256": "0cf2576e717a934665968972577a09e5bf34e8ff6f9427807057d71d704637e9",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T16:07:32",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

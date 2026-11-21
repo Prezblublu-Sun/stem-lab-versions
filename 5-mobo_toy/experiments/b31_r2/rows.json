@@ -1,0 +1,65 @@
+{
+ "stage_db_batch": "b31",
+ "rows": [
+  {
+   "label": "R2_01",
+   "job_id": "db_al_r2_01_e+1.5_93255a63"
+  },
+  {
+   "label": "R2_02",
+   "job_id": "db_al_r2_02_e+1.5_72bbb99d"
+  },
+  {
+   "label": "R2_03",
+   "job_id": "db_al_r2_03_e+1.5_557886c3"
+  },
+  {
+   "label": "R2_04",
+   "job_id": "db_al_r2_04_e+1_6253f166"
+  },
+  {
+   "label": "R2_05",
+   "job_id": "db_al_r2_05_e+1.5_07e94cd0"
+  },
+  {
+   "label": "R2_06",
+   "job_id": "db_al_r2_06_e+1_71c6ee2d"
+  },
+  {
+   "label": "R2_07",
+   "job_id": "db_al_r2_07_e+1_38e088d0"
+  },
+  {
+   "label": "R2_08",
+   "job_id": "db_al_r2_08_e+1.5_4a1a76ac"
+  },
+  {
+   "label": "R2_09",
+   "job_id": "db_al_r2_09_e+1.5_f5586dd9"
+  },
+  {
+   "label": "R2_10",
+   "job_id": "db_al_r2_10_e+1_0d760c6d"
+  },
+  {
+   "label": "R2_11",
+   "job_id": "db_al_r2_11_e+1_dfff891e"
+  },
+  {
+   "label": "R2_12",
+   "job_id": "db_al_r2_12_e+1.5_48b9f584"
+  },
+  {
+   "label": "R2_13",
+   "job_id": "db_al_r2_13_e+1.5_4df554a3"
+  },
+  {
+   "label": "R2_14",
+   "job_id": "db_al_r2_14_e+1_c143792e"
+  },
+  {
+   "label": "R2_15",
+   "job_id": "db_al_r2_15_e+1_d09da785"
+  }
+ ]
+}

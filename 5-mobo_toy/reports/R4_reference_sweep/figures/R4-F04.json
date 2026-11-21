@@ -1,0 +1,26 @@
+{
+  "id": "R4-F04",
+  "report": "R4",
+  "kind": "figure",
+  "title": "Micromotion is driven by tip depth and entry angle; shielding by tip-to-proximal width ratio and proximal width",
+  "caption": "由参考数据拟合 GP（ARD Matérn 5/2），在其后验均值上用 Saltelli/Jansen 估计量（每组 4,096 基样本）计算一阶（实心）与总效应（浅色）Sobol 指数。输入在整个单位立方体上均匀分布，含几何门不可行区（GP 外推），见局限。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "runs_csv": "campaign S4_ref / S4_control",
+    "sweep_seed": 4242
+  },
+  "csv": "reports/R4_reference_sweep/figures/R4-F04.csv",
+  "csv_sha256": "abc6bee5914a1ef5c7dbffbfa0bcb1de6f4938e006443535d0f0504aed1e58ad",
+  "png": "reports/R4_reference_sweep/figures/R4-F04.png",
+  "svg": "reports/R4_reference_sweep/figures/R4-F04.svg",
+  "plot_fn": "stage_s4.py:plot_r4_f04",
+  "plot_module_sha256": "6d25b6499e0b61ee86804ce4bbf2e709fe35ca8feb256e9d20ebcf8f53eedb6d",
+  "producer": "stage_s4.py",
+  "producer_sha256": "6d25b6499e0b61ee86804ce4bbf2e709fe35ca8feb256e9d20ebcf8f53eedb6d",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T16:05:35",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}

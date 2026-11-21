@@ -1,0 +1,26 @@
+{
+  "id": "R5-F03",
+  "report": "R5",
+  "kind": "figure",
+  "title": "42% of the final BO non-dominated points are members of the reference front",
+  "caption": "黑线为参考前沿；彩色标记为各 BO 种子 60 次评估后的可行非支配点。",
+  "synthetic": false,
+  "units": {},
+  "sources": {
+    "results": "results/S5_runs.json",
+    "runs_csv": "campaign S5_* and S4_*"
+  },
+  "csv": "reports/R5_bo_results/figures/R5-F03.csv",
+  "csv_sha256": "f7c0c9a66b7d1ab6469ff081743bcef713130923e78c00f1badba919a2067100",
+  "png": "reports/R5_bo_results/figures/R5-F03.png",
+  "svg": "reports/R5_bo_results/figures/R5-F03.svg",
+  "plot_fn": "stage_s5.py:plot_r5_f03",
+  "plot_module_sha256": "3358aa7d657b1a9e755719856d34fc6379363d376a80613b6a2fba74d033bf59",
+  "producer": "stage_s5.py",
+  "producer_sha256": "3358aa7d657b1a9e755719856d34fc6379363d376a80613b6a2fba74d033bf59",
+  "config_sha256": "5bee68dc0f18c709998b102a269d181c2127e256912f3de46cfa64e206ad17a4",
+  "spec_sha256": "724e892d40a9d5354d7dd98d165427387c53be4b887d8bb8b967f354bf5021b5",
+  "created": "2026-09-27T18:32:37",
+  "python": "3.12.10",
+  "matplotlib": "3.11.2"
+}
