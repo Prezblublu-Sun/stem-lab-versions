@@ -18,6 +18,7 @@
 - 冻结模型：`docs/freeze/M1-3406-v1.md`；数据库：`../../db3406/README.md`、`DATA_CARD.md`
 - 测试：`PYTHONUTF8=1 .venv-mobo/Scripts/python.exe v2/tests/<文件>.py`，每个文件独立
 - 批次：现有批次在 `v2/stage_db.py`（`dry-run`/`feed`/`status`，只在 Linux 跑）；新批次按 `experiments/README.md` 的模板，判定用 `ops/judge.py <批次目录> --db <版本目录>`
+- 换新股骨的流程：`docs/new_femur_protocol.md`
 - 决策与被否方案：`docs/adr/`；要人答的问题台账 `docs/decisions_log.md`；判据 G1–G35 原文在研究日志的第三版计划第 7 节
 - 门禁：`ops/check_freeze.py`（冻结）、`ops/test_all.py`（测试）、`ops/deploy.py --check`（部署）、`ops/qa_compare.py --db`（QA 例外基线）；git 钩子在 `ops/githooks/`
 - 连 Linux 的命令在 `docs/runbook.md` 第 2 节；重组进度在 `STATE.md` 第 8 节
